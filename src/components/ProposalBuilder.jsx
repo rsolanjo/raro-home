@@ -254,7 +254,7 @@ body{font-family:'DM Sans',sans-serif;background:#fff;-webkit-print-color-adjust
 `
 
 function buildPDF(data, adminMode=false){
-  const{client_name,proposal_code,neighborhood,floors,labor,date_str,margin=1,client_phone1,client_phone2}=data
+  const{client_name,proposal_code,neighborhood,floors,labor,date_str,margin=1,client_phone1,client_phone2,itemFontSize=7}=data
   const fmtN=v=>'R$\u202f'+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
 
   const equipTotal=(floors||[]).reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
@@ -380,7 +380,7 @@ function buildPDF(data, adminMode=false){
 
   const slogan=`<div style="text-align:center;padding:10px 0;font-family:'Jost',sans-serif;font-size:10px;letter-spacing:4px;color:rgba(140,109,70,0.7);text-transform:uppercase">Viva diferente. Viva RARO.</div>`
 
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>RARO Home — ${client_name} — ${proposal_code}</title><style>${PDF_CSS}.rooms-3col{flex:1;padding:4px 6px;display:flex;flex-direction:column;gap:0;overflow:hidden}.fl-block{display:flex;flex-direction:column;margin-bottom:2px}.fl-block-grid{display:grid;grid-template-columns:1fr 1fr 1fr;grid-auto-rows:1fr;gap:5px 6px;flex:1}.fl-block-grid .room,.rooms-3col .room{background:#fff;border:0.5px solid #E5DDD4;border-radius:3px;padding:8px 10px;display:flex;flex-direction:column;border-left:2.5px solid #E5DDD4;overflow:hidden;min-height:0}.fl-block-grid .room.hl,.rooms-3col .room.hl{border-left-color:#8C6D46}.fl-block-grid .room.pad,.rooms-3col .room.pad{background:transparent;border-color:transparent}.fl-block-grid .rh,.rooms-3col .rh{display:flex;align-items:flex-start;gap:5px;margin-bottom:4px}.fl-block-grid .ri,.rooms-3col .ri{font-size:12px;color:#8C6D46;flex-shrink:0;margin-top:1px}.fl-block-grid .rn,.rooms-3col .rn{font-family:'Playfair Display',serif;font-size:10px;font-weight:500;color:#1C1C1C;line-height:1.2}.fl-block-grid .items-table,.rooms-3col .items-table{width:100%;border-collapse:collapse;margin-bottom:3px}.fl-block-grid .it-name,.rooms-3col .it-name{font-size:5.5px;color:#6B635A;font-weight:300;padding:1px 0;line-height:1.3;width:62%;font-family:'Jost',sans-serif}.fl-block-grid .it-code,.rooms-3col .it-code{font-size:5px;color:#9E9690;text-align:center;width:26%;font-family:'Jost',sans-serif}.fl-block-grid .it-qty,.rooms-3col .it-qty{font-size:5.5px;color:#8C6D46;font-weight:600;text-align:right;width:12%;font-family:'Jost',sans-serif}.fl-block-grid .rp,.rooms-3col .rp{font-family:'Playfair Display',serif;font-style:italic;font-size:7px;color:#6A5234;padding-top:3px;line-height:1.25;margin-top:auto}.fl-block-grid .rv,.rooms-3col .rv{display:flex;justify-content:space-between;align-items:flex-end;margin-top:4px;padding-top:4px;border-top:0.5px solid #E5DDD4;flex-shrink:0}.fl-block-grid .rvl,.rooms-3col .rvl{font-size:5px;letter-spacing:2px;color:#9E9690;text-transform:uppercase;font-family:'Jost',sans-serif}.fl-block-grid .rvv,.rooms-3col .rvv{font-family:'Playfair Display',serif;font-size:11px;color:#1C1C1C}.fl-section-hdr{grid-column:1/-1;padding:5px 4px 3px;margin-top:3px}.fl-section-hdr-inner{display:flex;align-items:center;gap:8px;padding-bottom:4px;border-bottom:1px solid #C8BEB4}.fl-section-label{font-size:6px;letter-spacing:4px;color:#8C6D46;text-transform:uppercase;font-family:'Jost',sans-serif}.fl-section-name{font-family:'Playfair Display',serif;font-size:13px;color:#1E1A17;letter-spacing:1px}.subtotals-bar{background:#2C2520;padding:6px 24px;display:flex;justify-content:flex-end;align-items:center;gap:20px;flex-shrink:0}.sub-item{font-size:7px;color:#9E9690;font-family:'Jost',sans-serif;display:flex;align-items:center;gap:5px}.sub-item strong{color:#E8DDD0;font-size:12px;font-family:'Playfair Display',serif;font-weight:400}</style></head><body><div class="no-print" style="position:sticky;top:0;z-index:99;background:${adminMode?'#4C1D95':'#060B1A'};color:#F0F6FF;padding:9px 20px;display:flex;align-items:center;justify-content:space-between;font-family:'Jost',sans-serif;font-size:12px"><span><strong>RARO Home</strong>${adminMode?' — VERSÃO ADMIN':''} — ${client_name} · ${proposal_code}</span><button onclick="window.print()" style="background:#8C6D46;color:#fff;border:none;padding:7px 18px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Jost',sans-serif">⬇ Salvar como PDF</button></div>${page1}${pages.join('\n')}${pageTotals}</body></html>`
+  const itemFS=itemFontSize||7; const pitchFS=Math.max(5,itemFS-1); return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>RARO Home — ${client_name} — ${proposal_code}</title><style>${PDF_CSS}.fl-block-grid .it-name,.rooms-3col .it-name{font-size:${itemFS}px!important}.fl-block-grid .it-qty,.rooms-3col .it-qty{font-size:${itemFS}px!important}.fl-block-grid .it-code,.rooms-3col .it-code{font-size:${Math.max(4,itemFS-1)}px!important}.fl-block-grid .rp,.rooms-3col .rp{font-size:${pitchFS}px!important}.rooms-3col{flex:1;padding:4px 6px;display:flex;flex-direction:column;gap:0;overflow:hidden}.fl-block{display:flex;flex-direction:column;margin-bottom:2px}.fl-block-grid{display:grid;grid-template-columns:1fr 1fr 1fr;grid-auto-rows:1fr;gap:5px 6px;flex:1}.fl-block-grid .room,.rooms-3col .room{background:#fff;border:0.5px solid #E5DDD4;border-radius:3px;padding:8px 10px;display:flex;flex-direction:column;border-left:2.5px solid #E5DDD4;overflow:hidden;min-height:0}.fl-block-grid .room.hl,.rooms-3col .room.hl{border-left-color:#8C6D46}.fl-block-grid .room.pad,.rooms-3col .room.pad{background:transparent;border-color:transparent}.fl-block-grid .rh,.rooms-3col .rh{display:flex;align-items:flex-start;gap:5px;margin-bottom:4px}.fl-block-grid .ri,.rooms-3col .ri{font-size:12px;color:#8C6D46;flex-shrink:0;margin-top:1px}.fl-block-grid .rn,.rooms-3col .rn{font-family:'Playfair Display',serif;font-size:10px;font-weight:500;color:#1C1C1C;line-height:1.2}.fl-block-grid .items-table,.rooms-3col .items-table{width:100%;border-collapse:collapse;margin-bottom:3px}.fl-block-grid .it-name,.rooms-3col .it-name{font-size:5.5px;color:#6B635A;font-weight:300;padding:1px 0;line-height:1.3;width:62%;font-family:'Jost',sans-serif}.fl-block-grid .it-code,.rooms-3col .it-code{font-size:5px;color:#9E9690;text-align:center;width:26%;font-family:'Jost',sans-serif}.fl-block-grid .it-qty,.rooms-3col .it-qty{font-size:5.5px;color:#8C6D46;font-weight:600;text-align:right;width:12%;font-family:'Jost',sans-serif}.fl-block-grid .rp,.rooms-3col .rp{font-family:'Playfair Display',serif;font-style:italic;font-size:7px;color:#6A5234;padding-top:3px;line-height:1.25;margin-top:auto}.fl-block-grid .rv,.rooms-3col .rv{display:flex;justify-content:space-between;align-items:flex-end;margin-top:4px;padding-top:4px;border-top:0.5px solid #E5DDD4;flex-shrink:0}.fl-block-grid .rvl,.rooms-3col .rvl{font-size:5px;letter-spacing:2px;color:#9E9690;text-transform:uppercase;font-family:'Jost',sans-serif}.fl-block-grid .rvv,.rooms-3col .rvv{font-family:'Playfair Display',serif;font-size:11px;color:#1C1C1C}.fl-section-hdr{grid-column:1/-1;padding:5px 4px 3px;margin-top:3px}.fl-section-hdr-inner{display:flex;align-items:center;gap:8px;padding-bottom:4px;border-bottom:1px solid #C8BEB4}.fl-section-label{font-size:6px;letter-spacing:4px;color:#8C6D46;text-transform:uppercase;font-family:'Jost',sans-serif}.fl-section-name{font-family:'Playfair Display',serif;font-size:13px;color:#1E1A17;letter-spacing:1px}.subtotals-bar{background:#2C2520;padding:6px 24px;display:flex;justify-content:flex-end;align-items:center;gap:20px;flex-shrink:0}.sub-item{font-size:7px;color:#9E9690;font-family:'Jost',sans-serif;display:flex;align-items:center;gap:5px}.sub-item strong{color:#E8DDD0;font-size:12px;font-family:'Playfair Display',serif;font-weight:400}</style></head><body><div class="no-print" style="position:sticky;top:0;z-index:99;background:${adminMode?'#4C1D95':'#060B1A'};color:#F0F6FF;padding:9px 20px;display:flex;align-items:center;justify-content:space-between;font-family:'Jost',sans-serif;font-size:12px"><span><strong>RARO Home</strong>${adminMode?' — VERSÃO ADMIN':''} — ${client_name} · ${proposal_code}</span><button onclick="window.print()" style="background:#8C6D46;color:#fff;border:none;padding:7px 18px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Jost',sans-serif">⬇ Salvar como PDF</button></div>${page1}${pages.join('\n')}${pageTotals}</body></html>`
 }
 
 // ── COMPONENT ──────────────────────────────────────────────
@@ -494,7 +494,6 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
       description,
       status,
       labor:parse(laborValue||labor),
-      margin,
       floors:floors.map(f=>({name:f.name,rooms:f.rooms.map(r=>({name:r.name,icon:r.icon,highlight:r.highlight,pitch:r.pitch,price:parse(r.price),items:(r.items||[]).filter(it=>it.name)}))})),
       valid_days:30,
     }
@@ -506,6 +505,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
   }
 
   const [isSaving, setIsSaving] = useState(false)
+  const [pdfFontSize, setPdfFontSize] = useState(7) // default 7px for items in PDF
 
   async function handleSaveConfirm(){
     if (isSaving) return
@@ -556,7 +556,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
         proposal_code: previewCode,
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         date_str: new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),
-        floors, labor:parse(labor), margin,
+        floors, labor:parse(labor), margin, itemFontSize:pdfFontSize,
         client_phone1: cl?.phone1, client_phone2: cl?.phone2
       }, admin)
       // Try window.open with blob
@@ -612,6 +612,14 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
             <i className="ti ti-flask" aria-hidden/>Teste
           </button>
           <button className="btn" onClick={genPitch} disabled={!room}><i className="ti ti-wand" aria-hidden/>Pitch</button>
+          {/* FONT SIZE CONTROLS for PDF */}
+          <div style={{display:'flex',alignItems:'center',gap:3,background:'var(--surf)',border:'1px solid var(--border)',borderRadius:5,padding:'2px 6px'}}>
+            <span style={{fontSize:9,color:'var(--text3)',letterSpacing:0.5}}>A</span>
+            <button onClick={()=>setPdfFontSize(s=>Math.max(4,s-1))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text2)',fontSize:13,padding:'0 2px',fontWeight:700}} title="Diminuir fonte PDF">−</button>
+            <span style={{fontSize:10,fontWeight:600,color:'var(--accent)',minWidth:20,textAlign:'center'}}>{pdfFontSize}</span>
+            <button onClick={()=>setPdfFontSize(s=>Math.min(14,s+1))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text2)',fontSize:13,padding:'0 2px',fontWeight:700}} title="Aumentar fonte PDF">+</button>
+            <span style={{fontSize:11,color:'var(--text3)',letterSpacing:0.5}}>A</span>
+          </div>
           {/* VISUALIZAR — always available */}
           <button className="btn" onClick={()=>openPDF(false, true)}>
             <i className="ti ti-eye" aria-hidden/>Visualizar
@@ -645,38 +653,82 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
           const projLucro=projSale-projCost
           const projPct=projCost>0?Math.round(projLucro/projCost*100):0
           if(!projCost&&!projSale) return null
-          return <div style={{width:200,flexShrink:0,background:'var(--surf)',borderLeft:'1px solid var(--border)',padding:'12px 10px',overflowY:'auto',display:'flex',flexDirection:'column',gap:8,order:3,fontSize:11}}>
-            <div style={{fontSize:9,color:'var(--accent)',fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',borderBottom:'1px solid var(--border)',paddingBottom:6,marginBottom:2}}>Margens ao vivo</div>
-            {/* Projeto */}
-            <div style={{background:'var(--bg)',borderRadius:5,padding:'7px 8px',border:'1px solid var(--border)'}}>
-              <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Projeto</div>
-              <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}><span style={{color:'var(--text3)'}}>Venda</span><b style={{color:'var(--accent)'}}>{fmt(projSale)}</b></div>
-              <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}><span style={{color:'var(--text3)'}}>Custo</span><b>{fmt(projCost)}</b></div>
-              <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}><span style={{color:'var(--text3)'}}>Lucro</span><b style={{color:projLucro>=0?'var(--green)':'var(--red)'}}>{fmt(projLucro)}</b></div>
-              <div style={{textAlign:'right',fontSize:14,fontWeight:700,marginTop:4,color:projPct>=50?'var(--green)':projPct>=20?'var(--amber)':'var(--red)'}}>{projPct}%</div>
+
+          const byCat={}
+          allItems.forEach(it=>{
+            const cat=it.category||'Outro'
+            if(!byCat[cat]) byCat[cat]={cost:0,sale:0,items:[]}
+            byCat[cat].cost+=(it.cost_price||0)*it.qty
+            byCat[cat].sale+=(it.sale_price||0)*it.qty
+            byCat[cat].items.push(it)
+          })
+
+          const pC=p=>p>=50?'var(--green)':p>=20?'var(--amber)':'var(--red)'
+          const lbl={fontSize:8,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1.5,marginBottom:3,marginTop:8}
+
+          return <div style={{width:230,flexShrink:0,background:'var(--surf)',borderLeft:'1px solid var(--border)',padding:'10px 10px',overflowY:'auto',display:'flex',flexDirection:'column',order:3}}>
+            <div style={{fontSize:9,color:'var(--accent)',fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',borderBottom:'2px solid var(--accent)',paddingBottom:5,marginBottom:8}}>Margens ao vivo</div>
+
+            {/* PROJETO */}
+            <div style={{background:'rgba(14,165,233,0.08)',borderRadius:5,padding:'7px 8px',border:'1px solid rgba(14,165,233,0.2)',marginBottom:6}}>
+              <div style={{fontSize:9,color:'var(--accent)',textTransform:'uppercase',letterSpacing:1,marginBottom:4,fontWeight:600}}>Projeto total</div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:10,marginBottom:1}}><span style={{color:'var(--text3)'}}>Venda</span><b style={{color:'var(--accent)'}}>{fmt(projSale)}</b></div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:10,marginBottom:1}}><span style={{color:'var(--text3)'}}>Custo</span><b>{fmt(projCost)}</b></div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:10}}><span style={{color:'var(--text3)'}}>Lucro</span><b style={{color:projLucro>=0?'var(--green)':'var(--red)'}}>{fmt(projLucro)}</b></div>
+              <div style={{textAlign:'right',fontSize:16,fontWeight:700,marginTop:3,color:pC(projPct)}}>{projPct}%</div>
             </div>
-            {/* Por pavimento */}
-            {floors.filter(f=>(f.rooms||[]).some(r=>parse(r.price)>0)).map((f,fi)=>{
-              const fCost=(f.rooms||[]).flatMap(r=>(r.items||[])).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
-              const fSale=(f.rooms||[]).reduce((s,r)=>s+parse(r.price),0)
-              const fPct=fCost>0?Math.round((fSale-fCost)/fCost*100):0
-              return <div key={fi} style={{background:'var(--bg)',borderRadius:5,padding:'6px 8px',border:'1px solid var(--border)'}}>
-                <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,marginBottom:3}}>{f.name.replace(' Pavimento','Pav.')}</div>
-                <div style={{display:'flex',justifyContent:'space-between',marginBottom:1}}><span style={{color:'var(--text3)'}}>Venda</span><b style={{color:'var(--accent)',fontSize:10}}>{fmt(fSale)}</b></div>
-                <div style={{textAlign:'right',fontWeight:700,color:fPct>=50?'var(--green)':fPct>=20?'var(--amber)':'var(--red)'}}>{fPct}%</div>
-              </div>
-            })}
-            {/* Por cômodo */}
-            <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,marginTop:2}}>Por cômodo</div>
+
+            {/* POR PAVIMENTO */}
+            {floors.filter(f=>(f.rooms||[]).some(r=>parse(r.price)>0)).length>1&&<>
+              <div style={lbl}>Por pavimento</div>
+              {floors.filter(f=>(f.rooms||[]).some(r=>parse(r.price)>0)).map((f,fi)=>{
+                const fC=(f.rooms||[]).flatMap(r=>r.items||[]).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
+                const fS=(f.rooms||[]).reduce((s,r)=>s+parse(r.price),0)
+                const fP=fC>0?Math.round((fS-fC)/fC*100):0
+                return <div key={fi} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',borderBottom:'1px solid var(--border)'}}>
+                  <span style={{fontSize:10,color:'var(--text2)',fontWeight:600}}>{f.name.replace(' Pavimento','Pav.')}</span>
+                  <div style={{textAlign:'right'}}><div style={{fontSize:9,color:'var(--text3)'}}>{fmt(fS)}</div><b style={{fontSize:10,color:pC(fP)}}>{fP}%</b></div>
+                </div>
+              })}
+            </>}
+
+            {/* POR CÔMODO */}
+            <div style={lbl}>Por cômodo</div>
             {floors.flatMap((f,fi)=>(f.rooms||[]).filter(r=>parse(r.price)>0).map((r,ri)=>{
-              const rCost=(r.items||[]).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
-              const rSale=parse(r.price)
-              const rPct=rCost>0?Math.round((rSale-rCost)/rCost*100):0
+              const rC=(r.items||[]).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
+              const rS=parse(r.price)
+              const rP=rC>0?Math.round((rS-rC)/rC*100):0
               return <div key={`${fi}-${ri}`} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'3px 0',borderBottom:'1px solid var(--border)'}}>
-                <span style={{color:'var(--text2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:110}}>{r.icon} {r.name||'Sem nome'}</span>
-                <b style={{flexShrink:0,color:rPct>=50?'var(--green)':rPct>=20?'var(--amber)':'var(--red)',marginLeft:4}}>{rPct}%</b>
+                <span style={{fontSize:10,color:'var(--text2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:140}}>{r.icon} {r.name||'Sem nome'}</span>
+                <b style={{fontSize:10,flexShrink:0,color:pC(rP),marginLeft:4}}>{rP}%</b>
               </div>
             }))}
+
+            {/* POR CATEGORIA + ITENS */}
+            <div style={lbl}>Por categoria</div>
+            {Object.entries(byCat).sort((a,b)=>b[1].sale-a[1].sale).map(([cat,v])=>{
+              const cP=v.cost>0?Math.round((v.sale-v.cost)/v.cost*100):0
+              return <div key={cat}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0 2px',borderBottom:'1px solid var(--border)'}}>
+                  <span style={{fontSize:10,fontWeight:600,color:'var(--text2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:140}}>{cat}</span>
+                  <div style={{textAlign:'right',flexShrink:0}}>
+                    <div style={{fontSize:9,color:'var(--text3)'}}>{fmt(v.sale)}</div>
+                    <b style={{fontSize:10,color:pC(cP)}}>{cP}%</b>
+                  </div>
+                </div>
+                {v.items.map((it,ii)=>{
+                  const iC=(it.cost_price||0)*it.qty
+                  const iS=(it.sale_price||0)*it.qty
+                  const iP=iC>0?Math.round((iS-iC)/iC*100):0
+                  return <div key={ii} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'1px 0 1px 10px',borderBottom:'1px solid rgba(200,222,255,0.05)'}}>
+                    <span style={{fontSize:9,color:'var(--text3)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:155}}>
+                      {it.qty>1&&<span style={{color:'var(--accent)',marginRight:2,fontSize:8}}>{it.qty}×</span>}{it.name}
+                    </span>
+                    <b style={{fontSize:9,flexShrink:0,color:pC(iP),marginLeft:3}}>{iP}%</b>
+                  </div>
+                })}
+              </div>
+            })}
           </div>
         })()}
         {/* ── LEFT PANEL ── */}
@@ -702,11 +754,12 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
               <div className="flabel" style={{marginBottom:4}}>Margem de lucro<span style={{color:'var(--amber)',fontSize:9,marginLeft:4}}>(padrão 100%)</span></div>
               <div style={{display:'flex',gap:6,alignItems:'center'}}>
                 <input type="number" min="0" max="300" value={margin}
-                  onChange={e=>{
-                    const val=e.target.value
-                    requirePIN(()=>applyMargin(val))
-                  }}
+                  onChange={e=>setMargin(Number(e.target.value))}
                   style={{width:80,textAlign:'center',fontWeight:600}}/>
+                <button className="btn" style={{fontSize:10,padding:'3px 8px'}}
+                  onClick={()=>requirePIN(()=>applyMargin(margin))}>
+                  <i className="ti ti-lock" aria-hidden/>Aplicar
+                </button>
                 <span style={{fontSize:12}}>%</span>
 
               </div>
@@ -1064,16 +1117,20 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
           <input type="number" value={laborInput} onChange={e=>setLaborInput(e.target.value)} placeholder="ex: 8000" autoFocus style={{fontSize:16,fontWeight:600,textAlign:'center'}}/>
         </div>
 
-        {/* Margem global */}
+        {/* Margem global — só aplica com PIN explícito */}
         {isAdmin&&<div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 12px',marginBottom:12}}>
-          <div className="flabel" style={{marginBottom:6}}>Ajustar margem de todos os itens</div>
+          <div className="flabel" style={{marginBottom:6}}>Forçar margem em todos os itens <span style={{fontSize:10,color:'var(--text3)',fontWeight:400}}>(padrão = preços do catálogo)</span></div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
             <input type="number" min="0" max="500" value={margin}
-              onChange={e=>{ applyMargin(e.target.value) }}
+              onChange={e=>setMargin(Number(e.target.value))}
               style={{width:80,textAlign:'center',fontWeight:600,fontSize:16}}/>
             <span style={{fontSize:12,color:'var(--text3)'}}>%</span>
-            <span style={{fontSize:11,color:'var(--text3)',marginLeft:4}}>— aplica ao digitar</span>
+            <button className="btn primary" style={{fontSize:11,padding:'5px 14px'}}
+              onClick={()=>requirePIN(()=>applyMargin(margin))}>
+              <i className="ti ti-lock" aria-hidden/>Aplicar com PIN
+            </button>
           </div>
+          <div style={{fontSize:10,color:'var(--amber)',marginTop:4}}>Requer PIN — sobrescreve preços individuais</div>
         </div>}
 
         {/* Resumo margens por cômodo / categoria / pavimento */}
