@@ -1,6 +1,6 @@
 # RARO Home — Sistema de Gestão
 
-Sistema completo para gestão de orçamentos, projetos, estoque e clientes.
+Sistema completo para gestão de orçamentos, projetos, estoque e clientes..
 
 ## Instalação local (Windows/Mac)
 
