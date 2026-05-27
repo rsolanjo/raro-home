@@ -74,7 +74,7 @@ function CatalogTable({ items, onEdit, isAdmin, onDelete, onQuickPrice }) {
   )
 }
 
-export default function Catalog({ catalog, suppliers, onRefresh, isAdmin }) {
+export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, currentUser }) {
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState('all')
   const [showModal, setShowModal] = useState(false)

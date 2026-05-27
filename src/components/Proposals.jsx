@@ -16,7 +16,7 @@ const STATUS_NOTE = {
   draft:    '🔓 Reservas serão liberadas',
 }
 
-export default function Proposals({ proposals, onRefresh, onEdit, onNew, currentUser, onViewPDF }) {
+export default function Proposals({ proposals, onRefresh, onEdit, onNew, currentUser, onViewPDF, clients=[] }) {
   const [filter,   setFilter]   = useState('all')
   const [search,   setSearch]   = useState('')
   const [confirm,  setConfirm]  = useState(null)
@@ -172,19 +172,50 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
                     <td>
                       <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
                         <button className="btn" style={{fontSize:11,padding:'3px 7px'}} onClick={()=>onEdit(p)} title="Editar"><i className="ti ti-edit" aria-hidden/></button>
-                        <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'var(--accent)',borderColor:'var(--accent)'}}
-                          onClick={()=>openProposalPDF(p,false)} title="Visualizar proposta">
-                          <i className="ti ti-eye" aria-hidden/>Ver
-                        </button>
-                        <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#7C3AED',borderColor:'#7C3AED'}}
-                          onClick={()=>openProposalPDF(p,true)} title="Ver versão admin">
-                          <i className="ti ti-shield" aria-hidden/>Admin
-                        </button>
-                        <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'var(--green)',borderColor:'var(--green)'}}
-                          onClick={()=>{ const r={...p}; r._download=true; openProposalPDF(r,false) }} title="Gerar PDF para download">
-                          <i className="ti ti-download" aria-hidden/>PDF
-                        </button>
-                        <button className="btn danger" style={{fontSize:11,padding:'3px 7px'}} onClick={()=>setConfirm({proposal:p,newStatus:'__delete__'})} title="Excluir"><i className="ti ti-trash" aria-hidden/></button>
+                        {/* Action buttons - with client phone lookup */}
+                        {(()=>{
+                          const cl = clients.find(c=>c.id===Number(p.client_id))
+                          const pWithPhones = { ...p,
+                            client_phone1: cl?.phone1||'',
+                            client_phone2: cl?.phone2||'',
+                            floors: Array.isArray(p.floors) ? p.floors : (typeof p.floors==='string'?JSON.parse(p.floors||'[]'):p.floors||[])
+                          }
+                          const phone1 = cl?.phone1?.replace(/\D/g,'').replace(/^(?!55)/,'55')
+                          const phone2 = cl?.phone2?.replace(/\D/g,'').replace(/^(?!55)/,'55')
+                          const waGroup = cl?.wa_group_clients || ''
+                          const msg = encodeURIComponent(`Olá ${cl?.name1||p.client_name}! Segue sua proposta RARO Home *${p.code||'#'+p.id}* — R$ ${(p.labor?(Number(p.labor)||0):0) + (Array.isArray(p.floors)?p.floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(r.price||0),s),0):0)} 🏠\nQualquer dúvida estou à disposição!\nRogério • RARO Home`)
+                          return <>
+                            <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'var(--accent)',borderColor:'var(--accent)'}}
+                              onClick={()=>openProposalPDF(pWithPhones,false)} title="Visualizar proposta">
+                              <i className="ti ti-eye" aria-hidden/>Ver
+                            </button>
+                            <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#7C3AED',borderColor:'#7C3AED'}}
+                              onClick={()=>openProposalPDF(pWithPhones,true)} title="Ver versão admin">
+                              <i className="ti ti-shield" aria-hidden/>Admin
+                            </button>
+                            <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'var(--green)',borderColor:'var(--green)'}}
+                              onClick={()=>{ openProposalPDF({...pWithPhones,_download:true},false) }} title="Gerar PDF">
+                              <i className="ti ti-download" aria-hidden/>PDF
+                            </button>
+                            {/* WhatsApp send buttons */}
+                            {phone1&&<a href={`https://wa.me/${phone1}?text=${msg}`} target="_blank" rel="noreferrer">
+                              <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#16A34A',borderColor:'#16A34A'}} title={`Enviar WA para ${cl?.name1}`}>
+                                <i className="ti ti-brand-whatsapp" aria-hidden/>WA1
+                              </button>
+                            </a>}
+                            {phone2&&<a href={`https://wa.me/${phone2}?text=${msg}`} target="_blank" rel="noreferrer">
+                              <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#16A34A',borderColor:'#16A34A'}} title={`Enviar WA para ${cl?.name2}`}>
+                                <i className="ti ti-brand-whatsapp" aria-hidden/>WA2
+                              </button>
+                            </a>}
+                            {waGroup&&<a href={waGroup} target="_blank" rel="noreferrer">
+                              <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#16A34A',borderColor:'#16A34A'}} title="Enviar para grupo do cliente">
+                                <i className="ti ti-brand-whatsapp" aria-hidden/>Grupo
+                              </button>
+                            </a>}
+                            <button className="btn danger" style={{fontSize:11,padding:'3px 7px'}} onClick={()=>setConfirm({proposal:p,newStatus:'__delete__'})} title="Excluir"><i className="ti ti-trash" aria-hidden/></button>
+                          </>
+                        })()}
                       </div>
                     </td>
                   </tr>

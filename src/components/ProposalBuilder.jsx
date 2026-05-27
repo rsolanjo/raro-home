@@ -396,6 +396,13 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
   }, [])
 
   const init = editProposal
+  // floors from Supabase may be a string or array
+  const initFloors = (() => {
+    const f = init?.floors
+    if (!f) return null
+    if (typeof f === 'string') { try { return JSON.parse(f) } catch { return null } }
+    return Array.isArray(f) ? f : null
+  })()
   const [clientId,    setClientId]    = useState(init?.client_id||'')
   const [clientName,  setClientName]  = useState(init?.client_name||'')
   const [description, setDescription] = useState(init?.description||'')
@@ -403,8 +410,8 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
   const [proposalCode,setProposalCode]= useState(init?.code||'')
   const [margin,      setMargin]      = useState(100)
   const [floors,      setFloors]      = useState(()=>
-    init?.floors?.length
-      ? init.floors.map(f=>({...f,id:Date.now()+Math.random(),rooms:(f.rooms||[]).map(r=>({...r,id:Date.now()+Math.random()}))}))
+    initFloors?.length
+      ? initFloors.map(f=>({...f,id:Date.now()+Math.random(),rooms:(f.rooms||[]).map(r=>({...r,id:Date.now()+Math.random()}))}))
       : [mkFloor('Primeiro Pavimento')]
   )
   const [cf, setCf] = useState(0)

@@ -12,7 +12,7 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
     getIncompleteClients().then(setIncomplete)
   }, [projects, clients])
 
-  const pendingProposals = proposals.filter(p => p.status === 'sent').length
+  const pendingProposals = proposals.filter(p => p.status === 'sent' || p.status === 'draft').length
   const activeProjects   = projects.filter(p => p.phase !== 'done').length
   const revenue = proposals.filter(p => p.status === 'approved')
     .reduce((s, p) => {

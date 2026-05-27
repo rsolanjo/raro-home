@@ -235,7 +235,7 @@ export default function Stock({ stock: rawStock, suppliers, onRefresh, currentUs
                           />
                           {isStaged && (
                             <button
-                              onClick={()=>commitQty(s)}
+                              onClick={()=>requirePIN(()=>commitQty(s))}
                               style={{background:'var(--green)',border:'none',color:'#fff',borderRadius:4,padding:'4px 9px',fontSize:11,cursor:'pointer',fontWeight:600,display:'flex',alignItems:'center',gap:4,fontFamily:'inherit'}}>
                               <i className="ti ti-device-floppy" style={{fontSize:12}} aria-hidden/>Salvar
                             </button>

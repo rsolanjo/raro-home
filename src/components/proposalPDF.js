@@ -202,7 +202,7 @@ function buildPDF(data, adminMode=false){
   const{client_name,proposal_code,neighborhood,floors,labor,date_str,margin=1,client_phone1,client_phone2}=data
   const fmtN=v=>'R$\u202f'+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
 
-  const equipTotal=(floorsData||floors||[]).reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
+  const equipTotal=(floors||[]).reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
   const grandTotal=equipTotal+parse(labor)
   const laborVal=parse(labor)
 
@@ -313,7 +313,7 @@ function buildPDF(data, adminMode=false){
 <div class="valid-strip">© RARO Home · ${client_name} · ${proposal_code} · Válido por 30 dias</div>
 </div>`
 
-  const adminSummary = adminMode ? `<div style="background:#3D1A6E;padding:10px 12px;border-radius:3px;margin-bottom:10px"><div style="font-size:7px;letter-spacing:2px;color:#C084FC;text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:6px">Resumo Financeiro (Admin)</div><div style="display:flex;gap:16px;flex-wrap:wrap">${(floorsData||floors||[]).map(fl=>{ const costTotal=(fl.rooms||[]).flatMap(r=>r.items||[]).reduce((s,i)=>(s+(i.cost_price||0)*(parseInt(i.qty)||1)),0); const saleTotal=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0); const mg=costTotal>0?Math.round((saleTotal-costTotal)/costTotal*100):0; return `<div style="font-size:9px;color:#E9D5FF">${fl.name.replace(' Pavimento','')}: custo ${fmtN(costTotal)} · venda ${fmtN(saleTotal)} · margem ${mg}%</div>` }).join('')}</div></div>` : '';
+  const adminSummary = adminMode ? `<div style="background:#3D1A6E;padding:10px 12px;border-radius:3px;margin-bottom:10px"><div style="font-size:7px;letter-spacing:2px;color:#C084FC;text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:6px">Resumo Financeiro (Admin)</div><div style="display:flex;gap:16px;flex-wrap:wrap">${(floors||[]).map(fl=>{ const costTotal=(fl.rooms||[]).flatMap(r=>r.items||[]).reduce((s,i)=>(s+(i.cost_price||0)*(parseInt(i.qty)||1)),0); const saleTotal=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0); const mg=costTotal>0?Math.round((saleTotal-costTotal)/costTotal*100):0; return `<div style="font-size:9px;color:#E9D5FF">${fl.name.replace(' Pavimento','')}: custo ${fmtN(costTotal)} · venda ${fmtN(saleTotal)} · margem ${mg}%</div>` }).join('')}</div></div>` : '';
 
   const pavBlocks = (floors||[]).map(fl=>{
     const rows = (fl.rooms||[]).map(r=>'<div class="pr"><span class="prn">'+r.name+'</span><span class="prv">'+fmtN(parse(r.price))+'</span></div>').join('')
@@ -338,7 +338,12 @@ export async function openProposalPDF(proposal, adminMode=false) {
       proposal_code: proposal.code || `#${proposal.id}`,
       neighborhood:  proposal.neighborhood || '',
       date_str:      new Date().toLocaleDateString('pt-BR', {month:'long',year:'numeric'}),
-      floors:        proposal.floors || [],
+      floors:        (() => {
+        const f = proposal.floors
+        if (!f) return []
+        if (typeof f === 'string') { try { return JSON.parse(f) } catch { return [] } }
+        return Array.isArray(f) ? f : []
+      })(),
       labor:         Number(proposal.labor) || 0,
       margin:        Number(proposal.margin) || 100,
       client_phone1: proposal.client_phone1 || '',
