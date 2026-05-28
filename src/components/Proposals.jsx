@@ -19,7 +19,7 @@ const STATUS_NOTE = {
 export default function Proposals({ proposals, onRefresh, onEdit, onNew, currentUser, onViewPDF, clients=[] }) {
   const [filter,   setFilter]   = useState('all')
   const [search,   setSearch]   = useState('')
-  const [confirm,  setConfirm]  = useState(null)
+  const [changeReq, setChangeReq] = useState(null)
   const [sortCol,  setSortCol]  = useState('id')
   const [sortDir,  setSortDir]  = useState('desc')
   const [showComp, setShowComp] = useState(false)
@@ -76,39 +76,42 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
     .map(r=>({...r, avg:Math.round(r.total/r.count), min:Math.min(...r.vals), max:Math.max(...r.vals)}))
     .sort((a,b)=>b.avg-a.avg)
 
-  function requestStatusChange(p, status) { setConfirm({ proposal:p, newStatus:status }) }
+  function requestStatusChange(p, status) { setChangeReq({ proposal:p, newStatus:status }) }
   async function confirmChange() {
-    if (!confirm) return
-    const before = proposals.find(p=>p.id===confirm.proposal.id)
-    const updated = { ...confirm.proposal, status:confirm.newStatus }
-    await saveProposal(updated)
-    await auditedSave('orçamentos','status_change',updated,currentUser?.name,before)
+    if (!changeReq) return
+    try {
+    const before = proposals.find(p=>p.id===changeReq.proposal.id)
+    const updated = { ...changeReq.proposal, status:changeReq.newStatus }
+    const saved = await saveProposal(updated)
+    if (!saved) throw new Error('Supabase não retornou o registro salvo')
+    await auditedSave('orçamentos','status_change',saved,currentUser?.name,before)
     // Auto-create project when proposal is approved
-    if (confirm.newStatus === 'approved') {
+    if (changeReq.newStatus === 'approved') {
       try {
         const existingProjects = await getProjects()
-        const alreadyExists = existingProjects.some(p=>p.proposal_id===confirm.proposal.id)
+        const alreadyExists = existingProjects.some(p=>p.proposal_id===changeReq.proposal.id)
         if (!alreadyExists) {
           await saveProject({
-            client_id: confirm.proposal.client_id,
-            client_name: confirm.proposal.client_name,
-            description: confirm.proposal.description || `Proposta ${confirm.proposal.code}`,
+            client_id: changeReq.proposal.client_id,
+            client_name: changeReq.proposal.client_name,
+            description: changeReq.proposal.description || `Proposta ${changeReq.proposal.code}`,
             type: 'residencial',
             phase: 'visit',
-            proposal_id: confirm.proposal.id,
-            proposal_code: confirm.proposal.code,
-            notes: `Projeto criado automaticamente a partir da proposta ${confirm.proposal.code}`,
+            proposal_id: changeReq.proposal.id,
+            proposal_code: changeReq.proposal.code,
+            notes: `Projeto criado automaticamente a partir da proposta ${changeReq.proposal.code}`,
           })
         }
       } catch(e) { console.error('Error creating project:', e) }
     }
-    setConfirm(null); onRefresh()
+    setChangeReq(null); onRefresh()
+    } catch(err) { console.error('Erro ao confirmar mudança:', err); alert('Erro: ' + err.message) }
   }
   function handleDelete() {
-    if (!confirm) return
-    auditedSave('orçamentos','delete',confirm.proposal,currentUser?.name)
-    deleteProposal(confirm.proposal.id)
-    setConfirm(null); onRefresh()
+    if (!changeReq) return
+    auditedSave('orçamentos','delete',changeReq.proposal,currentUser?.name)
+    deleteProposal(changeReq.proposal.id)
+    setChangeReq(null); onRefresh()
   }
 
   const counts = Object.fromEntries(Object.keys(STATUS).map(s=>[s,proposals.filter(p=>p.status===s).length]))
@@ -241,7 +244,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
                                 <i className="ti ti-brand-whatsapp" aria-hidden/>Grupo
                               </button>
                             </a>}
-                            <button className="btn danger" style={{fontSize:11,padding:'3px 7px'}} onClick={()=>setConfirm({proposal:p,newStatus:'__delete__'})} title="Excluir"><i className="ti ti-trash" aria-hidden/></button>
+                            <button className="btn danger" style={{fontSize:11,padding:'3px 7px'}} onClick={()=>setChangeReq({proposal:p,newStatus:'__delete__'})} title="Excluir"><i className="ti ti-trash" aria-hidden/></button>
                           </>
                         })()}
                       </div>
@@ -263,35 +266,35 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
       </div>
 
       {/* Confirm modal */}
-      {confirm && (
+      {changeReq && (
         <div className="modal-overlay">
           <div className="modal" style={{width:400}} onClick={e=>e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title">{confirm.newStatus==='__delete__'?'Excluir orçamento?':'Confirmar mudança'}</div>
-              <button className="modal-close" onClick={()=>setConfirm(null)}>×</button>
+              <div className="modal-title">{changeReq.newStatus==='__delete__'?'Excluir orçamento?':'Confirmar mudança'}</div>
+              <button className="modal-close" onClick={()=>setChangeReq(null)}>×</button>
             </div>
             <div style={{marginBottom:16}}>
-              <div style={{fontWeight:500,marginBottom:8}}>{confirm.proposal.client_name} · {confirm.proposal.code||`#${confirm.proposal.id}`}</div>
-              {confirm.newStatus==='__delete__'
+              <div style={{fontWeight:500,marginBottom:8}}>{changeReq.proposal.client_name} · {changeReq.proposal.code||`#${changeReq.proposal.id}`}</div>
+              {changeReq.newStatus==='__delete__'
                 ? <div style={{background:'var(--red-lt)',border:'1px solid var(--red)',borderRadius:6,padding:'8px 12px',fontSize:12,color:'var(--red)'}}>
                     Esta ação não pode ser desfeita. Reservas de estoque serão liberadas.
                   </div>
                 : <div>
                     <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-                      <span className={`badge ${STATUS[confirm.proposal.status]?.cls}`}>{STATUS[confirm.proposal.status]?.label}</span>
+                      <span className={`badge ${STATUS[changeReq.proposal.status]?.cls}`}>{STATUS[changeReq.proposal.status]?.label}</span>
                       <i className="ti ti-arrow-right" style={{fontSize:14,color:'var(--text3)'}} aria-hidden/>
-                      <span className={`badge ${STATUS[confirm.newStatus]?.cls}`}>{STATUS[confirm.newStatus]?.label}</span>
+                      <span className={`badge ${STATUS[changeReq.newStatus]?.cls}`}>{STATUS[changeReq.newStatus]?.label}</span>
                     </div>
-                    {STATUS_NOTE[confirm.newStatus] && (
+                    {STATUS_NOTE[changeReq.newStatus] && (
                       <div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:6,padding:'8px 12px',fontSize:12,color:'var(--text2)'}}>
-                        {STATUS_NOTE[confirm.newStatus]}
+                        {STATUS_NOTE[changeReq.newStatus]}
                       </div>
                     )}
                   </div>}
             </div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-              <button className="btn" onClick={()=>setConfirm(null)}>Cancelar</button>
-              {confirm.newStatus==='__delete__'
+              <button className="btn" onClick={()=>setChangeReq(null)}>Cancelar</button>
+              {changeReq.newStatus==='__delete__'
                 ? <button className="btn danger" onClick={handleDelete}>Excluir</button>
                 : <button className="btn primary" onClick={confirmChange}>Confirmar</button>}
             </div>

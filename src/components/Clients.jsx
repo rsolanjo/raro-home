@@ -52,12 +52,17 @@ export default function Clients({ clients, proposals, projects, onRefresh, onEdi
   function openNew()   {  setEditing(null); setForm(empty()); setShowModal(true) }
   function openEdit(c) {  setEditing(c); setForm({...c}); setShowModal(true) }
 
-  function handleSave() {
-    const item = { ...form, total_rooms: Number(form.total_rooms)||0, area_m2: Number(form.area_m2)||0 }
-    const before = editing ? clients.find(c=>c.id===editing.id) : null
-    saveClient(item)
-    auditedSave('clientes', editing?'update':'create', item, currentUser?.name||'Sistema', before)
-    setShowModal(false); onRefresh()
+  async function handleSave() {
+    try {
+      const item = { ...form, total_rooms: Number(form.total_rooms)||0, area_m2: Number(form.area_m2)||0 }
+      const before = editing ? clients.find(c=>c.id===editing.id) : null
+      const saved = await saveClient(item)
+      await auditedSave('clientes', editing?'update':'create', saved||item, currentUser?.name||'Sistema', before)
+      setShowModal(false); onRefresh()
+    } catch(err) {
+      console.error('Erro ao salvar cliente:', err)
+      alert('Erro ao salvar: ' + err.message)
+    }
   }
 
   function handlePlant(e) {

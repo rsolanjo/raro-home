@@ -440,7 +440,7 @@ export default function Stock({ stock: rawStock, suppliers, onRefresh, currentUs
             </div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button className="btn" onClick={()=>setShowModal(false)}>Cancelar</button>
-              <button className="btn primary" onClick={handleSave}>
+              <button className="btn primary" onClick={()=>requirePIN(handleSave)}>
                 <i className="ti ti-device-floppy" aria-hidden/>Salvar
               </button>
             </div>
