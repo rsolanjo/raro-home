@@ -1,6 +1,6 @@
 import { openProposalPDF } from './proposalPDF.js'
 import { useState } from 'react'
-import { saveProposal, deleteProposal, getProposals, auditedSave } from '../db/supabase.js'
+import { saveProposal, deleteProposal, getProposals, auditedSave, saveProject, getProjects } from '../db/supabase.js'
 
 const STATUS = {
   draft:    { label:'Rascunho',   cls:'b-gray' },
@@ -77,11 +77,31 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
     .sort((a,b)=>b.avg-a.avg)
 
   function requestStatusChange(p, status) { setConfirm({ proposal:p, newStatus:status }) }
-  function confirmChange() {
+  async function confirmChange() {
     if (!confirm) return
     const before = proposals.find(p=>p.id===confirm.proposal.id)
-    saveProposal({ ...confirm.proposal, status:confirm.newStatus })
-    auditedSave('orçamentos','status_change',{...confirm.proposal,status:confirm.newStatus},currentUser?.name,before)
+    const updated = { ...confirm.proposal, status:confirm.newStatus }
+    await saveProposal(updated)
+    await auditedSave('orçamentos','status_change',updated,currentUser?.name,before)
+    // Auto-create project when proposal is approved
+    if (confirm.newStatus === 'approved') {
+      try {
+        const existingProjects = await getProjects()
+        const alreadyExists = existingProjects.some(p=>p.proposal_id===confirm.proposal.id)
+        if (!alreadyExists) {
+          await saveProject({
+            client_id: confirm.proposal.client_id,
+            client_name: confirm.proposal.client_name,
+            description: confirm.proposal.description || `Proposta ${confirm.proposal.code}`,
+            type: 'residencial',
+            phase: 'visit',
+            proposal_id: confirm.proposal.id,
+            proposal_code: confirm.proposal.code,
+            notes: `Projeto criado automaticamente a partir da proposta ${confirm.proposal.code}`,
+          })
+        }
+      } catch(e) { console.error('Error creating project:', e) }
+    }
     setConfirm(null); onRefresh()
   }
   function handleDelete() {
@@ -183,7 +203,11 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
                           const phone1 = cl?.phone1?.replace(/\D/g,'').replace(/^(?!55)/,'55')
                           const phone2 = cl?.phone2?.replace(/\D/g,'').replace(/^(?!55)/,'55')
                           const waGroup = cl?.wa_group_clients || ''
-                          const msg = encodeURIComponent(`Olá ${cl?.name1||p.client_name}! Segue sua proposta RARO Home *${p.code||'#'+p.id}* — R$ ${(p.labor?(Number(p.labor)||0):0) + (Array.isArray(p.floors)?p.floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(r.price||0),s),0):0)} 🏠\nQualquer dúvida estou à disposição!\nRogério • RARO Home`)
+                          const floors = Array.isArray(pWithPhones.floors) ? pWithPhones.floors : []
+                          const equipTotal = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)
+                          const total = equipTotal + (Number(p.labor)||0)
+                          const totalFmt = total>0?`R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`:'a confirmar'
+                          const msg = encodeURIComponent(`Olá ${cl?.name1||p.client_name}! Tudo bem?\n\nSegue sua proposta RARO Home:\n📋 *${p.code||'#'+p.id}*\n💰 *${totalFmt}*\n\nO PDF da proposta foi enviado em anexo nesta conversa.\n\nQualquer dúvida, estou à disposição! 🏠\n\n— Rogério | RARO Home\n📱 (21) 98170-9009`)
                           return <>
                             <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'var(--accent)',borderColor:'var(--accent)'}}
                               onClick={()=>openProposalPDF(pWithPhones,false)} title="Visualizar proposta">
@@ -198,16 +222,20 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
                               <i className="ti ti-download" aria-hidden/>PDF
                             </button>
                             {/* WhatsApp send buttons */}
-                            {phone1&&<a href={`https://wa.me/${phone1}?text=${msg}`} target="_blank" rel="noreferrer">
-                              <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#16A34A',borderColor:'#16A34A'}} title={`Enviar WA para ${cl?.name1}`}>
-                                <i className="ti ti-brand-whatsapp" aria-hidden/>WA1
-                              </button>
-                            </a>}
-                            {phone2&&<a href={`https://wa.me/${phone2}?text=${msg}`} target="_blank" rel="noreferrer">
-                              <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#16A34A',borderColor:'#16A34A'}} title={`Enviar WA para ${cl?.name2}`}>
-                                <i className="ti ti-brand-whatsapp" aria-hidden/>WA2
-                              </button>
-                            </a>}
+                            {phone1&&<button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#16A34A',borderColor:'#16A34A'}} title={`Baixar PDF e abrir WA para ${cl?.name1}`}
+                              onClick={async ()=>{
+                                await openProposalPDF({...pWithPhones,_download:true},false)
+                                setTimeout(()=>window.open(`https://wa.me/${phone1}?text=${msg}`,'_blank'),1200)
+                              }}>
+                              <i className="ti ti-brand-whatsapp" aria-hidden/>WA1
+                            </button>}
+                            {phone2&&<button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#16A34A',borderColor:'#16A34A'}} title={`Baixar PDF e abrir WA para ${cl?.name2}`}
+                              onClick={async ()=>{
+                                await openProposalPDF({...pWithPhones,_download:true},false)
+                                setTimeout(()=>window.open(`https://wa.me/${phone2}?text=${msg}`,'_blank'),1200)
+                              }}>
+                              <i className="ti ti-brand-whatsapp" aria-hidden/>WA2
+                            </button>}
                             {waGroup&&<a href={waGroup} target="_blank" rel="noreferrer">
                               <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#16A34A',borderColor:'#16A34A'}} title="Enviar para grupo do cliente">
                                 <i className="ti ti-brand-whatsapp" aria-hidden/>Grupo

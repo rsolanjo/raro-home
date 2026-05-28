@@ -90,8 +90,9 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
   const f = (k,v) => setForm(p=>({...p,[k]:v}))
 
   function requirePIN(action) {
-    if (checkPINSession()) { action(); return }
-    setPinAction(()=>action); setShowPIN(true)
+    if (checkPINSession()) { Promise.resolve(action()).catch(console.error); return }
+    setPinAction(()=>()=>Promise.resolve(action()).catch(console.error))
+    setShowPIN(true)
   }
 
   useEffect(() => {

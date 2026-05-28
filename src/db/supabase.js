@@ -134,10 +134,14 @@ async function _applyStockDeduction(proposal) {
 
 // ── STOCK LOG ─────────────────────────────────────────────────────────────────
 export async function addStockLog(entry) {
-  // snapshot is stored as text JSON for revert support
   const row = { ...entry, date: new Date().toISOString() }
+  // Normalize: always use 'author' for stock_log, ensure snapshot is string
+  if (!row.author && row.user_name) row.author = row.user_name
   if (row.snapshot && typeof row.snapshot !== 'string') row.snapshot = JSON.stringify(row.snapshot)
-  await supabase.from('stock_log').insert(row)
+  // Remove undefined fields that would fail Supabase insert
+  Object.keys(row).forEach(k => { if(row[k]===undefined) delete row[k] })
+  const { error } = await supabase.from('stock_log').insert(row)
+  if (error) console.error('addStockLog error:', error)
 }
 export async function getStockLog() {
   const { data } = await supabase.from('stock_log').select('*').order('date',{ascending:false}).limit(300)

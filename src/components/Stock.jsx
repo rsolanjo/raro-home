@@ -49,8 +49,8 @@ export default function Stock({ stock: rawStock, suppliers, onRefresh, currentUs
   function openEdit(s) { requirePIN(()=>{ setEditing(s); setForm({...s}); setShowModal(true) }) }
 
   function requirePIN(action) {
-    if (checkPINSession()) { action(); return }
-    setPinAction(()=>action)
+    if (checkPINSession()) { Promise.resolve(action()).catch(console.error); return }
+    setPinAction(()=>()=>Promise.resolve(action()).catch(console.error))
     setShowPIN(true)
   }
 

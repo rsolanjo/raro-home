@@ -507,8 +507,9 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
   }
 
   function requirePIN(action) {
-    if (checkPINSession()) { action(); return }
-    setPinAction(()=>action); setShowPIN(true)
+    if (checkPINSession()) { Promise.resolve(action()).catch(console.error); return }
+    setPinAction(()=>()=>Promise.resolve(action()).catch(console.error))
+    setShowPIN(true)
   }
 
   const [isSaving, setIsSaving] = useState(false)

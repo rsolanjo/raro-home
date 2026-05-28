@@ -4,15 +4,22 @@ import { saveTool, deleteTool , checkPINSession, setPINSession, verifyPIN } from
 
 const BUILTIN_ICONS = ['ti-robot','ti-wifi','ti-world','ti-tool','ti-phone','ti-mail','ti-brand-whatsapp','ti-calendar','ti-file','ti-chart-bar']
 
-export default function Tools({ tools, onRefresh }) {
+export default function Tools({ tools, onRefresh, currentUser }) {
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({name:'',description:'',link:'',icon:'ti-tool'})
+  const [showPIN, setShowPIN] = useState(false)
+  const [pinAction, setPinAction] = useState(null)
   const f = (k,v) => setForm(p=>({...p,[k]:v}))
 
-  function openNew()   { setEditing(null); setForm({name:'',description:'',link:'',icon:'ti-tool'}); setShowModal(true) }
-  function openEdit(t) { setEditing(t); setForm({...t}); setShowModal(true) }
-  function handleSave(){ saveTool(form); setShowModal(false); onRefresh() }
+  function requirePIN(action) {
+    if (checkPINSession()) { action(); return }
+    setPinAction(()=>action); setShowPIN(true)
+  }
+
+  function openNew()   { requirePIN(()=>{ setEditing(null); setForm({name:'',description:'',link:'',icon:'ti-tool'}); setShowModal(true) }) }
+  function openEdit(t) { requirePIN(()=>{ setEditing(t); setForm({...t}); setShowModal(true) }) }
+  async function handleSave(){ await saveTool({...form}); setShowModal(false); onRefresh() }
 
   return (
     <>

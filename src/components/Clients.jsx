@@ -44,8 +44,8 @@ export default function Clients({ clients, proposals, projects, onRefresh, onEdi
   )
 
   function requirePIN(action) {
-    if (checkPINSession()) { action(); return }
-    setPinAction(()=>action)
+    if (checkPINSession()) { Promise.resolve(action()).catch(console.error); return }
+    setPinAction(()=>()=>Promise.resolve(action()).catch(console.error))
     setShowPIN(true)
   }
 

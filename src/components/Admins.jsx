@@ -5,16 +5,23 @@ import { saveAdmin, deleteAdmin , checkPINSession, setPINSession, verifyPIN } fr
 export default function Admins({ admins, currentUser, onRefresh }) {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({name:'',gmail:'',role:'admin'})
+  const [showPIN, setShowPIN] = useState(false)
+  const [pinAction, setPinAction] = useState(null)
   const f = (k,v) => setForm(p=>({...p,[k]:v}))
 
-  function handleSave(){ saveAdmin(form); setShowModal(false); onRefresh() }
+  function requirePIN(action) {
+    if (checkPINSession()) { action(); return }
+    setPinAction(()=>action); setShowPIN(true)
+  }
+
+  async function handleSave(){ await saveAdmin({...form}); setShowModal(false); onRefresh() }
 
   return (
     <>
       <div className="topbar">
         <div className="topbar-title"><i className="ti ti-shield" aria-hidden/>Administradores</div>
         <div className="topbar-acts">
-          <button className="btn primary" onClick={()=>{setForm({name:'',gmail:'',role:'admin'});setShowModal(true)}}>
+          <button className="btn primary" onClick={()=>requirePIN(()=>{setForm({name:'',gmail:'',role:'admin'});setShowModal(true)})}>
             <i className="ti ti-plus" aria-hidden/>Novo admin
           </button>
         </div>
