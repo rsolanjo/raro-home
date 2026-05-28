@@ -12,7 +12,9 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
     getIncompleteClients().then(setIncomplete)
   }, [projects, clients])
 
-  const pendingProposals = proposals.filter(p => p.status === 'sent').length
+  const sentProposals     = proposals.filter(p => p.status === 'sent').length
+  const draftProposals    = proposals.filter(p => p.status === 'draft').length
+  const approvedProposals = proposals.filter(p => p.status === 'approved').length
   const activeProjects   = projects.filter(p => p.phase !== 'done').length
   const revenue = proposals.filter(p => p.status === 'approved')
     .reduce((s, p) => {
@@ -63,8 +65,18 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
         <div className="metrics">
           <div className="met">
             <div className="met-label">Orçamentos enviados</div>
-            <div className="met-val blue">{proposals.length}</div>
-            <div className="met-sub"><span className="dot" style={{background:'var(--amber)'}}/>{pendingProposals} aguardando resposta</div>
+            <div className="met-val blue">{sentProposals}</div>
+            <div className="met-sub"><span className="dot" style={{background:'var(--amber)'}}/>aguardando resposta</div>
+          </div>
+          <div className="met">
+            <div className="met-label">Rascunhos</div>
+            <div className="met-val" style={{color:'var(--text2)'}}>{draftProposals}</div>
+            <div className="met-sub"><span className="dot" style={{background:'var(--text3)'}}/>em preparação</div>
+          </div>
+          <div className="met">
+            <div className="met-label">Aprovados</div>
+            <div className="met-val" style={{color:'var(--green)'}}>{approvedProposals}</div>
+            <div className="met-sub"><span className="dot" style={{background:'var(--green)'}}/>fechados</div>
           </div>
           <div className="met">
             <div className="met-label">Projetos ativos</div>

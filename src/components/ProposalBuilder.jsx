@@ -191,11 +191,11 @@ body{font-family:'DM Sans',sans-serif;background:#fff;-webkit-print-color-adjust
 .fl-block-grid .rn,.rooms-3col .rn{font-family:'DM Serif Display',serif;font-size:13px;font-weight:400;color:#060B1A;line-height:1.2}
 
 .fl-block-grid .items-table,.rooms-3col .items-table{width:100%;border-collapse:collapse;margin-bottom:3px}
-.fl-block-grid .it-name,.rooms-3col .it-name{font-size:8.5px;color:#3D5A80;font-weight:400;padding:1.5px 0;line-height:1.4;width:62%;font-family:'DM Sans',sans-serif}
+.fl-block-grid .it-name,.rooms-3col .it-name{font-size:9px;color:#1e3a5f;font-weight:400;padding:2px 0;line-height:1.45;width:62%;font-family:'DM Sans',sans-serif}
 .fl-block-grid .it-code,.rooms-3col .it-code{font-size:6.5px;color:#6B8CAE;text-align:center;width:26%;font-family:'DM Sans',sans-serif}
 .fl-block-grid .it-qty,.rooms-3col .it-qty{font-size:7px;color:#0EA5E9;font-weight:600;text-align:right;width:12%;font-family:'DM Sans',sans-serif}
 
-.fl-block-grid .rp,.rooms-3col .rp{font-family:'DM Serif Display',serif;font-style:italic;font-size:8.5px;color:#3D5A80;padding-top:3px;line-height:1.3;margin-top:auto}
+.fl-block-grid .rp,.rooms-3col .rp{font-family:'Playfair Display',serif;font-style:italic;font-size:8px;color:#3D5A80;line-height:1.4;margin-top:4px;padding-top:4px;border-top:0.5px solid #E0EEFF}
 
 .fl-block-grid .rv,.rooms-3col .rv{display:flex;justify-content:space-between;align-items:flex-end;margin-top:4px;padding-top:4px;border-top:0.5px solid #C8DEFF;flex-shrink:0}
 .fl-block-grid .rvl,.rooms-3col .rvl{font-size:6px;letter-spacing:2px;color:#6B8CAE;text-transform:uppercase;font-family:'DM Sans',sans-serif}
@@ -296,78 +296,18 @@ function buildPDF(data, adminMode=false){
     return `<div class="room${hl}"><div class="rh"><span class="ri">${r.icon||'◈'}</span><div class="rn">${r.name}</div></div>${items}${pitch}${roomTotal}</div>`
   }
 
-  const padRooms=rooms=>{ const r=[...rooms]; while(r.length%3!==0) r.push(null); return r }
-  const floorBlock=fl=>{ const padded=padRooms(fl.rooms||[],2); const cards=padded.map(r=>r?roomCard(r):'<div class="room pad"></div>').join(''); return `<div class="fl-block"><div class="fl-section-hdr"><div style="display:flex;align-items:center;gap:10px"><div style="background:rgba(14,165,233,0.2);border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#38BDF8;font-weight:700">${fl.name.match(/\d+/)?.[0]||'1'}</div><div><div class="fl-section-label">Pavimento</div><div class="fl-section-name">${fl.name.replace(' Pavimento','')}</div></div></div></div><div class="fl-block-grid">${cards}</div></div>` }
-
-  const ROWS_PER_PAGE=6; const pages=[]; let pageNum=2; let curFloors=[]; let curRows=0
-  const flushPage=()=>{ if(!curFloors.length) return; const blocksHtml=curFloors.map(floorBlock).join(''); const subHtml=curFloors.map(fl=>{ const sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0); return `<div class="sub-item">${fl.name.replace(' Pavimento','')}: <strong>${fmtN(sub)}</strong></div>` }).join(''); pages.push(`<div class="page">${pageHeader()}${clientMini()}<div class="rooms-3col">${blocksHtml}</div><div class="subtotals-bar">${subHtml}</div>${pageFooter(pageNum)}</div>`); pageNum++; curFloors=[]; curRows=0 }
-  for(const fl of(floors||[])){ const rooms=fl.rooms||[]; if(!rooms.length) continue; const flRows=Math.ceil(rooms.length/3); if(curRows+0.4+flRows>ROWS_PER_PAGE&&curFloors.length) flushPage(); curFloors.push(fl); curRows+=0.4+flRows } flushPage()
-
-  const testi=[['Antes eu esquecia a coifa ligada, o ar aceso, o portão aberto. Hoje a casa cuida de tudo. O WhatsApp me avisa de qualquer coisa.','Carlos M.','Barra da Tijuca, RJ'],['Receber visitas ficou outro nível. Acendo o telão, ligo o som do gourmet e ajusto a churrasqueira com uma mensagem.','Fernanda R.','Recreio, RJ'],['A segurança me deu paz de espírito. Acesso as câmeras 4K de onde estiver e recebo alertas em tempo real.','Ricardo & Ana L.','Itaipava, RJ'],['A internet chegou em todos os cômodos. O som do gourmet, sala e varanda funciona perfeitamente integrado.','Marcelo F.','Niterói, RJ']]
-  const testiHtml=testi.map(([q,n,c])=>`<div class="testi"><div class="tq-stars"><div class="tq-star"></div><div class="tq-star"></div><div class="tq-star"></div><div class="tq-star"></div><div class="tq-star"></div></div><div class="tq">${q}</div><div class="testi-av">${n.split(' ').map(w=>w[0]).join('').slice(0,2)}</div><div><div class="tn">${n}</div><div class="tc">${c}</div></div></div>`).join('')
-
-  const adminBanner=adminMode?`<div style="background:#7C3AED;padding:6px 24px;text-align:center;font-size:9px;letter-spacing:3px;color:#fff;text-transform:uppercase;font-family:'Jost',sans-serif">⚠ Versão Admin — Contém dados de custo — NÃO enviar ao cliente</div>`:'';
-
-  const page1=`<div class="page">${adminBanner}
-
-<div class="cov-top">
-  <div><div class="cov-ey">RARO Home</div><div class="cov-si">Casa · Tecnologia · Lazer</div></div>
-  <div class="cov-right">Documento exclusivo e confidencial<br>Válido por 30 dias · ${date_str||'2026'}</div>
-</div>
-
-<div class="logo-zone">
-  <img src="${LOGO_COVER}" alt="RARO Home" style="height:160px;width:auto">
-  <div class="logo-tagline">Casa · Tecnologia · Lazer</div>
-  <div class="logo-orn"><div class="lo-l"></div><div class="lo-d"></div><div class="lo-l-r"></div></div>
-</div>
-
-<div class="hero">
-  <div class="hero-ey">Proposta Técnica Exclusiva</div>
-  <div class="hero-h serif">O espaço que você merece.<br>Criado com <em>exclusividade</em> para você.</div>
-  <div class="hero-lead">Da automação ao gourmet de luxo — entregamos projetos completos com qualidade, exclusividade e atenção a cada detalhe da sua vida.</div>
-</div>
-
-<div class="client-banner">
-  <div><div class="cb-name serif">${client_name}</div><div class="cb-id">${proposal_code}</div></div>
-  <div class="cb-right"><div class="cb-bairro">${neighborhood}</div><div class="cb-date">Proposta técnica exclusiva</div></div>
-</div>
-
-<div class="quem">
-  <div class="qc lft"><span class="qi">◈</span><div class="qt serif">Quem Somos</div><div class="qb">Criamos experiências únicas para quem vive com estilo. Cada projeto é exclusivo, desenvolvido com atenção obsessiva aos detalhes e ao que há de melhor no mercado.</div></div>
-  <div class="qc"><span class="qi">◆</span><div class="qt serif">O que Entregamos</div><div class="qb">Áreas gourmet de luxo, churrasqueiras e coifas exclusivas, chopeiras, telão de LED externo, móveis externos premium, som ambiente, WiFi em toda a casa — e tudo automatizado por voz, toque ou WhatsApp.</div></div>
-  <div class="qc" style="border-left:2.5px solid #C8DEFF"><span class="qi">◇</span><div class="qt serif">Tecnologia de Ponta</div><div class="qb">Zigbee · Matter · Tuya. Compatível com Alexa, Google Home e Apple HomeKit. Câmeras 4K com inteligência artificial.</div></div>
-  <div class="qc"><span class="qi">◉</span><div class="qt serif">RARO Experience</div><div class="qb">Você tem um consultor dedicado do projeto à entrega. Instalação profissional, treinamento personalizado e suporte contínuo via WhatsApp — sem terceiros, sem surpresas.</div></div>
-</div>
-
-<div class="testi-section">
-  <div class="testi-lbl">★ &nbsp;O que nossos clientes dizem</div>
-  <div class="testi-grid">
-    ${[['A casa cuida de tudo. Hoje o WhatsApp me avisa de qualquer coisa.','Carlos M.','Barra da Tijuca, RJ'],
-       ['Receber visitas ficou outro nível. Ligo o som e o gourmet com uma mensagem.','Fernanda R.','Recreio, RJ'],
-       ['A segurança me deu paz de espírito. Acesso as câmeras 4K de qualquer lugar.','Ricardo & Ana L.','Itaipava, RJ'],
-       ['Internet em 100% dos cômodos. Som integrado na sala, gourmet e varanda.','Marcelo F.','Niterói, RJ']]
-      .map(([q,n,c])=>`<div class="testi">
-        <div class="tq-stars"><div class="tq-star"></div><div class="tq-star"></div><div class="tq-star"></div><div class="tq-star"></div><div class="tq-star"></div></div>
-        <div class="tq serif">"${q}"</div>
-        <div class="testi-author">
-          <div class="testi-av">${n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
-          <div><div class="tn">${n}</div><div class="tc">${c}</div></div>
-        </div>
-      </div>`).join('')}
-  </div>
-</div>
-
-<div class="contact-strip">
-  <div><div class="cs-name serif">Rogério Silva</div><div class="cs-phone">+55 21 98170-9009</div></div>
-  <div class="cs-r">
-    <div class="cs-item"><span class="cs-ic">@</span><span class="cs-tx">contato@rarohome.com.br</span></div>
-    <div class="cs-item"><span class="cs-ic">☆</span><span class="cs-tx-s">@rarohome</span></div>
-    <div class="cs-item"><span class="cs-ic">◉</span><span class="cs-tx-s">www.rarohome.com.br</span></div>
-  </div>
-</div>
-<div class="valid-strip">© RARO Home · ${client_name} · ${proposal_code} · Válido por 30 dias</div>
-</div>`
-
+  const padRooms=(rooms,cols=2)=>{ const r=[...rooms]; while(r.length%cols!==0) r.push(null); return r }
+  const FLOOR_ORDINALS = {'Primeiro':['1º','Primeiro'],'Segundo':['2º','Segundo'],'Terceiro':['3º','Terceiro'],'Quarto':['4º','Quarto'],'Quinto':['5º','Quinto']}
+  const floorBlock=(fl,flIdx)=>{ 
+    const padded=padRooms(fl.rooms||[],2)
+    const cards=padded.map(r=>r?roomCard(r):'<div class="room pad"></div>').join('')
+    const nameParts=fl.name.split(' ')
+    const ordWord=nameParts[0]||''
+    const ordinal=FLOOR_ORDINALS[ordWord]?.[0]||`${flIdx+1}º`
+    const label=FLOOR_ORDINALS[ordWord]?.[1]||ordWord
+    return `<div class="fl-block"><div class="fl-section-hdr"><div style="display:flex;align-items:center;gap:10px"><div style="background:#0EA5E9;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:800;flex-shrink:0">${ordinal}</div><div><div class="fl-section-label">Pavimento</div><div class="fl-section-name">${label} Pavimento</div></div></div></div><div class="fl-block-grid">${cards}</div></div>`
+  }
+  const flushPage=()=>{ if(!curFloors.length) return; const blocksHtml=curFloors.map((fl,fi)=>floorBlock(fl,fi)).join(''); const subHtml=curFloors.map(fl=>{ const sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0); return `<div class="sub-item">${fl.name}: <strong>${fmtN(sub)}</strong></div>` }).join(''); pages.push(`<div class="page">${pageHeader()}${clientMini()}<div class="rooms-3col">${blocksHtml}</div><div class="subtotals-bar">${subHtml}</div>${pageFooter(pageNum)}</div>`); pageNum++; curFloors=[]; curRows=0 }
   const adminSummary = adminMode ? ('<div style="background:#3D1A6E;padding:10px 12px;border-radius:3px;margin-bottom:10px"><div style="font-size:7px;letter-spacing:2px;color:#C084FC;text-transform:uppercase;font-family:DM Sans,sans-serif;margin-bottom:6px">Resumo Financeiro (Admin)</div><div style="display:flex;gap:16px;flex-wrap:wrap">' + (floors||[]).map(fl=>{ const costTotal=(fl.rooms||[]).flatMap(r=>r.items||[]).reduce((s,i)=>(s+(i.cost_price||0)*(parseInt(i.qty)||1)),0); const saleTotal=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0); const mg=costTotal>0?Math.round((saleTotal-costTotal)/costTotal*100):0; return '<div style="font-size:9px;color:#E9D5FF">'+fl.name.replace(' Pavimento','')+': custo '+fmtN(costTotal)+' · venda '+fmtN(saleTotal)+' · margem '+mg+'%</div>' }).join('') + '</div></div>') : '';
 
   const pavBlocks = (floors||[]).length===1
