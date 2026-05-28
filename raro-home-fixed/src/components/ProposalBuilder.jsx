@@ -1,8 +1,7 @@
 import { openProposalPDF } from './proposalPDF.js'
 import { useState, useEffect } from 'react'
 import { saveProposal, getCatalog, getStockWithReservations, getCatalogCategories,
-         generateProposalCode, auditedSave, checkProposalStock, checkPINSession, setPINSession, verifyPIN } from '../db/supabase.js'
-import PINModal from './PINModal.jsx'
+         generateProposalCode, auditedSave, checkProposalStock } from '../db/database.js'
 
 // ── Pitch bank ─────────────────────────────────────────────
 const PITCHES = {
@@ -173,14 +172,14 @@ body{font-family:'DM Sans',sans-serif;background:#fff;-webkit-print-color-adjust
 .pc-bairro{font-family:'DM Sans',sans-serif;font-size:7px;color:#6B8CAE;font-style:italic}
 
 /* ── ROOM CARDS ── */
-.fl-section-hdr{background:linear-gradient(135deg,#060B1A 0%,#0a1628 100%);border-radius:4px;padding:10px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px;border-left:4px solid #0EA5E9}
+.fl-section-hdr{grid-column:1/-1;padding:5px 4px 3px;margin-top:3px}
 .fl-section-hdr-inner{display:flex;align-items:center;gap:8px;padding-bottom:4px;border-bottom:1px solid #C8DEFF}
 .fl-section-label{font-size:6px;letter-spacing:4px;color:#0EA5E9;text-transform:uppercase;font-family:'DM Sans',sans-serif}
 .fl-section-name{font-family:'DM Serif Display',serif;font-size:15px;color:#060B1A;letter-spacing:0.5px}
 
 .rooms-3col{flex:1;padding:4px 6px;display:flex;flex-direction:column;gap:0;overflow:hidden}
 .fl-block{display:flex;flex-direction:column;margin-bottom:2px}
-.fl-block-grid{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:6px 8px;flex:1}
+.fl-block-grid{display:grid;grid-template-columns:1fr 1fr 1fr;grid-auto-rows:1fr;gap:5px 6px;flex:1}
 
 .fl-block-grid .room,.rooms-3col .room{background:#fff;border:0.5px solid #C8DEFF;border-radius:4px;padding:8px 10px;display:flex;flex-direction:column;border-left:2.5px solid #C8DEFF;overflow:hidden;min-height:0}
 .fl-block-grid .room.hl,.rooms-3col .room.hl{border-left-color:#0EA5E9}
@@ -188,14 +187,14 @@ body{font-family:'DM Sans',sans-serif;background:#fff;-webkit-print-color-adjust
 
 .fl-block-grid .rh,.rooms-3col .rh{display:flex;align-items:flex-start;gap:5px;margin-bottom:4px}
 .fl-block-grid .ri,.rooms-3col .ri{font-size:12px;color:#0EA5E9;flex-shrink:0;margin-top:1px}
-.fl-block-grid .rn,.rooms-3col .rn{font-family:'DM Serif Display',serif;font-size:13px;font-weight:400;color:#060B1A;line-height:1.2}
+.fl-block-grid .rn,.rooms-3col .rn{font-family:'DM Serif Display',serif;font-size:12px;font-weight:400;color:#060B1A;line-height:1.2}
 
 .fl-block-grid .items-table,.rooms-3col .items-table{width:100%;border-collapse:collapse;margin-bottom:3px}
-.fl-block-grid .it-name,.rooms-3col .it-name{font-size:9px;color:#1e3a5f;font-weight:400;padding:2px 0;line-height:1.45;width:62%;font-family:'DM Sans',sans-serif}
+.fl-block-grid .it-name,.rooms-3col .it-name{font-size:7px;color:#3D5A80;font-weight:300;padding:1px 0;line-height:1.4;width:62%;font-family:'DM Sans',sans-serif}
 .fl-block-grid .it-code,.rooms-3col .it-code{font-size:6.5px;color:#6B8CAE;text-align:center;width:26%;font-family:'DM Sans',sans-serif}
 .fl-block-grid .it-qty,.rooms-3col .it-qty{font-size:7px;color:#0EA5E9;font-weight:600;text-align:right;width:12%;font-family:'DM Sans',sans-serif}
 
-.fl-block-grid .rp,.rooms-3col .rp{font-family:'Playfair Display',serif;font-style:italic;font-size:8px;color:#3D5A80;line-height:1.4;margin-top:4px;padding-top:4px;border-top:0.5px solid #E0EEFF}
+.fl-block-grid .rp,.rooms-3col .rp{font-family:'DM Serif Display',serif;font-style:italic;font-size:8.5px;color:#3D5A80;padding-top:3px;line-height:1.3;margin-top:auto}
 
 .fl-block-grid .rv,.rooms-3col .rv{display:flex;justify-content:space-between;align-items:flex-end;margin-top:4px;padding-top:4px;border-top:0.5px solid #C8DEFF;flex-shrink:0}
 .fl-block-grid .rvl,.rooms-3col .rvl{font-size:6px;letter-spacing:2px;color:#6B8CAE;text-transform:uppercase;font-family:'DM Sans',sans-serif}
@@ -216,7 +215,7 @@ body{font-family:'DM Sans',sans-serif;background:#fff;-webkit-print-color-adjust
 .tot-body{padding:16px 24px 0;flex-shrink:0}
 .tot-ey{font-size:7px;letter-spacing:4px;color:#0369A1;text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:10px}
 
-.pav-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#C8DEFF;margin-bottom:10px}.pb-full{grid-column:1/-1}.pr-grid-full{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0}
+.pav-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#C8DEFF;margin-bottom:10px}
 .pb{background:#E8F4FF;padding:10px 12px}
 .pb-title{font-size:6.5px;letter-spacing:2px;color:#0369A1;text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:6px;padding-bottom:4px;border-bottom:0.5px solid #C8DEFF}
 .pr{display:flex;justify-content:space-between;align-items:baseline;padding:2px 0}
@@ -254,211 +253,142 @@ body{font-family:'DM Sans',sans-serif;background:#fff;-webkit-print-color-adjust
 `
 
 function buildPDF(data, adminMode=false){
-  const{client_name,proposal_code,neighborhood,floors,labor,date_str,itemFontSize=9,client_phone1,client_phone2}=data
-  const fmt=v=>'R$\u202f'+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
+  const{client_name,proposal_code,neighborhood,floors,labor,date_str,margin=1,client_phone1,client_phone2}=data
+  const fmtN=v=>'R$\u202f'+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
+
   const equipTotal=(floors||[]).reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
   const grandTotal=equipTotal+parse(labor)
   const laborVal=parse(labor)
-  const iFS=Math.max(9,itemFontSize||9)
 
-  // ── helpers ──────────────────────────────────────────────────
-  const pageHeader=()=>`<div class="phdr"><div><div class="phdr-brand">RARO HOME</div><div class="phdr-sub">Casa · Tecnologia · Lazer</div></div><div class="phdr-right">${proposal_code}</div></div><div class="grule"></div>`
+  const contactStrip=()=>`<div class="contact-strip"><div><div class="cs-name">Rogério Silva</div><div class="cs-phone">+55 21 98170-9009</div></div><div class="cs-r"><div class="cs-item"><span class="cs-ic">@</span><span class="cs-tx">contato@rarohome.com.br</span></div><div class="cs-item"><span class="cs-ic">☆</span><span class="cs-tx-s">@rarohome</span></div><div class="cs-item"><span class="cs-ic">◉</span><span class="cs-tx-s">www.rarohome.com.br</span></div></div></div>`
+  const pageHeader=()=>`<div class="phdr"><div><div class="phdr-brand">RARO HOME</div><div class="phdr-sub">Casa · Tecnologia · Lazer</div></div><div class="phdr-right">rarohome.com.br</div></div><div class="grule"></div>`
   const pageFooter=n=>`<div class="pftr"><div class="pftr-brand">RARO Home — Proposta Técnica${adminMode?' · VERSÃO ADMIN':''}</div><div class="pftr-n">${n}</div></div>`
   const clientMini=()=>`<div class="page-client"><div><div class="pc-name">${client_name}</div></div><div style="display:flex;gap:14px;align-items:center"><div class="pc-bairro">${neighborhood}</div><div class="pc-id">${proposal_code}</div></div></div>`
-  const contactStrip=()=>`<div class="contact-strip"><div><div class="cs-name">Rogério Silva</div><div class="cs-phone">+55 21 98170-9009</div></div><div class="cs-r"><div class="cs-item"><span class="cs-ic">@</span><span class="cs-tx">contato@rarohome.com.br</span></div><div class="cs-item"><span class="cs-ic">☆</span><span class="cs-tx-s">@rarohome</span></div><div class="cs-item"><span class="cs-ic">◉</span><span class="cs-tx-s">www.rarohome.com.br</span></div></div></div>`
 
-  // ── CAPA (idêntica à versão anterior) ────────────────────────
-  const LOGO_SVG=`<svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="28" y="4" width="16" height="28" rx="2" fill="none" stroke="#0369A1" stroke-width="2.5"/><rect x="20" y="18" width="32" height="6" rx="1.5" fill="none" stroke="#0369A1" stroke-width="2"/><line x1="36" y1="32" x2="36" y2="68" stroke="#0369A1" stroke-width="2.5"/><line x1="16" y1="68" x2="56" y2="68" stroke="#0369A1" stroke-width="2.5"/></svg>`
-  const cover=`<div class="page" style="page-break-after:always">
-    <div class="cov-top">
-      <div><div class="cov-ey">Documento exclusivo e confidencial</div><div class="cov-si">Proposta técnica exclusiva</div></div>
-      <div class="cov-right">Válido por 30 dias · ${date_str}</div>
-    </div>
-    <div class="logo-zone">
-      ${LOGO_SVG}
-      <div class="logo-tagline">C A S A · T E C N O L O G I A · L A Z E R</div>
-      <div class="logo-orn"><div class="lo-l-r"></div><div class="lo-d"></div><div class="lo-l"></div></div>
-    </div>
-    <div class="hero">
-      <div class="hero-ey">P R O P O S T A T É C N I C A E X C L U S I V A</div>
-      <div class="hero-h">O espaço que você merece.<br/><em>Criado com exclusividade</em> para você.</div>
-      <div class="hero-lead">Da automação ao gourmet de luxo — entregamos projetos completos com qualidade, exclusividade e atenção a cada detalhe da sua vida.</div>
-    </div>
-    <div class="client-banner">
-      <div><div class="cb-name">${client_name}</div><div class="cb-id">${proposal_code}</div></div>
-      <div class="cb-right"><div class="cb-bairro">${neighborhood}</div><div class="cb-date">${date_str}</div></div>
-    </div>
-    <div class="quem">
-      <div class="qc lft"><span class="qi">◈</span><div class="qt">Quem Somos</div><div class="qb">Criamos experiências únicas para quem vive com estilo. Cada projeto é exclusivo, desenvolvido com atenção obsessiva aos detalhes e ao que há de melhor no mercado.</div></div>
-      <div class="qc lft"><span class="qi">◆</span><div class="qt">O que Entregamos</div><div class="qb">Áreas gourmet de luxo, churrasqueiras e coifas exclusivas, chopeiras, telão de LED externo, móveis externos premium, som ambiente, WiFi em toda a casa — e tudo automatizado por voz, toque ou WhatsApp.</div></div>
-      <div class="qc lft"><span class="qi">◇</span><div class="qt">Tecnologia de Ponta</div><div class="qb">Zigbee · Matter · Tuya. Compatível com Alexa, Google Home e Apple HomeKit. Câmeras 4K com inteligência artificial.</div></div>
-      <div class="qc lft"><span class="qi">◉</span><div class="qt">RARO Experience</div><div class="qb">Você tem um consultor dedicado do projeto à entrega. Instalação profissional, treinamento personalizado e suporte contínuo via WhatsApp — sem terceiros, sem surpresas.</div></div>
-    </div>
-    <div class="testi-section">
-      <div class="testi-lbl">★ O Q U E N O S S O S C L I E N T E S D I Z E M</div>
-      <div class="testi-grid">
-        <div class="testi"><div class="tq-stars">${'<div class="tq-star"></div>'.repeat(5)}</div><div class="tq">"A casa cuida de tudo. Hoje o WhatsApp me avisa de qualquer coisa."</div><div class="testi-author"><div class="testi-av">CM</div><div><div class="tn">Carlos M.</div><div class="tc">Barra da Tijuca, RJ</div></div></div></div>
-        <div class="testi"><div class="tq-stars">${'<div class="tq-star"></div>'.repeat(5)}</div><div class="tq">"Receber visitas ficou outro nível. Ligo o som e o gourmet com uma mensagem."</div><div class="testi-author"><div class="testi-av">FR</div><div><div class="tn">Fernanda R.</div><div class="tc">Recreio, RJ</div></div></div></div>
-        <div class="testi"><div class="tq-stars">${'<div class="tq-star"></div>'.repeat(5)}</div><div class="tq">"A segurança me deu paz de espírito. Acesso as câmeras 4K de qualquer lugar."</div><div class="testi-author"><div class="testi-av">R&amp;</div><div><div class="tn">Ricardo &amp; Ana L.</div><div class="tc">Itaipava, RJ</div></div></div></div>
-        <div class="testi"><div class="tq-stars">${'<div class="tq-star"></div>'.repeat(5)}</div><div class="tq">"Internet em 100% dos cômodos. Som integrado na sala, gourmet e varanda."</div><div class="testi-author"><div class="testi-av">MF</div><div><div class="tn">Marcelo F.</div><div class="tc">Niterói, RJ</div></div></div></div>
-      </div>
-    </div>
-    ${contactStrip()}
-    <div class="valid-strip">© R A R O H O M E · ${client_name} · ${proposal_code} · V Á L I D O P O R 3 0 D I A S</div>
-  </div>`
-
-  // ── room card (layout vertical, fontes grandes) ───────────────
-  const FORD={'Primeiro':'1º','Segundo':'2º','Terceiro':'3º','Quarto':'4º','Quinto':'5º'}
   const roomCard=r=>{
     const hl=r.highlight?' hl':''
     const rows=(r.items||[]).filter(i=>i.name).map(i=>{
       const qty=parseInt(i.qty)||1
       if(adminMode){
-        const sale=(i.sale_price||0)*qty, cost=(i.cost_price||0)*qty
-        const m=cost>0?Math.round((sale-cost)/cost*100):null
-        return `<tr style="border-bottom:0.5px solid #EDE9FE">
-          <td style="font-size:10px;color:#1E3A5F;padding:3px 4px;font-family:'DM Sans',sans-serif">${i.name}</td>
-          <td style="font-size:9.5px;color:#7C3AED;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif;white-space:nowrap">${sale>0?fmt(sale):'—'}</td>
-          <td style="font-size:9px;color:#E8956A;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif;white-space:nowrap">${cost>0?fmt(cost):'—'}</td>
-          <td style="font-size:9.5px;color:#0EA5E9;font-weight:700;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif">${qty}</td>
-          ${m!==null?`<td style="font-size:9px;color:#059669;font-weight:600;text-align:right;padding:3px 4px">${m}%</td>`:'<td></td>'}
-        </tr>`
+        const sale = ((i.sale_price||i.venda||i.price||0) * qty)
+        const cost = ((i.cost_price||i.custo||0) * qty)
+        const saleStr = sale>0 ? fmtN(sale) : '—'
+        const costStr = cost>0 ? fmtN(cost) : '—'
+        return '<tr style="border-bottom:0.5px solid #EDE9FE">' +
+          '<td style="font-size:7px;color:#1E3A5F;padding:2px 4px;font-family:DM Sans,sans-serif">'+i.name+'</td>' +
+          '<td style="font-size:7px;color:#7C3AED;text-align:right;padding:2px 4px;font-family:DM Sans,sans-serif;white-space:nowrap">'+saleStr+'</td>' +
+          '<td style="font-size:6.5px;color:#E8956A;text-align:right;padding:2px 4px;font-family:DM Sans,sans-serif;white-space:nowrap">'+costStr+'</td>' +
+          '<td style="font-size:7px;color:#0EA5E9;font-weight:600;text-align:right;padding:2px 4px;font-family:DM Sans,sans-serif">'+qty+'</td>' +
+        '</tr>'
       }
-      return `<tr><td class="it-name">${i.name}</td><td class="it-code">${i.code||''}</td><td class="it-qty">${qty>1?qty:''}</td></tr>`
+      return `<tr><td class="it-name">${i.name}</td><td class="it-code">${i.code||''}</td><td class="it-qty">${i.qty||''}</td></tr>`
     }).join('')
-    const thead=adminMode?`<tr style="background:#F3F0FF"><th style="font-size:7.5px;color:#7C3AED;padding:3px 4px;text-align:left;font-family:'DM Sans',sans-serif">Item</th><th style="font-size:7.5px;color:#7C3AED;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif">Venda</th><th style="font-size:7.5px;color:#E8956A;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif">Custo</th><th style="font-size:7.5px;color:#0EA5E9;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif">Qtd</th><th style="font-size:7.5px;color:#059669;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif">Mg%</th></tr>`:''
-    const items=rows?`<table class="items-table" style="${adminMode?'border:0.5px solid #DDD6FE;overflow:hidden':''}">${thead}${rows}</table>`:''
+    const thead=adminMode?`<tr style="background:#F3F0FF"><th style="font-size:5.5px;color:#7C3AED;padding:2px 3px;text-align:left;font-family:'DM Sans',sans-serif">Item</th><th style="font-size:5.5px;color:#7C3AED;text-align:right;padding:2px 3px;font-family:'DM Sans',sans-serif">Venda</th><th style="font-size:5.5px;color:#E8956A;text-align:right;padding:2px 3px;font-family:'DM Sans',sans-serif">Custo</th><th style="font-size:5.5px;color:#7C3AED;text-align:right;padding:2px 3px;font-family:'DM Sans',sans-serif">Qtd</th></tr>`:''
+    const items=rows?`<table class="items-table" style="${adminMode?'border:0.5px solid #DDD6FE;border-radius:3px;overflow:hidden':''}">${thead}${rows}</table>`:''
     const pitch=r.pitch&&!adminMode?`<div class="rp">${r.pitch}</div>`:''
     const roomTotal=adminMode?(()=>{
       const cost=(r.items||[]).reduce((s,i)=>s+(i.cost_price||0)*(parseInt(i.qty)||1),0)
-      const sale=parse(r.price), mg=cost>0?Math.round((sale-cost)/cost*100):0
-      return `<div style="display:flex;justify-content:space-between;margin-top:5px;padding-top:4px;border-top:1px solid #DDD6FE;flex-shrink:0">
-        <div><div style="font-size:6px;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;font-family:'DM Sans',sans-serif">Custo</div><div style="font-size:12px;color:#E8956A;font-weight:600;font-family:'DM Sans',sans-serif">${fmt(cost)}</div></div>
-        <div style="text-align:center"><div style="font-size:6px;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;font-family:'DM Sans',sans-serif">Margem</div><div style="font-size:12px;color:#7C3AED;font-weight:700;font-family:'DM Sans',sans-serif">${mg}%</div></div>
-        <div style="text-align:right"><div style="font-size:6px;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;font-family:'DM Sans',sans-serif">Venda</div><div class="rvv">${fmt(sale)}</div></div>
-      </div>`
-    })():`<div class="rv"><div class="rvl">I N V E S T I M E N T O</div><div class="rvv">${fmt(parse(r.price))}</div></div>`
+      const sale=parse(r.price)
+      const mg=cost>0?Math.round((sale-cost)/cost*100):0
+      return `<div style="display:flex;justify-content:space-between;margin-top:4px;padding-top:3px;border-top:1px solid #DDD6FE;flex-shrink:0"><div><div style="font-size:5px;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase">Custo total</div><div style="font-size:9px;color:#E8956A;font-weight:600">${fmtN(cost)}</div></div><div style="text-align:center"><div style="font-size:5px;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase">Margem</div><div style="font-size:9px;color:#7C3AED;font-weight:600">${mg}%</div></div><div style="text-align:right"><div style="font-size:5px;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase">Venda</div><div style="font-size:9px;color:#060B1A;font-weight:600">${fmtN(sale)}</div></div></div>`
+    })():`<div class="rv"><div class="rvl">Investimento</div><div class="rvv">${fmtN(parse(r.price))}</div></div>`
     return `<div class="room${hl}"><div class="rh"><span class="ri">${r.icon||'◈'}</span><div class="rn">${r.name}</div></div>${items}${pitch}${roomTotal}</div>`
   }
 
-  // ── floor section header ──────────────────────────────────────
-  const floorHdr=(fl,fi)=>{
-    const w=fl.name.split(' ')[0]||''
-    const ord=FORD[w]||`${fi+1}º`
-    const label=(FORD[w]?w:w)+' Pavimento'
-    return `<div class="fl-section-hdr"><div style="background:#0EA5E9;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;font-weight:800;flex-shrink:0;font-family:'DM Sans',sans-serif">${ord}</div><div><div class="fl-section-label">P A V I M E N T O</div><div class="fl-section-name">${label}</div></div></div>`
-  }
+  const padRooms=rooms=>{ const r=[...rooms]; while(r.length%3!==0) r.push(null); return r }
+  const floorBlock=fl=>{ const padded=padRooms(fl.rooms||[]); const cards=padded.map(r=>r?roomCard(r):'<div class="room pad"></div>').join(''); return `<div class="fl-block"><div class="fl-section-hdr"><div class="fl-section-hdr-inner"><div class="fl-section-label">Pavimento</div><div class="fl-section-name">${fl.name.replace(' Pavimento','')}</div></div></div><div class="fl-block-grid">${cards}</div></div>` }
 
-  // ── build room pages: 2 cols, up to 12 rooms per page ─────────
-  const ROOMS_PER_PAGE=12
-  let roomPages=[], cur=[], curFlName=null, curFi=0
-  ;(floors||[]).forEach((fl,fi)=>{
-    ;(fl.rooms||[]).forEach(r=>{
-      if(cur.length>=ROOMS_PER_PAGE){ roomPages.push({items:[...cur]}); cur=[] }
-      cur.push({fl,fi,r})
-    })
-  })
-  if(cur.length) roomPages.push({items:[...cur]})
+  const ROWS_PER_PAGE=6; const pages=[]; let pageNum=2; let curFloors=[]; let curRows=0
+  const flushPage=()=>{ if(!curFloors.length) return; const blocksHtml=curFloors.map(floorBlock).join(''); const subHtml=curFloors.map(fl=>{ const sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0); return `<div class="sub-item">${fl.name.replace(' Pavimento','')}: <strong>${fmtN(sub)}</strong></div>` }).join(''); pages.push(`<div class="page">${pageHeader()}${clientMini()}<div class="rooms-3col">${blocksHtml}</div><div class="subtotals-bar">${subHtml}</div>${pageFooter(pageNum)}</div>`); pageNum++; curFloors=[]; curRows=0 }
+  for(const fl of(floors||[])){ const rooms=fl.rooms||[]; if(!rooms.length) continue; const flRows=Math.ceil(rooms.length/3); if(curRows+0.4+flRows>ROWS_PER_PAGE&&curFloors.length) flushPage(); curFloors.push(fl); curRows+=0.4+flRows } flushPage()
 
-  const roomPagesHtml=roomPages.map(({items},pageIdx)=>{
-    // Group by floor preserving order
-    const groups=[]
-    let lastFl=null
-    items.forEach(({fl,fi,r})=>{
-      if(!lastFl||lastFl.name!==fl.name){ groups.push({fl,fi,cards:[]}); lastFl=fl }
-      groups[groups.length-1].cards.push(r)
-    })
-    const blocks=groups.map(({fl,fi,cards})=>{
-      const padded=[...cards]; if(padded.length%2!==0) padded.push(null)
-      const grid=padded.map(r=>r?roomCard(r):'<div class="room pad"></div>').join('')
-      return `<div class="fl-block">
-        ${floorHdr(fl,fi)}
-        <div class="fl-block-grid">${grid}</div>
-      </div>`
-    }).join('')
-    const sub=groups.map(({fl,cards})=>{const s=cards.filter(Boolean).reduce((t,r)=>t+parse(r.price),0);return s>0?`<div class="sub-item">${fl.name}: <strong>${fmt(s)}</strong></div>`:''}).join('')
-    return `<div class="page">${pageHeader()}${clientMini()}<div class="rooms-3col">${blocks}</div><div class="subtotals-bar">${sub}</div>${pageFooter(pageIdx+2)}</div>`
-  })
+  const testi=[['Antes eu esquecia a coifa ligada, o ar aceso, o portão aberto. Hoje a casa cuida de tudo. O WhatsApp me avisa de qualquer coisa.','Carlos M.','Barra da Tijuca, RJ'],['Receber visitas ficou outro nível. Acendo o telão, ligo o som do gourmet e ajusto a churrasqueira com uma mensagem.','Fernanda R.','Recreio, RJ'],['A segurança me deu paz de espírito. Acesso as câmeras 4K de onde estiver e recebo alertas em tempo real.','Ricardo & Ana L.','Itaipava, RJ'],['A internet chegou em todos os cômodos. O som do gourmet, sala e varanda funciona perfeitamente integrado.','Marcelo F.','Niterói, RJ']]
+  const testiHtml=testi.map(([q,n,c])=>`<div class="testi"><div class="tq-stars"><div class="tq-star"></div><div class="tq-star"></div><div class="tq-star"></div><div class="tq-star"></div><div class="tq-star"></div></div><div class="tq">${q}</div><div class="testi-av">${n.split(' ').map(w=>w[0]).join('').slice(0,2)}</div><div><div class="tn">${n}</div><div class="tc">${c}</div></div></div>`).join('')
 
-  // ── admin summary ─────────────────────────────────────────────
-  const adminSummary=adminMode?(`<div style="background:#3D1A6E;padding:10px 14px;border-radius:4px;margin-bottom:12px"><div style="font-size:8px;letter-spacing:2px;color:#C084FC;text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:6px">Resumo Financeiro (Admin)</div><div style="display:flex;gap:20px;flex-wrap:wrap">`+(floors||[]).map(fl=>{const cT=(fl.rooms||[]).flatMap(r=>r.items||[]).reduce((s,i)=>s+(i.cost_price||0)*(parseInt(i.qty)||1),0),sT=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0),mg=cT>0?Math.round((sT-cT)/cT*100):0;return `<div style="font-size:10px;color:#E9D5FF;font-family:'DM Sans',sans-serif">${fl.name.replace(' Pavimento','')}: <b>${fmt(cT)}</b> custo · <b style="color:#C084FC">${fmt(sT)}</b> venda · <b style="color:#86EFAC">${mg}%</b></div>`}).join('')+'</div></div>'):'';
+  const adminBanner=adminMode?`<div style="background:#7C3AED;padding:6px 24px;text-align:center;font-size:9px;letter-spacing:3px;color:#fff;text-transform:uppercase;font-family:'Jost',sans-serif">⚠ Versão Admin — Contém dados de custo — NÃO enviar ao cliente</div>`:'';
 
-  // ── totals page ───────────────────────────────────────────────
-  const isSingle=(floors||[]).length===1
-  const pavBlocks=isSingle
-    ?(()=>{const fl=(floors||[])[0],sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return `<div class="pb pb-full"><div class="pb-title">${fl.name}</div><div class="pr-grid-full">${(fl.rooms||[]).map(r=>`<div class="pr"><span class="prn">${r.name}</span><span class="prv">${fmt(parse(r.price))}</span></div>`).join('')}</div><div class="psub"><span class="psl">Subtotal</span><span class="psv">${fmt(sub)}</span></div></div>`})()
-    :(floors||[]).map(fl=>{const sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return `<div class="pb"><div class="pb-title">${fl.name}</div>${(fl.rooms||[]).map(r=>`<div class="pr"><span class="prn">${r.name}</span><span class="prv">${fmt(parse(r.price))}</span></div>`).join('')}<div class="psub"><span class="psl">Subtotal</span><span class="psv">${fmt(sub)}</span></div></div>`}).join('')
+  const page1=`<div class="page">${adminBanner}
 
-  const totalPage=`<div class="page page-last">
-    ${pageHeader()}${clientMini()}
-    <div class="tot-body">
-      <div class="tot-ey">R E S U M O D O I N V E S T I M E N T O</div>
-      ${adminSummary}
-      <div class="pav-grid">${pavBlocks}</div>
-      <div class="tr"><span class="tl">Equipamentos — ${(floors||[]).length} Pavimento${(floors||[]).length>1?'s':''}</span><span class="tv">${fmt(equipTotal)}</span></div>
-      <div class="tr"><span class="tl">Mão de Obra — Instalação e Programação</span><span class="tv">${fmt(laborVal)}</span></div>
-      <div class="tr main"><span class="tl main">I N V E S T I M E N T O T O T A L D O P R O J E T O</span><span class="tv main">${fmt(grandTotal)}</span></div>
-    </div>
-    <div class="sig-section" style="margin-top:20px">
-      <div class="sig-ey">A P R O V A Ç Ã O E A S S I N A T U R A</div>
-      <div class="sig-grid"><div class="sf"><div class="sl"></div><div class="slabel">C L I E N T E — N O M E E A S S I N A T U R A</div></div><div></div><div class="sf"><div class="sl"></div><div class="slabel">R A R O H O M E</div></div></div>
-      <div class="sig-date-grid"><div class="sf"><div class="sl" style="max-width:120px"></div><div class="slabel">D A T A</div></div><div class="sf"><div class="sl" style="max-width:120px"></div><div class="slabel">D A T A</div></div></div>
-    </div>
-    <div class="closing" style="margin-top:16px"><div class="cl-t">Pronto para transformar sua residência?</div><div class="cl-contacts"><span class="cl-item">☎ +55 21 98170-9009</span><span class="cl-item">@ contato@rarohome.com.br</span><span class="cl-item">☆ @rarohome</span><span class="cl-item">◉ www.rarohome.com.br</span></div></div>
-    <div style="flex:1;min-height:10px"></div>
-    ${contactStrip()}
-    <div class="valid-strip">© R A R O H O M E · ${client_name} · ${proposal_code} · V Á L I D O P O R 3 0 D I A S</div>
-  </div>`
-
-  // ── extra font overrides ──────────────────────────────────────
-  const extraCSS=`
-.it-name{font-size:${iFS}px!important;color:#1e3a5f!important;font-weight:400!important;padding:2.5px 0!important;line-height:1.5!important;width:62%!important;font-family:'DM Sans',sans-serif!important}
-.it-code{font-size:${Math.max(7,iFS-2)}px!important;color:#6B8CAE!important;text-align:center!important;width:26%!important;font-family:'DM Sans',sans-serif!important}
-.it-qty{font-size:${Math.max(8,iFS-1)}px!important;color:#0EA5E9!important;font-weight:700!important;text-align:right!important;width:12%!important;font-family:'DM Sans',sans-serif!important}
-.rn{font-size:14px!important;color:#060B1A!important}
-.rp{font-size:${Math.max(8,iFS-1)}px!important;color:#3D5A80!important;line-height:1.5!important}
-.rvl{font-size:7px!important;letter-spacing:2px!important}
-.rvv{font-size:15px!important}
-.prn{font-size:11px!important;color:#1E3A5F!important;font-weight:400!important}
-.prv{font-size:14px!important}
-.pb-title{font-size:9px!important;letter-spacing:2px!important;font-weight:500!important}
-.psl{font-size:8px!important}
-.psv{font-size:14px!important}
-.tl{font-size:11px!important;color:#1E3A5F!important}
-.tv{font-size:20px!important}
-.tl.main{font-size:8px!important}
-.tv.main{font-size:26px!important}`
-
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>RARO Home — ${client_name} — ${proposal_code}</title><style>${PDF_CSS}${extraCSS}</style></head><body>
-<div class="no-print" style="position:sticky;top:0;z-index:99;background:${adminMode?'#4C1D95':'#060B1A'};color:#F0F6FF;padding:9px 20px;display:flex;align-items:center;justify-content:space-between;font-family:'DM Sans',sans-serif;font-size:12px">
-  <span><strong>RARO Home</strong>${adminMode?' — VERSÃO ADMIN':''} — ${client_name} · ${proposal_code}</span>
-  <button onclick="window.print()" style="background:#8C6D46;color:#fff;border:none;padding:7px 18px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">⬇ Salvar como PDF</button>
+<div class="cov-top">
+  <div><div class="cov-ey">RARO Home</div><div class="cov-si">Casa · Tecnologia · Lazer</div></div>
+  <div class="cov-right">Documento exclusivo e confidencial<br>Válido por 30 dias · ${date_str||'2026'}</div>
 </div>
-${cover}${roomPagesHtml.join('\n')}${totalPage}
-</body></html>`
-}
 
+<div class="logo-zone">
+  <img src="${LOGO_COVER}" alt="RARO Home" style="height:160px;width:auto">
+  <div class="logo-tagline">Casa · Tecnologia · Lazer</div>
+  <div class="logo-orn"><div class="lo-l"></div><div class="lo-d"></div><div class="lo-l-r"></div></div>
+</div>
+
+<div class="hero">
+  <div class="hero-ey">Proposta Técnica Exclusiva</div>
+  <div class="hero-h serif">O espaço que você merece.<br>Criado com <em>exclusividade</em> para você.</div>
+  <div class="hero-lead">Da automação ao gourmet de luxo — entregamos projetos completos com qualidade, exclusividade e atenção a cada detalhe da sua vida.</div>
+</div>
+
+<div class="client-banner">
+  <div><div class="cb-name serif">${client_name}</div><div class="cb-id">${proposal_code}</div></div>
+  <div class="cb-right"><div class="cb-bairro">${neighborhood}</div><div class="cb-date">Proposta técnica exclusiva</div></div>
+</div>
+
+<div class="quem">
+  <div class="qc lft"><span class="qi">◈</span><div class="qt serif">Quem Somos</div><div class="qb">Criamos experiências únicas para quem vive com estilo. Cada projeto é exclusivo, desenvolvido com atenção obsessiva aos detalhes e ao que há de melhor no mercado.</div></div>
+  <div class="qc"><span class="qi">◆</span><div class="qt serif">O que Entregamos</div><div class="qb">Áreas gourmet de luxo, churrasqueiras e coifas exclusivas, chopeiras, telão de LED externo, móveis externos premium, som ambiente, WiFi em toda a casa — e tudo automatizado por voz, toque ou WhatsApp.</div></div>
+  <div class="qc" style="border-left:2.5px solid #C8DEFF"><span class="qi">◇</span><div class="qt serif">Tecnologia de Ponta</div><div class="qb">Zigbee · Matter · Tuya. Compatível com Alexa, Google Home e Apple HomeKit. Câmeras 4K com inteligência artificial.</div></div>
+  <div class="qc"><span class="qi">◉</span><div class="qt serif">RARO Experience</div><div class="qb">Você tem um consultor dedicado do projeto à entrega. Instalação profissional, treinamento personalizado e suporte contínuo via WhatsApp — sem terceiros, sem surpresas.</div></div>
+</div>
+
+<div class="testi-section">
+  <div class="testi-lbl">★ &nbsp;O que nossos clientes dizem</div>
+  <div class="testi-grid">
+    ${[['A casa cuida de tudo. Hoje o WhatsApp me avisa de qualquer coisa.','Carlos M.','Barra da Tijuca, RJ'],
+       ['Receber visitas ficou outro nível. Ligo o som e o gourmet com uma mensagem.','Fernanda R.','Recreio, RJ'],
+       ['A segurança me deu paz de espírito. Acesso as câmeras 4K de qualquer lugar.','Ricardo & Ana L.','Itaipava, RJ'],
+       ['Internet em 100% dos cômodos. Som integrado na sala, gourmet e varanda.','Marcelo F.','Niterói, RJ']]
+      .map(([q,n,c])=>`<div class="testi">
+        <div class="tq-stars"><div class="tq-star"></div><div class="tq-star"></div><div class="tq-star"></div><div class="tq-star"></div><div class="tq-star"></div></div>
+        <div class="tq serif">"${q}"</div>
+        <div class="testi-author">
+          <div class="testi-av">${n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+          <div><div class="tn">${n}</div><div class="tc">${c}</div></div>
+        </div>
+      </div>`).join('')}
+  </div>
+</div>
+
+<div class="contact-strip">
+  <div><div class="cs-name serif">Rogério Silva</div><div class="cs-phone">+55 21 98170-9009</div></div>
+  <div class="cs-r">
+    <div class="cs-item"><span class="cs-ic">@</span><span class="cs-tx">contato@rarohome.com.br</span></div>
+    <div class="cs-item"><span class="cs-ic">☆</span><span class="cs-tx-s">@rarohome</span></div>
+    <div class="cs-item"><span class="cs-ic">◉</span><span class="cs-tx-s">www.rarohome.com.br</span></div>
+  </div>
+</div>
+<div class="valid-strip">© RARO Home · ${client_name} · ${proposal_code} · Válido por 30 dias</div>
+</div>`
+
+  const adminSummary = adminMode ? ('<div style="background:#3D1A6E;padding:10px 12px;border-radius:3px;margin-bottom:10px"><div style="font-size:7px;letter-spacing:2px;color:#C084FC;text-transform:uppercase;font-family:DM Sans,sans-serif;margin-bottom:6px">Resumo Financeiro (Admin)</div><div style="display:flex;gap:16px;flex-wrap:wrap">' + (floors||[]).map(fl=>{ const costTotal=(fl.rooms||[]).flatMap(r=>r.items||[]).reduce((s,i)=>(s+(i.cost_price||0)*(parseInt(i.qty)||1)),0); const saleTotal=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0); const mg=costTotal>0?Math.round((saleTotal-costTotal)/costTotal*100):0; return '<div style="font-size:9px;color:#E9D5FF">'+fl.name.replace(' Pavimento','')+': custo '+fmtN(costTotal)+' · venda '+fmtN(saleTotal)+' · margem '+mg+'%</div>' }).join('') + '</div></div>') : '';
+
+  const pavBlocks = (floors||[]).map(fl=>{
+    const rows = (fl.rooms||[]).map(r=>'<div class="pr"><span class="prn">'+r.name+'</span><span class="prv">'+fmtN(parse(r.price))+'</span></div>').join('')
+    const sub  = (fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0)
+    return '<div class="pb"><div class="pb-title">'+fl.name+'</div>'+rows+'<div class="psub"><span class="psl">Subtotal</span><span class="psv">'+fmtN(sub)+'</span></div></div>'
+  }).join('')
+
+  const pageTotals=`<div class="page page-last">${pageHeader()}${clientMini()}<div class="tot-body"><div class="tot-ey">Resumo do Investimento</div>${adminSummary}<div class="pav-grid">${pavBlocks}</div><div class="tr"><span class="tl">Equipamentos — ${(floors||[]).length} Pavimento${(floors||[]).length>1?'s':''}</span><span class="tv">${fmtN(equipTotal)}</span></div><div class="tr"><span class="tl">Mão de Obra — Instalação e Programação</span><span class="tv">${fmtN(laborVal)}</span></div><div class="tr main"><span class="tl main">Investimento Total do Projeto</span><span class="tv main">${fmtN(grandTotal)}</span></div></div><div class="sig-section" style="margin-top:32px"><div class="sig-ey">Aprovação e Assinatura</div><div class="sig-grid"><div class="sf"><div class="sl"></div><div class="slabel">Cliente — Nome e Assinatura</div></div><div></div><div class="sf"><div class="sl"></div><div class="slabel">RARO Home</div></div></div><div class="sig-date-grid"><div class="sf"><div class="sl" style="max-width:120px"></div><div class="slabel">Data</div></div><div class="sf"><div class="sl" style="max-width:120px"></div><div class="slabel">Data</div></div></div></div><div class="closing"><div class="cl-t">Pronto para transformar sua residência?</div><div class="cl-contacts"><span class="cl-item">☎ +55 21 98170-9009</span><span class="cl-item">@ contato@rarohome.com.br</span><span class="cl-item">☆ @rarohome</span><span class="cl-item">◉ www.rarohome.com.br</span></div></div><div style="flex:1;min-height:16px"></div>${contactStrip()}<div class="valid-strip">© RARO Home · ${client_name} · ${proposal_code} · Válido por 30 dias</div></div>`
+
+  const slogan=`<div style="text-align:center;padding:10px 0;font-family:'Jost',sans-serif;font-size:10px;letter-spacing:4px;color:rgba(140,109,70,0.7);text-transform:uppercase">Viva diferente. Viva RARO.</div>`
+
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>RARO Home — ${client_name} — ${proposal_code}</title><style>${PDF_CSS}.rooms-3col{flex:1;padding:4px 6px;display:flex;flex-direction:column;gap:0;overflow:hidden}.fl-block{display:flex;flex-direction:column;margin-bottom:2px}.fl-block-grid{display:grid;grid-template-columns:1fr 1fr 1fr;grid-auto-rows:1fr;gap:5px 6px;flex:1}.fl-block-grid .room,.rooms-3col .room{background:#fff;border:0.5px solid #E5DDD4;border-radius:3px;padding:8px 10px;display:flex;flex-direction:column;border-left:2.5px solid #E5DDD4;overflow:hidden;min-height:0}.fl-block-grid .room.hl,.rooms-3col .room.hl{border-left-color:#8C6D46}.fl-block-grid .room.pad,.rooms-3col .room.pad{background:transparent;border-color:transparent}.fl-block-grid .rh,.rooms-3col .rh{display:flex;align-items:flex-start;gap:5px;margin-bottom:4px}.fl-block-grid .ri,.rooms-3col .ri{font-size:12px;color:#8C6D46;flex-shrink:0;margin-top:1px}.fl-block-grid .rn,.rooms-3col .rn{font-family:'Playfair Display',serif;font-size:10px;font-weight:500;color:#1C1C1C;line-height:1.2}.fl-block-grid .items-table,.rooms-3col .items-table{width:100%;border-collapse:collapse;margin-bottom:3px}.fl-block-grid .it-name,.rooms-3col .it-name{font-size:5.5px;color:#6B635A;font-weight:300;padding:1px 0;line-height:1.3;width:62%;font-family:'Jost',sans-serif}.fl-block-grid .it-code,.rooms-3col .it-code{font-size:5px;color:#9E9690;text-align:center;width:26%;font-family:'Jost',sans-serif}.fl-block-grid .it-qty,.rooms-3col .it-qty{font-size:5.5px;color:#8C6D46;font-weight:600;text-align:right;width:12%;font-family:'Jost',sans-serif}.fl-block-grid .rp,.rooms-3col .rp{font-family:'Playfair Display',serif;font-style:italic;font-size:7px;color:#6A5234;padding-top:3px;line-height:1.25;margin-top:auto}.fl-block-grid .rv,.rooms-3col .rv{display:flex;justify-content:space-between;align-items:flex-end;margin-top:4px;padding-top:4px;border-top:0.5px solid #E5DDD4;flex-shrink:0}.fl-block-grid .rvl,.rooms-3col .rvl{font-size:5px;letter-spacing:2px;color:#9E9690;text-transform:uppercase;font-family:'Jost',sans-serif}.fl-block-grid .rvv,.rooms-3col .rvv{font-family:'Playfair Display',serif;font-size:11px;color:#1C1C1C}.fl-section-hdr{grid-column:1/-1;padding:5px 4px 3px;margin-top:3px}.fl-section-hdr-inner{display:flex;align-items:center;gap:8px;padding-bottom:4px;border-bottom:1px solid #C8BEB4}.fl-section-label{font-size:6px;letter-spacing:4px;color:#8C6D46;text-transform:uppercase;font-family:'Jost',sans-serif}.fl-section-name{font-family:'Playfair Display',serif;font-size:13px;color:#1E1A17;letter-spacing:1px}.subtotals-bar{background:#2C2520;padding:6px 24px;display:flex;justify-content:flex-end;align-items:center;gap:20px;flex-shrink:0}.sub-item{font-size:7px;color:#9E9690;font-family:'Jost',sans-serif;display:flex;align-items:center;gap:5px}.sub-item strong{color:#E8DDD0;font-size:12px;font-family:'Playfair Display',serif;font-weight:400}</style></head><body><div class="no-print" style="position:sticky;top:0;z-index:99;background:${adminMode?'#4C1D95':'#060B1A'};color:#F0F6FF;padding:9px 20px;display:flex;align-items:center;justify-content:space-between;font-family:'Jost',sans-serif;font-size:12px"><span><strong>RARO Home</strong>${adminMode?' — VERSÃO ADMIN':''} — ${client_name} · ${proposal_code}</span><button onclick="window.print()" style="background:#8C6D46;color:#fff;border:none;padding:7px 18px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Jost',sans-serif">⬇ Salvar como PDF</button></div>${page1}${pages.join('\n')}${pageTotals}</body></html>`
+}
 
 // ── COMPONENT ──────────────────────────────────────────────
 export default function ProposalBuilder({ clients, onRefresh, editProposal, isAdmin, currentUser }) {
-  const [catalog, setCatalog] = useState([])
-  const [stock,   setStock]   = useState([])
-  const [cats,    setCats]    = useState([])
-
-  useEffect(() => {
-    getCatalog().then(c  => setCatalog(c  || []))
-    getStockWithReservations().then(s => setStock(s || []))
-    getCatalogCategories().then(c => setCats(c || []))
-  }, [])
+  const catalog = getCatalog()
+  const stock   = getStockWithReservations()
+  const cats    = getCatalogCategories()
 
   const init = editProposal
-  // floors from Supabase may be a string or array
-  const initFloors = (() => {
-    const f = init?.floors
-    if (!f) return null
-    if (typeof f === 'string') { try { return JSON.parse(f) } catch { return null } }
-    return Array.isArray(f) ? f : null
-  })()
   const [clientId,    setClientId]    = useState(init?.client_id||'')
   const [clientName,  setClientName]  = useState(init?.client_name||'')
   const [description, setDescription] = useState(init?.description||'')
@@ -466,17 +396,14 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
   const [proposalCode,setProposalCode]= useState(init?.code||'')
   const [margin,      setMargin]      = useState(100)
   const [floors,      setFloors]      = useState(()=>
-    initFloors?.length
-      ? initFloors.map(f=>({...f,id:Date.now()+Math.random(),rooms:(f.rooms||[]).map(r=>({...r,id:Date.now()+Math.random()}))}))
+    init?.floors?.length
+      ? init.floors.map(f=>({...f,id:Date.now()+Math.random(),rooms:(f.rooms||[]).map(r=>({...r,id:Date.now()+Math.random()}))}))
       : [mkFloor('Primeiro Pavimento')]
   )
   const [cf, setCf] = useState(0)
   const [cr, setCr] = useState(-1)
   const [catFilter, setCatFilter] = useState('all')
   const [catSearch, setCatSearch] = useState('')
-  const [editingItemPrice, setEditingItemPrice] = useState(null)
-  const [showPIN, setShowPIN]   = useState(false)
-  const [pinAction, setPinAction] = useState(null)
   const [stockWarnings, setStockWarnings] = useState([])
   const [saved, setSaved] = useState(!!init?.id)
   const [savedMsg, setSavedMsg] = useState('')
@@ -517,24 +444,25 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
 
   // Apply margin recalculation
   function applyMargin(m) {
-    const pct = parseFloat(m) / 100
-    if (isNaN(pct)) return
+    const pct = Number(m) / 100
     setFloors(fs => fs.map(f => ({
       ...f,
       rooms: f.rooms.map(r => {
-        // Update each item's sale_price based on its cost_price
-        const updatedItems = (r.items||[]).map(it => {
-          const cost = it.cost_price || catalog.find(c=>c.code===it.code)?.cost_price || 0
-          if (!cost) return it
-          return { ...it, sale_price: parseFloat((cost * (1 + pct)).toFixed(2)) }
-        })
-        // Room price = sum of all item sale_price * qty
-        const newRoomPrice = updatedItems.reduce((s,it)=>
-          s + (it.sale_price||0) * (parseInt(it.qty)||1), 0)
-        return { ...r, items: updatedItems, price: newRoomPrice > 0 ? String(newRoomPrice) : r.price }
+        // Sum cost of all items in this room
+        const costTotal = (r.items||[]).reduce((s,it) => {
+          // Try catalog for cost_price, fallback to item's cost_price
+          const catItem = catalog.find(c => c.code === it.code)
+          const cost = catItem?.cost_price || it.cost_price || 0
+          return s + cost * (parseInt(it.qty)||1)
+        }, 0)
+        // Only recalc if room has items with known costs
+        const newPrice = costTotal > 0
+          ? Math.round(costTotal * (1 + pct))
+          : parse(r.price)
+        return { ...r, price: String(newPrice) }
       })
     })))
-    setMargin(parseFloat(m))
+    setMargin(Number(m))
   }
 
   function genCode(){
@@ -557,53 +485,30 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
       description,
       status,
       labor:parse(laborValue||labor),
+      margin,
       floors:floors.map(f=>({name:f.name,rooms:f.rooms.map(r=>({name:r.name,icon:r.icon,highlight:r.highlight,pitch:r.pitch,price:parse(r.price),items:(r.items||[]).filter(it=>it.name)}))})),
       valid_days:30,
     }
   }
 
-  function requirePIN(action) {
-    if (checkPINSession()) { Promise.resolve(action()).catch(console.error); return }
-    setPinAction(()=>()=>Promise.resolve(action()).catch(console.error))
-    setShowPIN(true)
+  function handleSaveConfirm(){
+    const p=buildProposalObject('draft',laborInput)
+    if(!p.code) p.code=generateProposalCode({name1:p.client_name?.[0]||'X',name2:'X'})
+    const saved2=saveProposal(p)
+    setSavedProposal(saved2); setProposalCode(p.code); setLabor(laborInput); setSaved(true)
+    auditedSave('orçamentos', savedProposal?'update':'create', saved2, currentUser?.name)
+    setShowSaveModal(false); onRefresh()
+    setSavedMsg('✓ Proposta salva!')
+    setTimeout(()=>setSavedMsg(''), 3000)
   }
 
-  const [isSaving, setIsSaving] = useState(false)
-  const [pdfFontSize, setPdfFontSize] = useState(7) // default 7px for items in PDF
-
-  async function handleSaveConfirm(){
-    if (isSaving) return
-    setIsSaving(true)
-    try {
-      const p = buildProposalObject('draft', laborInput)
-      if (!p.code) p.code = generateProposalCode({name1:p.client_name?.[0]||'X', name2:'X'})
-      const before = savedProposal ? {...savedProposal} : null
-      const saved2 = await saveProposal(p)
-      if (!saved2) throw new Error('Supabase retornou vazio — verifique a conexão')
-      setSavedProposal(saved2)
-      setProposalCode(saved2.code||p.code)
-      setLabor(laborInput)
-      setSaved(true)
-      try { await auditedSave('orçamentos', before ? 'update' : 'create', saved2, currentUser?.name, before) } catch(e){}
-      setShowSaveModal(false)
-      onRefresh()
-      setSavedMsg('✓ Proposta salva!')
-      setTimeout(()=>setSavedMsg(''), 3000)
-    } catch(err) {
-      console.error('Erro ao salvar proposta:', err)
-      alert('Erro ao salvar: ' + (err.message||'Verifique o console F12'))
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  async function handleSend(via){
+  function handleSend(via){
     if(!savedProposal?.id){ alert('Salve a proposta primeiro.'); return }
     const cl=clients.find(c=>c.id===Number(clientId))
     const p=buildProposalObject('sent',labor)
     p.id=savedProposal.id; p.code=proposalCode
-    await saveProposal(p); setSavedProposal(p)
-    await auditedSave('orçamentos','status_change',p,currentUser?.name,{status:'draft'})
+    saveProposal(p); setSavedProposal(p)
+    auditedSave('orçamentos','status_change',p,currentUser?.name,{status:'draft'})
     onRefresh()
     if(via==='whatsapp1'&&cl?.phone1){ const msg=encodeURIComponent(`Olá ${cl.name1}! Segue a proposta RARO Home ${proposalCode}. Qualquer dúvida estou à disposição! Rogério.`); window.open(`https://wa.me/${cl.phone1.replace(/\D/g,'').replace(/^(?!55)/,'55')}?text=${msg}`,'_blank') }
     if(via==='whatsapp2'&&cl?.phone2){ const msg=encodeURIComponent(`Olá ${cl.name2}! Segue a proposta RARO Home ${proposalCode}. Qualquer dúvida estou à disposição! Rogério.`); window.open(`https://wa.me/${cl.phone2.replace(/\D/g,'').replace(/^(?!55)/,'55')}?text=${msg}`,'_blank') }
@@ -620,7 +525,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
         proposal_code: previewCode,
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         date_str: new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),
-        floors, labor:parse(labor), margin, itemFontSize:pdfFontSize,
+        floors, labor:parse(labor), margin,
         client_phone1: cl?.phone1, client_phone2: cl?.phone2
       }, admin)
       // Try window.open with blob
@@ -675,15 +580,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
           <button className="btn" style={{fontSize:11,borderColor:'#7C3AED',color:'#7C3AED'}} onClick={loadTest} title="Gerar casa teste 8 cômodos / 2 pavimentos">
             <i className="ti ti-flask" aria-hidden/>Teste
           </button>
-          <button className="btn" onClick={genPitch} disabled={!room} title={!room?"Selecione um cômodo primeiro":"Gerar pitch automático para o cômodo"}><i className="ti ti-wand" aria-hidden/>Pitch</button>
-          {/* FONT SIZE CONTROLS for PDF */}
-          <div style={{display:'flex',alignItems:'center',gap:3,background:'var(--surf)',border:'1px solid var(--border)',borderRadius:5,padding:'2px 6px'}}>
-            <span style={{fontSize:9,color:'var(--text3)',letterSpacing:0.5}}>A</span>
-            <button onClick={()=>setPdfFontSize(s=>Math.max(4,s-1))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text2)',fontSize:13,padding:'0 2px',fontWeight:700}} title="Diminuir fonte PDF">−</button>
-            <span style={{fontSize:10,fontWeight:600,color:'var(--accent)',minWidth:20,textAlign:'center'}}>{pdfFontSize}</span>
-            <button onClick={()=>setPdfFontSize(s=>Math.min(14,s+1))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text2)',fontSize:13,padding:'0 2px',fontWeight:700}} title="Aumentar fonte PDF">+</button>
-            <span style={{fontSize:11,color:'var(--text3)',letterSpacing:0.5}}>A</span>
-          </div>
+          <button className="btn" onClick={genPitch} disabled={!room}><i className="ti ti-wand" aria-hidden/>Pitch</button>
           {/* VISUALIZAR — always available */}
           <button className="btn" onClick={()=>openPDF(false, true)}>
             <i className="ti ti-eye" aria-hidden/>Visualizar
@@ -708,93 +605,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
         </div>
       </div>
 
-      <div className="builder" style={{height:'calc(100% - 46px)',display:'flex',gap:0}}>
-        {/* ── STICKY MARGIN PANEL (right side) ── */}
-        {(()=>{
-          const allItems=floors.flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).map(it=>({...it,roomName:r.name,floorName:f.name,qty:parseInt(it.qty)||1}))))
-          const projCost=allItems.reduce((s,it)=>s+(it.cost_price||0)*it.qty,0)
-          const projSale=allItems.reduce((s,it)=>s+(it.sale_price||0)*it.qty,0)
-          const projLucro=projSale-projCost
-          const projPct=projCost>0?Math.round(projLucro/projCost*100):0
-          if(!projCost&&!projSale) return null
-
-          const byCat={}
-          allItems.forEach(it=>{
-            const cat=it.category||'Outro'
-            if(!byCat[cat]) byCat[cat]={cost:0,sale:0,items:[]}
-            byCat[cat].cost+=(it.cost_price||0)*it.qty
-            byCat[cat].sale+=(it.sale_price||0)*it.qty
-            byCat[cat].items.push(it)
-          })
-
-          const pC=p=>p>=50?'var(--green)':p>=20?'var(--amber)':'var(--red)'
-          const lbl={fontSize:8,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1.5,marginBottom:3,marginTop:8}
-
-          return <div style={{width:230,flexShrink:0,background:'var(--surf)',borderLeft:'1px solid var(--border)',padding:'10px 10px',overflowY:'auto',display:'flex',flexDirection:'column',order:3}}>
-            <div style={{fontSize:9,color:'var(--accent)',fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',borderBottom:'2px solid var(--accent)',paddingBottom:5,marginBottom:8}}>Margens ao vivo</div>
-
-            {/* PROJETO */}
-            <div style={{background:'rgba(14,165,233,0.08)',borderRadius:5,padding:'7px 8px',border:'1px solid rgba(14,165,233,0.2)',marginBottom:6}}>
-              <div style={{fontSize:9,color:'var(--accent)',textTransform:'uppercase',letterSpacing:1,marginBottom:4,fontWeight:600}}>Projeto total</div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:10,marginBottom:1}}><span style={{color:'var(--text3)'}}>Venda</span><b style={{color:'var(--accent)'}}>{fmt(projSale)}</b></div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:10,marginBottom:1}}><span style={{color:'var(--text3)'}}>Custo</span><b>{fmt(projCost)}</b></div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:10}}><span style={{color:'var(--text3)'}}>Lucro</span><b style={{color:projLucro>=0?'var(--green)':'var(--red)'}}>{fmt(projLucro)}</b></div>
-              <div style={{textAlign:'right',fontSize:16,fontWeight:700,marginTop:3,color:pC(projPct)}}>{projPct}%</div>
-            </div>
-
-            {/* POR PAVIMENTO */}
-            {floors.filter(f=>(f.rooms||[]).some(r=>parse(r.price)>0)).length>1&&<>
-              <div style={lbl}>Por pavimento</div>
-              {floors.filter(f=>(f.rooms||[]).some(r=>parse(r.price)>0)).map((f,fi)=>{
-                const fC=(f.rooms||[]).flatMap(r=>r.items||[]).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
-                const fS=(f.rooms||[]).reduce((s,r)=>s+parse(r.price),0)
-                const fP=fC>0?Math.round((fS-fC)/fC*100):0
-                return <div key={fi} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',borderBottom:'1px solid var(--border)'}}>
-                  <span style={{fontSize:10,color:'var(--text2)',fontWeight:600}}>{f.name.replace(' Pavimento','Pav.')}</span>
-                  <div style={{textAlign:'right'}}><div style={{fontSize:9,color:'var(--text3)'}}>{fmt(fS)}</div><b style={{fontSize:10,color:pC(fP)}}>{fP}%</b></div>
-                </div>
-              })}
-            </>}
-
-            {/* POR CÔMODO */}
-            <div style={lbl}>Por cômodo</div>
-            {floors.flatMap((f,fi)=>(f.rooms||[]).filter(r=>parse(r.price)>0).map((r,ri)=>{
-              const rC=(r.items||[]).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
-              const rS=parse(r.price)
-              const rP=rC>0?Math.round((rS-rC)/rC*100):0
-              return <div key={`${fi}-${ri}`} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'3px 0',borderBottom:'1px solid var(--border)'}}>
-                <span style={{fontSize:10,color:'var(--text2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:140}}>{r.icon} {r.name||'Sem nome'}</span>
-                <b style={{fontSize:10,flexShrink:0,color:pC(rP),marginLeft:4}}>{rP}%</b>
-              </div>
-            }))}
-
-            {/* POR CATEGORIA + ITENS */}
-            <div style={lbl}>Por categoria</div>
-            {Object.entries(byCat).sort((a,b)=>b[1].sale-a[1].sale).map(([cat,v])=>{
-              const cP=v.cost>0?Math.round((v.sale-v.cost)/v.cost*100):0
-              return <div key={cat}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0 2px',borderBottom:'1px solid var(--border)'}}>
-                  <span style={{fontSize:10,fontWeight:600,color:'var(--text2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:140}}>{cat}</span>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <div style={{fontSize:9,color:'var(--text3)'}}>{fmt(v.sale)}</div>
-                    <b style={{fontSize:10,color:pC(cP)}}>{cP}%</b>
-                  </div>
-                </div>
-                {v.items.map((it,ii)=>{
-                  const iC=(it.cost_price||0)*it.qty
-                  const iS=(it.sale_price||0)*it.qty
-                  const iP=iC>0?Math.round((iS-iC)/iC*100):0
-                  return <div key={ii} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'1px 0 1px 10px',borderBottom:'1px solid rgba(200,222,255,0.05)'}}>
-                    <span style={{fontSize:9,color:'var(--text3)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:155}}>
-                      {it.qty>1&&<span style={{color:'var(--accent)',marginRight:2,fontSize:8}}>{it.qty}×</span>}{it.name}
-                    </span>
-                    <b style={{fontSize:9,flexShrink:0,color:pC(iP),marginLeft:3}}>{iP}%</b>
-                  </div>
-                })}
-              </div>
-            })}
-          </div>
-        })()}
+      <div className="builder" style={{height:'calc(100% - 46px)'}}>
         {/* ── LEFT PANEL ── */}
         <div className="b-left">
           <div className="b-left-top">
@@ -817,15 +628,9 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
             {isAdmin&&<div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 10px',marginBottom:8}}>
               <div className="flabel" style={{marginBottom:4}}>Margem de lucro<span style={{color:'var(--amber)',fontSize:9,marginLeft:4}}>(padrão 100%)</span></div>
               <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                <input type="number" min="0" max="300" value={margin}
-                  onChange={e=>setMargin(Number(e.target.value))}
-                  style={{width:80,textAlign:'center',fontWeight:600}}/>
-                <button className="btn" style={{fontSize:10,padding:'3px 8px'}}
-                  onClick={()=>requirePIN(()=>applyMargin(margin))}>
-                  <i className="ti ti-lock" aria-hidden/>Aplicar
-                </button>
+                <input type="number" min="0" max="300" value={margin} onChange={e=>applyMargin(e.target.value)} style={{width:80,textAlign:'center',fontWeight:600}}/>
                 <span style={{fontSize:12}}>%</span>
-
+                <button className="btn" style={{fontSize:10,padding:'3px 8px'}} onClick={()=>applyMargin(margin)}>Recalcular</button>
               </div>
               <div style={{fontSize:10,color:'var(--amber)',marginTop:4}}>Lucro estimado: {fmt(equipTotal-floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>(rs+(r.items||[]).reduce((is,it)=>(is+(it.cost_price||0)*(parseInt(it.qty)||1)),0)),s),0))}</div>
             </div>}
@@ -872,45 +677,6 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
         <div className="b-right">
           {!room&&<div className="empty-state"><i className="ti ti-mouse" aria-hidden/><p>Selecione ou adicione um cômodo à esquerda</p></div>}
           {room&&<div style={{maxWidth:560}}>
-
-            {/* ── CATALOG SEARCH — topo fixo ── */}
-            <div style={{marginBottom:14,padding:'10px 12px',background:'var(--surf)',border:'1px solid var(--border)',borderRadius:6}}>
-              <div className="flabel" style={{marginBottom:8,fontSize:12}}>🔍 Buscar no catálogo</div>
-              <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:8}}>
-                <input
-                  value={catSearch}
-                  onChange={e=>setCatSearch(e.target.value)}
-                  placeholder="Digite nome, código ou categoria..."
-                  style={{flex:1,fontSize:14,padding:'9px 13px',border:'1px solid var(--accent)',borderRadius:5,background:'var(--bg)',color:'var(--text1)',minWidth:0,fontFamily:'inherit',outline:'none'}}
-                  autoComplete="off"
-                />
-                {catSearch&&<button onClick={()=>setCatSearch('')} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:18,padding:'0 4px',flexShrink:0}}>✕</button>}
-              </div>
-              <select value={catFilter} onChange={e=>setCatFilter(e.target.value)} style={{width:'100%',fontSize:12,padding:'7px 10px',border:'1px solid var(--border)',borderRadius:5,background:'var(--bg)',marginBottom:6}}>
-                <option value="all">Todas as categorias</option>
-                {cats.map(c=><option key={c} value={c}>{c}</option>)}
-              </select>
-              {catSearch&&<div style={{fontSize:10,color:'var(--text3)',marginBottom:6}}>{filteredCatalog.length} resultado(s) para "<b>{catSearch}</b>"</div>}
-              <div style={{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:5,maxHeight:170,overflowY:'auto',marginTop:7}}>
-                {filteredCatalog.length===0
-                  ? <div style={{padding:'12px',textAlign:'center',fontSize:11,color:'var(--text3)'}}>Nenhum produto encontrado</div>
-                  : filteredCatalog.map(ci=>{ const s=stock.find(sx=>sx.code===ci.code); const avail=s?(s.available??s.qty):null; const sClr=avail===null?'var(--text3)':avail===0?'var(--red)':avail<=2?'var(--amber)':'var(--green)'
-                    return <div key={ci.id} onClick={()=>{addItemFromCatalog(ci);setSaved(false)}} style={{padding:'9px 13px',cursor:'pointer',fontSize:14,borderBottom:'0.5px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center',transition:'background .1s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--accent-lt)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      <div>
-                        <div style={{fontWeight:500}}>{ci.name}</div>
-                        <div style={{fontSize:10,color:'var(--text3)',marginTop:1}}>{ci.category} · <span className="mono">{ci.code}</span></div>
-                      </div>
-                      <div style={{textAlign:'right',flexShrink:0,marginLeft:12}}>
-                        <div style={{fontWeight:600,color:'var(--accent)',fontSize:12}}>R$ {Number(ci.sale_price||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
-                        {isAdmin&&ci.cost_price>0&&<div style={{fontSize:9,color:'var(--text3)'}}>custo: R$ {Number(ci.cost_price).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>}
-                        {avail!==null&&<div style={{fontSize:9,color:sClr}}>estoque: {avail}</div>}
-                      </div>
-                    </div>
-                  })
-                }
-              </div>
-            </div>
-
             <div className="form-row" style={{marginBottom:10}}>
               <div className="fg"><div className="flabel">Nome do cômodo</div><input value={room.name} onChange={e=>{updRoom({name:e.target.value});setSaved(false)}} placeholder="ex: Sala de Estar"/></div>
               <div className="fg" style={{maxWidth:70}}><div className="flabel">Ícone</div><select value={room.icon} onChange={e=>updRoom({icon:e.target.value})}>{ICONS.map(ic=><option key={ic} value={ic}>{ic}</option>)}</select></div>
@@ -919,137 +685,102 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
               <div className="fg"><div className="flabel" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>Pitch<button className="btn" style={{fontSize:10,padding:'2px 7px'}} onClick={genPitch}><i className="ti ti-wand" aria-hidden/>Auto</button></div><input value={room.pitch} onChange={e=>updRoom({pitch:e.target.value})} placeholder="Frase de venda..."/></div>
             </div>
 
+              <div style={{marginBottom:10}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                <div className="flabel">Catálogo de produtos</div>
+              </div>
+              <div style={{display:'flex',gap:5,marginBottom:6}}>
+                <input
+                  value={catSearch}
+                  onChange={e=>setCatSearch(e.target.value)}
+                  placeholder="Buscar em todas as categorias..."
+                  style={{flex:1,fontSize:11,padding:'4px 8px',border:'1px solid var(--border)',borderRadius:5}}
+                />
+                <select value={catFilter} onChange={e=>setCatFilter(e.target.value)} style={{fontSize:11,padding:'3px 7px',border:'1px solid var(--border)',borderRadius:5,flexShrink:0}}>
+                  <option value="all">Todas</option>
+                  {cats.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:6,maxHeight:160,overflowY:'auto'}}>
+                {filteredCatalog.map(ci=>{ const s=stock.find(sx=>sx.code===ci.code); const avail=s?(s.available??s.qty):null; const sClr=avail===null?'var(--text3)':avail===0?'var(--red)':avail<=2?'var(--amber)':'var(--green)'
+                  return <div key={ci.id} onClick={()=>{addItemFromCatalog(ci);setSaved(false)}} style={{padding:'6px 10px',cursor:'pointer',fontSize:11.5,borderBottom:'0.5px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center',transition:'background .1s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--accent-lt)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <div><div style={{fontWeight:500}}>{ci.name}</div><div style={{fontSize:10,color:'var(--text3)'}}>{ci.category} · {ci.code}</div></div>
+                    <div style={{textAlign:'right',flexShrink:0,marginLeft:10}}>
+                      <div style={{fontWeight:500,color:'var(--accent)',fontSize:12}}>R$ {Number(ci.sale_price||0).toLocaleString('pt-BR')}</div>
+                      {isAdmin&&<div style={{fontSize:9,color:'var(--text3)'}}>custo: R$ {Number(ci.cost_price||0).toLocaleString('pt-BR')}</div>}
+                      {avail!==null&&<div style={{fontSize:9,color:sClr}}>estoque: {avail}</div>}
+                    </div>
+                  </div>
+                })}
+              </div>
+            </div>
+
             {/* Items */}
             {(room.items||[]).length>0&&<div style={{marginBottom:10}}>
-              <div style={{marginBottom:6}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
                 <div className="flabel">Itens adicionados</div>
+                <button className="btn" style={{fontSize:10,padding:'2px 8px'}} onClick={calcRoomTotal}><i className="ti ti-calculator" aria-hidden/>Calcular valor</button>
               </div>
               <div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:6,padding:8}}>
-                {room.items.map((it,k)=>{
-                  const st=stockStatus(it.code,it.qty)
+                {room.items.map((it,k)=>{ const st=stockStatus(it.code,it.qty)
                   const qty=parseInt(it.qty)||1
                   const costUnit=it.cost_price||0
                   const saleUnit=it.sale_price||0
+                  const costTotal=costUnit*qty
+                  const saleTotal=saleUnit*qty
                   const lucroUnit=saleUnit-costUnit
                   const pct=costUnit>0?Math.round((saleUnit-costUnit)/costUnit*100):0
-
-                  // live editing state per item
-                  const isEditingThis=editingItemPrice===k
-                  const liveMargin=isEditingThis&&editingItemPrice===k
-
-                  return <div key={k} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid var(--border)'}}>
-                    {/* Row: name / code / qty / remove */}
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 72px 44px 24px',gap:5,marginBottom:6,alignItems:'center'}}>
-                      <div style={{fontSize:14,fontWeight:500,lineHeight:1.3}}>{it.name}</div>
+                  return <div key={k} style={{marginBottom:8,paddingBottom:8,borderBottom:'1px solid var(--border)'}}>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 80px 44px 28px',gap:5,marginBottom:4,alignItems:'center'}}>
+                      <div style={{fontSize:12,fontWeight:500}}>{it.name}</div>
                       <div className="mono" style={{fontSize:10,color:'var(--text3)',textAlign:'center'}}>{it.code}</div>
                       <input value={it.qty} onChange={e=>{
-                        const newQty=e.target.value
-                        updItem(k,'qty',newQty)
-                        const upd=room.items.map((x,i2)=>i2===k?{...x,qty:newQty}:x)
-                        const np=upd.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
-                        if(np>0) updRoom({price:String(np),items:upd})
-                        setSaved(false)
-                      }} style={{textAlign:'center',fontSize:12,padding:'4px 5px'}}/>
-                      <button onClick={()=>{removeItem(k);setSaved(false)}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:13,padding:0}}>✕</button>
+                          const newQty = e.target.value
+                          updItem(k,'qty',newQty)
+                          const updatedItems = room.items.map((x,i2)=>i2===k?{...x,qty:newQty}:x)
+                          const newPrice = updatedItems.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
+                          if(newPrice>0) updRoom({price:String(newPrice), items:updatedItems})
+                          setSaved(false)
+                        }} style={{textAlign:'center',fontSize:12,padding:'4px 6px'}}/>
+                      <button onClick={()=>{removeItem(k);setSaved(false)}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:14,padding:2}}>✕</button>
                     </div>
-
-                    {/* Margin panel — all 4 fields editable */}
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4,background:'var(--bg)',borderRadius:5,padding:'6px 8px'}}>
-                      {/* Compra/un — read only */}
+                    {/* Margin panel per item */}
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4,background:'var(--bg)',borderRadius:5,padding:'5px 8px',fontSize:11}}>
                       <div>
-                        <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:0.5,marginBottom:3}}>Compra/un</div>
-                        <div style={{fontSize:12,fontWeight:600,color:'var(--text2)'}}>R$ {costUnit.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+                        <div style={{fontSize:9,color:'var(--text3)',letterSpacing:0.5,textTransform:'uppercase',marginBottom:2}}>Compra/un</div>
+                        <div style={{fontWeight:600,color:'var(--text2)'}}>R$ {costUnit.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
                       </div>
-
-                      {/* Venda/un — editável */}
                       <div>
-                        <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:0.5,marginBottom:3}}>Venda/un <span style={{color:'var(--accent)',fontSize:8}}>✎</span></div>
-                        <input
-                          type="number" min="0" step="0.01"
-                          value={it.sale_price||0}
-                          onChange={e=>{
-                            const nv=parseFloat(e.target.value)||0
-                            const upd=room.items.map((x,i2)=>i2===k?{...x,sale_price:nv}:x)
-                            const np=upd.reduce((s,x)=>s+(x.sale_price||0)*(parseInt(x.qty)||1),0)
-                            updRoom({price:String(np),items:upd})
-                            setSaved(false)
-                          }}
-                          style={{width:'100%',fontSize:11,fontWeight:600,color:'var(--accent)',padding:'2px 4px',border:'1px solid var(--border)',borderRadius:3,background:'var(--bg)'}}
-                        />
+                        <div style={{fontSize:9,color:'var(--text3)',letterSpacing:0.5,textTransform:'uppercase',marginBottom:2}}>Venda/un</div>
+                        <div style={{fontWeight:600,color:'var(--accent)'}}>R$ {saleUnit.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
                       </div>
-
-                      {/* Lucro/un — calculado */}
                       <div>
-                        <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:0.5,marginBottom:3}}>Lucro/un</div>
-                        <div style={{fontSize:12,fontWeight:600,color:lucroUnit>=0?'var(--green)':'var(--red)'}}>R$ {lucroUnit.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+                        <div style={{fontSize:9,color:'var(--text3)',letterSpacing:0.5,textTransform:'uppercase',marginBottom:2}}>Lucro/un</div>
+                        <div style={{fontWeight:600,color:lucroUnit>=0?'var(--green)':'var(--red)'}}>R$ {lucroUnit.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
                       </div>
-
-                      {/* Margem % — editável, recalcula venda */}
                       <div>
-                        <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:0.5,marginBottom:3}}>Margem % <span style={{color:'var(--accent)',fontSize:8}}>✎</span></div>
-                        <div style={{display:'flex',alignItems:'center',gap:2}}>
-                          <input
-                            type="number" min="0" max="999" step="1"
-                            value={pct}
-                            onChange={e=>{
-                              const newPct=parseFloat(e.target.value)||0
-                              if(costUnit>0){
-                                const newSale=parseFloat((costUnit*(1+newPct/100)).toFixed(2))
-                                const upd=room.items.map((x,i2)=>i2===k?{...x,sale_price:newSale}:x)
-                                const np=upd.reduce((s,x)=>s+(x.sale_price||0)*(parseInt(x.qty)||1),0)
-                                updRoom({price:String(np),items:upd})
-                                setSaved(false)
-                              }
-                            }}
-                            style={{width:'100%',fontSize:11,fontWeight:700,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:3,background:'var(--bg)',color:pct>=50?'var(--green)':pct>=20?'var(--amber)':'var(--red)'}}
-                          />
-                          <span style={{fontSize:10,color:'var(--text3)',flexShrink:0}}>%</span>
-                        </div>
+                        <div style={{fontSize:9,color:'var(--text3)',letterSpacing:0.5,textTransform:'uppercase',marginBottom:2}}>Margem</div>
+                        <div style={{fontWeight:700,color:pct>=50?'var(--green)':pct>=20?'var(--amber)':'var(--red)'}}>{pct}%</div>
                       </div>
                     </div>
-
-                    {/* Total line for qty > 1 */}
-                    {qty>1&&<div style={{fontSize:10,color:'var(--text3)',marginTop:4,paddingLeft:2}}>
-                      ×{qty} → compra <b>R$ {(costUnit*qty).toLocaleString('pt-BR',{minimumFractionDigits:2})}</b> · venda <b style={{color:'var(--accent)'}}>R$ {(saleUnit*qty).toLocaleString('pt-BR',{minimumFractionDigits:2})}</b> · lucro <b style={{color:'var(--green)'}}>R$ {(lucroUnit*qty).toLocaleString('pt-BR',{minimumFractionDigits:2})}</b>
+                    {qty>1&&<div style={{fontSize:10,color:'var(--text3)',marginTop:3,paddingLeft:2}}>
+                      Total ×{qty}: compra <b>R$ {costTotal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</b> · venda <b>R$ {saleTotal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</b>
                     </div>}
-
-                    {st&&<div style={{fontSize:10,color:st.type==='ok'?'var(--green)':st.type==='zero'?'var(--red)':'var(--amber)',marginTop:4,display:'flex',alignItems:'center',gap:3}}><i className={`ti ${st.type==='ok'?'ti-check':'ti-alert-triangle'}`} style={{fontSize:10}} aria-hidden/>{st.msg}</div>}
+                    {st&&<div style={{fontSize:10,color:st.type==='ok'?'var(--green)':st.type==='zero'?'var(--red)':'var(--amber)',marginTop:3,marginLeft:2,display:'flex',alignItems:'center',gap:3}}><i className={`ti ${st.type==='ok'?'ti-check':'ti-alert-triangle'}`} style={{fontSize:10}} aria-hidden/>{st.msg}</div>}
                   </div>
                 })}
-
-                {/* Room margin summary — editável */}
+                {/* Room margin summary */}
                 {(()=>{
-                  const roomCost=(room.items||[]).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
+                  const roomCost=(room.items||[]).reduce((s,it)=>(s+(it.cost_price||0)*(parseInt(it.qty)||1)),0)
                   const roomSale=parse(room.price)||((room.items||[]).reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0))
                   const roomLucro=roomSale-roomCost
                   const roomPct=roomCost>0?Math.round(roomLucro/roomCost*100):0
-                  return <div style={{marginTop:8,padding:'8px 10px',background:'rgba(14,165,233,0.07)',borderRadius:5,border:'1px solid rgba(14,165,233,0.25)'}}>
-                    <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:6}}>Resumo do cômodo</div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 80px',gap:6,alignItems:'end'}}>
-                      <div><div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Custo</div><div style={{fontSize:12,fontWeight:600,color:'var(--text2)'}}>R$ {roomCost.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
-                      <div><div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Venda</div><div style={{fontSize:12,fontWeight:600,color:'var(--accent)'}}>R$ {roomSale.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
-                      <div><div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Lucro</div><div style={{fontSize:12,fontWeight:600,color:roomLucro>=0?'var(--green)':'var(--red)'}}>R$ {roomLucro.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
-                      <div>
-                        <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Margem % <span style={{color:'var(--accent)',fontSize:8}}>✎</span></div>
-                        <div style={{display:'flex',alignItems:'center',gap:2}}>
-                          <input
-                            type="number" min="0" max="999" step="1"
-                            value={roomPct}
-                            onChange={e=>{
-                              const newPct=parseFloat(e.target.value)||0
-                              const upd=(room.items||[]).map(it=>{
-                                if(!it.cost_price) return it
-                                return {...it,sale_price:parseFloat((it.cost_price*(1+newPct/100)).toFixed(2))}
-                              })
-                              const np=upd.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
-                              updRoom({price:String(np),items:upd})
-                              setSaved(false)
-                            }}
-                            style={{width:46,fontSize:11,fontWeight:700,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:3,color:roomPct>=50?'var(--green)':roomPct>=20?'var(--amber)':'var(--red)'}}
-                          />
-                          <span style={{fontSize:10,color:'var(--text3)'}}>%</span>
-                        </div>
-                      </div>
+                  return <div style={{marginTop:6,padding:'6px 8px',background:'rgba(14,165,233,0.07)',borderRadius:5,border:'1px solid rgba(14,165,233,0.2)'}}>
+                    <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:4}}>Resumo do cômodo</div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:4,fontSize:11}}>
+                      <div><div style={{fontSize:9,color:'var(--text3)'}}>Custo total</div><div style={{fontWeight:600,color:'var(--text2)'}}>R$ {roomCost.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
+                      <div><div style={{fontSize:9,color:'var(--text3)'}}>Venda total</div><div style={{fontWeight:600,color:'var(--accent)'}}>R$ {roomSale.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
+                      <div><div style={{fontSize:9,color:'var(--text3)'}}>Lucro (equipamentos)</div><div style={{fontWeight:700,color:roomPct>=50?'var(--green)':roomPct>=20?'var(--amber)':'var(--red)'}}>{roomPct}% · R$ {roomLucro.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
                     </div>
                   </div>
                 })()}
@@ -1077,7 +808,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
             </div>
             <div className="total-bar"><div className="total-label">Total</div><div className="total-value">{fmt(grandTotal)}</div></div>
 
-            {/* Project profit — editável por margem global */}
+            {/* Project profit summary — equipamentos only */}
             {(()=>{
               const projCost=floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(r.items||[]).reduce((is,it)=>is+(it.cost_price||0)*(parseInt(it.qty)||1),0),s),0)
               const projSale=equipTotal
@@ -1085,53 +816,30 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
               const projPct=projCost>0?Math.round(projLucro/projCost*100):0
               if(projCost===0) return null
               return <div style={{marginTop:10,padding:'10px 12px',background:'rgba(14,165,233,0.07)',border:'1px solid rgba(14,165,233,0.25)',borderRadius:6}}>
-                <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>Margem do Projeto — Equipamentos (sem M.O.)</div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 90px',gap:8,alignItems:'end'}}>
+                <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>Margem de Lucro — Equipamentos (sem M.O.)</div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,fontSize:12}}>
                   <div>
                     <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Custo total</div>
-                    <div style={{fontSize:13,fontWeight:600,color:'var(--text2)'}}>{fmt(projCost)}</div>
+                    <div style={{fontWeight:600,color:'var(--text2)'}}>{fmt(projCost)}</div>
                   </div>
                   <div>
                     <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Venda total</div>
-                    <div style={{fontSize:13,fontWeight:600,color:'var(--accent)'}}>{fmt(projSale)}</div>
+                    <div style={{fontWeight:600,color:'var(--accent)'}}>{fmt(projSale)}</div>
                   </div>
                   <div>
-                    <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Lucro</div>
-                    <div style={{fontSize:13,fontWeight:600,color:projLucro>=0?'var(--green)':'var(--red)'}}>{fmt(projLucro)}</div>
-                  </div>
-                  <div>
-                    <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Margem % <span style={{color:'var(--accent)',fontSize:8}}>✎</span></div>
-                    <div style={{display:'flex',alignItems:'center',gap:3}}>
-                      <input
-                        type="number" min="0" max="999" step="1"
-                        value={projPct}
-                        title="Altera margem de todos os itens do projeto"
-                        onChange={e=>{
-                          const newPct=parseFloat(e.target.value)||0
-                          const newFloors=floors.map(f=>({...f,rooms:(f.rooms||[]).map(r=>{
-                            const upd=(r.items||[]).map(it=>{
-                              if(!it.cost_price) return it
-                              return {...it,sale_price:parseFloat((it.cost_price*(1+newPct/100)).toFixed(2))}
-                            })
-                            const np=upd.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
-                            return {...r,items:upd,price:np>0?String(np):r.price}
-                          })}))
-                          setFloors(newFloors)
-                          setSaved(false)
-                        }}
-                        style={{width:52,fontSize:13,fontWeight:700,padding:'3px 5px',border:'1px solid var(--border)',borderRadius:4,color:projPct>=50?'var(--green)':projPct>=20?'var(--amber)':'var(--red)'}}
-                      />
-                      <span style={{fontSize:11,color:'var(--text3)'}}>%</span>
-                    </div>
+                    <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Lucro · Margem</div>
+                    <div style={{fontWeight:700,color:projPct>=50?'var(--green)':projPct>=20?'var(--amber)':'var(--red)'}}>{fmt(projLucro)} · {projPct}%</div>
                   </div>
                 </div>
-                {floors.length>1&&<div style={{marginTop:8,borderTop:'1px solid var(--border)',paddingTop:8,display:'flex',flexWrap:'wrap',gap:'4px 16px'}}>
+                {floors.length>1&&<div style={{marginTop:8,borderTop:'1px solid var(--border)',paddingTop:8}}>
+                  <div style={{fontSize:9,color:'var(--text3)',marginBottom:5}}>Por pavimento:</div>
                   {floors.map((f,fi)=>{
                     const fCost=(f.rooms||[]).reduce((s,r)=>s+(r.items||[]).reduce((is,it)=>is+(it.cost_price||0)*(parseInt(it.qty)||1),0),0)
                     const fSale=(f.rooms||[]).reduce((s,r)=>s+parse(r.price),0)
                     const fPct=fCost>0?Math.round((fSale-fCost)/fCost*100):0
-                    return fSale>0?<div key={fi} style={{fontSize:11,color:'var(--text2)'}}>
-                      {f.name.replace(' Pavimento','Pav.')}: <b style={{color:fPct>=50?'var(--green)':fPct>=20?'var(--amber)':'var(--red)'}}>{fPct}%</b>
+                    return fSale>0?<div key={fi} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text2)',padding:'2px 0'}}>
+                      <span>{f.name}</span>
+                      <span style={{color:fPct>=50?'var(--green)':fPct>=20?'var(--amber)':'var(--red)',fontWeight:600}}>{fPct}% · {fmt(fSale-fCost)}</span>
                     </div>:null
                   })}
                 </div>}
@@ -1139,6 +847,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
             })()}
 
             <div style={{marginTop:10}}><div className="flabel" style={{marginBottom:5}}>Descrição</div><input value={description} onChange={e=>{setDescription(e.target.value);setSaved(false)}} placeholder="ex: Automação completa — 2 pavimentos"/></div>
+
             {/* Stock warnings */}
             {warnings.length > 0 && (
               <div style={{marginTop:14,background:'rgba(220,38,38,0.05)',border:'1px solid rgba(220,38,38,0.25)',borderRadius:6,padding:'10px 12px'}}>
@@ -1169,124 +878,57 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
       </div>
 
       {/* ── SAVE MODAL ── */}
-      {showSaveModal&&<div className="modal-overlay"><div className="modal" style={{width:580,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+      {showSaveModal&&<div className="modal-overlay"><div className="modal" style={{width:420}} onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-title"><i className="ti ti-device-floppy" style={{marginRight:6}} aria-hidden/>Salvar proposta</div>
           <button className="modal-close" onClick={()=>setShowSaveModal(false)}>×</button>
         </div>
-
-        {/* Mão de obra */}
-        <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
+        <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:16}}>
           <div className="flabel" style={{marginBottom:6}}>Mão de obra — Instalação e Programação (R$)</div>
           <input type="number" value={laborInput} onChange={e=>setLaborInput(e.target.value)} placeholder="ex: 8000" autoFocus style={{fontSize:16,fontWeight:600,textAlign:'center'}}/>
+          <div style={{fontSize:11,color:'var(--text3)',marginTop:6,textAlign:'center'}}>Obrigatório para enviar a proposta ao cliente</div>
         </div>
-
-        {/* Margem global — só aplica com PIN explícito */}
         {isAdmin&&<div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 12px',marginBottom:12}}>
-          <div className="flabel" style={{marginBottom:6}}>Forçar margem em todos os itens <span style={{fontSize:10,color:'var(--text3)',fontWeight:400}}>(padrão = preços do catálogo)</span></div>
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <div className="flabel" style={{marginBottom:6}}>Margem de lucro sobre o custo</div>
+          <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
             <input type="number" min="0" max="500" value={margin}
               onChange={e=>setMargin(Number(e.target.value))}
               style={{width:80,textAlign:'center',fontWeight:600,fontSize:16}}/>
             <span style={{fontSize:12,color:'var(--text3)'}}>%</span>
-            <button className="btn primary" style={{fontSize:11,padding:'5px 14px'}}
-              onClick={()=>requirePIN(()=>applyMargin(margin))}>
-              <i className="ti ti-lock" aria-hidden/>Aplicar com PIN
+            <button className="btn primary" style={{fontSize:11,padding:'5px 12px'}}
+              onClick={()=>{ applyMargin(margin) }}>
+              <i className="ti ti-refresh" aria-hidden/>Recalcular
             </button>
           </div>
-          <div style={{fontSize:10,color:'var(--amber)',marginTop:4}}>Requer PIN — sobrescreve preços individuais</div>
-        </div>}
-
-        {/* Resumo margens por cômodo / categoria / pavimento */}
-        {(()=>{
-          const allItems=floors.flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).map(it=>({...it,roomName:r.name,floorName:f.name,qty:parseInt(it.qty)||1}))))
-          const projCost=allItems.reduce((s,it)=>s+(it.cost_price||0)*it.qty,0)
-          // projSale = sum of room prices (updated by applyMargin)
-          const projSale=floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
-          const projLucro=projSale-projCost
-          const projPct=projCost>0?Math.round(projLucro/projCost*100):0
-          const byCat={}
-          // Use item.sale_price (updated by applyMargin) for category breakdown
-          allItems.forEach(it=>{
-            const cat=it.category||'Outros'
-            if(!byCat[cat])byCat[cat]={cost:0,sale:0}
-            byCat[cat].cost+=(it.cost_price||0)*it.qty
-            byCat[cat].sale+=(it.sale_price||0)*it.qty
-          })
-          if(!projCost) return null
-          return <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12,fontSize:12}}>
-            <div className="flabel" style={{marginBottom:8}}>Resumo de margens</div>
-            {floors.length>1&&<>
-              <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Por pavimento</div>
-              {floors.map((f,fi)=>{
-                const fItems=(f.rooms||[]).flatMap(r=>(r.items||[]).map(it=>({...it,qty:parseInt(it.qty)||1})))
-                const fCost=fItems.reduce((s,it)=>s+(it.cost_price||0)*it.qty,0)
-                const fSale=(f.rooms||[]).reduce((s,r)=>s+parse(r.price),0)
-                const fPct=fCost>0?Math.round((fSale-fCost)/fCost*100):0
-                return fSale>0?<div key={fi} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:'1px solid var(--border)'}}>
-                  <span style={{fontWeight:500}}>{f.name}</span>
-                  <span>{fmt(fSale)} · <b style={{color:fPct>=50?'var(--green)':fPct>=20?'var(--amber)':'var(--red)'}}>{fPct}%</b></span>
-                </div>:null
-              })}
-            </>}
-            <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,marginTop:8,marginBottom:4}}>Por cômodo</div>
-            {floors.flatMap((f,fi)=>(f.rooms||[]).filter(r=>parse(r.price)>0).map((r,ri)=>{
-              const rCost=(r.items||[]).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
-              const rSale=parse(r.price)
-              const rPct=rCost>0?Math.round((rSale-rCost)/rCost*100):0
-              return <div key={`${fi}-${ri}`} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',color:'var(--text2)'}}>
-                <span>{r.icon} {r.name||'Sem nome'}</span>
-                <span>{fmt(rSale)} · <b style={{color:rPct>=50?'var(--green)':rPct>=20?'var(--amber)':'var(--red)'}}>{rPct}%</b></span>
-              </div>
-            }))}
-            <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,marginTop:8,marginBottom:4}}>Por categoria</div>
-            {Object.entries(byCat).sort((a,b)=>b[1].sale-a[1].sale).map(([cat,v])=>{
-              const pct=v.cost>0?Math.round((v.sale-v.cost)/v.cost*100):0
-              return <div key={cat} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',color:'var(--text2)'}}>
-                <span>{cat}</span>
-                <span>{fmt(v.sale)} · <b style={{color:pct>=50?'var(--green)':pct>=20?'var(--amber)':'var(--red)'}}>{pct}%</b></span>
-              </div>
-            })}
-            <div style={{display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:13,marginTop:8,paddingTop:8,borderTop:'2px solid var(--border)'}}>
-              <span>Total equipamentos</span>
-              <span>{fmt(projSale)} · <span style={{color:projPct>=50?'var(--green)':projPct>=20?'var(--amber)':'var(--red)'}}>{projPct}% margem</span></span>
-            </div>
-            <div style={{display:'flex',justifyContent:'space-between',marginTop:4,color:'var(--text2)'}}>
-              <span>+ Mão de obra</span><span>{laborInput?fmt(parse(laborInput)):'—'}</span>
-            </div>
-            <div style={{display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:14,marginTop:4,color:'var(--accent)',borderTop:'1px solid var(--border)',paddingTop:6}}>
-              <span>Total geral</span><span>{fmt(projSale+parse(laborInput))}</span>
-            </div>
+          <div style={{fontSize:11,color:'var(--amber)',borderTop:'1px solid rgba(245,158,11,0.2)',paddingTop:6}}>
+            Equipamentos após recálculo: <b>{fmt(floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0))}</b>
+            {' · '}Total com M.O.: <b>{fmt(floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)+parse(laborInput))}</b>
           </div>
-        })()}
-
+        </div>}
+        {/* Stock warnings in save modal */}
         {warnings.length > 0 && (
           <div style={{background:'rgba(220,38,38,0.06)',border:'1px solid rgba(220,38,38,0.3)',borderRadius:6,padding:'8px 12px',marginBottom:12}}>
-            <div style={{fontSize:11,fontWeight:600,color:'var(--red)',marginBottom:6}}><i className="ti ti-shopping-cart" aria-hidden/> {warnings.length} item(s) precisarão ser comprados</div>
-            {warnings.slice(0,4).map((w,i)=><div key={i} style={{fontSize:10,color:'var(--red)',padding:'2px 0'}}>• {w.name}: {w.msg}</div>)}
-            {warnings.length>4&&<div style={{fontSize:10,color:'var(--text3)'}}>... e mais {warnings.length-4}</div>}
+            <div style={{fontSize:11,fontWeight:600,color:'var(--red)',marginBottom:6,display:'flex',alignItems:'center',gap:5}}>
+              <i className="ti ti-shopping-cart" aria-hidden/>{warnings.length} item(s) precisarão ser comprados
+            </div>
+            {warnings.slice(0,4).map((w,i)=>(
+              <div key={i} style={{fontSize:10,color:'var(--red)',padding:'2px 0'}}>• {w.name}: {w.msg}</div>
+            ))}
+            {warnings.length>4&&<div style={{fontSize:10,color:'var(--text3)'}}>... e mais {warnings.length-4} item(s)</div>}
           </div>
         )}
-
-        <div style={{display:'flex',gap:8,justifyContent:'flex-end',flexWrap:'wrap'}}>
+        <div style={{background:'var(--surf)',borderRadius:6,padding:'8px 12px',marginBottom:16,fontSize:12}}>
+          <div style={{fontWeight:500,marginBottom:4}}>Resumo a salvar:</div>
+          <div style={{color:'var(--text2)',lineHeight:1.8}}>
+            Cliente: <b>{selClient?`${selClient.name1} & ${selClient.name2}`:clientName||'—'}</b><br/>
+            Equipamentos: <b style={{color:'var(--accent)'}}>{fmt(equipTotal)}</b><br/>
+            Mão de obra: <b style={{color:'var(--accent)'}}>{laborInput?fmt(parse(laborInput)):'—'}</b><br/>
+            Total: <b style={{color:'var(--accent)'}}>{fmt(equipTotal+parse(laborInput))}</b>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
           <button className="btn" onClick={()=>setShowSaveModal(false)}>Cancelar</button>
-          <button className="btn" onClick={async ()=>{ await handleSaveConfirm(); }}
-            disabled={isSaving||laborInput===''||laborInput===null||laborInput===undefined}
-            style={{minWidth:110}}>
-            {isSaving
-              ? <><i className="ti ti-loader" style={{animation:'spin 1s linear infinite'}} aria-hidden/>Salvando...</>
-              : <><i className="ti ti-device-floppy" aria-hidden/>Salvar</>}
-          </button>
-          <button className="btn primary" onClick={async ()=>{
-              await handleSaveConfirm()
-              setSendTargets({}); setCustomPhone(''); setSendEmail(''); setShowSendModal(true)
-            }}
-            disabled={isSaving||laborInput===''||laborInput===null||laborInput===undefined}
-            style={{minWidth:140}}>
-            {isSaving
-              ? <><i className="ti ti-loader" style={{animation:'spin 1s linear infinite'}} aria-hidden/>Salvando...</>
-              : <><i className="ti ti-send" aria-hidden/>Salvar e Enviar</>}
-          </button>
+          <button className="btn primary" onClick={handleSaveConfirm} disabled={!laborInput}><i className="ti ti-device-floppy" aria-hidden/>Salvar</button>
         </div>
       </div></div>}
 
@@ -1390,9 +1032,6 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
           <button className="btn" onClick={()=>setShowSendModal(false)}>Fechar</button>
         </div>
       </div></div>}
-      {showPIN&&<PINModal
-        onSuccess={()=>{setShowPIN(false);const a=pinAction;setPinAction(null);if(a){Promise.resolve(a()).catch(e=>{console.error(e);alert('Erro: '+e.message)})}}}
-        onCancel={()=>{setShowPIN(false);setPinAction(null)}}/>}
     </>
   )
 }
