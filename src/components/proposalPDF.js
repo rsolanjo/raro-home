@@ -346,6 +346,7 @@ export async function openProposalPDF(proposal, adminMode=false) {
       })(),
       labor:         Number(proposal.labor) || 0,
       margin:        Number(proposal.margin) || 100,
+      itemFontSize:  Number(proposal.itemFontSize) || 7,
       client_phone1: proposal.client_phone1 || '',
       client_phone2: proposal.client_phone2 || '',
     }, adminMode)

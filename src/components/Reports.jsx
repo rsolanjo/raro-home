@@ -23,10 +23,20 @@ export default function Reports({ projects, proposals, stock, clients, currentUs
   const [selectedClients, setSelectedClients] = useState([])
   const [clientDropOpen, setClientDropOpen] = useState(false)
   const [auditLog, setAuditLog] = useState([])
+  const [propWarnings, setPropWarnings] = useState([])
 
   useEffect(() => {
     getAuditLog({ limit: 200 }).then(l => setAuditLog(l || []))
   }, [])
+
+  useEffect(() => {
+    if (tab !== 'purchases') return
+    const allProposals = proposals.filter(p=>p.status==='sent'||p.status==='approved')
+    Promise.all(allProposals.map(async p => {
+      const w = await checkProposalStock(p.floors||[])
+      return w.map(item=>({...item, proposal_code:p.code, client_name:p.client_name, proposal_status:p.status}))
+    })).then(results => setPropWarnings(results.flat()))
+  }, [tab, proposals])
 
   const allClientNames = [...new Set([
     ...projects.map(p=>p.client_name),
@@ -397,13 +407,7 @@ export default function Reports({ projects, proposals, stock, clients, currentUs
         {tab==='purchases' && (
           <>
           {/* Items that need to be bought for sent/draft proposals */}
-          {(() => {
-            const allProposals = proposals.filter(p=>p.status==='sent'||p.status==='approved')
-            const propWarnings = allProposals.flatMap(p => {
-              const w = checkProposalStock(p.floors||[])
-              return w.map(item=>({...item, proposal_code:p.code, client_name:p.client_name, proposal_status:p.status}))
-            })
-            return propWarnings.length > 0 ? (
+          {propWarnings.length > 0 ? (
               <div className="section" style={{marginBottom:14,borderColor:'rgba(220,38,38,0.3)'}}>
                 <div className="sec-hdr" style={{background:'rgba(220,38,38,0.05)'}}>
                   <div className="sec-title" style={{color:'var(--red)'}}><i className="ti ti-shopping-cart" aria-hidden/>Itens a comprar — orçamentos enviados/aprovados</div>
@@ -425,8 +429,7 @@ export default function Reports({ projects, proposals, stock, clients, currentUs
                   </tbody>
                 </table>
               </div>
-            ) : null
-          })()}
+          ) : null}
           <div className="section">
             <div className="sec-hdr"><div className="sec-title">Lista de compras pendentes por projeto</div></div>
             <table className="tbl">

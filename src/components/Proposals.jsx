@@ -201,6 +201,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
                           const pWithPhones = { ...p,
                             client_phone1: cl?.phone1||'',
                             client_phone2: cl?.phone2||'',
+                            itemFontSize: 7,
                             floors: Array.isArray(p.floors) ? p.floors : (typeof p.floors==='string'?JSON.parse(p.floors||'[]'):p.floors||[])
                           }
                           const phone1 = cl?.phone1?.replace(/\D/g,'').replace(/^(?!55)/,'55')
@@ -305,51 +306,89 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
       {/* Comparative modal */}
       {showComp && (
         <div className="modal-overlay">
-          <div className="modal" style={{width:560,maxHeight:'80vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+          <div className="modal" style={{width:700,maxHeight:'85vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title"><i className="ti ti-chart-bar" style={{marginRight:6}} aria-hidden/>Comparativo — Média por cômodo</div>
+              <div className="modal-title"><i className="ti ti-chart-bar" style={{marginRight:6}} aria-hidden/>Comparativo de Margens e Itens</div>
               <button className="modal-close" onClick={()=>setShowComp(false)}>×</button>
             </div>
-            {avgs.length===0
-              ? <div style={{textAlign:'center',padding:'24px 0',color:'var(--text3)'}}>Nenhum orçamento enviado ainda. Os dados aparecem conforme você salvar propostas.</div>
-              : <table className="tbl">
-                  <thead><tr><th>Cômodo</th><th>Média</th><th>Menor</th><th style={{fontSize:10}}>Proposta (menor)</th><th>Maior</th><th style={{fontSize:10}}>Proposta (maior)</th><th>Qtd.</th></tr></thead>
+            {(()=>{
+              const approved = proposals.filter(p=>p.status==='approved'||p.status==='sent')
+              if(!approved.length) return <div style={{textAlign:'center',padding:'24px 0',color:'var(--text3)'}}>Nenhum orçamento enviado ainda.</div>
+
+              // Build item frequency and margin map
+              const itemMap = {}
+              approved.forEach(p=>{
+                ;(p.floors||[]).forEach(fl=>{
+                  ;(fl.rooms||[]).forEach(r=>{
+                    ;(r.items||[]).forEach(it=>{
+                      if(!it.code) return
+                      if(!itemMap[it.code]) itemMap[it.code]={name:it.name,code:it.code,category:it.category||'Outro',count:0,totalQty:0,costs:[],margins:[],proposals:[]}
+                      const qty=parseInt(it.qty)||1
+                      itemMap[it.code].count++
+                      itemMap[it.code].totalQty+=qty
+                      if(it.cost_price>0&&it.sale_price>0){
+                        itemMap[it.code].costs.push(it.cost_price)
+                        const m=Math.round((it.sale_price-it.cost_price)/it.cost_price*100)
+                        itemMap[it.code].margins.push(m)
+                      }
+                      itemMap[it.code].proposals.push(p.code||`#${p.id}`)
+                    })
+                  })
+                })
+              })
+
+              // Proposal margin summary
+              const propMargins = approved.map(p=>{
+                const allItems=(p.floors||[]).flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[])))
+                const cost=allItems.reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
+                const sale=(p.floors||[]).reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(r.price||0),s),0)
+                const pct=cost>0?Math.round((sale-cost)/cost*100):0
+                return {code:p.code||`#${p.id}`,client:p.client_name,sale,cost,pct,status:p.status}
+              }).sort((a,b)=>b.pct-a.pct)
+
+              const sortedItems = Object.values(itemMap).sort((a,b)=>b.count-a.count)
+              const pC=p=>p>=50?'var(--green)':p>=20?'var(--amber)':'var(--red)'
+
+              return <>
+                {/* Per-proposal margin */}
+                <div className="flabel" style={{marginBottom:8}}>Margem por proposta</div>
+                <table className="tbl" style={{marginBottom:20}}>
+                  <thead><tr><th>Código</th><th>Cliente</th><th>Venda equip.</th><th>Custo</th><th>Lucro</th><th>Margem</th><th>Status</th></tr></thead>
                   <tbody>
-                    {avgs.map(r=>{
-                      // Find which proposals contain min and max values
-                      let minProp=null, maxProp=null
-                      proposals.filter(p=>p.status==='approved'||p.status==='sent').forEach(p=>{
-                        ;(p.floors||[]).forEach(fl=>{
-                          ;(fl.rooms||[]).forEach(rm=>{
-                            if(rm.name?.toLowerCase()===r.name.toLowerCase()&&rm.price>0){
-                              if(!minProp||rm.price<minProp.price) minProp={price:rm.price,code:p.code||`#${p.id}`,client:p.client_name}
-                              if(!maxProp||rm.price>maxProp.price) maxProp={price:rm.price,code:p.code||`#${p.id}`,client:p.client_name}
-                            }
-                          })
-                        })
-                      })
-                      return <tr key={r.name}>
-                        <td style={{fontWeight:500}}>{r.name}</td>
-                        <td style={{color:'var(--accent)',fontWeight:600}}>R$ {r.avg.toLocaleString('pt-BR')}</td>
-                        <td style={{color:'var(--green)',fontWeight:600}}>R$ {r.min.toLocaleString('pt-BR')}</td>
-                        <td style={{fontSize:10}}>
-                          {minProp&&<div>
-                            <span className="mono" style={{color:'var(--green)',fontSize:11,fontWeight:600}}>{minProp.code}</span>
-                            <div style={{color:'var(--text3)',fontSize:10}}>{minProp.client}</div>
-                          </div>}
-                        </td>
-                        <td style={{color:'var(--amber)',fontWeight:600}}>R$ {r.max.toLocaleString('pt-BR')}</td>
-                        <td style={{fontSize:10}}>
-                          {maxProp&&<div>
-                            <span className="mono" style={{color:'var(--amber)',fontSize:11,fontWeight:600}}>{maxProp.code}</span>
-                            <div style={{color:'var(--text3)',fontSize:10}}>{maxProp.client}</div>
-                          </div>}
-                        </td>
-                        <td style={{color:'var(--text3)',fontSize:12}}>{r.count}</td>
+                    {propMargins.map((p,i)=><tr key={i}>
+                      <td className="mono" style={{fontWeight:600}}>{p.code}</td>
+                      <td>{p.client}</td>
+                      <td style={{color:'var(--accent)',fontWeight:500}}>R$ {Math.round(p.sale).toLocaleString('pt-BR')}</td>
+                      <td style={{color:'var(--text2)'}}>R$ {Math.round(p.cost).toLocaleString('pt-BR')}</td>
+                      <td style={{color:p.pct>=0?'var(--green)':'var(--red)',fontWeight:500}}>R$ {Math.round(p.sale-p.cost).toLocaleString('pt-BR')}</td>
+                      <td><b style={{color:pC(p.pct),fontSize:13}}>{p.pct}%</b></td>
+                      <td><span className={`badge ${p.status==='approved'?'b-green':'b-blue'}`} style={{fontSize:10}}>{p.status==='approved'?'Aprovado':'Enviado'}</span></td>
+                    </tr>)}
+                  </tbody>
+                </table>
+
+                {/* Item frequency + margin */}
+                <div className="flabel" style={{marginBottom:8}}>Itens mais usados e suas margens</div>
+                <table className="tbl">
+                  <thead><tr><th>Produto</th><th>Cód.</th><th>Categoria</th><th style={{textAlign:'center'}}>Propostas</th><th style={{textAlign:'center'}}>Qtd total</th><th>Margem média</th><th>Custo médio</th></tr></thead>
+                  <tbody>
+                    {sortedItems.map((it,i)=>{
+                      const avgM=it.margins.length?Math.round(it.margins.reduce((s,m)=>s+m,0)/it.margins.length):null
+                      const avgC=it.costs.length?Math.round(it.costs.reduce((s,c)=>s+c,0)/it.costs.length):null
+                      return <tr key={i}>
+                        <td style={{fontWeight:500,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{it.name}</td>
+                        <td className="mono" style={{fontSize:10}}>{it.code}</td>
+                        <td style={{fontSize:11,color:'var(--text3)'}}>{it.category}</td>
+                        <td style={{textAlign:'center',fontWeight:600,color:'var(--accent)'}}>{it.count}</td>
+                        <td style={{textAlign:'center',fontWeight:600}}>{it.totalQty}</td>
+                        <td>{avgM!==null?<b style={{color:pC(avgM)}}>{avgM}%</b>:<span style={{color:'var(--text3)',fontSize:10}}>—</span>}</td>
+                        <td style={{color:'var(--text2)'}}>{avgC?`R$ ${avgC.toLocaleString('pt-BR')}`:'—'}</td>
                       </tr>
                     })}
                   </tbody>
-                </table>}
+                </table>
+              </>
+            })()}
           </div>
         </div>
       )}
