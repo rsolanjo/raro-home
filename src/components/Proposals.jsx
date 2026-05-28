@@ -107,11 +107,14 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
     setChangeReq(null); onRefresh()
     } catch(err) { console.error('Erro ao confirmar mudança:', err); alert('Erro: ' + err.message) }
   }
-  function handleDelete() {
+  async function handleDelete() {
     if (!changeReq) return
-    auditedSave('orçamentos','delete',changeReq.proposal,currentUser?.name)
-    deleteProposal(changeReq.proposal.id)
-    setChangeReq(null); onRefresh()
+    try {
+      await deleteProposal(changeReq.proposal.id)
+      await auditedSave('orçamentos','delete',changeReq.proposal,currentUser?.name)
+    } catch(err) { console.error(err) }
+    setChangeReq(null)
+    onRefresh()
   }
 
   const counts = Object.fromEntries(Object.keys(STATUS).map(s=>[s,proposals.filter(p=>p.status===s).length]))
@@ -306,10 +309,20 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
       {/* Comparative modal */}
       {showComp && (
         <div className="modal-overlay">
-          <div className="modal" style={{width:700,maxHeight:'85vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+          <div className="modal" style={{width:'95vw',maxWidth:1100,maxHeight:'92vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title"><i className="ti ti-chart-bar" style={{marginRight:6}} aria-hidden/>Comparativo de Margens e Itens</div>
-              <button className="modal-close" onClick={()=>setShowComp(false)}>×</button>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <button className="btn" style={{fontSize:11,padding:'3px 9px'}} onClick={()=>{
+                  const el=document.getElementById('comp-table-content')
+                  if(!el) return
+                  const w=window.open('','_blank')
+                  w.document.write('<html><head><title>Comparativo RARO Home</title><style>body{font-family:sans-serif;font-size:11px;padding:16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:6px 10px;text-align:left}th{background:#f5f5f5;font-weight:600}tr:hover{background:#fafafa}</style></head><body>'+el.innerHTML+'</body></html>')
+                  w.document.close()
+                  setTimeout(()=>w.print(),400)
+                }}><i className="ti ti-printer" aria-hidden/>Exportar</button>
+                <button className="modal-close" onClick={()=>setShowComp(false)}>×</button>
+              </div>
             </div>
             {(()=>{
               const approved = proposals.filter(p=>p.status==='approved'||p.status==='sent')

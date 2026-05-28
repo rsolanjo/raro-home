@@ -160,7 +160,35 @@ export async function getAuditLog(filters={}) {
   return data || []
 }
 export async function auditedSave(module, action, entity, user, before=null) {
-  await addAuditLog({ module, action, entity_id:entity?.id, entity_name:entity?.name||entity?.client_name||entity?.code||String(entity?.id||''), user_name:user, before:before?JSON.stringify(before).slice(0,300):null, after:entity?JSON.stringify(entity).slice(0,300):null })
+  const entityName = entity?.name||entity?.client_name||entity?.code||`#${entity?.id||'?'}`
+  const actionLabel = {create:'Criou',update:'Atualizou',delete:'Excluiu',status_change:'Alterou status',price_update:'Atualizou preço',reversao:'Reverteu'}[action] || action
+  // Build human-readable diff
+  let beforeTxt = null, afterTxt = null
+  if (before && entity && action === 'update') {
+    const diffs = []
+    const keys = [...new Set([...Object.keys(before||{}), ...Object.keys(entity||{})])]
+    for (const k of keys) {
+      if (['id','created_at','updated_at'].includes(k)) continue
+      const bv = before[k], av = entity[k]
+      if (JSON.stringify(bv) !== JSON.stringify(av)) {
+        const bStr = typeof bv === 'object' ? '[dados complexos]' : String(bv??'—')
+        const aStr = typeof av === 'object' ? '[dados complexos]' : String(av??'—')
+        if (bStr.length < 60 && aStr.length < 60) diffs.push(`${k}: "${bStr}" → "${aStr}"`)
+      }
+    }
+    beforeTxt = diffs.length ? diffs.join(' | ') : JSON.stringify(before).slice(0,200)
+    afterTxt = diffs.length ? `Alterado: ${diffs.join(' | ')}` : JSON.stringify(entity).slice(0,200)
+  } else if (before) {
+    beforeTxt = JSON.stringify(before).slice(0,200)
+  }
+  await addAuditLog({
+    module, action,
+    entity_id: entity?.id,
+    entity_name: entityName,
+    user_name: user || 'Sistema',
+    before: beforeTxt,
+    after: afterTxt || (entity ? `${actionLabel} ${entityName}` : null),
+  })
 }
 
 // ── PIN SESSION ──────────────────────────────────────────────────────────────
@@ -206,7 +234,22 @@ export async function exportBackup() {
   const db = { clients,proposals,projects,stock,catalog,admins,suppliers,tools,exported_at:new Date().toISOString() }
   const blob = new Blob([JSON.stringify(db,null,2)],{type:'application/json'})
   const url = URL.createObjectURL(blob)
-  const a = document.createElement('a'); a.href=url; a.download=`rarohome-backup-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url)
+  const a = document.createElement('a'); a.href=url; a.download=`rarohome-backup-${new Date().toISOString().slice(0,10)}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(url),2000)
 }
 // importBackup não se aplica ao Supabase — use o painel do Supabase para restaurar
-export async function importBackup() { alert('Com Supabase, use o painel em supabase.com para restaurar backups.') }
+export async function importBackup(jsonText) {
+  try {
+    const db = typeof jsonText === 'string' ? JSON.parse(jsonText) : jsonText
+    let count = 0
+    const tables = { clients:saveClient, catalog:saveCatalogItem, suppliers:saveSupplier, tools:saveTool }
+    for (const [key, saveFn] of Object.entries(tables)) {
+      if (db[key]?.length) {
+        for (const row of db[key]) { try { await saveFn(row); count++ } catch(e){} }
+      }
+    }
+    if (db.proposals?.length) { for (const p of db.proposals) { try { await saveProposal(p); count++ } catch(e){} } }
+    if (db.projects?.length)  { for (const p of db.projects)  { try { await saveProject(p);  count++ } catch(e){} } }
+    if (db.stock?.length)     { for (const s of db.stock)     { try { await saveStockItem(s); count++ } catch(e){} } }
+    alert(`Backup importado: ${count} registros restaurados.`)
+  } catch(err) { alert('Erro ao importar: ' + err.message) }
+}

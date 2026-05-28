@@ -195,7 +195,7 @@ body{font-family:'DM Sans',sans-serif;background:#fff;-webkit-print-color-adjust
 .fl-block-grid .it-code,.rooms-3col .it-code{font-size:6.5px;color:#6B8CAE;text-align:center;width:26%;font-family:'DM Sans',sans-serif}
 .fl-block-grid .it-qty,.rooms-3col .it-qty{font-size:7px;color:#0EA5E9;font-weight:600;text-align:right;width:12%;font-family:'DM Sans',sans-serif}
 
-.fl-block-grid .rp,.rooms-3col .rp{font-family:'Playfair Display',serif;font-style:italic;font-size:8px;color:#3D5A80;line-height:1.4;margin-top:4px;padding-top:4px;border-top:0.5px solid #E0EEFF}
+.fl-block-grid .rp,.rooms-3col .rp{font-family:'DM Serif Display',serif;font-style:italic;font-size:10px;color:#1E3A5F;line-height:1.55;margin-top:6px;padding-top:5px;border-top:0.5px solid #C8DEFF}
 
 .fl-block-grid .rv,.rooms-3col .rv{display:flex;justify-content:space-between;align-items:flex-end;margin-top:4px;padding-top:4px;border-top:0.5px solid #C8DEFF;flex-shrink:0}
 .fl-block-grid .rvl,.rooms-3col .rvl{font-size:6px;letter-spacing:2px;color:#6B8CAE;text-transform:uppercase;font-family:'DM Sans',sans-serif}
@@ -349,7 +349,7 @@ function buildPDF(data, adminMode=false){
   }
 
   // ── build room pages: 2 cols, up to 12 rooms per page ─────────
-  const ROOMS_PER_PAGE=12
+  const ROOMS_PER_PAGE=10
   let roomPages=[], cur=[], curFlName=null, curFi=0
   ;(floors||[]).forEach((fl,fi)=>{
     ;(fl.rooms||[]).forEach(r=>{
@@ -415,7 +415,7 @@ function buildPDF(data, adminMode=false){
 .it-code{font-size:${Math.max(7,iFS-2)}px!important;color:#6B8CAE!important;text-align:center!important;width:26%!important;font-family:'DM Sans',sans-serif!important}
 .it-qty{font-size:${Math.max(8,iFS-1)}px!important;color:#0EA5E9!important;font-weight:700!important;text-align:right!important;width:12%!important;font-family:'DM Sans',sans-serif!important}
 .rn{font-size:14px!important;color:#060B1A!important}
-.rp{font-size:${Math.max(8,iFS-1)}px!important;color:#3D5A80!important;line-height:1.5!important}
+.rp{font-size:${Math.max(10,iFS)}px!important;color:#1E3A5F!important;line-height:1.55!important;font-family:'DM Serif Display',serif!important}
 .rvl{font-size:7px!important;letter-spacing:2px!important}
 .rvv{font-size:15px!important}
 .prn{font-size:11px!important;color:#1E3A5F!important;font-weight:400!important}
@@ -568,7 +568,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
   }
 
   const [isSaving, setIsSaving] = useState(false)
-  const [pdfFontSize, setPdfFontSize] = useState(7) // default 7px for items in PDF
+  const [pdfFontSize, setPdfFontSize] = useState(9) // matches buildPDF minimum
 
   async function handleSaveConfirm(){
     if (isSaving) return
@@ -1355,11 +1355,17 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
                   type="email"
                   style={{flex:1,fontSize:13}}/>
                 {(sendEmail||selClient?.email) && (
-                  <a href={`mailto:${sendEmail||selClient?.email}?subject=${encodeURIComponent('Proposta RARO Home — '+proposalCode)}&body=${encodeURIComponent('Olá! Segue a proposta RARO Home '+proposalCode+'. Qualquer dúvida estou à disposição! Rogério — (21) 98170-9009')}`}>
-                    <button className="btn" style={{fontSize:11,color:'var(--accent)',borderColor:'var(--accent)'}}>
-                      <i className="ti ti-mail" aria-hidden/>Abrir e-mail
-                    </button>
-                  </a>
+                  <button className="btn" style={{fontSize:11,color:'var(--accent)',borderColor:'var(--accent)'}}
+                    onClick={()=>{
+                      openPDF(false, false)
+                      setTimeout(()=>{
+                        const sub=encodeURIComponent('Proposta RARO Home — '+proposalCode)
+                        const body=encodeURIComponent(`Olá!\n\nSegue a proposta RARO Home ${proposalCode}.\nO PDF foi baixado — anexe ao e-mail antes de enviar.\n\nQualquer dúvida estou à disposição!\nRogério | RARO Home\n(21) 98170-9009`)
+                        window.open(`mailto:${sendEmail||selClient?.email}?subject=${sub}&body=${body}`)
+                      },600)
+                    }}>
+                    <i className="ti ti-mail" aria-hidden/>Baixar PDF + Abrir e-mail
+                  </button>
                 )}
               </div>
             </div>
@@ -1370,16 +1376,22 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
           {/* Send to selected WhatsApps */}
           <button className="btn primary" style={{background:'#16A34A',borderColor:'#16A34A',gap:8}}
             disabled={!Object.values(sendTargets).some(Boolean)||!parse(labor)}
-            onClick={()=>{
+            onClick={async ()=>{
               const cl=clients.find(c=>c.id===Number(clientId))
-              const msg=encodeURIComponent(`Olá! Segue a proposta RARO Home ${proposalCode}. Qualquer dúvida estou à disposição! Rogério. (21) 98170-9009`)
+              const totalVal=(floors||[]).reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(r.price||0),s),0)+parse(labor)
+              const totalFmt=`R$ ${totalVal.toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+              const msg=encodeURIComponent(`Olá ${cl?.name1||clientName}! Tudo bem?\n\nSegue sua proposta RARO Home:\n📋 *${proposalCode}*\n💰 *${totalFmt}*\n\nO PDF foi enviado em anexo nesta conversa.\n\nQualquer dúvida, estou à disposição! 🏠\n— Rogério | RARO Home\n📱 (21) 98170-9009`)
+              // 1. Download PDF automatically
+              openPDF(false, false)
+              await new Promise(r=>setTimeout(r,800))
+              // 2. Open WhatsApp for each target
               if(sendTargets.p1&&cl?.phone1) window.open(`https://wa.me/${cl.phone1.replace(/\D/g,'').replace(/^0055|^55/,'').replace(/^/,'55')}?text=${msg}`,'_blank')
               if(sendTargets.p2&&cl?.phone2) window.open(`https://wa.me/${cl.phone2.replace(/\D/g,'').replace(/^0055|^55/,'').replace(/^/,'55')}?text=${msg}`,'_blank')
               if(sendTargets.custom&&customPhone) window.open(`https://wa.me/${customPhone.replace(/\D/g,'').replace(/^0055|^55/,'').replace(/^/,'55')}?text=${msg}`,'_blank')
               handleSend('mark')
             }}>
             <i className="ti ti-brand-whatsapp" aria-hidden/>
-            Enviar via WhatsApp
+            Baixar PDF + Enviar WA
           </button>
           <button className="btn" style={{gap:8}} onClick={()=>handleSend('mark')}>
             <i className="ti ti-check" aria-hidden/>Marcar como enviado (sem abrir WA)
