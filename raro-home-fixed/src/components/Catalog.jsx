@@ -98,11 +98,11 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin }) {
                   <div className="sec-title"><i className="ti ti-tag" aria-hidden/>{cat}</div>
                   <span style={{fontSize:11,color:'var(--text3)'}}>{items.length} produto(s)</span>
                 </div>
-                <CatalogTable items={items} onEdit={openEdit} isAdmin={isAdmin} suppliers={suppliers} onDelete={id=>{deleteCatalogItem(id);onRefresh()}} />
+                <CatalogTable items={items} onEdit={openEdit} isAdmin={isAdmin} suppliers={suppliers} onDelete={id=>{deleteCatalogItem(id);onRefresh()}} onQuickPrice={(id,cp,sp)=>{const item=catalog.find(c=>c.id===id);if(item){saveCatalogItem({...item,cost_price:cp,sale_price:sp});onRefresh()}}} />
               </div>
             ))
           : <div className="section">
-              <CatalogTable items={filtered} onEdit={openEdit} isAdmin={isAdmin} suppliers={suppliers} onDelete={id=>{deleteCatalogItem(id);onRefresh()}} />
+              <CatalogTable items={filtered} onEdit={openEdit} isAdmin={isAdmin} suppliers={suppliers} onDelete={id=>{deleteCatalogItem(id);onRefresh()}} onQuickPrice={(id,cp,sp)=>{const item=catalog.find(c=>c.id===id);if(item){saveCatalogItem({...item,cost_price:cp,sale_price:sp});onRefresh()}}} />
             </div>
         }
         {filtered.length===0 && <div style={{textAlign:'center',padding:'32px 0',color:'var(--text3)'}}>Nenhum produto encontrado</div>}
@@ -229,14 +229,27 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin }) {
   )
 }
 
-function CatalogTable({ items, onEdit, isAdmin, suppliers, onDelete }) {
+function CatalogTable({ items, onEdit, isAdmin, suppliers, onDelete, onQuickPrice }) {
+  const [editingPrice, setEditingPrice] = useState(null) // {id, cost_price, sale_price}
+
+  function startEdit(c) {
+    setEditingPrice({id:c.id, cost_price:String(c.cost_price||0), sale_price:String(c.sale_price||0)})
+  }
+  function commitEdit() {
+    if(!editingPrice) return
+    const cp = parseFloat(editingPrice.cost_price)||0
+    const sp = parseFloat(editingPrice.sale_price)||0
+    onQuickPrice(editingPrice.id, cp, sp)
+    setEditingPrice(null)
+  }
+
   if (!items.length) return <div style={{padding:'16px',textAlign:'center',color:'var(--text3)',fontSize:12}}>Nenhum produto</div>
   return (
     <table className="tbl">
       <thead>
         <tr>
           <th>Código</th><th>Produto</th>
-          {isAdmin && <><th>Custo</th><th>Venda</th><th>Margem</th></>}
+          {isAdmin && <><th>Custo <span style={{fontSize:8,color:'var(--text3)',fontWeight:400}}>✎ clique</span></th><th>Venda <span style={{fontSize:8,color:'var(--text3)',fontWeight:400}}>✎ clique</span></th><th>Margem</th></>}
           {!isAdmin && <th>Preço</th>}
           <th>Pitch</th><th>Compra</th><th></th>
         </tr>
@@ -245,6 +258,7 @@ function CatalogTable({ items, onEdit, isAdmin, suppliers, onDelete }) {
         {items.map(c=>{
           const cable = CABLE_COLORS[c.code]
           const margin = c.cost_price>0 ? Math.round(((c.sale_price-c.cost_price)/c.cost_price)*100) : null
+          const isEditingThis = editingPrice?.id === c.id
           return <tr key={c.id}>
             <td>
               <div style={{display:'flex',alignItems:'center',gap:5}}>
@@ -254,9 +268,49 @@ function CatalogTable({ items, onEdit, isAdmin, suppliers, onDelete }) {
             </td>
             <td style={{fontWeight:500}}>{c.name}</td>
             {isAdmin && <>
-              <td style={{color:'var(--text2)',fontSize:12}}>R$ {Number(c.cost_price||0).toLocaleString('pt-BR')}</td>
-              <td style={{color:'var(--accent)',fontWeight:500}}>R$ {Number(c.sale_price||0).toLocaleString('pt-BR')}</td>
-              <td>{margin!==null&&<span className="badge b-green" style={{fontSize:10}}>{margin}%</span>}</td>
+              <td>
+                {isEditingThis
+                  ? <input type="number" min="0" step="0.01" value={editingPrice.cost_price}
+                      onChange={e=>setEditingPrice(p=>({...p,cost_price:e.target.value}))}
+                      onBlur={commitEdit} onKeyDown={e=>e.key==='Enter'&&commitEdit()}
+                      autoFocus style={{width:80,fontSize:11,padding:'2px 5px'}}/>
+                  : <span onClick={()=>isAdmin&&startEdit(c)} style={{cursor:'pointer',color:'var(--text2)',fontSize:12,padding:'2px 4px',borderRadius:3,border:'1px dashed transparent'}}
+                      onMouseEnter={e=>e.currentTarget.style.borderColor='var(--border)'}
+                      onMouseLeave={e=>e.currentTarget.style.borderColor='transparent'}
+                      title="Clique para editar">
+                      R$ {Number(c.cost_price||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}
+                    </span>
+                }
+              </td>
+              <td>
+                {isEditingThis
+                  ? <div style={{display:'flex',gap:3,alignItems:'center'}}>
+                      <input type="number" min="0" step="0.01" value={editingPrice.sale_price}
+                        onChange={e=>setEditingPrice(p=>({...p,sale_price:e.target.value}))}
+                        onBlur={commitEdit} onKeyDown={e=>e.key==='Enter'&&commitEdit()}
+                        style={{width:80,fontSize:11,padding:'2px 5px'}}/>
+                      <button onClick={commitEdit} style={{background:'var(--green)',color:'#fff',border:'none',borderRadius:3,padding:'2px 6px',cursor:'pointer',fontSize:11}}>✓</button>
+                      <button onClick={()=>setEditingPrice(null)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:12}}>✕</button>
+                    </div>
+                  : <span onClick={()=>isAdmin&&startEdit(c)} style={{cursor:'pointer',color:'var(--accent)',fontWeight:500,padding:'2px 4px',borderRadius:3,border:'1px dashed transparent'}}
+                      onMouseEnter={e=>e.currentTarget.style.borderColor='var(--accent)'}
+                      onMouseLeave={e=>e.currentTarget.style.borderColor='transparent'}
+                      title="Clique para editar preço de venda">
+                      R$ {Number(c.sale_price||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}
+                    </span>
+                }
+              </td>
+              <td>
+                {isEditingThis
+                  ? (() => {
+                      const cp=parseFloat(editingPrice.cost_price)||0
+                      const sp=parseFloat(editingPrice.sale_price)||0
+                      const pct=cp>0?Math.round((sp-cp)/cp*100):null
+                      return pct!==null?<span style={{fontSize:10,fontWeight:700,color:pct>=50?'var(--green)':pct>=20?'var(--amber)':'var(--red)'}}>{pct}%</span>:null
+                    })()
+                  : margin!==null&&<span className="badge b-green" style={{fontSize:10}}>{margin}%</span>
+                }
+              </td>
             </>}
             {!isAdmin && <td style={{color:'var(--accent)',fontWeight:500}}>R$ {Number(c.sale_price||0).toLocaleString('pt-BR')}</td>}
             <td style={{fontSize:11.5,fontStyle:'italic',color:'var(--text3)',maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.pitch||'—'}</td>

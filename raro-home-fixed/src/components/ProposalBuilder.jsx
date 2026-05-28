@@ -404,6 +404,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
   const [cr, setCr] = useState(-1)
   const [catFilter, setCatFilter] = useState('all')
   const [catSearch, setCatSearch] = useState('')
+  const [editingItemPrice, setEditingItemPrice] = useState(null) // index of item being price-edited
   const [stockWarnings, setStockWarnings] = useState([])
   const [saved, setSaved] = useState(!!init?.id)
   const [savedMsg, setSavedMsg] = useState('')
@@ -677,6 +678,45 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
         <div className="b-right">
           {!room&&<div className="empty-state"><i className="ti ti-mouse" aria-hidden/><p>Selecione ou adicione um cômodo à esquerda</p></div>}
           {room&&<div style={{maxWidth:560}}>
+
+            {/* ── CATALOG SEARCH — topo fixo ── */}
+            <div style={{marginBottom:14,padding:'10px 12px',background:'var(--surf)',border:'1px solid var(--border)',borderRadius:6}}>
+              <div className="flabel" style={{marginBottom:8,fontSize:12}}>🔍 Buscar no catálogo</div>
+              <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                <input
+                  value={catSearch}
+                  onChange={e=>setCatSearch(e.target.value)}
+                  placeholder="Digite nome, código ou categoria..."
+                  style={{flex:1,fontSize:13,padding:'7px 11px',border:'1px solid var(--border)',borderRadius:5,background:'var(--bg)',color:'var(--text1)',minWidth:0}}
+                  autoComplete="off"
+                />
+                <select value={catFilter} onChange={e=>setCatFilter(e.target.value)} style={{fontSize:11,padding:'7px 8px',border:'1px solid var(--border)',borderRadius:5,flexShrink:0,background:'var(--bg)'}}>
+                  <option value="all">Todas</option>
+                  {cats.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+                {catSearch&&<button onClick={()=>setCatSearch('')} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:16,padding:'0 2px',flexShrink:0}}>✕</button>}
+              </div>
+              {catSearch&&<div style={{fontSize:10,color:'var(--text3)',marginTop:4,paddingLeft:2}}>{filteredCatalog.length} resultado(s) para "<b>{catSearch}</b>"</div>}
+              <div style={{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:5,maxHeight:170,overflowY:'auto',marginTop:7}}>
+                {filteredCatalog.length===0
+                  ? <div style={{padding:'12px',textAlign:'center',fontSize:11,color:'var(--text3)'}}>Nenhum produto encontrado</div>
+                  : filteredCatalog.map(ci=>{ const s=stock.find(sx=>sx.code===ci.code); const avail=s?(s.available??s.qty):null; const sClr=avail===null?'var(--text3)':avail===0?'var(--red)':avail<=2?'var(--amber)':'var(--green)'
+                    return <div key={ci.id} onClick={()=>{addItemFromCatalog(ci);setSaved(false)}} style={{padding:'7px 11px',cursor:'pointer',fontSize:12,borderBottom:'0.5px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center',transition:'background .1s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--accent-lt)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      <div>
+                        <div style={{fontWeight:500}}>{ci.name}</div>
+                        <div style={{fontSize:10,color:'var(--text3)',marginTop:1}}>{ci.category} · <span className="mono">{ci.code}</span></div>
+                      </div>
+                      <div style={{textAlign:'right',flexShrink:0,marginLeft:12}}>
+                        <div style={{fontWeight:600,color:'var(--accent)',fontSize:12}}>R$ {Number(ci.sale_price||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+                        {isAdmin&&ci.cost_price>0&&<div style={{fontSize:9,color:'var(--text3)'}}>custo: R$ {Number(ci.cost_price).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>}
+                        {avail!==null&&<div style={{fontSize:9,color:sClr}}>estoque: {avail}</div>}
+                      </div>
+                    </div>
+                  })
+                }
+              </div>
+            </div>
+
             <div className="form-row" style={{marginBottom:10}}>
               <div className="fg"><div className="flabel">Nome do cômodo</div><input value={room.name} onChange={e=>{updRoom({name:e.target.value});setSaved(false)}} placeholder="ex: Sala de Estar"/></div>
               <div className="fg" style={{maxWidth:70}}><div className="flabel">Ícone</div><select value={room.icon} onChange={e=>updRoom({icon:e.target.value})}>{ICONS.map(ic=><option key={ic} value={ic}>{ic}</option>)}</select></div>
@@ -685,102 +725,138 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
               <div className="fg"><div className="flabel" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>Pitch<button className="btn" style={{fontSize:10,padding:'2px 7px'}} onClick={genPitch}><i className="ti ti-wand" aria-hidden/>Auto</button></div><input value={room.pitch} onChange={e=>updRoom({pitch:e.target.value})} placeholder="Frase de venda..."/></div>
             </div>
 
-              <div style={{marginBottom:10}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-                <div className="flabel">Catálogo de produtos</div>
-              </div>
-              <div style={{display:'flex',gap:5,marginBottom:6}}>
-                <input
-                  value={catSearch}
-                  onChange={e=>setCatSearch(e.target.value)}
-                  placeholder="Buscar em todas as categorias..."
-                  style={{flex:1,fontSize:11,padding:'4px 8px',border:'1px solid var(--border)',borderRadius:5}}
-                />
-                <select value={catFilter} onChange={e=>setCatFilter(e.target.value)} style={{fontSize:11,padding:'3px 7px',border:'1px solid var(--border)',borderRadius:5,flexShrink:0}}>
-                  <option value="all">Todas</option>
-                  {cats.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:6,maxHeight:160,overflowY:'auto'}}>
-                {filteredCatalog.map(ci=>{ const s=stock.find(sx=>sx.code===ci.code); const avail=s?(s.available??s.qty):null; const sClr=avail===null?'var(--text3)':avail===0?'var(--red)':avail<=2?'var(--amber)':'var(--green)'
-                  return <div key={ci.id} onClick={()=>{addItemFromCatalog(ci);setSaved(false)}} style={{padding:'6px 10px',cursor:'pointer',fontSize:11.5,borderBottom:'0.5px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center',transition:'background .1s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--accent-lt)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                    <div><div style={{fontWeight:500}}>{ci.name}</div><div style={{fontSize:10,color:'var(--text3)'}}>{ci.category} · {ci.code}</div></div>
-                    <div style={{textAlign:'right',flexShrink:0,marginLeft:10}}>
-                      <div style={{fontWeight:500,color:'var(--accent)',fontSize:12}}>R$ {Number(ci.sale_price||0).toLocaleString('pt-BR')}</div>
-                      {isAdmin&&<div style={{fontSize:9,color:'var(--text3)'}}>custo: R$ {Number(ci.cost_price||0).toLocaleString('pt-BR')}</div>}
-                      {avail!==null&&<div style={{fontSize:9,color:sClr}}>estoque: {avail}</div>}
-                    </div>
-                  </div>
-                })}
-              </div>
-            </div>
-
             {/* Items */}
             {(room.items||[]).length>0&&<div style={{marginBottom:10}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
                 <div className="flabel">Itens adicionados</div>
-                <button className="btn" style={{fontSize:10,padding:'2px 8px'}} onClick={calcRoomTotal}><i className="ti ti-calculator" aria-hidden/>Calcular valor</button>
+                <button className="btn" style={{fontSize:10,padding:'2px 8px'}} onClick={calcRoomTotal}><i className="ti ti-calculator" aria-hidden/>Recalcular</button>
               </div>
               <div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:6,padding:8}}>
-                {room.items.map((it,k)=>{ const st=stockStatus(it.code,it.qty)
+                {room.items.map((it,k)=>{
+                  const st=stockStatus(it.code,it.qty)
                   const qty=parseInt(it.qty)||1
                   const costUnit=it.cost_price||0
                   const saleUnit=it.sale_price||0
-                  const costTotal=costUnit*qty
-                  const saleTotal=saleUnit*qty
                   const lucroUnit=saleUnit-costUnit
                   const pct=costUnit>0?Math.round((saleUnit-costUnit)/costUnit*100):0
-                  return <div key={k} style={{marginBottom:8,paddingBottom:8,borderBottom:'1px solid var(--border)'}}>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 80px 44px 28px',gap:5,marginBottom:4,alignItems:'center'}}>
-                      <div style={{fontSize:12,fontWeight:500}}>{it.name}</div>
+
+                  // live editing state per item
+                  const isEditingThis=editingItemPrice===k
+                  const liveMargin=isEditingThis&&editingItemPrice===k
+
+                  return <div key={k} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid var(--border)'}}>
+                    {/* Row: name / code / qty / remove */}
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 72px 44px 24px',gap:5,marginBottom:6,alignItems:'center'}}>
+                      <div style={{fontSize:12,fontWeight:500,lineHeight:1.3}}>{it.name}</div>
                       <div className="mono" style={{fontSize:10,color:'var(--text3)',textAlign:'center'}}>{it.code}</div>
                       <input value={it.qty} onChange={e=>{
-                          const newQty = e.target.value
-                          updItem(k,'qty',newQty)
-                          const updatedItems = room.items.map((x,i2)=>i2===k?{...x,qty:newQty}:x)
-                          const newPrice = updatedItems.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
-                          if(newPrice>0) updRoom({price:String(newPrice), items:updatedItems})
-                          setSaved(false)
-                        }} style={{textAlign:'center',fontSize:12,padding:'4px 6px'}}/>
-                      <button onClick={()=>{removeItem(k);setSaved(false)}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:14,padding:2}}>✕</button>
+                        const newQty=e.target.value
+                        updItem(k,'qty',newQty)
+                        const upd=room.items.map((x,i2)=>i2===k?{...x,qty:newQty}:x)
+                        const np=upd.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
+                        if(np>0) updRoom({price:String(np),items:upd})
+                        setSaved(false)
+                      }} style={{textAlign:'center',fontSize:12,padding:'4px 5px'}}/>
+                      <button onClick={()=>{removeItem(k);setSaved(false)}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:13,padding:0}}>✕</button>
                     </div>
-                    {/* Margin panel per item */}
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4,background:'var(--bg)',borderRadius:5,padding:'5px 8px',fontSize:11}}>
+
+                    {/* Margin panel — all 4 fields editable */}
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4,background:'var(--bg)',borderRadius:5,padding:'6px 8px'}}>
+                      {/* Compra/un — read only */}
                       <div>
-                        <div style={{fontSize:9,color:'var(--text3)',letterSpacing:0.5,textTransform:'uppercase',marginBottom:2}}>Compra/un</div>
-                        <div style={{fontWeight:600,color:'var(--text2)'}}>R$ {costUnit.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+                        <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:0.5,marginBottom:3}}>Compra/un</div>
+                        <div style={{fontSize:12,fontWeight:600,color:'var(--text2)'}}>R$ {costUnit.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
                       </div>
+
+                      {/* Venda/un — editável */}
                       <div>
-                        <div style={{fontSize:9,color:'var(--text3)',letterSpacing:0.5,textTransform:'uppercase',marginBottom:2}}>Venda/un</div>
-                        <div style={{fontWeight:600,color:'var(--accent)'}}>R$ {saleUnit.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+                        <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:0.5,marginBottom:3}}>Venda/un <span style={{color:'var(--accent)',fontSize:8}}>✎</span></div>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={it.sale_price||0}
+                          onChange={e=>{
+                            const nv=parseFloat(e.target.value)||0
+                            const upd=room.items.map((x,i2)=>i2===k?{...x,sale_price:nv}:x)
+                            const np=upd.reduce((s,x)=>s+(x.sale_price||0)*(parseInt(x.qty)||1),0)
+                            updRoom({price:String(np),items:upd})
+                            setSaved(false)
+                          }}
+                          style={{width:'100%',fontSize:11,fontWeight:600,color:'var(--accent)',padding:'2px 4px',border:'1px solid var(--border)',borderRadius:3,background:'var(--bg)'}}
+                        />
                       </div>
+
+                      {/* Lucro/un — calculado */}
                       <div>
-                        <div style={{fontSize:9,color:'var(--text3)',letterSpacing:0.5,textTransform:'uppercase',marginBottom:2}}>Lucro/un</div>
-                        <div style={{fontWeight:600,color:lucroUnit>=0?'var(--green)':'var(--red)'}}>R$ {lucroUnit.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+                        <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:0.5,marginBottom:3}}>Lucro/un</div>
+                        <div style={{fontSize:12,fontWeight:600,color:lucroUnit>=0?'var(--green)':'var(--red)'}}>R$ {lucroUnit.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
                       </div>
+
+                      {/* Margem % — editável, recalcula venda */}
                       <div>
-                        <div style={{fontSize:9,color:'var(--text3)',letterSpacing:0.5,textTransform:'uppercase',marginBottom:2}}>Margem</div>
-                        <div style={{fontWeight:700,color:pct>=50?'var(--green)':pct>=20?'var(--amber)':'var(--red)'}}>{pct}%</div>
+                        <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:0.5,marginBottom:3}}>Margem % <span style={{color:'var(--accent)',fontSize:8}}>✎</span></div>
+                        <div style={{display:'flex',alignItems:'center',gap:2}}>
+                          <input
+                            type="number" min="0" max="999" step="1"
+                            value={pct}
+                            onChange={e=>{
+                              const newPct=parseFloat(e.target.value)||0
+                              if(costUnit>0){
+                                const newSale=parseFloat((costUnit*(1+newPct/100)).toFixed(2))
+                                const upd=room.items.map((x,i2)=>i2===k?{...x,sale_price:newSale}:x)
+                                const np=upd.reduce((s,x)=>s+(x.sale_price||0)*(parseInt(x.qty)||1),0)
+                                updRoom({price:String(np),items:upd})
+                                setSaved(false)
+                              }
+                            }}
+                            style={{width:'100%',fontSize:11,fontWeight:700,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:3,background:'var(--bg)',color:pct>=50?'var(--green)':pct>=20?'var(--amber)':'var(--red)'}}
+                          />
+                          <span style={{fontSize:10,color:'var(--text3)',flexShrink:0}}>%</span>
+                        </div>
                       </div>
                     </div>
-                    {qty>1&&<div style={{fontSize:10,color:'var(--text3)',marginTop:3,paddingLeft:2}}>
-                      Total ×{qty}: compra <b>R$ {costTotal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</b> · venda <b>R$ {saleTotal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</b>
+
+                    {/* Total line for qty > 1 */}
+                    {qty>1&&<div style={{fontSize:10,color:'var(--text3)',marginTop:4,paddingLeft:2}}>
+                      ×{qty} → compra <b>R$ {(costUnit*qty).toLocaleString('pt-BR',{minimumFractionDigits:2})}</b> · venda <b style={{color:'var(--accent)'}}>R$ {(saleUnit*qty).toLocaleString('pt-BR',{minimumFractionDigits:2})}</b> · lucro <b style={{color:'var(--green)'}}>R$ {(lucroUnit*qty).toLocaleString('pt-BR',{minimumFractionDigits:2})}</b>
                     </div>}
-                    {st&&<div style={{fontSize:10,color:st.type==='ok'?'var(--green)':st.type==='zero'?'var(--red)':'var(--amber)',marginTop:3,marginLeft:2,display:'flex',alignItems:'center',gap:3}}><i className={`ti ${st.type==='ok'?'ti-check':'ti-alert-triangle'}`} style={{fontSize:10}} aria-hidden/>{st.msg}</div>}
+
+                    {st&&<div style={{fontSize:10,color:st.type==='ok'?'var(--green)':st.type==='zero'?'var(--red)':'var(--amber)',marginTop:4,display:'flex',alignItems:'center',gap:3}}><i className={`ti ${st.type==='ok'?'ti-check':'ti-alert-triangle'}`} style={{fontSize:10}} aria-hidden/>{st.msg}</div>}
                   </div>
                 })}
-                {/* Room margin summary */}
+
+                {/* Room margin summary — editável */}
                 {(()=>{
-                  const roomCost=(room.items||[]).reduce((s,it)=>(s+(it.cost_price||0)*(parseInt(it.qty)||1)),0)
+                  const roomCost=(room.items||[]).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
                   const roomSale=parse(room.price)||((room.items||[]).reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0))
                   const roomLucro=roomSale-roomCost
                   const roomPct=roomCost>0?Math.round(roomLucro/roomCost*100):0
-                  return <div style={{marginTop:6,padding:'6px 8px',background:'rgba(14,165,233,0.07)',borderRadius:5,border:'1px solid rgba(14,165,233,0.2)'}}>
-                    <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:4}}>Resumo do cômodo</div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:4,fontSize:11}}>
-                      <div><div style={{fontSize:9,color:'var(--text3)'}}>Custo total</div><div style={{fontWeight:600,color:'var(--text2)'}}>R$ {roomCost.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
-                      <div><div style={{fontSize:9,color:'var(--text3)'}}>Venda total</div><div style={{fontWeight:600,color:'var(--accent)'}}>R$ {roomSale.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
-                      <div><div style={{fontSize:9,color:'var(--text3)'}}>Lucro (equipamentos)</div><div style={{fontWeight:700,color:roomPct>=50?'var(--green)':roomPct>=20?'var(--amber)':'var(--red)'}}>{roomPct}% · R$ {roomLucro.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
+                  return <div style={{marginTop:8,padding:'8px 10px',background:'rgba(14,165,233,0.07)',borderRadius:5,border:'1px solid rgba(14,165,233,0.25)'}}>
+                    <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:6}}>Resumo do cômodo</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 80px',gap:6,alignItems:'end'}}>
+                      <div><div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Custo</div><div style={{fontSize:12,fontWeight:600,color:'var(--text2)'}}>R$ {roomCost.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
+                      <div><div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Venda</div><div style={{fontSize:12,fontWeight:600,color:'var(--accent)'}}>R$ {roomSale.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
+                      <div><div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Lucro</div><div style={{fontSize:12,fontWeight:600,color:roomLucro>=0?'var(--green)':'var(--red)'}}>R$ {roomLucro.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
+                      <div>
+                        <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Margem % <span style={{color:'var(--accent)',fontSize:8}}>✎</span></div>
+                        <div style={{display:'flex',alignItems:'center',gap:2}}>
+                          <input
+                            type="number" min="0" max="999" step="1"
+                            value={roomPct}
+                            onChange={e=>{
+                              const newPct=parseFloat(e.target.value)||0
+                              const upd=(room.items||[]).map(it=>{
+                                if(!it.cost_price) return it
+                                return {...it,sale_price:parseFloat((it.cost_price*(1+newPct/100)).toFixed(2))}
+                              })
+                              const np=upd.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
+                              updRoom({price:String(np),items:upd})
+                              setSaved(false)
+                            }}
+                            style={{width:46,fontSize:11,fontWeight:700,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:3,color:roomPct>=50?'var(--green)':roomPct>=20?'var(--amber)':'var(--red)'}}
+                          />
+                          <span style={{fontSize:10,color:'var(--text3)'}}>%</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 })()}
@@ -808,7 +884,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
             </div>
             <div className="total-bar"><div className="total-label">Total</div><div className="total-value">{fmt(grandTotal)}</div></div>
 
-            {/* Project profit summary — equipamentos only */}
+            {/* Project profit — editável por margem global */}
             {(()=>{
               const projCost=floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(r.items||[]).reduce((is,it)=>is+(it.cost_price||0)*(parseInt(it.qty)||1),0),s),0)
               const projSale=equipTotal
@@ -816,30 +892,53 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
               const projPct=projCost>0?Math.round(projLucro/projCost*100):0
               if(projCost===0) return null
               return <div style={{marginTop:10,padding:'10px 12px',background:'rgba(14,165,233,0.07)',border:'1px solid rgba(14,165,233,0.25)',borderRadius:6}}>
-                <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>Margem de Lucro — Equipamentos (sem M.O.)</div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,fontSize:12}}>
+                <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>Margem do Projeto — Equipamentos (sem M.O.)</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 90px',gap:8,alignItems:'end'}}>
                   <div>
                     <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Custo total</div>
-                    <div style={{fontWeight:600,color:'var(--text2)'}}>{fmt(projCost)}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:'var(--text2)'}}>{fmt(projCost)}</div>
                   </div>
                   <div>
                     <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Venda total</div>
-                    <div style={{fontWeight:600,color:'var(--accent)'}}>{fmt(projSale)}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:'var(--accent)'}}>{fmt(projSale)}</div>
                   </div>
                   <div>
-                    <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Lucro · Margem</div>
-                    <div style={{fontWeight:700,color:projPct>=50?'var(--green)':projPct>=20?'var(--amber)':'var(--red)'}}>{fmt(projLucro)} · {projPct}%</div>
+                    <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Lucro</div>
+                    <div style={{fontSize:13,fontWeight:600,color:projLucro>=0?'var(--green)':'var(--red)'}}>{fmt(projLucro)}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Margem % <span style={{color:'var(--accent)',fontSize:8}}>✎</span></div>
+                    <div style={{display:'flex',alignItems:'center',gap:3}}>
+                      <input
+                        type="number" min="0" max="999" step="1"
+                        value={projPct}
+                        title="Altera margem de todos os itens do projeto"
+                        onChange={e=>{
+                          const newPct=parseFloat(e.target.value)||0
+                          const newFloors=floors.map(f=>({...f,rooms:(f.rooms||[]).map(r=>{
+                            const upd=(r.items||[]).map(it=>{
+                              if(!it.cost_price) return it
+                              return {...it,sale_price:parseFloat((it.cost_price*(1+newPct/100)).toFixed(2))}
+                            })
+                            const np=upd.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
+                            return {...r,items:upd,price:np>0?String(np):r.price}
+                          })}))
+                          setFloors(newFloors)
+                          setSaved(false)
+                        }}
+                        style={{width:52,fontSize:13,fontWeight:700,padding:'3px 5px',border:'1px solid var(--border)',borderRadius:4,color:projPct>=50?'var(--green)':projPct>=20?'var(--amber)':'var(--red)'}}
+                      />
+                      <span style={{fontSize:11,color:'var(--text3)'}}>%</span>
+                    </div>
                   </div>
                 </div>
-                {floors.length>1&&<div style={{marginTop:8,borderTop:'1px solid var(--border)',paddingTop:8}}>
-                  <div style={{fontSize:9,color:'var(--text3)',marginBottom:5}}>Por pavimento:</div>
+                {floors.length>1&&<div style={{marginTop:8,borderTop:'1px solid var(--border)',paddingTop:8,display:'flex',flexWrap:'wrap',gap:'4px 16px'}}>
                   {floors.map((f,fi)=>{
                     const fCost=(f.rooms||[]).reduce((s,r)=>s+(r.items||[]).reduce((is,it)=>is+(it.cost_price||0)*(parseInt(it.qty)||1),0),0)
                     const fSale=(f.rooms||[]).reduce((s,r)=>s+parse(r.price),0)
                     const fPct=fCost>0?Math.round((fSale-fCost)/fCost*100):0
-                    return fSale>0?<div key={fi} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text2)',padding:'2px 0'}}>
-                      <span>{f.name}</span>
-                      <span style={{color:fPct>=50?'var(--green)':fPct>=20?'var(--amber)':'var(--red)',fontWeight:600}}>{fPct}% · {fmt(fSale-fCost)}</span>
+                    return fSale>0?<div key={fi} style={{fontSize:11,color:'var(--text2)'}}>
+                      {f.name.replace(' Pavimento','Pav.')}: <b style={{color:fPct>=50?'var(--green)':fPct>=20?'var(--amber)':'var(--red)'}}>{fPct}%</b>
                     </div>:null
                   })}
                 </div>}
@@ -847,7 +946,6 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
             })()}
 
             <div style={{marginTop:10}}><div className="flabel" style={{marginBottom:5}}>Descrição</div><input value={description} onChange={e=>{setDescription(e.target.value);setSaved(false)}} placeholder="ex: Automação completa — 2 pavimentos"/></div>
-
             {/* Stock warnings */}
             {warnings.length > 0 && (
               <div style={{marginTop:14,background:'rgba(220,38,38,0.05)',border:'1px solid rgba(220,38,38,0.25)',borderRadius:6,padding:'10px 12px'}}>

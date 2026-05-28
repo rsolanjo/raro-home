@@ -268,14 +268,13 @@ function buildPDF(data, adminMode=false){
   const contactStrip=()=>`<div class="contact-strip"><div><div class="cs-name">Rogério Silva</div><div class="cs-phone">+55 21 98170-9009</div></div><div class="cs-r"><div class="cs-item"><span class="cs-ic">@</span><span class="cs-tx">contato@rarohome.com.br</span></div><div class="cs-item"><span class="cs-ic">☆</span><span class="cs-tx-s">@rarohome</span></div><div class="cs-item"><span class="cs-ic">◉</span><span class="cs-tx-s">www.rarohome.com.br</span></div></div></div>`
 
   // ── CAPA (idêntica à versão anterior) ────────────────────────
-  const LOGO_SVG=`<svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="28" y="4" width="16" height="28" rx="2" fill="none" stroke="#0369A1" stroke-width="2.5"/><rect x="20" y="18" width="32" height="6" rx="1.5" fill="none" stroke="#0369A1" stroke-width="2"/><line x1="36" y1="32" x2="36" y2="68" stroke="#0369A1" stroke-width="2.5"/><line x1="16" y1="68" x2="56" y2="68" stroke="#0369A1" stroke-width="2.5"/></svg>`
   const cover=`<div class="page" style="page-break-after:always">
     <div class="cov-top">
       <div><div class="cov-ey">Documento exclusivo e confidencial</div><div class="cov-si">Proposta técnica exclusiva</div></div>
       <div class="cov-right">Válido por 30 dias · ${date_str}</div>
     </div>
     <div class="logo-zone">
-      ${LOGO_SVG}
+      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMjYwIiB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI2MCI+CiAgPHJlY3Qgd2lkdGg9IjQwMCIgaGVpZ2h0PSIyNjAiIGZpbGw9IiNGNUZBRkYiLz4KICA8bGluZSB4MT0iMjAwIiB5MT0iMjIiIHgyPSIyMDAiIHkyPSIxMzAiIHN0cm9rZT0iIzhDNzA0MCIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxwYXRoIGQ9Ik0yMDAgMjIgUTIwMCAyMiAxODAgMjIgUTE1NiAyMiAxNTYgNTAgUTE1NiA3OCAxODAgNzggTDIwMCA3OCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOEM3MDQwIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPGxpbmUgeDE9IjE4MCIgeTE9Ijc4IiB4Mj0iMTU4IiB5Mj0iMTMwIiBzdHJva2U9IiM4QzcwNDAiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8cGF0aCBkPSJNMjAwIDIyIFEyMDAgMjIgMjIwIDIyIFEyNDQgMjIgMjQ0IDUwIFEyNDQgNzggMjIwIDc4IEwyMDAgNzgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzhDNzA0MCIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogIDxsaW5lIHgxPSIyMjAiIHkxPSI3OCIgeDI9IjI0MiIgeTI9IjEzMCIgc3Ryb2tlPSIjOEM3MDQwIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPGxpbmUgeDE9IjE0OCIgeTE9IjE1IiB4Mj0iMjUyIiB5Mj0iMTUiIHN0cm9rZT0iIzBFQTVFOSIgc3Ryb2tlLXdpZHRoPSIxLjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDx0ZXh0IHg9IjIwMCIgeT0iMTc4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iR2VvcmdpYSxzZXJpZiIgZm9udC1zaXplPSI1MCIgZm9udC13ZWlnaHQ9IjQwMCIgZmlsbD0iIzBEMTQyMCIgbGV0dGVyLXNwYWNpbmc9IjE0Ij5SQVJPPC90ZXh0PgogIDxsaW5lIHgxPSIxNTAiIHkxPSIxOTMiIHgyPSIxOTMiIHkyPSIxOTMiIHN0cm9rZT0iIzBFQTVFOSIgc3Ryb2tlLXdpZHRoPSIwLjYiIG9wYWNpdHk9IjAuNDUiLz4KICA8Y2lyY2xlIGN4PSIyMDAiIGN5PSIxOTMiIHI9IjIuMiIgZmlsbD0iIzBFQTVFOSIgb3BhY2l0eT0iMC42Ii8+CiAgPGxpbmUgeDE9IjIwNyIgeTE9IjE5MyIgeDI9IjI1MCIgeTI9IjE5MyIgc3Ryb2tlPSIjMEVBNUU5IiBzdHJva2Utd2lkdGg9IjAuNiIgb3BhY2l0eT0iMC40NSIvPgogIDx0ZXh0IHg9IjIwMCIgeT0iMjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMyIgZm9udC13ZWlnaHQ9IjMwMCIgZmlsbD0iIzBFQTVFOSIgbGV0dGVyLXNwYWNpbmc9IjgiIG9wYWNpdHk9IjAuNTUiPkhPTUU8L3RleHQ+Cjwvc3ZnPg==" alt="RARO Home" style="height:140px;width:auto;display:block"/>
       <div class="logo-tagline">C A S A · T E C N O L O G I A · L A Z E R</div>
       <div class="logo-orn"><div class="lo-l-r"></div><div class="lo-d"></div><div class="lo-l"></div></div>
     </div>
@@ -346,7 +345,7 @@ function buildPDF(data, adminMode=false){
     const w=fl.name.split(' ')[0]||''
     const ord=FORD[w]||`${fi+1}º`
     const label=(FORD[w]?w:w)+' Pavimento'
-    return `<div class="fl-section-hdr"><div style="background:#0EA5E9;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;font-weight:800;flex-shrink:0;font-family:'DM Sans',sans-serif">${ord}</div><div><div class="fl-section-label">P A V I M E N T O</div><div class="fl-section-name">${label}</div></div></div>`
+    return `<div class="fl-section-hdr"><div style="background:#0EA5E9;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;font-weight:800;flex-shrink:0;font-family:'DM Sans',sans-serif">${ord}</div><div style="display:flex;flex-direction:column;gap:1px"><div style="font-size:12px;letter-spacing:3px;color:#0EA5E9;text-transform:uppercase;font-family:'DM Sans',sans-serif;font-weight:500">P A V I M E N T O</div><div class="fl-section-name">${label}</div></div></div>`
   }
 
   // ── build room pages: 2 cols, up to 12 rooms per page ─────────
