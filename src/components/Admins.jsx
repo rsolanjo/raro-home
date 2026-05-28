@@ -84,7 +84,7 @@ export default function Admins({ admins, currentUser, onRefresh }) {
         </div>
       )}
       {showPIN&&<PINModal
-        onSuccess={()=>{setShowPIN(false);if(pinAction){pinAction();setPinAction(null)}}}
+        onSuccess={()=>{setShowPIN(false);const a=pinAction;setPinAction(null);if(a){Promise.resolve(a()).catch(e=>{console.error(e);alert('Erro: '+e.message)})}}}
         onCancel={()=>{setShowPIN(false);setPinAction(null)}}/>}
     </>
   )

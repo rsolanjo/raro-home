@@ -55,32 +55,33 @@ export default function Stock({ stock: rawStock, suppliers, onRefresh, currentUs
   }
 
   async function handleSave() {
-    const prev = editing ? stock.find(s=>s.id===editing.id) : null
-    const newItem = {...form, qty:Number(form.qty), min_qty:Number(form.min_qty), cost_price:Number(form.cost_price||0), unit_price:Number(form.unit_price)}
-    await saveStockItem(newItem)
-    const action = editing ? 'update' : 'create'
-    // Stock log — always record with before/after
-    if (prev && (prev.qty !== newItem.qty || prev.cost_price !== newItem.cost_price || prev.unit_price !== newItem.unit_price)) {
-      const delta = newItem.qty - (prev.qty||0)
-      const noteparts = []
-      if (prev.qty !== newItem.qty) noteparts.push(`qtd: ${prev.qty}→${newItem.qty}`)
-      if (prev.cost_price !== newItem.cost_price) noteparts.push(`custo: R$${prev.cost_price}→R$${newItem.cost_price}`)
-      if (prev.unit_price !== newItem.unit_price) noteparts.push(`venda: R$${prev.unit_price}→R$${newItem.unit_price}`)
-      await addStockLog({
-        action: delta>0?'entrada':delta<0?'saida':'ajuste',
-        code:newItem.code, name:newItem.name,
-        qty:Math.abs(delta||0), qty_before:prev.qty, qty_after:newItem.qty,
-        author:currentUser?.name||'Sistema',
-        note:`Edição manual — ${noteparts.join(', ')}`,
-        snapshot: JSON.stringify(prev),
-      })
-    } else if (!prev) {
-      await addStockLog({ action:'cadastro', code:newItem.code, name:newItem.name, qty:newItem.qty, qty_before:0, qty_after:newItem.qty, author:currentUser?.name||'Sistema', note:'Novo item cadastrado' })
-    }
-    await addAuditLog({ module:'estoque', action, entity_id:newItem.id, entity_name:`${newItem.code} — ${newItem.name}`, user_name:currentUser?.name||'Sistema', after:JSON.stringify(newItem).slice(0,300), before:prev?JSON.stringify(prev).slice(0,300):null })
-    setShowModal(false); onRefresh()
-    getStockWithReservations().then(s => setStock(s || []))
-    getStockLog().then(l => setLog(l || []))
+    try {
+      const prev = editing ? stock.find(s=>s.id===editing.id) : null
+      const newItem = {...form, qty:Number(form.qty), min_qty:Number(form.min_qty), cost_price:Number(form.cost_price||0), unit_price:Number(form.unit_price)}
+      await saveStockItem(newItem)
+      const action = editing ? 'update' : 'create'
+      if (prev && (prev.qty !== newItem.qty || prev.cost_price !== newItem.cost_price || prev.unit_price !== newItem.unit_price)) {
+        const delta = newItem.qty - (prev.qty||0)
+        const noteparts = []
+        if (prev.qty !== newItem.qty) noteparts.push(`qtd: ${prev.qty}→${newItem.qty}`)
+        if (prev.cost_price !== newItem.cost_price) noteparts.push(`custo: R$${prev.cost_price}→R$${newItem.cost_price}`)
+        if (prev.unit_price !== newItem.unit_price) noteparts.push(`venda: R$${prev.unit_price}→R$${newItem.unit_price}`)
+        await addStockLog({
+          action: delta>0?'entrada':delta<0?'saida':'ajuste',
+          code:newItem.code, name:newItem.name,
+          qty:Math.abs(delta||0), qty_before:prev.qty, qty_after:newItem.qty,
+          author:currentUser?.name||'Sistema',
+          note:`Edição manual — ${noteparts.join(', ')}`,
+          snapshot: JSON.stringify(prev),
+        })
+      } else if (!prev) {
+        await addStockLog({ action:'cadastro', code:newItem.code, name:newItem.name, qty:newItem.qty, qty_before:0, qty_after:newItem.qty, author:currentUser?.name||'Sistema', note:'Novo item cadastrado' })
+      }
+      await addAuditLog({ module:'estoque', action, entity_id:newItem.id, entity_name:`${newItem.code} — ${newItem.name}`, user_name:currentUser?.name||'Sistema', after:JSON.stringify(newItem).slice(0,300), before:prev?JSON.stringify(prev).slice(0,300):null })
+      setShowModal(false); onRefresh()
+      getStockWithReservations().then(s => setStock(s || []))
+      getStockLog().then(l => setLog(l || []))
+    } catch(err) { console.error(err); alert('Erro ao salvar estoque: ' + err.message) }
   }
 
   // Staged qty input change — just updates local state
@@ -448,7 +449,7 @@ export default function Stock({ stock: rawStock, suppliers, onRefresh, currentUs
         </div>
       )}
       {showPIN && <PINModal
-        onSuccess={()=>{ setShowPIN(false); if(pinAction){ pinAction(); setPinAction(null) } }}
+        onSuccess={()=>{setShowPIN(false);const a=pinAction;setPinAction(null);if(a){Promise.resolve(a()).catch(e=>{console.error(e);alert('Erro: '+e.message)})}}}
         onCancel={()=>{ setShowPIN(false); setPinAction(null) }} />}
     </>
   )

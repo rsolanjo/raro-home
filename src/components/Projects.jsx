@@ -38,7 +38,7 @@ export default function Projects({ projects, clients, onRefresh, currentUser }) 
   const done = projects.filter(p=>p.phase==='done')
   const proj = sel ? projects.find(p=>p.id===sel) : null
 
-  function upd(patch){ if(!proj) return; saveProject({...proj,...patch}); onRefresh() }
+  async function upd(patch){ if(!proj) return; await saveProject({...proj,...patch}); onRefresh() }
 
   function phaseIdx(k){ return PHASES.findIndex(p=>p.key===k) }
 
@@ -73,10 +73,13 @@ export default function Projects({ projects, clients, onRefresh, currentUser }) 
     upd({purchase_list:proj.purchase_list.map((x,j)=>j===i?{...x,...patch}:x)})
   }
 
-  function handleCreate(){
-    const cl = clients.find(c=>c.id===Number(form.client_id))
-    const p={...form, client_name: cl ? `${cl.name1} & ${cl.name2}` : form.client_name}
-    saveProject(p); setShowNew(false); onRefresh()
+  async function handleCreate(){
+    try {
+      const cl = clients.find(c=>c.id===Number(form.client_id))
+      const p={...form, client_name: cl ? `${cl.name1} & ${cl.name2}` : form.client_name}
+      await saveProject(p)
+      setShowNew(false); onRefresh()
+    } catch(err){ console.error(err); alert('Erro ao criar projeto: ' + err.message) }
   }
 
   const TABS=[

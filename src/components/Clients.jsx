@@ -171,7 +171,14 @@ export default function Clients({ clients, proposals, projects, onRefresh, onEdi
                     <div style={{display:'flex',gap:4}}>
                       <button className="btn" style={{fontSize:11,padding:'3px 8px'}} onClick={()=>openEdit(c)}><i className="ti ti-edit" aria-hidden/></button>
                       <button className="btn danger" style={{fontSize:11,padding:'3px 8px'}}
-                        onClick={()=>{if(confirm('Excluir cliente?')){deleteClient(c.id);onRefresh()}}}>
+                        onClick={async ()=>{
+                          if(!confirm('Excluir cliente?')) return
+                          requirePIN(async ()=>{
+                            await deleteClient(c.id)
+                            await auditedSave('clientes','delete',c,currentUser?.name)
+                            onRefresh()
+                          })
+                        }}>
                         <i className="ti ti-trash" aria-hidden/>
                       </button>
                     </div>
@@ -333,7 +340,7 @@ export default function Clients({ clients, proposals, projects, onRefresh, onEdi
         </div>
       )}
       {showPIN && <PINModal
-        onSuccess={()=>{ setShowPIN(false); if(pinAction){ pinAction(); setPinAction(null) } }}
+        onSuccess={()=>{setShowPIN(false);const a=pinAction;setPinAction(null);if(a){Promise.resolve(a()).catch(e=>{console.error(e);alert('Erro: '+e.message)})}}}
         onCancel={()=>{ setShowPIN(false); setPinAction(null) }} />}
     </>
   )

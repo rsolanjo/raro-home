@@ -17,15 +17,16 @@ async function all(table, order = 'id') {
 }
 async function upsert(table, row) {
   if (row.id) {
-    // UPDATE existing record
-    const { data, error } = await supabase.from(table).update(row).eq('id', row.id).select().single()
-    if (error) throw error
+    // UPDATE — never send 'id' in the body, only in the filter
+    const { id, created_at, ...updateRow } = row
+    const { data, error } = await supabase.from(table).update(updateRow).eq('id', id).select().single()
+    if (error) { console.error(`upsert UPDATE ${table}:`, error); throw error }
     return data
   } else {
-    // INSERT new record
+    // INSERT — strip undefined id
     const { id: _id, ...insertRow } = row
     const { data, error } = await supabase.from(table).insert(insertRow).select().single()
-    if (error) throw error
+    if (error) { console.error(`upsert INSERT ${table}:`, error); throw error }
     return data
   }
 }

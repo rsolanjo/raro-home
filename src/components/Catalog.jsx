@@ -119,15 +119,28 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
   const avgs=Object.values(roomAvgs).map(r=>({...r,avg:Math.round(r.total/r.count)})).sort((a,b)=>b.avg-a.avg)
 
   function openNew(){
-    setEditing(null)
-    setForm({code:'',name:'',category:'Interruptor',cost_price:0,sale_price:0,pitch:'',buy_link:'',supplier_id:''})
-    setShowModal(true)
+    requirePIN(()=>{
+      setEditing(null)
+      setForm({code:'',name:'',category:'Interruptor',cost_price:0,sale_price:0,pitch:'',buy_link:'',supplier_id:''})
+      setShowModal(true)
+    })
   }
-  function openEdit(c){ setEditing(c); setForm({...c}); setShowModal(true) }
-  function handleSave(){
-    const sp = form.sale_price>0 ? Number(form.sale_price) : Number(form.cost_price)*2
-    saveCatalogItem({...form, cost_price:Number(form.cost_price), sale_price:sp})
-    setShowModal(false); onRefresh()
+  function openEdit(c){ requirePIN(()=>{ setEditing(c); setForm({...c}); setShowModal(true) }) }
+  async function handleSave(){
+    try {
+      const sp = form.sale_price>0 ? Number(form.sale_price) : Number(form.cost_price)*2
+      const item = {...form, cost_price:Number(form.cost_price), sale_price:sp}
+      const before = editing ? catalog.find(c=>c.id===editing.id) : null
+      const saved = await saveCatalogItem(item)
+      await addAuditLog({
+        module:'catalogo', action:editing?'update':'create',
+        entity_id:saved?.id, entity_name:saved?.name||item.name,
+        user_name:currentUser?.name||'Admin',
+        before:before?`custo:${before.cost_price},venda:${before.sale_price}`:null,
+        after:`custo:${item.cost_price},venda:${sp}`
+      })
+      setShowModal(false); onRefresh()
+    } catch(err){ console.error(err); alert('Erro ao salvar: ' + err.message) }
   }
   function handleAddCat(){
     if(newCat.trim()) { addCatalogCategory(newCat.trim()); setNewCat(''); onRefresh() }
@@ -247,7 +260,7 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
             </div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button className="btn" onClick={()=>setShowModal(false)}>Cancelar</button>
-              <button className="btn primary" onClick={handleSave}>Salvar</button>
+              <button className="btn primary" onClick={()=>requirePIN(handleSave)}>Salvar</button>
             </div>
           </div>
         </div>
@@ -309,7 +322,7 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
         </div>
       )}
       {showPIN&&<PINModal
-        onSuccess={()=>{setShowPIN(false);if(pinAction){pinAction();setPinAction(null)}}}
+        onSuccess={()=>{setShowPIN(false);const a=pinAction;setPinAction(null);if(a){Promise.resolve(a()).catch(e=>{console.error(e);alert('Erro: '+e.message)})}}}
         onCancel={()=>{setShowPIN(false);setPinAction(null)}}/>}
     </>
   )
