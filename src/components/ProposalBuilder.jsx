@@ -255,88 +255,181 @@ body{font-family:'DM Sans',sans-serif;background:#fff;-webkit-print-color-adjust
 
 function buildPDF(data, adminMode=false){
   const{client_name,proposal_code,neighborhood,floors,labor,date_str,itemFontSize=7,client_phone1,client_phone2}=data
-  const fmtN=v=>'R$\u202f'+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
+  const fmt=v=>'R$\u202f'+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
   const equipTotal=(floors||[]).reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
   const grandTotal=equipTotal+parse(labor)
   const laborVal=parse(labor)
-  const iFS=itemFontSize||7
+  const iFS=Math.max(8,itemFontSize||8)   // minimum 8px for legibility
 
-  // ── helpers ──────────────────────────────────────────────
-  const contactStrip=()=>`<div class="contact-strip"><div><div class="cs-name">Rogério Silva</div><div class="cs-phone">+55 21 98170-9009</div></div><div class="cs-r"><div class="cs-item"><span class="cs-ic">@</span><span class="cs-tx">contato@rarohome.com.br</span></div><div class="cs-item"><span class="cs-ic">☆</span><span class="cs-tx-s">@rarohome</span></div><div class="cs-item"><span class="cs-ic">◉</span><span class="cs-tx-s">www.rarohome.com.br</span></div></div></div>`
+  // ── helpers ──────────────────────────────────────────────────
   const pageHeader=()=>`<div class="phdr"><div><div class="phdr-brand">RARO HOME</div><div class="phdr-sub">Casa · Tecnologia · Lazer</div></div><div class="phdr-right">rarohome.com.br</div></div><div class="grule"></div>`
   const pageFooter=n=>`<div class="pftr"><div class="pftr-brand">RARO Home — Proposta Técnica${adminMode?' · VERSÃO ADMIN':''}</div><div class="pftr-n">${n}</div></div>`
   const clientMini=()=>`<div class="page-client"><div><div class="pc-name">${client_name}</div></div><div style="display:flex;gap:14px;align-items:center"><div class="pc-bairro">${neighborhood}</div><div class="pc-id">${proposal_code}</div></div></div>`
-  const clientHero=()=>`<div style="background:linear-gradient(135deg,#060B1A 0%,#0a1628 100%);padding:18px 24px;border-radius:4px;margin-bottom:12px"><div style="font-size:7px;letter-spacing:5px;color:#0EA5E9;text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:6px">Proposta Exclusiva</div><div style="font-family:'DM Serif Display',serif;font-size:22px;color:#fff;margin-bottom:4px">${client_name}</div><div style="font-size:8px;color:rgba(255,255,255,0.5);font-family:'DM Sans',sans-serif;letter-spacing:1px">${neighborhood} · ${proposal_code} · ${date_str}</div></div>`
+  const contactStrip=()=>`<div class="contact-strip"><div><div class="cs-name">Rogério Silva</div><div class="cs-phone">+55 21 98170-9009</div></div><div class="cs-r"><div class="cs-item"><span class="cs-ic">@</span><span class="cs-tx">contato@rarohome.com.br</span></div><div class="cs-item"><span class="cs-ic">☆</span><span class="cs-tx-s">@rarohome</span></div><div class="cs-item"><span class="cs-ic">◉</span><span class="cs-tx-s">www.rarohome.com.br</span></div></div></div>`
 
-  // ── room card ─────────────────────────────────────────────
+  // ── CAPA ─────────────────────────────────────────────────────
+  const LOGO_SVG=`<svg width="120" height="36" viewBox="0 0 120 36" fill="none" xmlns="http://www.w3.org/2000/svg"><text x="0" y="28" font-family="DM Serif Display,serif" font-size="32" fill="#F0F6FF" letter-spacing="6">RARO</text><text x="0" y="36" font-family="DM Sans,sans-serif" font-size="7" fill="#38BDF8" letter-spacing="5">HOME</text></svg>`
+  const cover=`<div class="page page-cover" style="background:#060B1A;display:flex;flex-direction:column">
+    <div class="cov-top"><div>${LOGO_SVG}</div><div class="cov-right">Casa · Tecnologia · Lazer<br/>rarohome.com.br</div></div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 40px;text-align:center">
+      <div style="font-size:8px;letter-spacing:6px;color:#38BDF8;text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:18px">Proposta Exclusiva</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:42px;color:#F0F6FF;line-height:1.15;margin-bottom:8px">${client_name}</div>
+      <div style="width:60px;height:1.5px;background:#0EA5E9;margin:16px auto"></div>
+      <div style="font-family:'DM Serif Display',serif;font-size:18px;color:#6B8CAE;font-style:italic;margin-bottom:6px">${neighborhood}</div>
+      <div style="font-size:9px;letter-spacing:3px;color:rgba(56,189,248,0.5);text-transform:uppercase;font-family:'DM Sans',sans-serif">${proposal_code} · ${date_str}</div>
+    </div>
+    <div style="background:linear-gradient(135deg,#0EA5E9 0%,#0369A1 100%);padding:14px 40px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:0">
+      <div style="text-align:center"><div style="font-size:7px;letter-spacing:2px;color:rgba(240,246,255,0.6);text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:4px">Equipamentos</div><div style="font-family:'DM Serif Display',serif;font-size:20px;color:#fff">${fmt(equipTotal)}</div></div>
+      <div style="text-align:center;border-left:0.5px solid rgba(255,255,255,0.2);border-right:0.5px solid rgba(255,255,255,0.2)"><div style="font-size:7px;letter-spacing:2px;color:rgba(240,246,255,0.6);text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:4px">Mão de Obra</div><div style="font-family:'DM Serif Display',serif;font-size:20px;color:#fff">${fmt(laborVal)}</div></div>
+      <div style="text-align:center"><div style="font-size:7px;letter-spacing:2px;color:rgba(240,246,255,0.6);text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:4px">Investimento Total</div><div style="font-family:'DM Serif Display',serif;font-size:20px;color:#fff">${fmt(grandTotal)}</div></div>
+    </div>
+    ${contactStrip()}
+    <div class="valid-strip">© RARO Home · Proposta válida por 30 dias · ${proposal_code}</div>
+  </div>`
+
+  // ── room card ─────────────────────────────────────────────────
   const roomCard=r=>{
     const hl=r.highlight?' hl':''
     const rows=(r.items||[]).filter(i=>i.name).map(i=>{
       const qty=parseInt(i.qty)||1
       if(adminMode){
-        const sale=((i.sale_price||0)*qty), cost=((i.cost_price||0)*qty)
-        return '<tr style="border-bottom:0.5px solid #EDE9FE">'+
-          '<td style="font-size:8px;color:#1E3A5F;padding:2.5px 4px;font-family:DM Sans,sans-serif">'+i.name+'</td>'+
-          '<td style="font-size:7.5px;color:#7C3AED;text-align:right;padding:2.5px 4px;font-family:DM Sans,sans-serif;white-space:nowrap">'+(sale>0?fmtN(sale):'—')+'</td>'+
-          '<td style="font-size:7px;color:#E8956A;text-align:right;padding:2.5px 4px;font-family:DM Sans,sans-serif;white-space:nowrap">'+(cost>0?fmtN(cost):'—')+'</td>'+
-          '<td style="font-size:7.5px;color:#0EA5E9;font-weight:600;text-align:right;padding:2.5px 4px;font-family:DM Sans,sans-serif">'+qty+'</td></tr>'
+        const sale=(i.sale_price||0)*qty, cost=(i.cost_price||0)*qty
+        const m=cost>0?Math.round((sale-cost)/cost*100):null
+        return `<tr style="border-bottom:0.5px solid #EDE9FE">
+          <td style="font-size:9px;color:#1E3A5F;padding:3px 4px;font-family:'DM Sans',sans-serif">${i.name}</td>
+          <td style="font-size:8.5px;color:#7C3AED;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif;white-space:nowrap">${sale>0?fmt(sale):'—'}</td>
+          <td style="font-size:8px;color:#E8956A;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif;white-space:nowrap">${cost>0?fmt(cost):'—'}</td>
+          <td style="font-size:9px;color:#0EA5E9;font-weight:700;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif">${qty}</td>
+          ${m!==null?`<td style="font-size:8px;color:#059669;font-weight:600;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif">${m}%</td>`:'<td></td>'}
+        </tr>`
       }
-      return `<tr><td style="font-size:${iFS}px;color:#1e3a5f;font-weight:400;padding:2px 0;line-height:1.4;width:62%;font-family:'DM Sans',sans-serif">${i.name}</td><td style="font-size:${Math.max(5,iFS-1.5)}px;color:#7BA5C8;text-align:center;width:26%;font-family:'DM Sans',sans-serif">${i.code||''}</td><td style="font-size:${iFS}px;color:#8C6D46;font-weight:700;text-align:right;width:12%;font-family:'DM Sans',sans-serif">${i.qty||''}</td></tr>`
+      return `<tr><td class="it-name">${i.name}</td><td class="it-code">${i.code||''}</td><td class="it-qty">${qty>1?qty:''}</td></tr>`
     }).join('')
-    const thead=adminMode?`<tr style="background:#F3F0FF"><th style="font-size:6px;color:#7C3AED;padding:2px 3px;text-align:left;font-family:'DM Sans',sans-serif">Item</th><th style="font-size:6px;color:#7C3AED;text-align:right;padding:2px 3px;font-family:'DM Sans',sans-serif">Venda</th><th style="font-size:6px;color:#E8956A;text-align:right;padding:2px 3px;font-family:'DM Sans',sans-serif">Custo</th><th style="font-size:6px;color:#7C3AED;text-align:right;padding:2px 3px;font-family:'DM Sans',sans-serif">Qtd</th></tr>`:''
-    const items=rows?`<table style="width:100%;border-collapse:collapse;margin-bottom:3px${adminMode?';border:0.5px solid #DDD6FE;border-radius:3px;overflow:hidden':''}">${thead}${rows}</table>`:''
-    const pitch=r.pitch&&!adminMode?`<div style="font-family:'Playfair Display',serif;font-style:italic;font-size:${Math.max(6,iFS-1)}px;color:#3D5A80;line-height:1.4;margin-top:4px;padding-top:4px;border-top:0.5px solid #E0EEFF">${r.pitch}</div>`:''
+    const thead=adminMode?`<tr style="background:#F3F0FF"><th style="font-size:7px;color:#7C3AED;padding:3px;text-align:left;font-family:'DM Sans',sans-serif">Item</th><th style="font-size:7px;color:#7C3AED;text-align:right;padding:3px;font-family:'DM Sans',sans-serif">Venda</th><th style="font-size:7px;color:#E8956A;text-align:right;padding:3px;font-family:'DM Sans',sans-serif">Custo</th><th style="font-size:7px;color:#0EA5E9;text-align:right;padding:3px;font-family:'DM Sans',sans-serif">Qtd</th><th style="font-size:7px;color:#059669;text-align:right;padding:3px;font-family:'DM Sans',sans-serif">Mg%</th></tr>`:''
+    const items=rows?`<table class="items-table" style="${adminMode?'border:0.5px solid #DDD6FE;overflow:hidden':''}">${thead}${rows}</table>`:''
+    const pitch=r.pitch&&!adminMode?`<div class="rp">${r.pitch}</div>`:''
     const roomTotal=adminMode?(()=>{
       const cost=(r.items||[]).reduce((s,i)=>s+(i.cost_price||0)*(parseInt(i.qty)||1),0)
       const sale=parse(r.price), mg=cost>0?Math.round((sale-cost)/cost*100):0
-      return `<div style="display:flex;justify-content:space-between;margin-top:4px;padding-top:3px;border-top:1px solid #DDD6FE;flex-shrink:0"><div><div style="font-size:5px;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase">Custo</div><div style="font-size:9px;color:#E8956A;font-weight:600">${fmtN(cost)}</div></div><div style="text-align:center"><div style="font-size:5px;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase">Margem</div><div style="font-size:9px;color:#7C3AED;font-weight:600">${mg}%</div></div><div style="text-align:right"><div style="font-size:5px;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase">Venda</div><div style="font-size:10px;color:#060B1A;font-weight:600">${fmtN(sale)}</div></div></div>`
-    })():`<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:4px;padding-top:4px;border-top:0.5px solid #E5DDD4;flex-shrink:0"><div style="font-size:6px;letter-spacing:2px;color:#9E9690;text-transform:uppercase;font-family:'DM Sans',sans-serif">Investimento</div><div style="font-family:'DM Serif Display',serif;font-size:12px;color:#1C1C1C">${fmtN(parse(r.price))}</div></div>`
+      return `<div style="display:flex;justify-content:space-between;margin-top:5px;padding-top:4px;border-top:1px solid #DDD6FE;flex-shrink:0">
+        <div><div style="font-size:6px;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;font-family:'DM Sans',sans-serif">Custo</div><div style="font-size:11px;color:#E8956A;font-weight:600;font-family:'DM Sans',sans-serif">${fmt(cost)}</div></div>
+        <div style="text-align:center"><div style="font-size:6px;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;font-family:'DM Sans',sans-serif">Margem</div><div style="font-size:11px;color:#7C3AED;font-weight:700;font-family:'DM Sans',sans-serif">${mg}%</div></div>
+        <div style="text-align:right"><div style="font-size:6px;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;font-family:'DM Sans',sans-serif">Venda</div><div style="font-family:'DM Serif Display',serif;font-size:13px;color:#060B1A">${fmt(sale)}</div></div>
+      </div>`
+    })():`<div class="rv"><div class="rvl">Investimento</div><div class="rvv">${fmt(parse(r.price))}</div></div>`
     return `<div class="room${hl}"><div class="rh"><span class="ri">${r.icon||'◈'}</span><div class="rn">${r.name}</div></div>${items}${pitch}${roomTotal}</div>`
   }
 
-  // ── floor block (2 cols) ──────────────────────────────────
+  // ── floor ordinals ────────────────────────────────────────────
   const FORD={'Primeiro':'1º','Segundo':'2º','Terceiro':'3º','Quarto':'4º','Quinto':'5º'}
-  const floorBlock=(fl,fi)=>{
-    const rooms=[...fl.rooms||[]]
-    while(rooms.length%2!==0) rooms.push(null)
-    const cards=rooms.map(r=>r?roomCard(r):'<div class="room pad"></div>').join('')
-    const w=fl.name.split(' ')[0]||''
-    const ord=FORD[w]||`${fi+1}º`
-    const lbl=(FORD[w]?w:w)+' Pavimento'
-    return `<div class="fl-block"><div style="grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:8px 4px 6px;border-bottom:2px solid #0EA5E9;margin-bottom:8px"><div style="background:#0EA5E9;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;font-weight:800;flex-shrink:0">${ord}</div><div style="font-family:'DM Serif Display',serif;font-size:14px;color:#060B1A;letter-spacing:0.5px">${lbl}</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${cards}</div></div>`
-  }
 
-  // ── build pages ───────────────────────────────────────────
-  const buildPage=(pageFloors,pNum,isFirst)=>{
-    const blocks=pageFloors.map((fl,fi)=>floorBlock(fl,fi)).join('')
-    const sub=pageFloors.map(fl=>{const s=(fl.rooms||[]).reduce((t,r)=>t+parse(r.price),0);return `<div class="sub-item">${fl.name}: <strong>${fmtN(s)}</strong></div>`}).join('')
-    const top=isFirst?pageHeader()+clientHero():pageHeader()+clientMini()
-    return `<div class="page${isFirst?' page-first':''}">${top}<div style="flex:1;overflow:hidden;padding:4px 0">${blocks}</div><div class="subtotals-bar">${sub}</div>${pageFooter(pNum)}</div>`
-  }
-
-  const ROWS_PER_PAGE=3
-  const allPages=[]
-  let buf=[],rows=0,pNum=1
+  // ── build room pages (2 cols, up to 12 rooms = 6 rows per page) ──
+  const ROOMS_PER_PAGE = 12
+  const roomPages = []  // each entry: { rooms: [{fl, r},...] }
+  let curPage = []
   ;(floors||[]).forEach(fl=>{
-    const needed=Math.ceil((fl.rooms||[]).length/2)
-    if(rows+needed>ROWS_PER_PAGE&&buf.length){allPages.push({floors:[...buf],pNum,isFirst:pNum===1});pNum++;buf=[];rows=0}
-    buf.push(fl);rows+=needed
+    ;(fl.rooms||[]).forEach(r=>{
+      if(curPage.length >= ROOMS_PER_PAGE){ roomPages.push([...curPage]); curPage=[] }
+      curPage.push({fl, r})
+    })
   })
-  if(buf.length) allPages.push({floors:[...buf],pNum,isFirst:pNum===1})
+  if(curPage.length) roomPages.push([...curPage])
 
-  const pageHtmls=allPages.map(({floors:pf,pNum:pn,isFirst:fi})=>buildPage(pf,pn,fi))
+  const roomPagesHtml = roomPages.map((roomList, pageIdx)=>{
+    // Group by floor for headers
+    const floorGroups = []
+    let lastFlName = null
+    roomList.forEach(({fl,r})=>{
+      if(fl.name !== lastFlName){
+        const w=fl.name.split(' ')[0]||''
+        const ord=FORD[w]||`${(floors||[]).findIndex(f=>f.name===fl.name)+1}º`
+        floorGroups.push({flName:fl.name,ord,cards:[]})
+        lastFlName=fl.name
+      }
+      floorGroups[floorGroups.length-1].cards.push(r)
+    })
 
-  // ── admin summary ─────────────────────────────────────────
-  const adminSummary=adminMode?('<div style="background:#3D1A6E;padding:10px 12px;border-radius:3px;margin-bottom:10px"><div style="font-size:7px;letter-spacing:2px;color:#C084FC;text-transform:uppercase;font-family:DM Sans,sans-serif;margin-bottom:6px">Resumo Financeiro (Admin)</div><div style="display:flex;gap:16px;flex-wrap:wrap">'+(floors||[]).map(fl=>{const cT=(fl.rooms||[]).flatMap(r=>r.items||[]).reduce((s,i)=>s+(i.cost_price||0)*(parseInt(i.qty)||1),0),sT=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0),mg=cT>0?Math.round((sT-cT)/cT*100):0;return '<div style="font-size:9px;color:#E9D5FF">'+fl.name.replace(' Pavimento','')+': custo '+fmtN(cT)+' · venda '+fmtN(sT)+' · margem '+mg+'%</div>'}).join('')+'</div></div>'):'';
+    const blocksHtml = floorGroups.map(({flName,ord,cards})=>{
+      // pad to even number for 2-col grid
+      const padded=[...cards]
+      if(padded.length%2!==0) padded.push(null)
+      const gridCards=padded.map(r=>r?roomCard(r):'<div class="room pad"></div>').join('')
+      const w=flName.split(' ')[0]||''
+      const label=(FORD[w]?w:w)+' Pavimento'
+      return `<div style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 4px 8px;border-bottom:2px solid #0EA5E9;margin-bottom:8px">
+          <div style="background:#0EA5E9;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;font-weight:800;flex-shrink:0;font-family:'DM Sans',sans-serif">${ord}</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:16px;color:#060B1A;letter-spacing:0.5px">${label}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${gridCards}</div>
+      </div>`
+    }).join('')
 
-  // ── investment summary ────────────────────────────────────
-  const pavBlocks=(floors||[]).length===1
-    ?(()=>{const fl=(floors||[])[0],rows2=(fl.rooms||[]).map(r=>'<div class="pr"><span class="prn">'+r.name+'</span><span class="prv">'+fmtN(parse(r.price))+'</span></div>').join(''),sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return '<div class="pb pb-full"><div class="pb-title">'+fl.name+'</div><div class="pr-grid-full">'+rows2+'</div><div class="psub"><span class="psl">Subtotal</span><span class="psv">'+fmtN(sub)+'</span></div></div>'})()
-    :(floors||[]).map(fl=>{const rows2=(fl.rooms||[]).map(r=>'<div class="pr"><span class="prn">'+r.name+'</span><span class="prv">'+fmtN(parse(r.price))+'</span></div>').join(''),sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return '<div class="pb"><div class="pb-title">'+fl.name+'</div>'+rows2+'<div class="psub"><span class="psl">Subtotal</span><span class="psv">'+fmtN(sub)+'</span></div></div>'}).join('')
+    const subHtml = floorGroups.map(({flName,cards})=>{
+      const sub=cards.filter(Boolean).reduce((s,r)=>s+parse(r.price),0)
+      return sub>0?`<div class="sub-item">${flName}: <strong>${fmt(sub)}</strong></div>`:''
+    }).join('')
 
-  const pageTotals=`<div class="page page-last">${pageHeader()}${clientMini()}<div class="tot-body"><div class="tot-ey">Resumo do Investimento</div>${adminSummary}<div class="pav-grid">${pavBlocks}</div><div class="tr"><span class="tl">Equipamentos — ${(floors||[]).length} Pavimento${(floors||[]).length>1?'s':''}</span><span class="tv">${fmtN(equipTotal)}</span></div><div class="tr"><span class="tl">Mão de Obra — Instalação e Programação</span><span class="tv">${fmtN(laborVal)}</span></div><div class="tr main"><span class="tl main">Investimento Total do Projeto</span><span class="tv main">${fmtN(grandTotal)}</span></div></div><div class="sig-section" style="margin-top:32px"><div class="sig-ey">Aprovação e Assinatura</div><div class="sig-grid"><div class="sf"><div class="sl"></div><div class="slabel">Cliente — Nome e Assinatura</div></div><div></div><div class="sf"><div class="sl"></div><div class="slabel">RARO Home</div></div></div><div class="sig-date-grid"><div class="sf"><div class="sl" style="max-width:120px"></div><div class="slabel">Data</div></div><div class="sf"><div class="sl" style="max-width:120px"></div><div class="slabel">Data</div></div></div></div><div class="closing"><div class="cl-t">Pronto para transformar sua residência?</div><div class="cl-contacts"><span class="cl-item">☎ +55 21 98170-9009</span><span class="cl-item">@ contato@rarohome.com.br</span><span class="cl-item">☆ @rarohome</span><span class="cl-item">◉ www.rarohome.com.br</span></div></div><div style="flex:1;min-height:16px"></div>${contactStrip()}<div class="valid-strip">© RARO Home · ${client_name} · ${proposal_code} · Válido por 30 dias</div></div>`
+    return `<div class="page">
+      ${pageHeader()}${clientMini()}
+      <div style="flex:1;overflow:hidden;padding:6px 16px 4px">${blocksHtml}</div>
+      <div class="subtotals-bar">${subHtml}</div>
+      ${pageFooter(pageIdx+2)}
+    </div>`
+  })
 
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>RARO Home — ${client_name} — ${proposal_code}</title><style>${PDF_CSS}.fl-block{margin-bottom:10px}.room{background:#fff;border:0.5px solid #E5DDD4;border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;border-left:3px solid #C8DEFF;overflow:hidden;min-height:0}.room.hl{border-left-color:#8C6D46}.room.pad{background:transparent;border-color:transparent;pointer-events:none}.rh{display:flex;align-items:flex-start;gap:6px;margin-bottom:5px}.ri{font-size:14px;color:#8C6D46;flex-shrink:0}.rn{font-family:'DM Serif Display',serif;font-size:13px;font-weight:400;color:#1C1C1C;line-height:1.2}</style></head><body><div class="no-print" style="position:sticky;top:0;z-index:99;background:${adminMode?'#4C1D95':'#060B1A'};color:#F0F6FF;padding:9px 20px;display:flex;align-items:center;justify-content:space-between;font-family:'DM Sans',sans-serif;font-size:12px"><span><strong>RARO Home</strong>${adminMode?' — VERSÃO ADMIN':''} — ${client_name} · ${proposal_code}</span><button onclick="window.print()" style="background:#8C6D46;color:#fff;border:none;padding:7px 18px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">⬇ Salvar como PDF</button></div>${pageHtmls.join('\n')}${pageTotals}</body></html>`
+  // ── admin summary ─────────────────────────────────────────────
+  const adminSummary=adminMode?(`<div style="background:#3D1A6E;padding:10px 14px;border-radius:4px;margin-bottom:12px"><div style="font-size:8px;letter-spacing:2px;color:#C084FC;text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:6px;font-weight:500">Resumo Financeiro (Admin)</div><div style="display:flex;gap:20px;flex-wrap:wrap">`+(floors||[]).map(fl=>{const cT=(fl.rooms||[]).flatMap(r=>r.items||[]).reduce((s,i)=>s+(i.cost_price||0)*(parseInt(i.qty)||1),0),sT=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0),mg=cT>0?Math.round((sT-cT)/cT*100):0;return `<div style="font-size:10px;color:#E9D5FF;font-family:'DM Sans',sans-serif">${fl.name.replace(' Pavimento','')}: <b style="color:#fff">${fmt(cT)}</b> custo · <b style="color:#C084FC">${fmt(sT)}</b> venda · <b style="color:#86EFAC">${mg}%</b></div>`}).join('')+'</div></div>'):'';
+
+  // ── investment summary page ───────────────────────────────────
+  const isSingleFloor=(floors||[]).length===1
+  const pavBlocks=isSingleFloor
+    ?(()=>{const fl=(floors||[])[0],sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return `<div class="pb pb-full"><div class="pb-title">${fl.name}</div><div class="pr-grid-full">${(fl.rooms||[]).map(r=>`<div class="pr"><span class="prn">${r.name}</span><span class="prv">${fmt(parse(r.price))}</span></div>`).join('')}</div><div class="psub"><span class="psl">Subtotal</span><span class="psv">${fmt(sub)}</span></div></div>`})()
+    :(floors||[]).map(fl=>{const sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return `<div class="pb"><div class="pb-title">${fl.name}</div>${(fl.rooms||[]).map(r=>`<div class="pr"><span class="prn">${r.name}</span><span class="prv">${fmt(parse(r.price))}</span></div>`).join('')}<div class="psub"><span class="psl">Subtotal</span><span class="psv">${fmt(sub)}</span></div></div>`}).join('')
+
+  const totalPage=`<div class="page page-last">
+    ${pageHeader()}${clientMini()}
+    <div class="tot-body">
+      <div class="tot-ey">Resumo do Investimento</div>
+      ${adminSummary}
+      <div class="pav-grid">${pavBlocks}</div>
+      <div class="tr"><span class="tl">Equipamentos — ${(floors||[]).length} Pavimento${(floors||[]).length>1?'s':''}</span><span class="tv">${fmt(equipTotal)}</span></div>
+      <div class="tr"><span class="tl">Mão de Obra — Instalação e Programação</span><span class="tv">${fmt(laborVal)}</span></div>
+      <div class="tr main"><span class="tl main">Investimento Total do Projeto</span><span class="tv main">${fmt(grandTotal)}</span></div>
+    </div>
+    <div class="sig-section" style="margin-top:24px">
+      <div class="sig-ey">Aprovação e Assinatura</div>
+      <div class="sig-grid"><div class="sf"><div class="sl"></div><div class="slabel">Cliente — Nome e Assinatura</div></div><div></div><div class="sf"><div class="sl"></div><div class="slabel">RARO Home</div></div></div>
+      <div class="sig-date-grid"><div class="sf"><div class="sl" style="max-width:120px"></div><div class="slabel">Data</div></div><div class="sf"><div class="sl" style="max-width:120px"></div><div class="slabel">Data</div></div></div>
+    </div>
+    <div class="closing"><div class="cl-t">Pronto para transformar sua residência?</div><div class="cl-contacts"><span class="cl-item">☎ +55 21 98170-9009</span><span class="cl-item">@ contato@rarohome.com.br</span><span class="cl-item">☆ @rarohome</span><span class="cl-item">◉ www.rarohome.com.br</span></div></div>
+    <div style="flex:1;min-height:12px"></div>
+    ${contactStrip()}
+    <div class="valid-strip">© RARO Home · ${client_name} · ${proposal_code} · Válido por 30 dias</div>
+  </div>`
+
+  // ── extra CSS overrides for item legibility ───────────────────
+  const extraCSS=`.it-name{font-size:${iFS}px!important;color:#1e3a5f!important;font-weight:400!important;padding:2.5px 0!important;line-height:1.45!important;width:62%!important;font-family:'DM Sans',sans-serif!important}
+.it-code{font-size:${Math.max(6,iFS-2)}px!important;color:#6B8CAE!important;text-align:center!important;width:26%!important}
+.it-qty{font-size:${Math.max(7,iFS-1)}px!important;color:#0EA5E9!important;font-weight:700!important;text-align:right!important;width:12%!important}
+.rp{font-size:${Math.max(7,iFS-1)}px!important;color:#3D5A80!important}
+.rvv{font-size:14px!important}
+.prn{font-size:10px!important}
+.prv{font-size:14px!important}
+.pb-title{font-size:8px!important;letter-spacing:1.5px!important}
+.tl{font-size:11px!important}
+.tv{font-size:20px!important}
+.tv.main{font-size:28px!important}`
+
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>RARO Home — ${client_name} — ${proposal_code}</title><style>${PDF_CSS}${extraCSS}</style></head><body>
+<div class="no-print" style="position:sticky;top:0;z-index:99;background:${adminMode?'#4C1D95':'#060B1A'};color:#F0F6FF;padding:9px 20px;display:flex;align-items:center;justify-content:space-between;font-family:'DM Sans',sans-serif;font-size:12px">
+  <span><strong>RARO Home</strong>${adminMode?' — VERSÃO ADMIN':''} — ${client_name} · ${proposal_code}</span>
+  <button onclick="window.print()" style="background:#8C6D46;color:#fff;border:none;padding:7px 18px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">⬇ Salvar como PDF</button>
+</div>
+${cover}
+${roomPagesHtml.join('\n')}
+${totalPage}
+</body></html>`
 }
 
 
