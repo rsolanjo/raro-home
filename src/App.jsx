@@ -14,6 +14,7 @@ import Tools from './components/Tools.jsx'
 import Admins from './components/Admins.jsx'
 import Reports from './components/Reports.jsx'
 import Financial from './components/Financial.jsx'
+import Backup    from './components/Backup.jsx'
 import {
   getClients, getProposals, getProjects, getStock, getCatalog,
   getAdmins, getSuppliers, getTools, exportBackup, importBackup,
@@ -137,7 +138,8 @@ export default function App() {
           {page==='suppliers'  && <Suppliers suppliers={data.suppliers} onRefresh={refresh} />}
           {page==='tools'      && <Tools tools={data.tools} onRefresh={refresh} />}
           {page==='admins'     && <Admins admins={data.admins} currentUser={user} onRefresh={refresh} />}
-          {page==='financial'  && <Financial proposals={data.proposals} projects={data.projects} />}
+          {page==='financial'  && <Financial proposals={data.proposals} projects={data.projects} suppliers={data.suppliers} />}
+          {page==='backup'     && <Backup />}
           {page==='reports'    && <Reports projects={data.projects} proposals={data.proposals} stock={data.stock} clients={data.clients} currentUser={user} />}
         </>}
       </div>

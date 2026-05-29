@@ -2,6 +2,25 @@ import { useState, useEffect } from 'react'
 
 const fmt = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
 
+function calcTravelCost(proj) {
+  const km = proj.travel_km || 0
+  const visits = proj.travel_visits || 5
+  const fuel = proj.fuel_price || 6.50
+  const cons = proj.fuel_consumption || 8
+  if (!km) return 0
+  return (km * 2 * visits / cons * fuel)
+}
+function calcHoursCost(proj) {
+  const hours = proj.labor_hours_actual || proj.labor_hours_estimated || 0
+  return hours * (proj.hourly_rate || 150)
+}
+function calcThirdPartyCost(proj) {
+  return (proj.third_party_costs||[]).reduce((s,t)=>s+(t.total||t.days*t.daily_rate||0),0)
+}
+function calcProjectOpCost(proj) {
+  return calcTravelCost(proj) + calcHoursCost(proj) + calcThirdPartyCost(proj)
+}
+
 function calcTotal(p) {
   const fl = Array.isArray(p.floors)?p.floors:(typeof p.floors==='string'?JSON.parse(p.floors||'[]'):p.floors||[])
   return fl.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0) + (Number(p.labor)||0)
@@ -11,7 +30,7 @@ function calcCost(p) {
   return fl.flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]))).reduce((s,i)=>s+(i.cost_price||0)*(parseInt(i.qty)||1),0)
 }
 
-export default function Financial({ proposals=[], projects=[] }) {
+export default function Financial({ proposals=[], projects=[], suppliers=[] }) {
   const [tab, setTab] = useState('overview')
   const [period, setPeriod] = useState('all')
   // Labor costs (terceiros) stored locally per session
@@ -36,59 +55,69 @@ export default function Financial({ proposals=[], projects=[] }) {
   const approved = fp.filter(p=>p.status==='approved')
   const sent     = fp.filter(p=>p.status==='sent')
   const revenue  = approved.reduce((s,p)=>s+calcTotal(p),0)
-  const costEquip= approved.reduce((s,p)=>s+calcCost(p),0)
-  const costLabor= laborCosts.filter(filterDate).reduce((s,c)=>s+(c.total||c.days*c.daily_rate||0),0)
-  const totalCost= costEquip + costLabor
-  const profit   = revenue - totalCost
-  const margin   = revenue>0?Math.round(profit/revenue*100):0
+  const costEquip    = approved.reduce((s,p)=>s+calcCost(p),0)
+  const costLabor    = laborCosts.filter(filterDate).reduce((s,c)=>s+(c.total||c.days*c.daily_rate||0),0)
+  // Project-linked operational costs
+  const approvedProjects = projects.filter(proj=>{
+    const linked=approved.find(p=>p.id===proj.proposal_id)
+    return !!linked
+  })
+  const costTravel   = approvedProjects.reduce((s,proj)=>s+calcTravelCost(proj),0)
+  const costHours    = approvedProjects.reduce((s,proj)=>s+calcHoursCost(proj),0)
+  const costThird    = approvedProjects.reduce((s,proj)=>s+calcThirdPartyCost(proj),0)
+  const totalCost    = costEquip + costLabor + costTravel + costHours + costThird
+  const profit       = revenue - totalCost
+  const margin       = revenue>0?Math.round(profit/revenue*100):0
   const pipeline = sent.reduce((s,p)=>s+calcTotal(p),0)
   const convRate = fp.length>0?Math.round(approved.length/fp.length*100):0
 
   const TABS = [{k:'overview',l:'Visão Geral',i:'ti-layout-dashboard'},{k:'proposals',l:'Propostas',i:'ti-file-text'},{k:'costs',l:'Custos Terceiros',i:'ti-users'},{k:'margin',l:'Margens',i:'ti-percentage'}]
   const PERIODS = [{v:'month',l:'Mês'},{v:'quarter',l:'Trimestre'},{v:'year',l:'Ano'},{v:'all',l:'Tudo'}]
 
-  const pC = p => p>=40?'#16A34A':p>=20?'#D97706':'#DC2626'
+  const pC = p => p>=40?'var(--green)':p>=20?'var(--amber)':'var(--red)'
 
   return (
     <div className="page-content">
-      {/* Header */}
-      <div style={{background:'linear-gradient(135deg,#060B1A 0%,#0a1628 100%)',margin:'-16px -16px 0',padding:'24px 24px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
+      {/* Header — matches Reports palette */}
+      <div className="page-hdr" style={{flexDirection:'column',gap:12,alignItems:'stretch'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div>
-            <div style={{fontSize:10,letterSpacing:3,color:'#38BDF8',textTransform:'uppercase',marginBottom:6,fontFamily:'DM Sans,sans-serif'}}>RARO HOME</div>
-            <div style={{fontSize:22,fontWeight:700,color:'#F0F6FF',fontFamily:'DM Serif Display,serif',marginBottom:2}}>Controle Financeiro</div>
-            <div style={{fontSize:12,color:'rgba(240,246,255,0.45)'}}>Receitas · Margens · Custos · Pipeline</div>
+            <div className="page-title"><i className="ti ti-coin" style={{marginRight:8}} aria-hidden/>Controle Financeiro</div>
+            <div className="page-sub">Receitas · Margens · Custos · Pipeline</div>
           </div>
-          <div style={{display:'flex',gap:4,background:'rgba(255,255,255,0.05)',borderRadius:8,padding:4}}>
+          <div style={{display:'flex',gap:4,background:'var(--surf)',borderRadius:8,padding:4,border:'1px solid var(--border)'}}>
             {PERIODS.map(o=><button key={o.v} onClick={()=>setPeriod(o.v)}
-              style={{padding:'6px 14px',fontSize:12,border:'none',borderRadius:6,cursor:'pointer',fontFamily:'inherit',fontWeight:period===o.v?600:400,
-                background:period===o.v?'#0EA5E9':'transparent',color:period===o.v?'#fff':'rgba(240,246,255,0.5)',transition:'all .15s'}}>
+              style={{padding:'5px 12px',fontSize:11,border:'none',borderRadius:5,cursor:'pointer',fontFamily:'inherit',
+                fontWeight:period===o.v?600:400,background:period===o.v?'var(--accent)':'transparent',
+                color:period===o.v?'#fff':'var(--text2)',transition:'all .15s'}}>
               {o.l}</button>)}
           </div>
         </div>
 
         {/* KPI row */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:1,background:'rgba(255,255,255,0.04)',borderRadius:'8px 8px 0 0',overflow:'hidden'}}>
+        <div className="metrics">
           {[
-            {l:'Receita Aprovada',v:fmt(revenue),sub:`${approved.length} projetos`,c:'#38BDF8'},
-            {l:'Lucro Líquido',v:fmt(profit),sub:`Após equip. + mão de obra`,c:profit>=0?'#4ADE80':'#F87171'},
-            {l:'Margem Total',v:`${margin}%`,sub:`equip + MO incluídos`,c:pC(margin)},
-            {l:'Pipeline',v:fmt(pipeline),sub:`${sent.length} enviados`,c:'#FBBF24'},
-            {l:'Conversão',v:`${convRate}%`,sub:`${approved.length}/${fp.length} propostas`,c:convRate>=40?'#4ADE80':convRate>=20?'#FBBF24':'#F87171'},
+            {l:'Receita Aprovada',v:fmt(revenue),sub:`${approved.length} projetos aprovados`,c:'var(--green)',cls:'green'},
+            {l:'Lucro Líquido',v:fmt(profit),sub:`Equip+desl+horas+terceiros`,c:profit>=0?'var(--green)':'var(--red)',cls:profit>=0?'green':'red'},
+            {l:'Margem Total',v:`${margin}%`,sub:`custos completos`,c:pC(margin),cls:''},
+            {l:'Pipeline',v:fmt(pipeline),sub:`${sent.length} enviados`,c:'var(--accent)',cls:'blue'},
+            {l:'Conversão',v:`${convRate}%`,sub:`${approved.length}/${fp.length} propostas`,c:convRate>=40?'var(--green)':convRate>=20?'var(--amber)':'var(--red)',cls:''},
           ].map((k,i)=>(
-            <div key={i} style={{padding:'16px 18px',borderTop:`2px solid ${k.c}`}}>
-              <div style={{fontSize:9,letterSpacing:1.5,color:'rgba(240,246,255,0.45)',textTransform:'uppercase',marginBottom:6}}>{k.l}</div>
-              <div style={{fontSize:20,fontWeight:700,color:k.c,fontFamily:'DM Serif Display,serif'}}>{k.v}</div>
-              <div style={{fontSize:10,color:'rgba(240,246,255,0.3)',marginTop:3}}>{k.sub}</div>
+            <div key={i} className="met">
+              <div className="met-label">{k.l}</div>
+              <div className={`met-val ${k.cls}`} style={{color:k.c}}>{k.v}</div>
+              <div className="met-sub">{k.sub}</div>
             </div>
           ))}
         </div>
 
         {/* Tabs */}
-        <div style={{display:'flex',gap:0}}>
+        <div style={{display:'flex',gap:0,borderBottom:'1px solid var(--border)',marginBottom:-16,marginLeft:-16,marginRight:-16,paddingLeft:16}}>
           {TABS.map(t=><button key={t.k} onClick={()=>setTab(t.k)}
-            style={{padding:'12px 18px',fontSize:12,border:'none',background:'none',cursor:'pointer',color:tab===t.k?'#38BDF8':'rgba(240,246,255,0.45)',fontFamily:'inherit',
-              fontWeight:tab===t.k?600:400,borderBottom:tab===t.k?'2px solid #38BDF8':'2px solid transparent',display:'flex',alignItems:'center',gap:6,transition:'all .15s'}}>
+            style={{padding:'10px 16px',fontSize:12,border:'none',background:'none',cursor:'pointer',
+              color:tab===t.k?'var(--accent)':'var(--text2)',fontFamily:'inherit',fontWeight:tab===t.k?600:400,
+              borderBottom:tab===t.k?'2px solid var(--accent)':'2px solid transparent',
+              display:'flex',alignItems:'center',gap:6}}>
             <i className={`ti ${t.i}`} style={{fontSize:13}} aria-hidden/>{t.l}
           </button>)}
         </div>
@@ -129,8 +158,11 @@ export default function Financial({ proposals=[], projects=[] }) {
             {[
               {l:'Receita (projetos aprovados)',v:revenue,c:'var(--green)'},
               {l:'(-) Custo equipamentos',v:-costEquip,c:'var(--amber)'},
-              {l:'(-) Mão de obra / terceiros',v:-costLabor,c:'var(--amber)'},
-              {l:'= Lucro bruto',v:profit,c:profit>=0?'var(--green)':'var(--red)',bold:true},
+              {l:'(-) Deslocamento (projetos)',v:-costTravel,c:'var(--amber)'},
+              {l:'(-) Hora interna RARO',v:-costHours,c:'rgba(124,58,237,0.8)'},
+              {l:'(-) Terceiros (projetos)',v:-costThird,c:'var(--amber)'},
+              {l:'(-) Outros custos mão de obra',v:-costLabor,c:'var(--amber)'},
+              {l:'= Lucro líquido',v:profit,c:profit>=0?'var(--green)':'var(--red)',bold:true},
             ].map((row,i)=>(
               <div key={i} style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid var(--border)',fontSize:12}}>
                 <span style={{color:'var(--text2)',fontWeight:row.bold?600:400}}>{row.l}</span>
@@ -240,30 +272,59 @@ export default function Financial({ proposals=[], projects=[] }) {
           </div>}
         </div>
         {showAddCost&&<div className="modal-overlay">
-          <div className="modal" style={{width:460}} onClick={e=>e.stopPropagation()}>
+          <div className="modal" style={{width:500}} onClick={e=>e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title"><i className="ti ti-users" style={{marginRight:6}} aria-hidden/>Registrar custo com terceiro</div>
               <button className="modal-close" onClick={()=>setShowAddCost(false)}>×</button>
             </div>
             <div className="form-row">
-              <div className="fg"><div className="flabel">Data</div><input type="date" value={newCost.date} onChange={e=>setNewCost(p=>({...p,date:e.target.value}))}/></div>
-              <div className="fg"><div className="flabel">Pessoa / Empresa</div><input value={newCost.person} onChange={e=>setNewCost(p=>({...p,person:e.target.value}))} placeholder="ex: João Eletricista"/></div>
-            </div>
-            <div className="form-row full">
-              <div className="fg"><div className="flabel">Descrição do serviço</div><input value={newCost.description} onChange={e=>setNewCost(p=>({...p,description:e.target.value}))} placeholder="ex: Passagem de cabo CAT6 — 2 andares"/></div>
+              <div className="fg"><div className="flabel">Proposta vinculada</div>
+                <select value={newCost.proposal_code||''} onChange={e=>{
+                  const p=proposals.find(p=>p.code===e.target.value)
+                  const proj=p?projects.find(j=>j.proposal_id===p.id):null
+                  setNewCost(x=>({...x,proposal_code:e.target.value,project_id:proj?.id||'',project_name:proj?.client_name||''}))
+                }} style={{fontSize:12}}>
+                  <option value="">— Selecione —</option>
+                  {proposals.filter(p=>p.status==='approved').map(p=><option key={p.id} value={p.code}>{p.code} — {p.client_name}</option>)}
+                </select>
+              </div>
+              <div className="fg"><div className="flabel">Projeto</div>
+                <input value={newCost.project_name||''} readOnly style={{opacity:0.6,fontSize:12}} placeholder="Vinculado à proposta"/>
+              </div>
             </div>
             <div className="form-row">
-              <div className="fg"><div className="flabel">Nº de diárias</div><input type="number" min="0.5" step="0.5" value={newCost.days} onChange={e=>setNewCost(p=>({...p,days:Number(e.target.value),total:Number(e.target.value)*p.daily_rate}))}/></div>
-              <div className="fg"><div className="flabel">Valor por diária (R$)</div><input type="number" value={newCost.daily_rate} onChange={e=>setNewCost(p=>({...p,daily_rate:Number(e.target.value),total:p.days*Number(e.target.value)}))}/></div>
-              <div className="fg"><div className="flabel">Total (R$)</div><input type="number" value={newCost.total||newCost.days*newCost.daily_rate} onChange={e=>setNewCost(p=>({...p,total:Number(e.target.value)}))}/></div>
+              <div className="fg"><div className="flabel">Data</div>
+                <input type="date" value={newCost.date} onChange={e=>setNewCost(p=>({...p,date:e.target.value}))}/></div>
+              <div className="fg"><div className="flabel">Fornecedor / Pessoa</div>
+                <select value={newCost.person||''} onChange={e=>setNewCost(p=>({...p,person:e.target.value}))} style={{fontSize:12}}>
+                  <option value="">— Selecione ou digite —</option>
+                  {suppliers.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}
+                  <option value="__manual__">✏️ Outro (digitar)</option>
+                </select>
+                {newCost.person==='__manual__'&&<input className="mt-4" value={newCost.personManual||''} onChange={e=>setNewCost(p=>({...p,personManual:e.target.value}))} placeholder="Nome da pessoa/empresa" style={{marginTop:6,fontSize:12}}/>}
+              </div>
             </div>
-            <div style={{background:'var(--surf)',borderRadius:5,padding:'8px 12px',marginBottom:12,fontSize:12}}>
-              Total: <b style={{color:'var(--amber)',fontSize:15}}>{fmt(newCost.total||newCost.days*newCost.daily_rate)}</b>
+            <div className="form-row full">
+              <div className="fg"><div className="flabel">Descrição do serviço</div>
+                <input value={newCost.description} onChange={e=>setNewCost(p=>({...p,description:e.target.value}))} placeholder="ex: Passagem de cabo CAT6 — 2 andares"/></div>
+            </div>
+            <div className="form-row">
+              <div className="fg"><div className="flabel">Nº de diárias</div>
+                <input type="number" min="0.5" step="0.5" value={newCost.days} onChange={e=>setNewCost(p=>({...p,days:Number(e.target.value),total:Number(e.target.value)*p.daily_rate}))}/></div>
+              <div className="fg"><div className="flabel">Valor por diária (R$)</div>
+                <input type="number" value={newCost.daily_rate} onChange={e=>setNewCost(p=>({...p,daily_rate:Number(e.target.value),total:p.days*Number(e.target.value)}))}/></div>
+              <div className="fg"><div className="flabel">Total (R$)</div>
+                <input type="number" value={newCost.total||newCost.days*newCost.daily_rate} onChange={e=>setNewCost(p=>({...p,total:Number(e.target.value)}))}/></div>
+            </div>
+            <div style={{background:'var(--surf)',borderRadius:5,padding:'8px 12px',marginBottom:12,fontSize:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span style={{color:'var(--text3)'}}>{newCost.proposal_code&&`Proposta: ${newCost.proposal_code}`}</span>
+              <b style={{color:'var(--amber)',fontSize:15}}>{fmt(newCost.total||newCost.days*newCost.daily_rate)}</b>
             </div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button className="btn" onClick={()=>setShowAddCost(false)}>Cancelar</button>
-              <button className="btn primary" disabled={!newCost.description||!newCost.person} onClick={()=>{
-                saveCost([...laborCosts,{...newCost,total:newCost.total||newCost.days*newCost.daily_rate}])
+              <button className="btn primary" disabled={!newCost.description||(newCost.person!=='__manual__'?!newCost.person:!newCost.personManual)} onClick={()=>{
+                const person=newCost.person==='__manual__'?newCost.personManual:newCost.person
+                saveCost([...laborCosts,{...newCost,person,total:newCost.total||newCost.days*newCost.daily_rate}])
                 setShowAddCost(false)
               }}>Registrar</button>
             </div>

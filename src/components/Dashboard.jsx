@@ -84,9 +84,9 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
             <div className="met-sub"><span className="dot" style={{background:'var(--green)'}}/>{projects.filter(p=>p.in_obra).length} em obra agora</div>
           </div>
           <div className="met">
-            <div className="met-label">Faturamento aprovado</div>
-            <div className="met-val blue">{revenue>0?`R$ ${Math.round(revenue).toLocaleString('pt-BR')}`:'R$ 0'}</div>
-            <div className="met-sub"><span className="dot" style={{background:'var(--green)'}}/>{proposals.filter(p=>p.status==='approved').length} projetos fechados</div>
+            <div className="met-label">Em instalação</div>
+            <div className="met-val" style={{color:'var(--accent)'}}>{projects.filter(p=>p.phase==='installation'||p.phase==='config').length}</div>
+            <div className="met-sub"><span className="dot" style={{background:'var(--accent)'}}/>instalação/config ativa</div>
           </div>
           <div className="met">
             <div className="met-label">Estoque crítico</div>
@@ -180,6 +180,29 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
             </table>
           </div>
         </div>
+
+        {/* ── PROJECT PHASES ── */}
+        {projects.filter(p=>p.phase!=='done').length>0&&(
+          <div className="section" style={{marginBottom:16}}>
+            <div className="sec-hdr">
+              <div className="sec-title"><i className="ti ti-layout-kanban" aria-hidden/>Projetos em andamento</div>
+              <button className="btn" style={{fontSize:11}} onClick={()=>onNav('projects')}><i className="ti ti-arrow-right" aria-hidden/>Ver todos</button>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:8,padding:'8px 0'}}>
+              {projects.filter(p=>p.phase!=='done').slice(0,6).map((p,i)=>{
+                const PHASE_COLOR={visit:'var(--text3)',measurement:'var(--accent)',project:'var(--accent)',budget:'var(--amber)',purchase:'var(--amber)',installation:'var(--green)',config:'var(--green)'}
+                const color=PHASE_COLOR[p.phase]||'var(--text3)'
+                return <div key={i} style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',border:'1px solid var(--border)',borderLeft:`3px solid ${color}`}}>
+                  <div style={{fontWeight:500,fontSize:12,marginBottom:4,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.client_name}</div>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <span className="badge b-blue" style={{fontSize:9}}>{PHASE_LABEL[p.phase]||p.phase}</span>
+                    {p.deadline&&<span style={{fontSize:10,color:new Date(p.deadline+'T00:00:00')<new Date()?'var(--red)':'var(--text3)'}}>{new Date(p.deadline+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>}
+                  </div>
+                </div>
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Incomplete clients detail */}
         {incomplete.length > 0 && (
