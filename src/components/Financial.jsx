@@ -343,28 +343,38 @@ export default function Financial({ proposals=[], projects=[], suppliers=[] }) {
 
       {/* PER-PROJECT ANALYSIS */}
       {tab==='projects_detail' && <div>
-        {/* Filter */}
+        {/* Filter dropdown */}
         <div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:8,padding:'12px 16px',marginBottom:16,display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
-          <span style={{fontSize:12,fontWeight:500,color:'var(--text2)',flexShrink:0}}>Filtrar projetos:</span>
-          <div style={{display:'flex',gap:6,flex:1,flexWrap:'wrap'}}>
-            <button className={`btn${selectedProjects.length===0?' primary':''}`} style={{fontSize:11}}
-              onClick={()=>setSelectedProjects([])}>
-              Todos ({approved.length})
-            </button>
+          <span style={{fontSize:12,fontWeight:500,color:'var(--text2)',flexShrink:0}}>
+            <i className="ti ti-filter" style={{marginRight:4}} aria-hidden/>Filtrar:
+          </span>
+          <select
+            multiple
+            value={selectedProjects.map(String)}
+            onChange={e=>{
+              const vals=[...e.target.selectedOptions].map(o=>Number(o.value))
+              setSelectedProjects(vals)
+            }}
+            style={{flex:1,minWidth:220,maxWidth:420,fontSize:12,border:'1px solid var(--border)',borderRadius:5,padding:'4px 6px',height:Math.min(5,approved.length+1)*26+8,background:'var(--bg)'}}>
+            <option value="">— Todos os projetos ({approved.length}) —</option>
             {approved.map((p,i)=>(
-              <button key={i}
-                className={`btn${selectedProjects.includes(p.id)?' primary':''}`}
-                style={{fontSize:11,padding:'4px 10px'}}
-                onClick={()=>setSelectedProjects(s=>
-                  s.includes(p.id)?s.filter(x=>x!==p.id):[...s,p.id]
-                )}>
-                {p.code} — {(p.client_name||'').split(' ')[0]}
-              </button>
+              <option key={i} value={p.id}>
+                {p.code} — {p.client_name} ({new Date(p.created_at||0).toLocaleDateString('pt-BR',{month:'short',year:'2-digit'})})
+              </option>
             ))}
+          </select>
+          <div style={{fontSize:11,color:'var(--text3)',maxWidth:160}}>
+            {selectedProjects.length===0
+              ? 'Mostrando todos'
+              : `${selectedProjects.length} selecionado${selectedProjects.length>1?'s':''}`}
+            {selectedProjects.length>0&&<button className="btn" style={{fontSize:10,marginLeft:6,padding:'2px 6px'}} onClick={()=>setSelectedProjects([])}>
+              <i className="ti ti-x" aria-hidden/>Limpar
+            </button>}
           </div>
-          {selectedProjects.length>0&&<button className="btn" style={{fontSize:11,color:'var(--text3)'}} onClick={()=>setSelectedProjects([])}>
-            <i className="ti ti-x" aria-hidden/>Limpar
-          </button>}
+          <div style={{fontSize:10,color:'var(--text3)',width:'100%'}}>
+            <i className="ti ti-info-circle" style={{marginRight:3}} aria-hidden/>
+            Ctrl+clique para selecionar múltiplos. Nenhum selecionado = mostrar todos.
+          </div>
         </div>
         {approved.length===0?<div style={{textAlign:'center',padding:32,color:'var(--text3)'}}>Nenhum projeto aprovado no período</div>:(
           approved.filter(p=>selectedProjects.length===0||selectedProjects.includes(p.id)).map((p,pi)=>{

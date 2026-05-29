@@ -67,15 +67,44 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
   const done = projects.filter(p=>p.phase==='done')
   const proj = sel ? projects.find(p=>p.id===sel) : null
 
-  // Debounced save to avoid resetting sel on every keystroke
-  const _updTimer = useRef(null)
-  async function upd(patch){ 
-    if(!proj) return
-    clearTimeout(_updTimer.current)
-    _updTimer.current = setTimeout(async ()=>{
-      try { await saveProject({...projects.find(p=>p.id===sel),...patch}) } catch(e){ console.error('upd:',e) }
+  // Sync localCosts when proj changes (initial load or after save)
+  const prevSelRef = useRef(null)
+  if (sel !== prevSelRef.current) {
+    prevSelRef.current = sel
+    // Will be initialized on next render when proj is available
+  }
+
+  // Initialize localCosts when entering costs tab or switching project
+  const costsInitRef = useRef(null)
+  if (proj && tab === 'costs' && costsInitRef.current !== sel) {
+    costsInitRef.current = sel
+    // Use setTimeout to avoid state update during render
+    setTimeout(() => setLocalCosts({
+      travel_km: proj.travel_km ?? '',
+      travel_visits: proj.travel_visits ?? 5,
+      fuel_price: proj.fuel_price ?? 6.50,
+      fuel_consumption: proj.fuel_consumption ?? 8,
+      labor_hours_estimated: proj.labor_hours_estimated ?? 0,
+      labor_hours_actual: proj.labor_hours_actual ?? 0,
+      hourly_rate: proj.hourly_rate ?? 150,
+      third_party_costs: proj.third_party_costs || [],
+    }), 0)
+  }
+  const costs = (tab === 'costs' && localCosts) ? localCosts : (proj || {})
+
+  // Save costs explicitly
+  async function saveCosts() {
+    if (!proj || !localCosts) return
+    try {
+      await saveProject({...proj, ...localCosts})
       onRefresh()
-    }, 600)
+    } catch(e) { console.error('saveCosts:', e); alert('Erro ao salvar: '+e.message) }
+  }
+
+  // upd: for non-costs tabs, save immediately
+  async function upd(patch) {
+    if(!proj) return
+    try { await saveProject({...proj,...patch}); onRefresh() } catch(e){ console.error('upd:',e) }
   }
 
   function phaseIdx(k){ return PHASES.findIndex(p=>p.key===k) }
@@ -423,6 +452,13 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
 
           {/* COSTS */}
           {tab==='costs' && <div>
+            {/* Save bar */}
+            <div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 14px',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12}}>
+              <span style={{color:'var(--amber)'}}><i className="ti ti-pencil" style={{marginRight:4}} aria-hidden/>Edite os campos e clique em Salvar</span>
+              <button className="btn primary" style={{fontSize:11,background:'var(--amber)',borderColor:'var(--amber)'}} onClick={saveCosts}>
+                <i className="ti ti-device-floppy" aria-hidden/>Salvar custos
+              </button>
+            </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
 
               {/* Deslocamento */}
@@ -440,32 +476,32 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
                     <div className="fg">
                       <div className="flabel">Distância (km) — ida</div>
                       <input type="number" min="0" step="1"
-                        value={proj.travel_km||guessKm(proj.neighborhood||'')||''}
-                        onChange={e=>upd({travel_km:Number(e.target.value)})}
+                        value={costs.travel_km!==undefined&&costs.travel_km!==''?costs.travel_km:guessKm(proj.neighborhood||'')||''}
+                        onChange={e=>setLocalCosts(lc=>({...lc,travel_km:e.target.value}))}
                         placeholder={guessKm(proj.neighborhood||'')||'ex: 38'}/>
                     </div>
                   </div>
                   <div className="form-row" style={{marginBottom:10}}>
                     <div className="fg"><div className="flabel">Nº de visitas</div>
-                      <input type="number" min="1" value={proj.travel_visits||5} onChange={e=>upd({travel_visits:Number(e.target.value)})}/></div>
+                      <input type="number" min="1" value={costs.travel_visits??5} onChange={e=>setLocalCosts(lc=>({...lc,travel_visits:Number(e.target.value)}))}/></div>
                     <div className="fg"><div className="flabel">Km/litro do carro</div>
-                      <input type="number" min="1" step="0.5" value={proj.fuel_consumption||8} onChange={e=>upd({fuel_consumption:Number(e.target.value)})}/></div>
+                      <input type="number" min="1" step="0.5" value={costs.fuel_consumption??8} onChange={e=>setLocalCosts(lc=>({...lc,fuel_consumption:Number(e.target.value)}))}/></div>
                   </div>
                   <div className="form-row" style={{marginBottom:10}}>
                     <div className="fg"><div className="flabel">Preço do litro (R$)</div>
-                      <input type="number" min="1" step="0.01" value={proj.fuel_price||6.50} onChange={e=>upd({fuel_price:Number(e.target.value)})}/></div>
+                      <input type="number" min="1" step="0.01" value={costs.fuel_price??6.50} onChange={e=>setLocalCosts(lc=>({...lc,fuel_price:Number(e.target.value)}))}/></div>
                     <div className="fg">
                       <div className="flabel">Custo total estimado</div>
                       <div style={{padding:'8px 12px',background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:5,fontSize:15,fontWeight:700,color:'var(--amber)',textAlign:'center'}}>
                         {(()=>{
-                          const km=proj.travel_km||guessKm(proj.neighborhood||'')||0
-                          const cost=calcTravelCost(km,proj.travel_visits||5,proj.fuel_price||6.50,proj.fuel_consumption||8)
+                          const km=Number(costs.travel_km)||guessKm(proj.neighborhood||'')||0
+                          const cost=calcTravelCost(km,(costs.travel_visits||5),(costs.fuel_price||6.50),(costs.fuel_consumption||8))
                           return `R$ ${cost.toLocaleString('pt-BR',{minimumFractionDigits:2})}`
                         })()}
                       </div>
                       <div style={{fontSize:10,color:'var(--text3)',marginTop:4,textAlign:'center'}}>
                         {(()=>{
-                          const km=proj.travel_km||guessKm(proj.neighborhood||'')||0
+                          const km=Number(costs.travel_km)||guessKm(proj.neighborhood||'')||0
                           const v=proj.travel_visits||5,c2=proj.fuel_consumption||8
                           return `${km}km × 2 × ${v} visitas ÷ ${c2}km/l × R$${proj.fuel_price||6.50}/l`
                         })()}
@@ -481,27 +517,27 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
                 <div style={{padding:'12px 16px'}}>
                   <div className="form-row" style={{marginBottom:10}}>
                     <div className="fg"><div className="flabel">Horas estimadas</div>
-                      <input type="number" min="0" step="0.5" value={proj.labor_hours_estimated||0} onChange={e=>upd({labor_hours_estimated:Number(e.target.value)})}/></div>
+                      <input type="number" min="0" step="0.5" value={costs.labor_hours_estimated??0} onChange={e=>setLocalCosts(lc=>({...lc,labor_hours_estimated:Number(e.target.value)}))}/></div>
                     <div className="fg"><div className="flabel">Horas realizadas</div>
-                      <input type="number" min="0" step="0.5" value={proj.labor_hours_actual||0} onChange={e=>upd({labor_hours_actual:Number(e.target.value)})}/></div>
+                      <input type="number" min="0" step="0.5" value={costs.labor_hours_actual??0} onChange={e=>setLocalCosts(lc=>({...lc,labor_hours_actual:Number(e.target.value)}))}/></div>
                   </div>
                   <div className="form-row" style={{marginBottom:10}}>
                     <div className="fg"><div className="flabel">Valor hora (R$)</div>
-                      <input type="number" min="0" step="10" value={proj.hourly_rate||150} onChange={e=>upd({hourly_rate:Number(e.target.value)})}/></div>
+                      <input type="number" min="0" step="10" value={costs.hourly_rate??150} onChange={e=>setLocalCosts(lc=>({...lc,hourly_rate:Number(e.target.value)}))}/></div>
                     <div className="fg">
                       <div className="flabel">Custo hora total</div>
                       <div style={{padding:'8px 12px',background:'rgba(124,58,237,0.08)',border:'1px solid rgba(124,58,237,0.3)',borderRadius:5,fontSize:15,fontWeight:700,color:'#7C3AED',textAlign:'center'}}>
-                        {`R$ ${((proj.labor_hours_actual||proj.labor_hours_estimated||0)*(proj.hourly_rate||150)).toLocaleString('pt-BR',{minimumFractionDigits:2})}`}
+                        {`R$ ${(((costs.labor_hours_actual||costs.labor_hours_estimated||0))*((costs.hourly_rate||150))).toLocaleString('pt-BR',{minimumFractionDigits:2})}`}
                       </div>
                       <div style={{fontSize:10,color:'var(--text3)',marginTop:4,textAlign:'center'}}>
-                        {`${proj.labor_hours_actual||proj.labor_hours_estimated||0}h × R$${proj.hourly_rate||150}/h`}
+                        {`${(costs.labor_hours_actual||costs.labor_hours_estimated||0)}h × R$${(costs.hourly_rate||150)}/h`}
                       </div>
                     </div>
                   </div>
                   <div style={{background:'var(--surf)',borderRadius:5,padding:'8px 12px',fontSize:11,color:'var(--text3)',marginTop:4}}>
                     <i className="ti ti-info-circle" style={{marginRight:4}} aria-hidden/>
                     Progresso: {proj.labor_hours_actual||0}h de {proj.labor_hours_estimated||0}h estimadas
-                    {proj.labor_hours_estimated>0&&<span style={{marginLeft:6,color:proj.labor_hours_actual>proj.labor_hours_estimated?'var(--red)':'var(--green)'}}>
+                    {(costs.labor_hours_estimated||0)>0&&<span style={{marginLeft:6,color:proj.labor_hours_actual>proj.labor_hours_estimated?'var(--red)':'var(--green)'}}>
                       ({Math.round(((proj.labor_hours_actual||0)/proj.labor_hours_estimated)*100)}%)
                     </span>}
                   </div>
@@ -513,35 +549,35 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
                 <div className="sec-hdr">
                   <div className="sec-title"><i className="ti ti-users" style={{marginRight:6}} aria-hidden/>Mão de obra terceiros</div>
                   <button className="btn primary" style={{fontSize:11}} onClick={()=>{
-                    const current=proj.third_party_costs||[]
-                    upd({third_party_costs:[...current,{date:new Date().toISOString().slice(0,10),person:'',description:'',days:1,daily_rate:400,total:400}]})
+                    const current=costs.third_party_costs||[]
+                    setLocalCosts(lc=>({...lc,third_party_costs:[...current,{date:new Date().toISOString().slice(0,10),person:'',description:'',days:1,daily_rate:400,total:400}]}))
                   }}><i className="ti ti-plus" aria-hidden/>Adicionar</button>
                 </div>
                 <table className="tbl">
                   <thead><tr><th>Data</th><th>Pessoa</th><th>Serviço</th><th style={{textAlign:'center'}}>Dias</th><th style={{textAlign:'right'}}>Diária</th><th style={{textAlign:'right'}}>Total</th><th></th></tr></thead>
                   <tbody>
-                    {!(proj.third_party_costs||[]).length&&<tr><td colSpan={7} style={{textAlign:'center',padding:16,color:'var(--text3)'}}>Nenhum terceiro registrado</td></tr>}
-                    {(proj.third_party_costs||[]).map((tp,ti)=>(
+                    {!(costs.third_party_costs||[]).length&&<tr><td colSpan={7} style={{textAlign:'center',padding:16,color:'var(--text3)'}}>Nenhum terceiro registrado</td></tr>}
+                    {(costs.third_party_costs||[]).map((tp,ti)=>(
                       <tr key={ti}>
                         <td><input type="date" value={tp.date||''} style={{fontSize:11,padding:'2px 5px'}}
-                          onChange={e=>{const arr=[...(proj.third_party_costs||[])];arr[ti]={...arr[ti],date:e.target.value};upd({third_party_costs:arr})}}/></td>
+                          onChange={e=>{const arr=[...(costs.third_party_costs||[])];arr[ti]={...arr[ti],date:e.target.value};setLocalCosts(lc=>({...lc,third_party_costs:arr}))}}/></td>
                         <td><input value={tp.person||''} placeholder="Nome..." style={{fontSize:11,padding:'2px 6px',width:100}}
-                          onChange={e=>{const arr=[...(proj.third_party_costs||[])];arr[ti]={...arr[ti],person:e.target.value};upd({third_party_costs:arr})}}/></td>
+                          onChange={e=>{const arr=[...(costs.third_party_costs||[])];arr[ti]={...arr[ti],person:e.target.value};setLocalCosts(lc=>({...lc,third_party_costs:arr}))}}/></td>
                         <td><input value={tp.description||''} placeholder="Serviço..." style={{fontSize:11,padding:'2px 6px',width:140}}
-                          onChange={e=>{const arr=[...(proj.third_party_costs||[])];arr[ti]={...arr[ti],description:e.target.value};upd({third_party_costs:arr})}}/></td>
+                          onChange={e=>{const arr=[...(costs.third_party_costs||[])];arr[ti]={...arr[ti],description:e.target.value};setLocalCosts(lc=>({...lc,third_party_costs:arr}))}}/></td>
                         <td style={{textAlign:'center'}}><input type="number" value={tp.days||1} min="0.5" step="0.5" style={{width:52,textAlign:'center',fontSize:11,padding:'2px 4px'}}
-                          onChange={e=>{const arr=[...(proj.third_party_costs||[])];arr[ti]={...arr[ti],days:Number(e.target.value),total:Number(e.target.value)*(arr[ti].daily_rate||0)};upd({third_party_costs:arr})}}/></td>
+                          onChange={e=>{const arr=[...(costs.third_party_costs||[])];arr[ti]={...arr[ti],days:Number(e.target.value),total:Number(e.target.value)*(arr[ti].daily_rate||0)};setLocalCosts(lc=>({...lc,third_party_costs:arr}))}}/></td>
                         <td style={{textAlign:'right'}}><input type="number" value={tp.daily_rate||400} style={{width:80,textAlign:'right',fontSize:11,padding:'2px 4px'}}
-                          onChange={e=>{const arr=[...(proj.third_party_costs||[])];arr[ti]={...arr[ti],daily_rate:Number(e.target.value),total:(arr[ti].days||1)*Number(e.target.value)};upd({third_party_costs:arr})}}/></td>
+                          onChange={e=>{const arr=[...(costs.third_party_costs||[])];arr[ti]={...arr[ti],daily_rate:Number(e.target.value),total:(arr[ti].days||1)*Number(e.target.value)};setLocalCosts(lc=>({...lc,third_party_costs:arr}))}}/></td>
                         <td style={{textAlign:'right',fontWeight:600,color:'var(--amber)',fontSize:13}}>R$ {((tp.total||tp.days*tp.daily_rate)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
-                        <td><button className="btn danger" style={{fontSize:10,padding:'2px 6px'}} onClick={()=>{const arr=(proj.third_party_costs||[]).filter((_,j)=>j!==ti);upd({third_party_costs:arr})}}>
+                        <td><button className="btn danger" style={{fontSize:10,padding:'2px 6px'}} onClick={()=>{const arr=(costs.third_party_costs||[]).filter((_,j)=>j!==ti);setLocalCosts(lc=>({...lc,third_party_costs:arr}))}}>
                           <i className="ti ti-trash" aria-hidden/></button></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {(proj.third_party_costs||[]).length>0&&<div style={{padding:'8px 14px',background:'var(--surf)',borderTop:'1px solid var(--border)',fontSize:12,display:'flex',gap:20}}>
-                  <span>Total terceiros: <b style={{color:'var(--amber)'}}>R$ {(proj.third_party_costs||[]).reduce((s,t)=>s+(t.total||t.days*t.daily_rate||0),0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</b></span>
+                {(costs.third_party_costs||[]).length>0&&<div style={{padding:'8px 14px',background:'var(--surf)',borderTop:'1px solid var(--border)',fontSize:12,display:'flex',gap:20}}>
+                  <span>Total terceiros: <b style={{color:'var(--amber)'}}>R$ {(costs.third_party_costs||[]).reduce((s,t)=>s+(t.total||t.days*t.daily_rate||0),0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</b></span>
                 </div>}
               </div>
 
@@ -550,10 +586,10 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
                 <div className="sec-hdr"><div className="sec-title"><i className="ti ti-report-money" style={{marginRight:6}} aria-hidden/>Resumo de custos do projeto</div></div>
                 <div style={{padding:'12px 16px'}}>
                   {(()=>{
-                    const km=proj.travel_km||guessKm(proj.neighborhood||'')||0
-                    const travel=calcTravelCost(km,proj.travel_visits||5,proj.fuel_price||6.50,proj.fuel_consumption||8)
-                    const hours=(proj.labor_hours_actual||proj.labor_hours_estimated||0)*(proj.hourly_rate||150)
-                    const third=(proj.third_party_costs||[]).reduce((s,t)=>s+(t.total||t.days*t.daily_rate||0),0)
+                    const km=Number(costs.travel_km)||guessKm(proj.neighborhood||'')||0
+                    const travel=calcTravelCost(km,(costs.travel_visits||5),(costs.fuel_price||6.50),(costs.fuel_consumption||8))
+                    const hours=((costs.labor_hours_actual||costs.labor_hours_estimated||0))*((costs.hourly_rate||150))
+                    const third=(costs.third_party_costs||[]).reduce((s,t)=>s+(t.total||t.days*t.daily_rate||0),0)
                     const total=travel+hours+third
                     const linkedProp=proposals?.find(p=>p.id===proj.proposal_id)
                     const revenue=linkedProp?(()=>{const fl=Array.isArray(linkedProp.floors)?linkedProp.floors:(typeof linkedProp.floors==='string'?JSON.parse(linkedProp.floors||'[]'):[]);return fl.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)+(Number(linkedProp.labor)||0)})():0
