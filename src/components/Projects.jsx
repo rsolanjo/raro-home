@@ -53,7 +53,7 @@ const newProj = () => ({
   purchase_list:[], rooms_config:[], annotations:[], notes:'',
 })
 
-export default function Projects({ projects, clients, proposals=[], catalog=[], onRefresh, currentUser }) {
+export default function Projects({ projects, clients, proposals=[], catalog=[], suppliers=[], onRefresh, currentUser }) {
   const [sel, setSel] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState(newProj())
@@ -555,8 +555,28 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
                       <tr key={ti}>
                         <td><input type="date" value={tp.date||''} style={{fontSize:11,padding:'2px 5px'}}
                           onChange={e=>{const arr=[...(costs.third_party_costs||[])];arr[ti]={...arr[ti],date:e.target.value};setLocalCosts(lc=>({...lc,third_party_costs:arr}))}}/></td>
-                        <td><input value={tp.person||''} placeholder="Nome..." style={{fontSize:11,padding:'2px 6px',width:100}}
-                          onChange={e=>{const arr=[...(costs.third_party_costs||[])];arr[ti]={...arr[ti],person:e.target.value};setLocalCosts(lc=>({...lc,third_party_costs:arr}))}}/></td>
+                        <td>
+                          <select style={{fontSize:11,padding:'2px 5px',width:110,marginBottom:tp.personManual?3:0}}
+                            value={tp.supplier_id||''}
+                            onChange={e=>{
+                              const arr=[...(costs.third_party_costs||[])]
+                              if(e.target.value==='__manual__'){
+                                arr[ti]={...arr[ti],supplier_id:'__manual__',person:''}
+                              } else {
+                                const sup=suppliers.find(s=>String(s.id)===e.target.value)
+                                arr[ti]={...arr[ti],supplier_id:e.target.value,person:sup?.name||'',personManual:undefined}
+                              }
+                              setLocalCosts(lc=>({...lc,third_party_costs:arr}))
+                            }}>
+                            <option value="">— Fornecedor —</option>
+                            {(suppliers||[]).map(s=><option key={s.id} value={String(s.id)}>{s.name}</option>)}
+                            <option value="__manual__">✏️ Outro...</option>
+                          </select>
+                          {(tp.supplier_id==='__manual__'||!tp.supplier_id)&&<input
+                            value={tp.person||''} placeholder="Nome manual..."
+                            style={{fontSize:11,padding:'2px 6px',width:110,display:'block'}}
+                            onChange={e=>{const arr=[...(costs.third_party_costs||[])];arr[ti]={...arr[ti],person:e.target.value};setLocalCosts(lc=>({...lc,third_party_costs:arr}))}}/>}
+                        </td>
                         <td><input value={tp.description||''} placeholder="Serviço..." style={{fontSize:11,padding:'2px 6px',width:140}}
                           onChange={e=>{const arr=[...(costs.third_party_costs||[])];arr[ti]={...arr[ti],description:e.target.value};setLocalCosts(lc=>({...lc,third_party_costs:arr}))}}/></td>
                         <td style={{textAlign:'center'}}><input type="number" value={tp.days||1} min="0.5" step="0.5" style={{width:52,textAlign:'center',fontSize:11,padding:'2px 4px'}}
