@@ -13,69 +13,133 @@ function ContractSendModal({ proposal, clients, onClose }) {
   })()
   const total = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)+(Number(proposal?.labor)||0)
   const totalFmt = `R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`
-  const phones = []
-  if(cl?.phone1) phones.push({label:cl.name1,phone:cl.phone1,key:'p1'})
-  if(cl?.phone2) phones.push({label:cl.name2,phone:cl.phone2,key:'p2'})
   const norm = p => p.replace(/\D/g,'').replace(/^0055|^55/,'').replace(/^(?!55)/,'55')
   const msg = encodeURIComponent(`${cl?.name1||proposal?.client_name}, o contrato do seu projeto está pronto para assinatura. 📄\n\n📋 *${proposal?.code}* · 💰 *${totalFmt}*\n\nAssinatura e dúvidas: só chamar!\n— Rogério · RARO Home · (21) 98170-9009`)
   if(!proposal) return null
+
+  // Build phone options from client — always show even if empty
+  const phoneOptions = [
+    cl?.phone1 && {key:'p1', label:`${cl.name1||'Cliente 1'}`, phone:cl.phone1, hint:'cadastrado'},
+    cl?.phone2 && {key:'p2', label:`${cl.name2||'Cliente 2'}`, phone:cl.phone2, hint:'cadastrado'},
+  ].filter(Boolean)
+
   return (
     <div className="modal-overlay">
-      <div className="modal" style={{width:460}} onClick={e=>e.stopPropagation()}>
+      <div className="modal" style={{width:480}} onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title"><i className="ti ti-file-contract" style={{marginRight:6,color:'#059669'}} aria-hidden/>Enviar Contrato</div>
+          <div className="modal-title">
+            <i className="ti ti-file-contract" style={{marginRight:6,color:'#059669'}} aria-hidden/>
+            Enviar Contrato
+          </div>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
-        <div style={{marginBottom:14,padding:'8px 12px',background:'var(--surf)',borderRadius:6,fontSize:12,color:'var(--text2)',lineHeight:1.7}}>
-          Contrato <b style={{color:'var(--accent)',fontFamily:'monospace'}}>{proposal.code}</b>
-          {' · '}<b>{proposal.client_name}</b><br/>
-          Total: <b style={{color:'var(--accent)'}}>{totalFmt}</b>
+
+        {/* Proposal info */}
+        <div style={{marginBottom:14,padding:'10px 12px',background:'var(--surf)',borderRadius:6,fontSize:12,color:'var(--text2)',lineHeight:1.8}}>
+          <div style={{display:'flex',justifyContent:'space-between'}}>
+            <div>
+              Contrato <b style={{color:'var(--accent)',fontFamily:'monospace'}}>{proposal.code}</b>
+              {' · '}<b>{proposal.client_name}</b>
+            </div>
+            <b style={{color:'var(--accent)'}}>{totalFmt}</b>
+          </div>
         </div>
+
+        {/* Info */}
         <div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 12px',marginBottom:14,fontSize:11,color:'var(--amber)'}}>
           <i className="ti ti-info-circle" style={{marginRight:4}} aria-hidden/>
-          Baixe o contrato e anexe na conversa do WhatsApp antes de enviar.
+          Baixe o contrato antes de enviar e anexe na conversa do WhatsApp.
         </div>
-        <div className="flabel" style={{marginBottom:8}}>WhatsApp — selecione para quem enviar:</div>
-        {phones.length===0&&<div style={{fontSize:12,color:'var(--text3)',marginBottom:12,padding:'8px 12px',background:'var(--surf)',borderRadius:6}}>Nenhum telefone cadastrado.</div>}
-        {phones.map(({label,phone,key})=>(
-          <label key={key} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',border:'1px solid var(--border)',borderRadius:6,cursor:'pointer',marginBottom:8,
-            background:targets[key]?'rgba(22,163,74,0.06)':'var(--bg)',borderColor:targets[key]?'#16A34A':'var(--border)'}}>
-            <input type="checkbox" checked={!!targets[key]} onChange={e=>setTargets(t=>({...t,[key]:e.target.checked}))} style={{width:16,height:16,accentColor:'#16A34A',cursor:'pointer'}}/>
-            <i className="ti ti-brand-whatsapp" style={{fontSize:18,color:'#16A34A'}} aria-hidden/>
-            <div style={{flex:1}}><div style={{fontWeight:500,fontSize:13}}>{label}</div><div style={{fontSize:11,color:'var(--text3)'}}>{phone}</div></div>
+
+        {/* WhatsApp from client */}
+        <div className="flabel" style={{marginBottom:8}}>
+          <i className="ti ti-brand-whatsapp" style={{color:'#16A34A',marginRight:4}} aria-hidden/>
+          WhatsApp — contatos do cliente:
+        </div>
+        {phoneOptions.length===0 && (
+          <div style={{fontSize:12,color:'var(--text3)',marginBottom:10,padding:'8px 12px',background:'var(--surf)',borderRadius:6}}>
+            <i className="ti ti-alert-circle" style={{marginRight:4,color:'var(--amber)'}} aria-hidden/>
+            Nenhum telefone cadastrado para este cliente — use o campo abaixo.
+          </div>
+        )}
+        {phoneOptions.map(({key,label,phone,hint})=>(
+          <label key={key} style={{
+            display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
+            border:'1px solid',borderRadius:6,cursor:'pointer',marginBottom:8,
+            background:targets[key]?'rgba(22,163,74,0.06)':'var(--bg)',
+            borderColor:targets[key]?'#16A34A':'var(--border)'
+          }}>
+            <input type="checkbox" checked={!!targets[key]}
+              onChange={e=>setTargets(t=>({...t,[key]:e.target.checked}))}
+              style={{width:16,height:16,accentColor:'#16A34A',cursor:'pointer'}}/>
+            <i className="ti ti-brand-whatsapp" style={{fontSize:18,color:'#16A34A',flexShrink:0}} aria-hidden/>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:500,fontSize:13}}>{label}</div>
+              <div style={{fontSize:11,color:'var(--text3)'}}>{phone}</div>
+            </div>
+            <span style={{fontSize:10,color:'var(--green)',background:'rgba(22,163,74,0.1)',padding:'2px 6px',borderRadius:10}}>{hint}</span>
           </label>
         ))}
-        <div style={{marginBottom:10}}>
-          <div className="flabel" style={{marginBottom:6}}>Outro número:</div>
-          <div style={{display:'flex',gap:8}}>
-            <input value={custom} onChange={e=>setCustom(e.target.value)} placeholder="(21) 99999-9999" style={{flex:1,fontSize:13}}/>
-            <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,cursor:'pointer',whiteSpace:'nowrap'}}>
-              <input type="checkbox" checked={!!targets.custom&&!!custom} onChange={e=>setTargets(t=>({...t,custom:e.target.checked}))} disabled={!custom} style={{accentColor:'#16A34A'}}/>Incluir
+
+        {/* Manual phone */}
+        <div style={{marginBottom:12,padding:'10px 12px',border:'1px dashed var(--border)',borderRadius:6}}>
+          <div className="flabel" style={{marginBottom:6}}>Adicionar outro número manualmente:</div>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <input value={custom} onChange={e=>setCustom(e.target.value)}
+              placeholder="(21) 99999-9999" style={{flex:1,fontSize:13}}
+              onKeyDown={e=>{ if(e.key==='Enter'&&custom){ setTargets(t=>({...t,custom:true})) }}}/>
+            <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+              <input type="checkbox"
+                checked={!!targets.custom&&!!custom}
+                onChange={e=>setTargets(t=>({...t,custom:e.target.checked}))}
+                disabled={!custom}
+                style={{accentColor:'#16A34A',width:15,height:15}}/>
+              <span>Incluir</span>
             </label>
           </div>
         </div>
-        <div style={{marginBottom:10}}>
-          <div className="flabel" style={{marginBottom:6}}>E-mail:</div>
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <input value={email||cl?.email||''} onChange={e=>setEmail(e.target.value)} placeholder="email@exemplo.com" type="email" style={{flex:1,fontSize:13}}/>
-            {(email||cl?.email) && <button className="btn" style={{fontSize:11,color:'var(--accent)',borderColor:'var(--accent)'}}
-              onClick={()=>{
-                const sub=encodeURIComponent(`Contrato RARO Home — ${proposal.code}`)
-                const body=encodeURIComponent(`Olá ${cl?.name1}!\n\nSegue o contrato do projeto RARO Home.\nO PDF está em anexo para assinatura.\nDúvidas: (21) 98170-9009\n— Rogério | RARO Home`)
-                window.open(`mailto:${email||cl.email}?subject=${sub}&body=${body}`)
-              }}><i className="ti ti-mail" aria-hidden/>Abrir e-mail</button>}
+
+        {/* Email */}
+        <div style={{marginBottom:14}}>
+          <div className="flabel" style={{marginBottom:6}}>
+            <i className="ti ti-mail" style={{marginRight:4}} aria-hidden/>E-mail:
           </div>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <input
+              value={email||''}
+              onChange={e=>setEmail(e.target.value)}
+              placeholder={cl?.email||'email@exemplo.com'}
+              type="email"
+              style={{flex:1,fontSize:13}}/>
+            {(email||cl?.email) && (
+              <button className="btn" style={{fontSize:11,color:'var(--accent)',borderColor:'var(--accent)',flexShrink:0}}
+                onClick={()=>{
+                  const addr = email||cl?.email
+                  const sub=encodeURIComponent(`Contrato RARO Home — ${proposal.code}`)
+                  const body=encodeURIComponent(`Olá ${cl?.name1||proposal.client_name}!\n\nSegue o contrato do projeto RARO Home.\nO PDF está em anexo para assinatura.\nDúvidas: (21) 98170-9009\n— Rogério | RARO Home`)
+                  window.open(`mailto:${addr}?subject=${sub}&body=${body}`)
+                }}>
+                <i className="ti ti-mail" aria-hidden/>Abrir e-mail
+              </button>
+            )}
+          </div>
+          {cl?.email&&!email&&<div style={{fontSize:10,color:'var(--text3)',marginTop:4}}>E-mail cadastrado: {cl.email}</div>}
         </div>
+
+        {/* Action buttons */}
         <div style={{borderTop:'1px solid var(--border)',paddingTop:12,display:'flex',flexDirection:'column',gap:8}}>
-          <button className="btn primary" style={{background:'#16A34A',borderColor:'#16A34A',gap:8,justifyContent:'center'}}
+          <button className="btn primary"
+            style={{background:'#16A34A',borderColor:'#16A34A',gap:8,justifyContent:'center'}}
             disabled={!Object.values(targets).some(Boolean)}
+            title={Object.values(targets).some(Boolean)?'Enviar para os selecionados':'Selecione ao menos um número'}
             onClick={()=>{
               if(targets.p1&&cl?.phone1) window.open(`https://wa.me/${norm(cl.phone1)}?text=${msg}`,'_blank')
               if(targets.p2&&cl?.phone2) window.open(`https://wa.me/${norm(cl.phone2)}?text=${msg}`,'_blank')
               if(targets.custom&&custom) window.open(`https://wa.me/${norm(custom)}?text=${msg}`,'_blank')
               onClose()
             }}>
-            <i className="ti ti-brand-whatsapp" aria-hidden/>Enviar via WhatsApp
+            <i className="ti ti-brand-whatsapp" aria-hidden/>
+            Enviar contrato via WhatsApp {Object.values(targets).filter(Boolean).length>0&&`(${Object.values(targets).filter(Boolean).length})`}
           </button>
           <button className="btn" style={{gap:8,justifyContent:'center'}} onClick={onClose}>Fechar</button>
         </div>

@@ -25,7 +25,7 @@ function calcTravelCost(km, visits, fuelPrice, consumption) {
   return (km * 2 * visits / consumption * fuelPrice)
 }
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { saveProject, deleteProject, addAnnotation } from '../db/supabase.js'
 
 const PHASES = [

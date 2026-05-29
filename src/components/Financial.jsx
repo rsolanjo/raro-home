@@ -32,6 +32,7 @@ function calcCost(p) {
 
 export default function Financial({ proposals=[], projects=[], suppliers=[] }) {
   const [tab, setTab] = useState('overview')
+  const [selectedProjects, setSelectedProjects] = useState([]) // empty = all
   const [period, setPeriod] = useState('all')
   // Labor costs (terceiros) stored locally per session
   const [laborCosts, setLaborCosts] = useState(() => {
@@ -342,8 +343,31 @@ export default function Financial({ proposals=[], projects=[], suppliers=[] }) {
 
       {/* PER-PROJECT ANALYSIS */}
       {tab==='projects_detail' && <div>
+        {/* Filter */}
+        <div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:8,padding:'12px 16px',marginBottom:16,display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+          <span style={{fontSize:12,fontWeight:500,color:'var(--text2)',flexShrink:0}}>Filtrar projetos:</span>
+          <div style={{display:'flex',gap:6,flex:1,flexWrap:'wrap'}}>
+            <button className={`btn${selectedProjects.length===0?' primary':''}`} style={{fontSize:11}}
+              onClick={()=>setSelectedProjects([])}>
+              Todos ({approved.length})
+            </button>
+            {approved.map((p,i)=>(
+              <button key={i}
+                className={`btn${selectedProjects.includes(p.id)?' primary':''}`}
+                style={{fontSize:11,padding:'4px 10px'}}
+                onClick={()=>setSelectedProjects(s=>
+                  s.includes(p.id)?s.filter(x=>x!==p.id):[...s,p.id]
+                )}>
+                {p.code} — {(p.client_name||'').split(' ')[0]}
+              </button>
+            ))}
+          </div>
+          {selectedProjects.length>0&&<button className="btn" style={{fontSize:11,color:'var(--text3)'}} onClick={()=>setSelectedProjects([])}>
+            <i className="ti ti-x" aria-hidden/>Limpar
+          </button>}
+        </div>
         {approved.length===0?<div style={{textAlign:'center',padding:32,color:'var(--text3)'}}>Nenhum projeto aprovado no período</div>:(
-          approved.map((p,pi)=>{
+          approved.filter(p=>selectedProjects.length===0||selectedProjects.includes(p.id)).map((p,pi)=>{
             const fl=Array.isArray(p.floors)?p.floors:(typeof p.floors==='string'?JSON.parse(p.floors||'[]'):[])
             const equip=fl.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)
             const labor=Number(p.labor)||0
