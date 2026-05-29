@@ -67,29 +67,22 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
   const done = projects.filter(p=>p.phase==='done')
   const proj = sel ? projects.find(p=>p.id===sel) : null
 
-  // Sync localCosts when proj changes (initial load or after save)
-  const prevSelRef = useRef(null)
-  if (sel !== prevSelRef.current) {
-    prevSelRef.current = sel
-    // Will be initialized on next render when proj is available
-  }
+  // ── useEffect: init localCosts when proj or tab changes ──────────────────
+  useEffect(() => {
+    if (proj && tab === 'costs') {
+      setLocalCosts({
+        travel_km: proj.travel_km ?? '',
+        travel_visits: proj.travel_visits ?? 5,
+        fuel_price: proj.fuel_price ?? 6.50,
+        fuel_consumption: proj.fuel_consumption ?? 8,
+        labor_hours_estimated: proj.labor_hours_estimated ?? 0,
+        labor_hours_actual: proj.labor_hours_actual ?? 0,
+        hourly_rate: proj.hourly_rate ?? 150,
+        third_party_costs: proj.third_party_costs || [],
+      })
+    }
+  }, [sel, tab]) // re-init when switching project or entering costs tab
 
-  // Initialize localCosts when entering costs tab or switching project
-  const costsInitRef = useRef(null)
-  if (proj && tab === 'costs' && costsInitRef.current !== sel) {
-    costsInitRef.current = sel
-    // Use setTimeout to avoid state update during render
-    setTimeout(() => setLocalCosts({
-      travel_km: proj.travel_km ?? '',
-      travel_visits: proj.travel_visits ?? 5,
-      fuel_price: proj.fuel_price ?? 6.50,
-      fuel_consumption: proj.fuel_consumption ?? 8,
-      labor_hours_estimated: proj.labor_hours_estimated ?? 0,
-      labor_hours_actual: proj.labor_hours_actual ?? 0,
-      hourly_rate: proj.hourly_rate ?? 150,
-      third_party_costs: proj.third_party_costs || [],
-    }), 0)
-  }
   const costs = (tab === 'costs' && localCosts) ? localCosts : (proj || {})
 
   // Save costs explicitly
