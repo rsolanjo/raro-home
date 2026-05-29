@@ -78,49 +78,48 @@ export default function Financial({ proposals=[], projects=[], suppliers=[] }) {
 
   return (
     <div className="page-content">
-      {/* Header — matches Reports palette */}
-      <div className="page-hdr" style={{flexDirection:'column',gap:12,alignItems:'stretch'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div>
-            <div className="page-title"><i className="ti ti-coin" style={{marginRight:8}} aria-hidden/>Controle Financeiro</div>
-            <div className="page-sub">Receitas · Margens · Custos · Pipeline</div>
-          </div>
-          <div style={{display:'flex',gap:4,background:'var(--surf)',borderRadius:8,padding:4,border:'1px solid var(--border)'}}>
-            {PERIODS.map(o=><button key={o.v} onClick={()=>setPeriod(o.v)}
-              style={{padding:'5px 12px',fontSize:11,border:'none',borderRadius:5,cursor:'pointer',fontFamily:'inherit',
-                fontWeight:period===o.v?600:400,background:period===o.v?'var(--accent)':'transparent',
-                color:period===o.v?'#fff':'var(--text2)',transition:'all .15s'}}>
-              {o.l}</button>)}
-          </div>
+      {/* Header */}
+      <div className="page-hdr">
+        <div>
+          <div className="page-title"><i className="ti ti-coin" style={{marginRight:8}} aria-hidden/>Controle Financeiro</div>
+          <div className="page-sub">Receitas · Margens · Custos · Pipeline</div>
         </div>
-
-        {/* KPI row */}
-        <div className="metrics">
-          {[
-            {l:'Receita Aprovada',v:fmt(revenue),sub:`${approved.length} projetos aprovados`,c:'var(--green)',cls:'green'},
-            {l:'Lucro Líquido',v:fmt(profit),sub:`Equip+desl+horas+terceiros`,c:profit>=0?'var(--green)':'var(--red)',cls:profit>=0?'green':'red'},
-            {l:'Margem Total',v:`${margin}%`,sub:`custos completos`,c:pC(margin),cls:''},
-            {l:'Pipeline',v:fmt(pipeline),sub:`${sent.length} enviados`,c:'var(--accent)',cls:'blue'},
-            {l:'Conversão',v:`${convRate}%`,sub:`${approved.length}/${fp.length} propostas`,c:convRate>=40?'var(--green)':convRate>=20?'var(--amber)':'var(--red)',cls:''},
-          ].map((k,i)=>(
-            <div key={i} className="met">
-              <div className="met-label">{k.l}</div>
-              <div className={`met-val ${k.cls}`} style={{color:k.c}}>{k.v}</div>
-              <div className="met-sub">{k.sub}</div>
-            </div>
-          ))}
+        <div style={{display:'flex',gap:4}}>
+          {PERIODS.map(o=><button key={o.v} onClick={()=>setPeriod(o.v)}
+            className={period===o.v?'btn primary':'btn'}
+            style={{fontSize:11,padding:'4px 10px'}}>
+            {o.l}</button>)}
         </div>
+      </div>
 
-        {/* Tabs */}
-        <div style={{display:'flex',gap:0,borderBottom:'1px solid var(--border)',marginBottom:-16,marginLeft:-16,marginRight:-16,paddingLeft:16}}>
-          {TABS.map(t=><button key={t.k} onClick={()=>setTab(t.k)}
-            style={{padding:'10px 16px',fontSize:12,border:'none',background:'none',cursor:'pointer',
+      {/* KPI metrics — same as Dashboard */}
+      <div className="metrics" style={{marginBottom:16}}>
+        {[
+          {l:'Receita Aprovada',   v:fmt(revenue),  sub:`${approved.length} projetos`,  cls:'green'},
+          {l:'Lucro Líquido',      v:fmt(profit),   sub:'equip+desl+horas+3ºs',         cls:profit>=0?'green':'red'},
+          {l:'Margem Total',       v:`${margin}%`,  sub:'custos completos',              cls:''},
+          {l:'Pipeline',           v:fmt(pipeline), sub:`${sent.length} enviados`,       cls:'blue'},
+          {l:'Conversão',          v:`${convRate}%`,sub:`${approved.length}/${fp.length}`,cls:''},
+        ].map((k,i)=>(
+          <div key={i} className="met">
+            <div className="met-label">{k.l}</div>
+            <div className={`met-val ${k.cls}`}>{k.v}</div>
+            <div className="met-sub">{k.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:'flex',gap:0,borderBottom:'2px solid var(--border)',marginBottom:16}}>
+        {TABS.map(t=>(
+          <button key={t.k} onClick={()=>setTab(t.k)}
+            style={{padding:'9px 16px',fontSize:12,border:'none',background:'none',cursor:'pointer',
               color:tab===t.k?'var(--accent)':'var(--text2)',fontFamily:'inherit',fontWeight:tab===t.k?600:400,
-              borderBottom:tab===t.k?'2px solid var(--accent)':'2px solid transparent',
+              borderBottom:tab===t.k?'2px solid var(--accent)':'2px solid transparent',marginBottom:-2,
               display:'flex',alignItems:'center',gap:6}}>
             <i className={`ti ${t.i}`} style={{fontSize:13}} aria-hidden/>{t.l}
-          </button>)}
-        </div>
+          </button>
+        ))}
       </div>
 
       <div style={{padding:'20px 0'}}>

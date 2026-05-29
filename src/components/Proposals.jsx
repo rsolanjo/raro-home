@@ -23,6 +23,14 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
   const [changeReq, setChangeReq] = useState(null)
   const [contractProposal, setContractProposal] = useState(null)
   const [sendContractProposal, setSendContractProposal] = useState(null)
+  const [contractsGenerated, setContractsGenerated] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('raro_contracts_generated')||'{}') } catch { return {} }
+  })
+  function markContractGenerated(proposalId) {
+    const updated = {...contractsGenerated, [proposalId]: true}
+    setContractsGenerated(updated)
+    localStorage.setItem('raro_contracts_generated', JSON.stringify(updated))
+  }
   const [sortCol,  setSortCol]  = useState('id')
   const [sortDir,  setSortDir]  = useState('desc')
   const [showComp, setShowComp] = useState(false)
@@ -254,11 +262,18 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
                             <button className="btn danger" style={{fontSize:11,padding:'3px 7px'}} onClick={()=>setChangeReq({proposal:p,newStatus:'__delete__'})} title="Excluir"><i className="ti ti-trash" aria-hidden/></button>
                             {p.status==='approved'&&<>
                               <button className="btn" style={{fontSize:11,padding:'3px 7px',borderColor:'#059669',color:'#059669'}}
-                                onClick={()=>setContractProposal(p)} title="Visualizar contrato">
+                                onClick={()=>setContractProposal(p)} title="Abrir contrato">
                                 <i className="ti ti-file-contract" aria-hidden/>Contrato
                               </button>
-                              <button className="btn" style={{fontSize:11,padding:'3px 7px',background:'#059669',color:'#fff',borderColor:'#059669'}}
-                                onClick={()=>setSendContractProposal(p)} title="Enviar contrato">
+                              <button
+                                className={`btn${contractsGenerated[p.id]?' primary':''}`}
+                                style={{fontSize:11,padding:'3px 7px',
+                                  ...(contractsGenerated[p.id]
+                                    ?{background:'#059669',color:'#fff',borderColor:'#059669'}
+                                    :{opacity:0.45,cursor:'not-allowed',borderColor:'#059669',color:'#059669'})}}
+                                disabled={!contractsGenerated[p.id]}
+                                title={contractsGenerated[p.id]?'Enviar contrato':'Salve o contrato primeiro (botão na página do contrato)'}
+                                onClick={()=>contractsGenerated[p.id]&&setSendContractProposal(p)}>
                                 <i className="ti ti-send" aria-hidden/>Enviar
                               </button>
                             </>}
@@ -513,6 +528,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
         proposal={contractProposal}
         clients={clients}
         onClose={()=>setContractProposal(null)}
+        onGenerated={(p)=>{ markContractGenerated(p.id) }}
         onSend={(p)=>{ setContractProposal(null); setSendContractProposal(p) }}
       />}
     </>

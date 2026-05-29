@@ -179,8 +179,9 @@ function buildContract(proposal, client) {
 }
 
 
-export default function Contract({ proposal, clients, onClose, onSend }) {
+export default function Contract({ proposal, clients, onClose, onSend, onGenerated }) {
   const [sending, setSending] = useState(false)
+  const [saved, setSaved] = useState(false)
   const client = clients?.find(c => c.id === Number(proposal?.client_id))
 
   function openContract() { downloadContract() }
@@ -212,36 +213,59 @@ export default function Contract({ proposal, clients, onClose, onSend }) {
 
   if (!proposal) return null
 
-  return (
-    <div className="modal-overlay">
-      <div className="modal" style={{width:480}} onClick={e=>e.stopPropagation()}>
-        <div className="modal-header">
-          <div className="modal-title"><i className="ti ti-file-contract" style={{marginRight:6}} aria-hidden/>Contrato de Execução</div>
-          <button className="modal-close" onClick={onClose}>×</button>
-        </div>
-        <div style={{padding:'4px 0 16px'}}>
-          <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:14,fontSize:12}}>
-            <div style={{fontWeight:600,color:'var(--text1)',marginBottom:6}}>{proposal.client_name} — {proposal.code}</div>
-            <div style={{color:'var(--text3)'}}>Contrato gerado automaticamente com os dados da proposta aprovada.</div>
-            {!client?.full_name1 && <div style={{marginTop:8,padding:'6px 10px',background:'var(--amber-lt)',borderRadius:4,color:'var(--amber)',fontSize:11}}>
-              <i className="ti ti-alert-circle" style={{marginRight:4}} aria-hidden/>
-              Nome completo não cadastrado — vá em Clientes e preencha "Nome completo" para o contrato ficar correto.
-            </div>}
-          </div>
+  function handleSaveContract() {
+    downloadContract()
+    if (onGenerated) onGenerated(proposal)
+    setSaved(true)
+  }
 
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            <button className="btn primary" onClick={openContract} style={{justifyContent:'center'}}>
-              <i className="ti ti-eye" aria-hidden/>Visualizar contrato
-            </button>
-            <button className="btn" onClick={downloadContract} style={{justifyContent:'center'}}>
-              <i className="ti ti-download" aria-hidden/>Baixar contrato (HTML/PDF)
-            </button>
-              <button className="btn" style={{background:'#16A34A',color:'#fff',borderColor:'#16A34A',justifyContent:'center'}}
-              onClick={()=>{ downloadContract(); onSend && onSend(proposal) }}>
-              <i className="ti ti-send" aria-hidden/>Baixar PDF + Abrir janela de envio
-            </button>
+  return (
+    <div className="modal-overlay" style={{alignItems:'stretch',padding:0,zIndex:1000}}>
+      <div style={{width:'100%',height:'100%',background:'var(--bg)',display:'flex',flexDirection:'column'}}>
+        {/* Toolbar */}
+        <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'10px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+          <button className="btn" style={{padding:'5px 10px'}} onClick={onClose}>
+            <i className="ti ti-arrow-left" aria-hidden/>Voltar
+          </button>
+          <div style={{flex:1,fontSize:13,fontWeight:500,color:'var(--text1)'}}>
+            Contrato — {proposal.code} · {proposal.client_name}
           </div>
+          {!client?.full_name1 && (
+            <div style={{fontSize:11,color:'var(--amber)',display:'flex',alignItems:'center',gap:4}}>
+              <i className="ti ti-alert-circle" aria-hidden/>Nome completo incompleto
+            </div>
+          )}
+          {saved && (
+            <span style={{fontSize:12,color:'var(--green)',display:'flex',alignItems:'center',gap:4,fontWeight:500}}>
+              <i className="ti ti-check" aria-hidden/>Contrato salvo
+            </span>
+          )}
+          <button
+            className={saved ? 'btn' : 'btn primary'}
+            style={saved ? {borderColor:'var(--green)',color:'var(--green)'} : {}}
+            onClick={handleSaveContract}>
+            <i className="ti ti-download" aria-hidden/>
+            {saved ? 'Baixar novamente' : 'Salvar contrato (PDF)'}
+          </button>
+          {onSend && (
+            <button
+              className="btn primary"
+              style={saved
+                ? {background:'#059669',borderColor:'#059669',color:'#fff'}
+                : {opacity:0.4,cursor:'not-allowed',background:'#059669',borderColor:'#059669',color:'#fff'}}
+              disabled={!saved}
+              title={saved ? 'Enviar contrato' : 'Salve o contrato antes de enviar'}
+              onClick={()=>saved && onSend(proposal)}>
+              <i className="ti ti-send" aria-hidden/>Enviar
+            </button>
+          )}
         </div>
+        {/* Contract preview */}
+        <iframe
+          srcDoc={buildContract(proposal, client)}
+          style={{flex:1,border:'none',width:'100%'}}
+          title="Contrato RARO Home"
+        />
       </div>
     </div>
   )

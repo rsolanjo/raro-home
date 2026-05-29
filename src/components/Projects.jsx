@@ -118,6 +118,7 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
     {key:'purchase',label:'Compras',icon:'ti-shopping-cart'},
     {key:'installation',label:'Instalação',icon:'ti-tool'},
     {key:'notes',label:'Anotações',icon:'ti-pencil'},
+    {key:'costs',label:'Custos',icon:'ti-coin'},
   ]
 
   return (
