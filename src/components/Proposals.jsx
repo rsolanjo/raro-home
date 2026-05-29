@@ -1,4 +1,89 @@
 import Contract from './Contract.jsx'
+
+function ContractSendModal({ proposal, clients, onClose }) {
+  const [targets, setTargets] = useState({})
+  const [custom, setCustom]   = useState('')
+  const [email, setEmail]     = useState('')
+  const cl = clients?.find(x=>x.id===Number(proposal?.client_id))
+  const floors = (() => {
+    const f = proposal?.floors
+    if(!f) return []
+    if(typeof f==='string'){try{return JSON.parse(f)}catch{return []}}
+    return Array.isArray(f)?f:[]
+  })()
+  const total = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)+(Number(proposal?.labor)||0)
+  const totalFmt = `R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+  const phones = []
+  if(cl?.phone1) phones.push({label:cl.name1,phone:cl.phone1,key:'p1'})
+  if(cl?.phone2) phones.push({label:cl.name2,phone:cl.phone2,key:'p2'})
+  const norm = p => p.replace(/\D/g,'').replace(/^0055|^55/,'').replace(/^(?!55)/,'55')
+  const msg = encodeURIComponent(`${cl?.name1||proposal?.client_name}, o contrato do seu projeto está pronto para assinatura. 📄\n\n📋 *${proposal?.code}* · 💰 *${totalFmt}*\n\nAssinatura e dúvidas: só chamar!\n— Rogério · RARO Home · (21) 98170-9009`)
+  if(!proposal) return null
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{width:460}} onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title"><i className="ti ti-file-contract" style={{marginRight:6,color:'#059669'}} aria-hidden/>Enviar Contrato</div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div style={{marginBottom:14,padding:'8px 12px',background:'var(--surf)',borderRadius:6,fontSize:12,color:'var(--text2)',lineHeight:1.7}}>
+          Contrato <b style={{color:'var(--accent)',fontFamily:'monospace'}}>{proposal.code}</b>
+          {' · '}<b>{proposal.client_name}</b><br/>
+          Total: <b style={{color:'var(--accent)'}}>{totalFmt}</b>
+        </div>
+        <div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 12px',marginBottom:14,fontSize:11,color:'var(--amber)'}}>
+          <i className="ti ti-info-circle" style={{marginRight:4}} aria-hidden/>
+          Baixe o contrato e anexe na conversa do WhatsApp antes de enviar.
+        </div>
+        <div className="flabel" style={{marginBottom:8}}>WhatsApp — selecione para quem enviar:</div>
+        {phones.length===0&&<div style={{fontSize:12,color:'var(--text3)',marginBottom:12,padding:'8px 12px',background:'var(--surf)',borderRadius:6}}>Nenhum telefone cadastrado.</div>}
+        {phones.map(({label,phone,key})=>(
+          <label key={key} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',border:'1px solid var(--border)',borderRadius:6,cursor:'pointer',marginBottom:8,
+            background:targets[key]?'rgba(22,163,74,0.06)':'var(--bg)',borderColor:targets[key]?'#16A34A':'var(--border)'}}>
+            <input type="checkbox" checked={!!targets[key]} onChange={e=>setTargets(t=>({...t,[key]:e.target.checked}))} style={{width:16,height:16,accentColor:'#16A34A',cursor:'pointer'}}/>
+            <i className="ti ti-brand-whatsapp" style={{fontSize:18,color:'#16A34A'}} aria-hidden/>
+            <div style={{flex:1}}><div style={{fontWeight:500,fontSize:13}}>{label}</div><div style={{fontSize:11,color:'var(--text3)'}}>{phone}</div></div>
+          </label>
+        ))}
+        <div style={{marginBottom:10}}>
+          <div className="flabel" style={{marginBottom:6}}>Outro número:</div>
+          <div style={{display:'flex',gap:8}}>
+            <input value={custom} onChange={e=>setCustom(e.target.value)} placeholder="(21) 99999-9999" style={{flex:1,fontSize:13}}/>
+            <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,cursor:'pointer',whiteSpace:'nowrap'}}>
+              <input type="checkbox" checked={!!targets.custom&&!!custom} onChange={e=>setTargets(t=>({...t,custom:e.target.checked}))} disabled={!custom} style={{accentColor:'#16A34A'}}/>Incluir
+            </label>
+          </div>
+        </div>
+        <div style={{marginBottom:10}}>
+          <div className="flabel" style={{marginBottom:6}}>E-mail:</div>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <input value={email||cl?.email||''} onChange={e=>setEmail(e.target.value)} placeholder="email@exemplo.com" type="email" style={{flex:1,fontSize:13}}/>
+            {(email||cl?.email) && <button className="btn" style={{fontSize:11,color:'var(--accent)',borderColor:'var(--accent)'}}
+              onClick={()=>{
+                const sub=encodeURIComponent(`Contrato RARO Home — ${proposal.code}`)
+                const body=encodeURIComponent(`Olá ${cl?.name1}!\n\nSegue o contrato do projeto RARO Home.\nO PDF está em anexo para assinatura.\nDúvidas: (21) 98170-9009\n— Rogério | RARO Home`)
+                window.open(`mailto:${email||cl.email}?subject=${sub}&body=${body}`)
+              }}><i className="ti ti-mail" aria-hidden/>Abrir e-mail</button>}
+          </div>
+        </div>
+        <div style={{borderTop:'1px solid var(--border)',paddingTop:12,display:'flex',flexDirection:'column',gap:8}}>
+          <button className="btn primary" style={{background:'#16A34A',borderColor:'#16A34A',gap:8,justifyContent:'center'}}
+            disabled={!Object.values(targets).some(Boolean)}
+            onClick={()=>{
+              if(targets.p1&&cl?.phone1) window.open(`https://wa.me/${norm(cl.phone1)}?text=${msg}`,'_blank')
+              if(targets.p2&&cl?.phone2) window.open(`https://wa.me/${norm(cl.phone2)}?text=${msg}`,'_blank')
+              if(targets.custom&&custom) window.open(`https://wa.me/${norm(custom)}?text=${msg}`,'_blank')
+              onClose()
+            }}>
+            <i className="ti ti-brand-whatsapp" aria-hidden/>Enviar via WhatsApp
+          </button>
+          <button className="btn" style={{gap:8,justifyContent:'center'}} onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 import { openProposalPDF } from './proposalPDF.js'
 import React, { useState } from 'react'
 import { saveProposal, deleteProposal, getProposals, auditedSave, saveProject, getProjects } from '../db/supabase.js'
@@ -434,96 +519,11 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
           </div>
         </div>
       )}
-      {sendContractProposal && (()=>{
-        const cl = clients.find(x=>x.id===Number(sendContractProposal.client_id))
-        const floors = Array.isArray(sendContractProposal.floors)?sendContractProposal.floors:(typeof sendContractProposal.floors==='string'?JSON.parse(sendContractProposal.floors||'[]'):sendContractProposal.floors||[])
-        const total = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)+(Number(sendContractProposal.labor)||0)
-        const totalFmt=`R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`
-        const [cTargets, setCTargets] = React.useState({})
-        const [cCustom, setCCustom] = React.useState('')
-        const [cEmail, setCEmail] = React.useState(cl?.email||'')
-        const phones = []
-        if(cl?.phone1) phones.push({label:cl.name1,phone:cl.phone1,key:'p1'})
-        if(cl?.phone2) phones.push({label:cl.name2,phone:cl.phone2,key:'p2'})
-        const openContract = () => {
-          const { default: Contract } = require('./Contract.jsx')
-        }
-        const downloadAndSend = async (phone) => {
-          // 1. Open contract PDF to download
-          const contractModule = await import('./Contract.jsx')
-          // Build contract HTML inline
-          const msg = encodeURIComponent(`${cl?.name1||sendContractProposal.client_name}, o contrato do seu projeto está pronto para assinatura. 📄\n\n📋 *${sendContractProposal.code}* · 💰 *${totalFmt}*\n\nAssinatura e dúvidas: só chamar!\n— Rogério · RARO Home · (21) 98170-9009`)
-          const num = phone.replace(/\D/g,'').replace(/^0055|^55/,'55').replace(/^(?!55)/,'55')
-          setTimeout(()=>window.open(`https://wa.me/${num}?text=${msg}`,'_blank'),800)
-        }
-        return <div className="modal-overlay">
-          <div className="modal" style={{width:460}} onClick={e=>e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-title"><i className="ti ti-file-contract" style={{marginRight:6,color:'#059669'}} aria-hidden/>Enviar Contrato</div>
-              <button className="modal-close" onClick={()=>setSendContractProposal(null)}>×</button>
-            </div>
-            <div style={{marginBottom:14,padding:'8px 12px',background:'var(--surf)',borderRadius:6,fontSize:12,color:'var(--text2)',lineHeight:1.7}}>
-              Contrato <b style={{color:'var(--accent)',fontFamily:'monospace'}}>{sendContractProposal.code}</b>
-              {' · '}<b>{sendContractProposal.client_name}</b><br/>
-              Total: <b style={{color:'var(--accent)'}}>{totalFmt}</b>
-            </div>
-            <div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 12px',marginBottom:14,fontSize:11,color:'var(--amber)'}}>
-              <i className="ti ti-info-circle" style={{marginRight:4}} aria-hidden/>
-              Baixe o contrato abaixo e anexe na conversa do WhatsApp antes de enviar.
-            </div>
-            <div style={{marginBottom:12}}>
-              <button className="btn" style={{width:'100%',justifyContent:'center',marginBottom:8,borderColor:'#059669',color:'#059669'}}
-                onClick={()=>setContractProposal(sendContractProposal)}>
-                <i className="ti ti-download" aria-hidden/>Baixar contrato (PDF)
-              </button>
-            </div>
-            <div className="flabel" style={{marginBottom:8}}>WhatsApp — selecione para quem enviar:</div>
-            {phones.length===0&&<div style={{fontSize:12,color:'var(--text3)',marginBottom:12,padding:'8px 12px',background:'var(--surf)',borderRadius:6}}>Nenhum telefone cadastrado.</div>}
-            {phones.map(({label,phone,key})=>(
-              <label key={key} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',border:'1px solid var(--border)',borderRadius:6,cursor:'pointer',marginBottom:8,
-                background:cTargets[key]?'rgba(22,163,74,0.06)':'var(--bg)',borderColor:cTargets[key]?'#16A34A':'var(--border)'}}>
-                <input type="checkbox" checked={!!cTargets[key]} onChange={e=>setCTargets(t=>({...t,[key]:e.target.checked}))} style={{width:16,height:16,accentColor:'#16A34A',cursor:'pointer'}}/>
-                <i className="ti ti-brand-whatsapp" style={{fontSize:18,color:'#16A34A'}} aria-hidden/>
-                <div style={{flex:1}}><div style={{fontWeight:500,fontSize:13}}>{label}</div><div style={{fontSize:11,color:'var(--text3)'}}>{phone}</div></div>
-              </label>
-            ))}
-            <div style={{marginBottom:10}}>
-              <div className="flabel" style={{marginBottom:6}}>Outro número:</div>
-              <div style={{display:'flex',gap:8}}>
-                <input value={cCustom} onChange={e=>setCCustom(e.target.value)} placeholder="(21) 99999-9999" style={{flex:1,fontSize:13}}/>
-                <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,cursor:'pointer',whiteSpace:'nowrap'}}>
-                  <input type="checkbox" checked={!!cTargets.custom&&!!cCustom} onChange={e=>setCTargets(t=>({...t,custom:e.target.checked}))} disabled={!cCustom} style={{accentColor:'#16A34A'}}/>Incluir
-                </label>
-              </div>
-            </div>
-            <div style={{marginBottom:10}}>
-              <div className="flabel" style={{marginBottom:6}}>E-mail:</div>
-              <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                <input value={cEmail} onChange={e=>setCEmail(e.target.value)} placeholder="email@exemplo.com" type="email" style={{flex:1,fontSize:13}}/>
-                {cEmail&&<button className="btn" style={{fontSize:11,color:'var(--accent)',borderColor:'var(--accent)'}} onClick={()=>{
-                  const sub=encodeURIComponent(`Contrato RARO Home — ${sendContractProposal.code}`)
-                  const body=encodeURIComponent(`Olá ${cl?.name1}!\n\nSegue o contrato do projeto RARO Home.\nO PDF está em anexo para assinatura.\nDúvidas: (21) 98170-9009\n— Rogério | RARO Home`)
-                  window.open(`mailto:${cEmail}?subject=${sub}&body=${body}`)
-                }}><i className="ti ti-mail" aria-hidden/>Abrir e-mail</button>}
-              </div>
-            </div>
-            <div style={{borderTop:'1px solid var(--border)',paddingTop:12,display:'flex',flexDirection:'column',gap:8}}>
-              <button className="btn primary" style={{background:'#16A34A',borderColor:'#16A34A',gap:8,justifyContent:'center'}}
-                disabled={!Object.values(cTargets).some(Boolean)}
-                onClick={async ()=>{
-                  const msg=encodeURIComponent(`${cl?.name1||sendContractProposal.client_name}, o contrato do seu projeto está pronto para assinatura. 📄\n\n📋 *${sendContractProposal.code}* · 💰 *${totalFmt}*\n\nAssinatura e dúvidas: só chamar!\n— Rogério · RARO Home · (21) 98170-9009`)
-                  if(cTargets.p1&&cl?.phone1) window.open(`https://wa.me/${cl.phone1.replace(/\D/g,'').replace(/^0055|^55/,'').replace(/^/,'55')}?text=${msg}`,'_blank')
-                  if(cTargets.p2&&cl?.phone2) window.open(`https://wa.me/${cl.phone2.replace(/\D/g,'').replace(/^0055|^55/,'').replace(/^/,'55')}?text=${msg}`,'_blank')
-                  if(cTargets.custom&&cCustom) window.open(`https://wa.me/${cCustom.replace(/\D/g,'').replace(/^0055|^55/,'').replace(/^/,'55')}?text=${msg}`,'_blank')
-                  setSendContractProposal(null)
-                }}>
-                <i className="ti ti-brand-whatsapp" aria-hidden/>Enviar via WhatsApp
-              </button>
-              <button className="btn" style={{gap:8,justifyContent:'center'}} onClick={()=>setSendContractProposal(null)}>Fechar</button>
-            </div>
-          </div>
-        </div>
-      })()}
+      {sendContractProposal && <ContractSendModal
+        proposal={sendContractProposal}
+        clients={clients}
+        onClose={()=>setSendContractProposal(null)}
+      />}
       {contractProposal && <Contract
         proposal={contractProposal}
         clients={clients}

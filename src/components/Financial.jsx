@@ -71,7 +71,7 @@ export default function Financial({ proposals=[], projects=[], suppliers=[] }) {
   const pipeline = sent.reduce((s,p)=>s+calcTotal(p),0)
   const convRate = fp.length>0?Math.round(approved.length/fp.length*100):0
 
-  const TABS = [{k:'overview',l:'Visão Geral',i:'ti-layout-dashboard'},{k:'proposals',l:'Propostas',i:'ti-file-text'},{k:'costs',l:'Custos Terceiros',i:'ti-users'},{k:'margin',l:'Margens',i:'ti-percentage'}]
+  const TABS = [{k:'overview',l:'Visão Geral',i:'ti-layout-dashboard'},{k:'proposals',l:'Propostas',i:'ti-file-text'},{k:'projects_detail',l:'Por Projeto',i:'ti-layout-kanban'},{k:'costs',l:'Custos Terceiros',i:'ti-users'},{k:'margin',l:'Margens',i:'ti-percentage'}]
   const PERIODS = [{v:'month',l:'Mês'},{v:'quarter',l:'Trimestre'},{v:'year',l:'Ano'},{v:'all',l:'Tudo'}]
 
   const pC = p => p>=40?'var(--green)':p>=20?'var(--amber)':'var(--red)'
@@ -79,12 +79,18 @@ export default function Financial({ proposals=[], projects=[], suppliers=[] }) {
   return (
     <div className="page-content">
       {/* Header */}
-      <div className="page-hdr">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
         <div>
-          <div className="page-title"><i className="ti ti-coin" style={{marginRight:8}} aria-hidden/>Controle Financeiro</div>
-          <div className="page-sub">Receitas · Margens · Custos · Pipeline</div>
+          <div style={{fontSize:20,fontWeight:700,color:'var(--text1)',display:'flex',alignItems:'center',gap:8}}>
+            <div style={{background:'var(--accent)',borderRadius:8,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <i className="ti ti-coin" style={{color:'#fff',fontSize:16}} aria-hidden/>
+            </div>
+            Controle Financeiro
+          </div>
+          <div style={{fontSize:12,color:'var(--text3)',marginTop:4,marginLeft:40}}>Receitas · Margens · Custos · Pipeline</div>
         </div>
-        <div style={{display:'flex',gap:4}}>
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          <span style={{fontSize:11,color:'var(--text3)',marginRight:4}}>Período:</span>
           {PERIODS.map(o=><button key={o.v} onClick={()=>setPeriod(o.v)}
             className={period===o.v?'btn primary':'btn'}
             style={{fontSize:11,padding:'4px 10px'}}>
@@ -92,30 +98,33 @@ export default function Financial({ proposals=[], projects=[], suppliers=[] }) {
         </div>
       </div>
 
-      {/* KPI metrics — same as Dashboard */}
-      <div className="metrics" style={{marginBottom:16}}>
+      {/* KPI strip */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:20}}>
         {[
-          {l:'Receita Aprovada',   v:fmt(revenue),  sub:`${approved.length} projetos`,  cls:'green'},
-          {l:'Lucro Líquido',      v:fmt(profit),   sub:'equip+desl+horas+3ºs',         cls:profit>=0?'green':'red'},
-          {l:'Margem Total',       v:`${margin}%`,  sub:'custos completos',              cls:''},
-          {l:'Pipeline',           v:fmt(pipeline), sub:`${sent.length} enviados`,       cls:'blue'},
-          {l:'Conversão',          v:`${convRate}%`,sub:`${approved.length}/${fp.length}`,cls:''},
+          {l:'Receita Aprovada',v:fmt(revenue),sub:`${approved.length} projetos`,icon:'ti-trending-up',c:'var(--green)'},
+          {l:'Lucro Líquido',v:fmt(profit),sub:'após todos os custos',icon:'ti-pig-money',c:profit>=0?'var(--green)':'var(--red)'},
+          {l:'Margem Total',v:`${margin}%`,sub:'custos completos',icon:'ti-percentage',c:pC(margin)},
+          {l:'Pipeline',v:fmt(pipeline),sub:`${sent.length} enviados`,icon:'ti-clock',c:'var(--accent)'},
+          {l:'Conversão',v:`${convRate}%`,sub:`${approved.length}/${fp.length} propostas`,icon:'ti-target',c:convRate>=40?'var(--green)':convRate>=20?'var(--amber)':'var(--red)'},
         ].map((k,i)=>(
-          <div key={i} className="met">
-            <div className="met-label">{k.l}</div>
-            <div className={`met-val ${k.cls}`}>{k.v}</div>
-            <div className="met-sub">{k.sub}</div>
+          <div key={i} style={{background:'var(--surf)',borderRadius:8,padding:'14px 16px',border:'1px solid var(--border)',borderLeft:`3px solid ${k.c}`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+              <div style={{fontSize:10,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,fontWeight:500}}>{k.l}</div>
+              <i className={`ti ${k.icon}`} style={{fontSize:15,color:k.c,opacity:0.5}} aria-hidden/>
+            </div>
+            <div style={{fontSize:20,fontWeight:700,color:k.c}}>{k.v}</div>
+            <div style={{fontSize:10,color:'var(--text3)',marginTop:4}}>{k.sub}</div>
           </div>
         ))}
       </div>
 
       {/* Tabs */}
-      <div style={{display:'flex',gap:0,borderBottom:'2px solid var(--border)',marginBottom:16}}>
+      <div style={{display:'flex',gap:0,borderBottom:'1px solid var(--border)',marginBottom:16}}>
         {TABS.map(t=>(
           <button key={t.k} onClick={()=>setTab(t.k)}
-            style={{padding:'9px 16px',fontSize:12,border:'none',background:'none',cursor:'pointer',
+            style={{padding:'10px 16px',fontSize:12,border:'none',background:'none',cursor:'pointer',
               color:tab===t.k?'var(--accent)':'var(--text2)',fontFamily:'inherit',fontWeight:tab===t.k?600:400,
-              borderBottom:tab===t.k?'2px solid var(--accent)':'2px solid transparent',marginBottom:-2,
+              borderBottom:tab===t.k?'2px solid var(--accent)':'2px solid transparent',marginBottom:-1,
               display:'flex',alignItems:'center',gap:6}}>
             <i className={`ti ${t.i}`} style={{fontSize:13}} aria-hidden/>{t.l}
           </button>
@@ -329,6 +338,80 @@ export default function Financial({ proposals=[], projects=[], suppliers=[] }) {
             </div>
           </div>
         </div>}
+      </div>}
+
+      {/* PER-PROJECT ANALYSIS */}
+      {tab==='projects_detail' && <div>
+        {approved.length===0?<div style={{textAlign:'center',padding:32,color:'var(--text3)'}}>Nenhum projeto aprovado no período</div>:(
+          approved.map((p,pi)=>{
+            const fl=Array.isArray(p.floors)?p.floors:(typeof p.floors==='string'?JSON.parse(p.floors||'[]'):[])
+            const equip=fl.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)
+            const labor=Number(p.labor)||0
+            const revenue2=equip+labor
+            const equipCost=fl.flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]))).reduce((s,i)=>s+(i.cost_price||0)*(parseInt(i.qty)||1),0)
+            const proj=projects.find(pr=>pr.proposal_id===p.id)
+            const travel=proj?calcTravelCost(proj):0
+            const hours=proj?calcHoursCost(proj):0
+            const third=proj?calcThirdPartyCost(proj):0
+            const totalCost=equipCost+travel+hours+third
+            const profit2=revenue2-totalCost
+            const mg=revenue2>0?Math.round(profit2/revenue2*100):0
+            return <div key={pi} className="section" style={{marginBottom:16}}>
+              <div className="sec-hdr" style={{background:'var(--surf)'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <span className="mono" style={{fontWeight:700,color:'var(--accent)'}}>{p.code}</span>
+                  <span style={{fontWeight:600}}>{p.client_name}</span>
+                  <span className="badge b-green" style={{fontSize:10}}>Aprovado</span>
+                  {proj&&<span className="badge b-blue" style={{fontSize:10}}>{proj.phase}</span>}
+                </div>
+                <div style={{fontSize:14,fontWeight:700,color:pC(mg)}}>{mg}% margem</div>
+              </div>
+              <div style={{padding:'14px 16px'}}>
+                {/* Revenue vs costs breakdown */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:14}}>
+                  <div>
+                    <div style={{fontSize:10,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,marginBottom:8}}>Receita</div>
+                    {[
+                      {l:'Equipamentos',v:equip,c:'var(--accent)'},
+                      {l:'Mão de obra (proposta)',v:labor,c:'var(--accent)'},
+                      {l:'Total receita',v:revenue2,c:'var(--green)',bold:true},
+                    ].map((r,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--border)',fontSize:12}}>
+                      <span style={{color:'var(--text2)',fontWeight:r.bold?600:400}}>{r.l}</span>
+                      <span style={{color:r.c,fontWeight:r.bold?700:500}}>{fmt(r.v)}</span>
+                    </div>)}
+                  </div>
+                  <div>
+                    <div style={{fontSize:10,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,marginBottom:8}}>Custos</div>
+                    {[
+                      {l:'Custo equipamentos',v:equipCost,c:'var(--amber)'},
+                      {l:'Deslocamento',v:travel,c:'var(--amber)',sub:proj?`${proj.travel_km||0}km × ${proj.travel_visits||5} visitas`:'sem projeto'},
+                      {l:'Hora interna',v:hours,c:'rgba(124,58,237,0.8)',sub:proj?`${proj.labor_hours_actual||proj.labor_hours_estimated||0}h × R$${proj.hourly_rate||150}/h`:''},
+                      {l:'Terceiros',v:third,c:'var(--amber)',sub:proj?`${(proj.third_party_costs||[]).length} registros`:''},
+                      {l:'Total custos',v:totalCost,c:'var(--red)',bold:true},
+                    ].map((r,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--border)',fontSize:12}}>
+                      <div><span style={{color:'var(--text2)',fontWeight:r.bold?600:400}}>{r.l}</span>{r.sub&&<div style={{fontSize:10,color:'var(--text3)'}}>{r.sub}</div>}</div>
+                      <span style={{color:r.c,fontWeight:r.bold?700:500,flexShrink:0}}>{fmt(r.v)}</span>
+                    </div>)}
+                  </div>
+                </div>
+                {/* Result */}
+                <div style={{background:mg>=30?'rgba(22,163,74,0.06)':'rgba(220,38,38,0.06)',border:`1px solid ${mg>=30?'var(--green)':'var(--red)'}`,borderRadius:6,padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div>
+                    <div style={{fontSize:11,color:'var(--text3)',marginBottom:2}}>Lucro líquido do projeto</div>
+                    <div style={{fontSize:11,color:'var(--text3)'}}>
+                      {proj&&`Visitas: ${proj.travel_visits||5} · Horas: ${proj.labor_hours_actual||proj.labor_hours_estimated||0}h · Terceiros: ${(proj.third_party_costs||[]).length}`}
+                      {!proj&&'Projeto ainda não vinculado — adicione custos em Projetos'}
+                    </div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div style={{fontSize:24,fontWeight:700,color:pC(mg)}}>{fmt(profit2)}</div>
+                    <div style={{fontSize:13,color:pC(mg),fontWeight:600}}>{mg}% margem real</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          })
+        )}
       </div>}
 
       {/* MARGIN ANALYSIS */}

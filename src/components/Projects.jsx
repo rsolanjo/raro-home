@@ -67,7 +67,16 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
   const done = projects.filter(p=>p.phase==='done')
   const proj = sel ? projects.find(p=>p.id===sel) : null
 
-  async function upd(patch){ if(!proj) return; await saveProject({...proj,...patch}); onRefresh() }
+  // Debounced save to avoid resetting sel on every keystroke
+  const _updTimer = useRef(null)
+  async function upd(patch){ 
+    if(!proj) return
+    clearTimeout(_updTimer.current)
+    _updTimer.current = setTimeout(async ()=>{
+      try { await saveProject({...projects.find(p=>p.id===sel),...patch}) } catch(e){ console.error('upd:',e) }
+      onRefresh()
+    }, 600)
+  }
 
   function phaseIdx(k){ return PHASES.findIndex(p=>p.key===k) }
 
@@ -157,6 +166,9 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
                   <td style={{fontSize:12,color:'var(--text2)'}}>{p.deadline ? new Date(p.deadline+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}) : '—'}</td>
                   <td><div style={{display:'flex',gap:4}}>
                     <button className="btn" style={{fontSize:11,padding:'3px 8px'}} onClick={()=>{setSel(p.id);setTab('overview')}}><i className="ti ti-eye" aria-hidden />Abrir</button>
+                    <button className="btn" style={{fontSize:11,padding:'3px 8px',borderColor:'var(--amber)',color:'var(--amber)'}} onClick={()=>{setSel(p.id);setTab('costs')}} title="Ver custos do projeto">
+                      <i className="ti ti-coin" aria-hidden />Custos
+                    </button>
                     <button className="btn danger" style={{fontSize:11,padding:'3px 8px'}} onClick={()=>{if(confirm('Excluir?')){deleteProject(p.id);onRefresh()}}}><i className="ti ti-trash" aria-hidden /></button>
                   </div></td>
                 </tr>
