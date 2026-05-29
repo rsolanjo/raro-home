@@ -25,7 +25,7 @@ function calcTravelCost(km, visits, fuelPrice, consumption) {
   return (km * 2 * visits / consumption * fuelPrice)
 }
 
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { saveProject, deleteProject, addAnnotation } from '../db/supabase.js'
 
 const PHASES = [
@@ -62,6 +62,7 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
   const [newRoom, setNewRoom] = useState('')
   const [showAddItem, setShowAddItem] = useState(false)
   const [newItem, setNewItem] = useState({item:'',code:'',qty:1,unit_price:0,supplier:'',arrival_date:'',arrived:false,buy_link:'',source:'catalog'})
+  const [localCosts, setLocalCosts] = useState(null)
 
   const active = projects.filter(p=>p.phase!=='done')
   const done = projects.filter(p=>p.phase==='done')
