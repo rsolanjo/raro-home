@@ -26,7 +26,7 @@ const newProj = () => ({
   purchase_list:[], rooms_config:[], annotations:[], notes:'',
 })
 
-export default function Projects({ projects, clients, onRefresh, currentUser }) {
+export default function Projects({ projects, clients, proposals=[], onRefresh, currentUser }) {
   const [sel, setSel] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState(newProj())
@@ -193,6 +193,27 @@ export default function Projects({ projects, clients, onRefresh, currentUser }) 
             <div className="section">
               <div className="sec-hdr"><div className="sec-title">Configuração por cômodo</div></div>
               <div style={{padding:'8px 0'}}>
+                {/* Auto-populate from approved proposal */}
+                {proj.proposal_id && !(proj.rooms_config||[]).length && (()=>{
+                  const linkedProposal = proposals?.find(p=>p.id===proj.proposal_id)
+                  if (!linkedProposal) return null
+                  const pFloors = Array.isArray(linkedProposal.floors) ? linkedProposal.floors
+                    : (typeof linkedProposal.floors==='string'?JSON.parse(linkedProposal.floors||'[]'):[])
+                  const allRooms = pFloors.flatMap(f=>(f.rooms||[]).map(r=>r.name)).filter(Boolean)
+                  if (!allRooms.length) return null
+                  return <div style={{margin:'0 14px 10px',background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 12px',fontSize:12}}>
+                    <div style={{fontWeight:500,marginBottom:6,color:'var(--amber)'}}>
+                      <i className="ti ti-info-circle" style={{marginRight:4}} aria-hidden/>
+                      {allRooms.length} cômodos da proposta aprovada disponíveis
+                    </div>
+                    <button className="btn primary" style={{fontSize:11}} onClick={()=>{
+                      const rooms = allRooms.map(name=>({name,installed:false,configured:false,tested:false,delivered:false,notes:''}))
+                      upd({rooms_config:rooms})
+                    }}>
+                      <i className="ti ti-wand" aria-hidden/>Importar cômodos da proposta
+                    </button>
+                  </div>
+                })()}
                 <div style={{padding:'0 14px 8px',display:'flex',gap:6}}>
                   <input value={newRoom} onChange={e=>setNewRoom(e.target.value)} placeholder="Adicionar cômodo..." style={{flex:1,fontSize:12}} onKeyDown={e=>e.key==='Enter'&&addRoom()} />
                   <button className="btn primary" style={{fontSize:11}} onClick={addRoom}><i className="ti ti-plus" aria-hidden /></button>

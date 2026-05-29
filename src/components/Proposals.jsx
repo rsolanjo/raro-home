@@ -415,6 +415,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
         proposal={contractProposal}
         clients={clients}
         onClose={()=>setContractProposal(null)}
+        onSend={(p)=>{ setContractProposal(null); setSendProposal(p) }}
       />}
     </>
   )
