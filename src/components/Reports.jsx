@@ -141,11 +141,11 @@ export default function Reports({ projects, proposals, stock, clients, currentUs
     { key:'audit',     label:'Log de auditoria',       icon:'ti-history' },
   ]
 
-  const allUsers = [...new Set(auditLog.map(l => l.user).filter(Boolean))]
+  const allUsers = [...new Set(auditLog.map(l => l.user_name).filter(Boolean))]
   const allModules = [...new Set(auditLog.map(l => l.module).filter(Boolean))]
   const filteredAudit = auditLog.filter(l =>
     (auditFilter.module === 'all' || l.module === auditFilter.module) &&
-    (auditFilter.user === 'all' || l.user === auditFilter.user)
+    (auditFilter.user === 'all' || l.user_name === auditFilter.user)
   )
 
   const ACTION_COLOR = {
@@ -493,14 +493,14 @@ export default function Reports({ projects, proposals, stock, clients, currentUs
                   const icon = ACTION_ICON[l.action]||'ti-dots'
                   return <tr key={i}>
                     <td className="mono" style={{fontSize:10}}>{new Date(l.date).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
-                    <td style={{fontWeight:500,color:'var(--accent)',fontSize:12}}>{l.user||'—'}</td>
+                    <td style={{fontWeight:500,color:'var(--accent)',fontSize:12}}>{l.user_name||'—'}</td>
                     <td><span className="badge b-gray" style={{fontSize:10}}>{l.module||'—'}</span></td>
                     <td><span style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:clr,fontWeight:500}}>
                       <i className={`ti ${icon}`} style={{fontSize:11}} aria-hidden/>{l.action}
                     </span></td>
                     <td style={{fontSize:12}}>{l.entity_name||l.entity_id||'—'}</td>
                     <td style={{fontSize:10,color:'var(--text3)',maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                      {l.after ? l.after.slice(0,80)+'...' : '—'}
+                      {l.before && l.after ? <span title={`Antes: ${l.before}`}>{l.after.slice(0,100)}</span> : (l.after||l.before||'—')}
                     </td>
                   </tr>
                 })}

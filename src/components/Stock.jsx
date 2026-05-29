@@ -10,7 +10,7 @@ const CABLE_MAP = {
   'PC-VRM':{ color:'#DC2626', label:'Uplink' },
 }
 
-export default function Stock({ stock: rawStock, suppliers, onRefresh, currentUser }) {
+export default function Stock({ stock: rawStock, catalog: catalogItems=[], suppliers, onRefresh, currentUser }) {
   const [stock, setStock] = useState(rawStock || [])
   const [log, setLog]     = useState([])
   const [showPIN, setShowPIN]   = useState(false)
@@ -385,13 +385,34 @@ export default function Stock({ stock: rawStock, suppliers, onRefresh, currentUs
         <div className="modal-overlay">
           <div className="modal" onClick={e=>e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title">{editing?'Editar item':'Novo item de estoque'}</div>
+              <div className="modal-title">{editing?'Editar item de estoque':'Novo item de estoque'}</div>
               <button className="modal-close" onClick={()=>setShowModal(false)}>×</button>
             </div>
-            <div className="form-row">
+            {/* New item: pick from catalog */}
+            {!editing && <div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
+              <div className="flabel" style={{marginBottom:6}}>Selecionar produto do catálogo <span style={{color:'var(--red)',fontWeight:600}}>*</span></div>
+              <select value={form.code} onChange={e=>{
+                const cat=catalogItems.find(ci=>ci.code===e.target.value)
+                if(cat) setForm(prev=>({...prev,
+                  code:cat.code, name:cat.name,
+                  category:cat.category||prev.category,
+                  cost_price:cat.cost_price||0,
+                  unit_price:cat.sale_price||0,
+                  buy_link:cat.buy_link||'',
+                  supplier_id:cat.supplier_id||''
+                }))
+                else f('code',e.target.value)
+              }} style={{width:'100%',fontSize:13,padding:'8px 10px',border:'1px solid var(--amber)',borderRadius:5}}>
+                <option value="">— Selecione um produto do catálogo —</option>
+                {catalogItems.filter(ci=>!stock.find(s=>s.code===ci.code)).map(ci=>(
+                  <option key={ci.id} value={ci.code}>{ci.name} · {ci.code}</option>
+                ))}
+              </select>
+              <div style={{fontSize:10,color:'var(--text3)',marginTop:4}}>Apenas produtos não cadastrados no estoque aparecem aqui</div>
+            </div>}
+            {editing && <div className="form-row">
               <div className="fg"><div className="flabel">Código</div>
-                <input value={form.code} onChange={e=>f('code',e.target.value)} placeholder="ex: QAGPM2" autoFocus/>
-              </div>
+                <input value={form.code} readOnly style={{opacity:0.6}}/></div>
               <div className="fg"><div className="flabel">Categoria</div>
                 <select value={form.category} onChange={e=>f('category',e.target.value)}>
                   <option>CPD / Rack</option><option>Automação</option><option>Interruptor</option>
@@ -400,12 +421,12 @@ export default function Stock({ stock: rawStock, suppliers, onRefresh, currentUs
                   <option>Segurança / CFTV</option><option>Elétrica</option><option>Outro</option>
                 </select>
               </div>
-            </div>
-            <div className="form-row full" style={{marginBottom:12}}>
+            </div>}
+            {editing && <div className="form-row full" style={{marginBottom:12}}>
               <div className="fg"><div className="flabel">Nome do produto</div>
-                <input value={form.name} onChange={e=>f('name',e.target.value)} placeholder="Nome completo"/>
+                <input value={form.name} readOnly style={{opacity:0.6}}/>
               </div>
-            </div>
+            </div>}
             <div className="form-row">
               <div className="fg"><div className="flabel">Quantidade atual</div>
                 <input type="number" min="0" value={form.qty} onChange={e=>f('qty',e.target.value)}/>

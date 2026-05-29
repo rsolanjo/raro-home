@@ -79,7 +79,6 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
   const [catFilter, setCatFilter] = useState('all')
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [showComparative, setShowComparative] = useState(false)
   const [showCatModal, setShowCatModal] = useState(false)
   const [newCat, setNewCat] = useState('')
   const [form, setForm] = useState({code:'',name:'',category:'Interruptor',cost_price:0,sale_price:0,pitch:'',buy_link:'',supplier_id:''})
@@ -105,18 +104,6 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
     (!search || c.name.toLowerCase().includes(search.toLowerCase()) || c.code.toLowerCase().includes(search.toLowerCase()))
   )
 
-  const roomAvgs = {}
-  proposals.forEach(p=>{
-    ;(p.floors||[]).forEach(fl=>{
-      ;(fl.rooms||[]).forEach(r=>{
-        if(!r.name||!r.price) return
-        const key=r.name.toLowerCase().trim()
-        if(!roomAvgs[key]) roomAvgs[key]={total:0,count:0,name:r.name}
-        roomAvgs[key].total+=r.price; roomAvgs[key].count+=1
-      })
-    })
-  })
-  const avgs=Object.values(roomAvgs).map(r=>({...r,avg:Math.round(r.total/r.count)})).sort((a,b)=>b.avg-a.avg)
 
   function openNew(){
     requirePIN(()=>{
@@ -129,7 +116,12 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
   async function handleSave(){
     try {
       const sp = form.sale_price>0 ? Number(form.sale_price) : Number(form.cost_price)*2
-      const item = {...form, cost_price:Number(form.cost_price), sale_price:sp}
+      const item = {
+        ...form,
+        cost_price: Number(form.cost_price)||0,
+        sale_price: sp||0,
+        supplier_id: form.supplier_id && form.supplier_id !== '' ? Number(form.supplier_id) : null,
+      }
       const before = editing ? catalog.find(c=>c.id===editing.id) : null
       const saved = await saveCatalogItem(item)
       await addAuditLog({
@@ -159,7 +151,6 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
         <div className="topbar-title"><i className="ti ti-list-details" aria-hidden/>Catálogo de Produtos</div>
         <div className="topbar-acts">
           <button className="btn" onClick={()=>setShowCatModal(true)}><i className="ti ti-tag" aria-hidden/>Categorias</button>
-          <button className="btn" onClick={()=>setShowComparative(true)}><i className="ti ti-chart-bar" aria-hidden/>Comparativo</button>
           <button className="btn primary" onClick={openNew}><i className="ti ti-plus" aria-hidden/>Novo produto</button>
         </div>
       </div>
@@ -294,33 +285,7 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
       )}
 
       {/* Comparative modal */}
-      {showComparative && (
-        <div className="modal-overlay">
-          <div className="modal" style={{width:540,maxHeight:'80vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-title"><i className="ti ti-chart-bar" style={{marginRight:6}} aria-hidden/>Comparativo — Média por cômodo</div>
-              <button className="modal-close" onClick={()=>setShowComparative(false)}>×</button>
-            </div>
-            {avgs.length===0
-              ? <div style={{textAlign:'center',padding:'24px 0',color:'var(--text3)'}}>Nenhum orçamento enviado ainda</div>
-              : <table className="tbl">
-                  <thead><tr><th>Cômodo</th><th>Média</th><th>Menor</th><th>Maior</th><th>Qtd.</th></tr></thead>
-                  <tbody>
-                    {avgs.map(r=>{
-                      const vals=proposals.flatMap(p=>(p.floors||[]).flatMap(f=>(f.rooms||[]).filter(rm=>rm.name?.toLowerCase()===r.name.toLowerCase()).map(rm=>rm.price||0))).filter(v=>v>0)
-                      return <tr key={r.name}>
-                        <td style={{fontWeight:500}}>{r.name}</td>
-                        <td style={{color:'var(--accent)',fontWeight:600}}>R$ {r.avg.toLocaleString('pt-BR')}</td>
-                        <td style={{color:'var(--green)',fontSize:12}}>R$ {(Math.min(...vals)||0).toLocaleString('pt-BR')}</td>
-                        <td style={{color:'var(--amber)',fontSize:12}}>R$ {(Math.max(...vals)||0).toLocaleString('pt-BR')}</td>
-                        <td style={{color:'var(--text3)',fontSize:12}}>{r.count}</td>
-                      </tr>
-                    })}
-                  </tbody>
-                </table>}
-          </div>
-        </div>
-      )}
+      
       {showPIN&&<PINModal
         onSuccess={()=>{setShowPIN(false);const a=pinAction;setPinAction(null);if(a){Promise.resolve(a()).catch(e=>{console.error(e);alert('Erro: '+e.message)})}}}
         onCancel={()=>{setShowPIN(false);setPinAction(null)}}/>}

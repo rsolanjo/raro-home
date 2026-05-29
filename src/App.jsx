@@ -130,7 +130,7 @@ export default function App() {
           {page==='builder'    && <ProposalBuilder clients={data.clients} onRefresh={refresh} editProposal={editingProposal} isAdmin={true} currentUser={user} />}
           {page==='projects'   && <Projects projects={data.projects} clients={data.clients} onRefresh={refresh} currentUser={user} />}
           {page==='schedule'   && <Schedule projects={data.projects} />}
-          {page==='stock'      && <Stock stock={data.stock} suppliers={data.suppliers} onRefresh={refresh} currentUser={user} />}
+          {page==='stock'      && <Stock stock={data.stock} catalog={data.catalog} suppliers={data.suppliers} onRefresh={refresh} currentUser={user} />}
           {page==='clients'    && <Clients clients={data.clients} proposals={data.proposals} projects={data.projects} onRefresh={refresh} onEditProposal={p=>{editProposal(p)}} currentUser={user} />}
           {page==='catalog'    && <Catalog catalog={data.catalog} suppliers={data.suppliers} onRefresh={refresh} isAdmin={true} currentUser={user} />}
           {page==='suppliers'  && <Suppliers suppliers={data.suppliers} onRefresh={refresh} />}

@@ -1,3 +1,4 @@
+import Contract from './Contract.jsx'
 import { openProposalPDF } from './proposalPDF.js'
 import { useState } from 'react'
 import { saveProposal, deleteProposal, getProposals, auditedSave, saveProject, getProjects } from '../db/supabase.js'
@@ -20,6 +21,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
   const [filter,   setFilter]   = useState('all')
   const [search,   setSearch]   = useState('')
   const [changeReq, setChangeReq] = useState(null)
+  const [contractProposal, setContractProposal] = useState(null)
   const [sortCol,  setSortCol]  = useState('id')
   const [sortDir,  setSortDir]  = useState('desc')
   const [showComp, setShowComp] = useState(false)
@@ -249,6 +251,10 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
                               </button>
                             </a>}
                             <button className="btn danger" style={{fontSize:11,padding:'3px 7px'}} onClick={()=>setChangeReq({proposal:p,newStatus:'__delete__'})} title="Excluir"><i className="ti ti-trash" aria-hidden/></button>
+                            {p.status==='approved'&&<button className="btn" style={{fontSize:11,padding:'3px 7px',borderColor:'#059669',color:'#059669'}}
+                              onClick={()=>setContractProposal(p)} title="Gerar contrato">
+                              <i className="ti ti-file-contract" aria-hidden/>Contrato
+                            </button>}
                           </>
                         })()}
                       </div>
@@ -405,6 +411,11 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
           </div>
         </div>
       )}
+      {contractProposal && <Contract
+        proposal={contractProposal}
+        clients={clients}
+        onClose={()=>setContractProposal(null)}
+      />}
     </>
   )
 }

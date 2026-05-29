@@ -1267,24 +1267,14 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
           </div>
         )}
 
-        <div style={{display:'flex',gap:8,justifyContent:'flex-end',flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
           <button className="btn" onClick={()=>setShowSaveModal(false)}>Cancelar</button>
-          <button className="btn" onClick={async ()=>{ await handleSaveConfirm(); }}
+          <button className="btn primary" onClick={handleSaveConfirm}
             disabled={isSaving||laborInput===''||laborInput===null||laborInput===undefined}
-            style={{minWidth:110}}>
+            style={{minWidth:130}}>
             {isSaving
               ? <><i className="ti ti-loader" style={{animation:'spin 1s linear infinite'}} aria-hidden/>Salvando...</>
-              : <><i className="ti ti-device-floppy" aria-hidden/>Salvar</>}
-          </button>
-          <button className="btn primary" onClick={async ()=>{
-              await handleSaveConfirm()
-              setSendTargets({}); setCustomPhone(''); setSendEmail(''); setShowSendModal(true)
-            }}
-            disabled={isSaving||laborInput===''||laborInput===null||laborInput===undefined}
-            style={{minWidth:140}}>
-            {isSaving
-              ? <><i className="ti ti-loader" style={{animation:'spin 1s linear infinite'}} aria-hidden/>Salvando...</>
-              : <><i className="ti ti-send" aria-hidden/>Salvar e Enviar</>}
+              : <><i className="ti ti-device-floppy" aria-hidden/>Salvar proposta</>}
           </button>
         </div>
       </div></div>}

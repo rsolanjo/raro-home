@@ -202,7 +202,7 @@ export function clearPINSession() { localStorage.removeItem(_PK) }
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 export async function getIncompleteClients() {
   const clients = await getClients()
-  return clients.filter(c=>!c.phone1||!c.neighborhood||!c.housing_type||!c.email)
+  return clients.filter(c=>!c.full_name1||!c.phone1||!c.neighborhood||!c.housing_type||!c.email)
 }
 export async function getAutoTasks() {
   const projects = await getProjects()

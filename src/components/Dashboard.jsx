@@ -28,7 +28,7 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
     return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'short' })
   }
 
-  const MISSING_LABELS = { phone1:'Telefone', neighborhood:'Bairro', housing_type:'Tipo moradia', email:'E-mail' }
+  const MISSING_LABELS = { full_name1:'Nome completo', phone1:'Telefone', neighborhood:'Bairro', housing_type:'Tipo moradia', email:'E-mail' }
 
   return (
     <>
