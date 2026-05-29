@@ -315,18 +315,19 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
       {/* Comparative modal */}
       {showComp && (
         <div className="modal-overlay">
-          <div className="modal" style={{width:'95vw',maxWidth:1100,maxHeight:'92vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+          <div className="modal" style={{width:'98vw',maxWidth:1200,height:'95vh',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title"><i className="ti ti-chart-bar" style={{marginRight:6}} aria-hidden/>Comparativo de Margens e Itens</div>
               <div style={{display:'flex',gap:8,alignItems:'center'}}>
                 <button className="btn" style={{fontSize:11,padding:'3px 9px'}} onClick={()=>{
                   const el=document.getElementById('comp-table-content')
                   if(!el) return
-                  const w=window.open('','_blank')
-                  w.document.write('<html><head><title>Comparativo RARO Home</title><style>body{font-family:sans-serif;font-size:11px;padding:16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:6px 10px;text-align:left}th{background:#f5f5f5;font-weight:600}tr:hover{background:#fafafa}</style></head><body>'+el.innerHTML+'</body></html>')
-                  w.document.close()
-                  setTimeout(()=>w.print(),400)
-                }}><i className="ti ti-printer" aria-hidden/>Exportar</button>
+                  const html='<html><head><title>Comparativo RARO Home</title><style>body{font-family:sans-serif;font-size:11px;padding:20px}h3{margin:16px 0 6px;font-size:13px}table{width:100%;border-collapse:collapse;margin-bottom:16px}th,td{border:1px solid #ddd;padding:6px 10px;text-align:left}th{background:#f5f5f5;font-weight:600}</style></head><body>'+el.innerHTML+'</body></html>'
+                  const blob=new Blob([html],{type:'text/html'})
+                  const url=URL.createObjectURL(blob)
+                  const w=window.open(url,'_blank')
+                  if(w) setTimeout(()=>w.print(),500)
+                }}><i className="ti ti-printer" aria-hidden/>Exportar / Imprimir</button>
                 <button className="modal-close" onClick={()=>setShowComp(false)}>×</button>
               </div>
             </div>

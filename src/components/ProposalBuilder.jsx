@@ -47,24 +47,69 @@ function mkRoom(){ return{id:Date.now()+Math.random(),name:'',icon:'◈',highlig
 function mkFloor(n){ return{id:Date.now()+Math.random(),name:n||'Primeiro Pavimento',rooms:[]} }
 
 // ── TEST HOUSE GENERATOR ───────────────────────────────────
-function generateTestHouse(catalog){
-  const getItem = (code, qty) => {
-    const c = catalog.find(x=>x.code===code)||catalog[0]
-    return {name:c?.name||code, code, qty:String(qty), sale_price:c?.sale_price||0, cost_price:c?.cost_price||0}
-  }
+function makeRooms(rows){ return rows.map(([n,icon,hl,items,price,pitch])=>({id:Date.now()+Math.random(),name:n,icon,highlight:hl,items:items.filter(Boolean),price:String(price||0),pitch:pitch||''})) }
+function makeFloor(name, rooms){ return {id:Date.now()+Math.random(),name,rooms:makeRooms(rooms)} }
+function templateLinear2q(catalog){
+  const I=c=>{const x=catalog.find(i=>i.code===c);return x?{name:x.name,code:x.code,qty:'1',cost_price:x.cost_price||0,sale_price:x.sale_price||0,category:x.category||'',pitch:x.pitch||''}:null}
+  return [makeFloor('Primeiro Pavimento',[
+    ['CPD / Central de Automação','◉',true,[I('QAGPM2')],1040,'O cérebro inteligente da sua automação.'],
+    ['Sala de Estar','◈',false,[I('QAT42Z3B'),I('QAIRZM2')],1958,'Cinema, som e conforto no ritmo da sua rotina.'],
+    ['Sala de Jantar','◇',false,[I('QAT42Z2B')],528,'A luz certa para cada refeição.'],
+    ['Gourmet','◆',true,[I('QAT42Z3B-PT'),I('QARZ2LR'),I('QAIRZM2')],1902,'Churrasqueira, coifa e som — o espaço já sabe.'],
+    ['Suíte Master','◉',false,[I('QAT42Z3B'),I('QARZ2LR'),I('QAIRZM2')],2244,'A suíte mais conectada da casa.'],
+    ['Suíte 2','◉',false,[I('QAT42Z2B'),I('QARZ2LR'),I('QAIRZM2')],1716,'Conforto e automação em cada detalhe.'],
+    ['WC Master','○',false,[I('QAT42Z2B-PT')],528,'Automação discreta.'],
+    ['Corredor','▷',false,[I('QAT42Z1B-PT')],440,'Automação de passagem.'],
+  ])]
+}
+function templateLinear3q(catalog){
+  const I=c=>{const x=catalog.find(i=>i.code===c);return x?{name:x.name,code:x.code,qty:'1',cost_price:x.cost_price||0,sale_price:x.sale_price||0,category:x.category||'',pitch:x.pitch||''}:null}
+  return [makeFloor('Primeiro Pavimento',[
+    ['CPD / Central de Automação','◉',true,[I('QAGPM2'),I('QASG8')],2020,'O cérebro que conecta e protege cada detalhe.'],
+    ['Sala de Estar','◈',false,[I('QAT44Z6B'),I('QAIRZM2')],1386,'Cinema, som e conforto no ritmo da sua rotina.'],
+    ['Sala de Jantar','◇',false,[I('QAT42Z3B')],572,'A luz certa para cada refeição.'],
+    ['Gourmet','◆',true,[I('QAT42Z3B-PT'),I('QARZ2LR'),I('QAIRZM2')],2140,'Churrasqueira, coifa e som — o espaço já sabe.'],
+    ['Suíte Master','◉',false,[I('QAT42Z3B'),I('QARZ2LR'),I('QAIRZM2')],2866,'A suíte mais conectada da casa.'],
+    ['Suíte 2','◉',false,[I('QAT42Z2B'),I('QARZ2LR'),I('QAIRZM2')],1589,'Clima, automação e entretenimento.'],
+    ['Suíte 3','◉',false,[I('QAT42Z2B'),I('QARZ2LR'),I('QAIRZM2')],1589,'Conforto e automação em cada detalhe.'],
+    ['WC Master','○',false,[I('QAT42Z2B-PT')],648,'Design e automação no banheiro privativo.'],
+    ['Corredor','▷',false,[I('QAT42Z1B-PT')],440,'Automação de passagem.'],
+  ])]
+}
+function template2pav3q(catalog){
+  const I=c=>{const x=catalog.find(i=>i.code===c);return x?{name:x.name,code:x.code,qty:'1',cost_price:x.cost_price||0,sale_price:x.sale_price||0,category:x.category||'',pitch:x.pitch||''}:null}
   return [
-    {id:1, name:'Primeiro Pavimento', rooms:[
-      {id:101,name:'CPD / Central de Automação',icon:'◉',highlight:true,pitch:'O cérebro que conecta e protege cada detalhe da sua casa.',price:'7580',items:[getItem('QAGPM2',2),getItem('QASG8',1),getItem('QACD5',4)]},
-      {id:102,name:'Sala de Estar',icon:'◈',highlight:false,pitch:'Cinema, som e conforto no ritmo da sua rotina.',price:'1386',items:[getItem('QAT44Z6B',1),getItem('QAIRZM2',1)]},
-      {id:103,name:'Sala de Jantar',icon:'◇',highlight:false,pitch:'A luz certa para cada refeição.',price:'572',items:[getItem('QAT42Z3B',1)]},
-      {id:104,name:'Gourmet',icon:'◆',highlight:false,pitch:'Churrasqueira, coifa e som — o espaço já sabe.',price:'2140',items:[getItem('QAT42Z3B-PT',2),getItem('QARZ2LR',1),getItem('QAIRZM2',1)]},
-    ]},
-    {id:2, name:'Segundo Pavimento', rooms:[
-      {id:201,name:'Suíte Master',icon:'◉',highlight:true,pitch:'A suíte mais conectada da casa.',price:'2866',items:[getItem('QAT42Z3B',2),getItem('QARZ2LR',2),getItem('QAIRZM2',1)]},
-      {id:202,name:'Suíte 2',icon:'◉',highlight:false,pitch:'Clima, automação e entretenimento.',price:'1589',items:[getItem('QAT42Z2B',1),getItem('QARZ2LR',1),getItem('QAIRZM2',1)]},
-      {id:203,name:'WC Master',icon:'○',highlight:false,pitch:'Design e automação no banheiro privativo.',price:'648',items:[getItem('QAT42Z2B-PT',1),getItem('TOMRR2PT',1)]},
-      {id:204,name:'Corredor',icon:'▷',highlight:false,pitch:'Automação de passagem.',price:'440',items:[getItem('QAT42Z1B-PT',1)]},
-    ]},
+    makeFloor('Primeiro Pavimento',[
+      ['CPD / Central de Automação','◉',true,[I('QAGPM2'),I('QASG8'),I('QACD5')],7580,'O cérebro que conecta e protege cada detalhe da sua casa.'],
+      ['Sala de Estar','◈',false,[I('QAT44Z6B'),I('QAIRZM2')],1386,'Cinema, som e conforto no ritmo da sua rotina.'],
+      ['Sala de Jantar','◇',false,[I('QAT42Z3B')],572,'A luz certa para cada refeição.'],
+      ['Gourmet','◆',true,[I('QAT42Z3B-PT'),I('QARZ2LR'),I('QAIRZM2')],2140,'Churrasqueira, coifa e som — o espaço já sabe.'],
+    ]),
+    makeFloor('Segundo Pavimento',[
+      ['Suíte Master','◉',false,[I('QAT42Z3B'),I('QARZ2LR'),I('QAIRZM2')],2866,'A suíte mais conectada da casa.'],
+      ['Suíte 2','◉',false,[I('QAT42Z2B'),I('QARZ2LR'),I('QAIRZM2')],1589,'Clima, automação e entretenimento.'],
+      ['Suíte 3','◉',false,[I('QAT42Z2B'),I('QARZ2LR'),I('QAIRZM2')],1589,'Conforto e automação em cada detalhe.'],
+      ['WC Master','○',false,[I('QAT42Z2B-PT')],648,'Design e automação no banheiro privativo.'],
+      ['Corredor','▷',false,[I('QAT42Z1B-PT')],440,'Automação de passagem.'],
+    ]),
+  ]
+}
+function template2pavGourmet(catalog){
+  const I=(c,q=1)=>{const x=catalog.find(i=>i.code===c);return x?{name:x.name,code:x.code,qty:String(q),cost_price:x.cost_price||0,sale_price:x.sale_price||0,category:x.category||'',pitch:x.pitch||''}:null}
+  return [
+    makeFloor('Primeiro Pavimento',[
+      ['CPD / Central de Automação','◉',true,[I('QAGPM2'),I('QASG8'),I('QACD5',4)],7580,'O cérebro que conecta e protege cada detalhe da sua casa.'],
+      ['Sala de Estar','◈',false,[I('QAT44Z6B'),I('QAIRZM2')],1386,'Cinema, som e conforto no ritmo da sua rotina.'],
+      ['Sala de Jantar','◇',false,[I('QAT42Z3B')],572,'A luz certa para cada refeição.'],
+      ['Gourmet Premium','◆',true,[I('QAT42Z3B-PT',2),I('QARZ2LR'),I('QAIRZM2')],2140,'Churrasqueira, coifa, som e telão — o espaço definitivo.'],
+      ['Área Externa','◈',true,[I('QAT42Z2B-PT'),I('QARZ2LR')],1200,'Som ambiente e iluminação por smartphone.'],
+    ]),
+    makeFloor('Segundo Pavimento',[
+      ['Suíte Master','◉',false,[I('QAT42Z3B'),I('QARZ2LR'),I('QAIRZM2')],2866,'A suíte mais conectada da casa.'],
+      ['Suíte 2','◉',false,[I('QAT42Z2B'),I('QARZ2LR'),I('QAIRZM2')],1589,'Clima, automação e entretenimento.'],
+      ['WC Master','○',false,[I('QAT42Z2B-PT')],648,'Design e automação no banheiro privativo.'],
+      ['Corredor','▷',false,[I('QAT42Z1B-PT')],440,'Automação de passagem.'],
+    ]),
   ]
 }
 
@@ -671,9 +716,20 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
         </div>
         <div className="topbar-acts">
           {/* Test button */}
-          <button className="btn" style={{fontSize:11,borderColor:'#7C3AED',color:'#7C3AED'}} onClick={loadTest} title="Gerar casa teste 8 cômodos / 2 pavimentos">
-            <i className="ti ti-flask" aria-hidden/>Teste
-          </button>
+          <select style={{fontSize:11,padding:'4px 8px',border:'1px solid #7C3AED',borderRadius:5,color:'#7C3AED',background:'var(--bg)',cursor:'pointer'}}
+            value="" onChange={e=>{
+              if(!e.target.value) return
+              const templates={l2q:templateLinear2q,l3q:templateLinear3q,p2p3q:template2pav3q,p2pg:template2pavGourmet}
+              const fn=templates[e.target.value]
+              if(fn){ setFloors(fn(catalog)); setCf(0); setCr(-1) }
+              e.target.value=""
+            }}>
+            <option value="">📐 Template...</option>
+            <option value="l2q">Linear 2 quartos</option>
+            <option value="l3q">Linear 3 quartos</option>
+            <option value="p2p3q">2 Pavimentos — 3 quartos</option>
+            <option value="p2pg">2 Pavimentos — Gourmet Premium</option>
+          </select>
           <button className="btn" onClick={genPitch} disabled={!room} title={!room?"Selecione um cômodo primeiro":"Gerar pitch automático para o cômodo"}><i className="ti ti-wand" aria-hidden/>Pitch</button>
           {/* FONT SIZE CONTROLS for PDF */}
           <div style={{display:'flex',alignItems:'center',gap:3,background:'var(--surf)',border:'1px solid var(--border)',borderRadius:5,padding:'2px 6px'}}>
@@ -1370,7 +1426,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
               const cl=clients.find(c=>c.id===Number(clientId))
               const totalVal=(floors||[]).reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(r.price||0),s),0)+parse(labor)
               const totalFmt=`R$ ${totalVal.toLocaleString('pt-BR',{minimumFractionDigits:2})}`
-              const msg=encodeURIComponent(`Olá ${cl?.name1||clientName}! Tudo bem?\n\nSegue sua proposta RARO Home:\n📋 *${proposalCode}*\n💰 *${totalFmt}*\n\nO PDF foi enviado em anexo nesta conversa.\n\nQualquer dúvida, estou à disposição! 🏠\n— Rogério | RARO Home\n📱 (21) 98170-9009`)
+              const msg=encodeURIComponent(`${cl?.name1||clientName}, sua casa vai ser outra. ✨\n\nA proposta RARO Home chegou:\n📋 *${proposalCode}* · 💰 *${totalFmt}*\n\nPDF em anexo — quando quiser conversar, é só chamar.\n\nRogério · RARO Home · (21) 98170-9009`)
               // 1. Download PDF automatically
               openPDF(false, false)
               await new Promise(r=>setTimeout(r,800))

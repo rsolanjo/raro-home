@@ -56,7 +56,7 @@ function buildContract(proposal, client) {
   <meta charset="UTF-8"><title>Contrato RARO Home — ${proposal.code||proposal.id}</title>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
-    @page{size:A4;margin:22mm 20mm}
+    @page{size:A4;margin:18mm 16mm}
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'DM Sans',sans-serif;font-size:10.5px;color:#1a1a1a;line-height:1.75;background:#fff}
     h1{font-family:'DM Serif Display',serif;font-size:20px;color:#060B1A;margin-bottom:2px}
@@ -147,7 +147,7 @@ function buildContract(proposal, client) {
   <div class="clause"><span class="clause-num">4.5 EXCLUSÕES DE GARANTIA:</span> Não estão cobertos: danos causados por mau uso, sobretensão elétrica, raio, inundação, quedas físicas, modificações realizadas por terceiros não autorizados, ou uso fora das especificações técnicas dos fabricantes.</div>
   <div class="clause"><span class="clause-num">4.6 CANCELAMENTO:</span> Em caso de cancelamento por parte do CONTRATANTE após o início da execução dos serviços, serão devidos os valores proporcionais aos serviços já prestados e materiais já adquiridos, acrescidos de multa de <strong>20% (vinte por cento)</strong> sobre o valor total contratado.</div>
   <div class="clause"><span class="clause-num">4.7 CONFIDENCIALIDADE:</span> As partes comprometem-se a manter sigilo sobre as informações técnicas, comerciais e pessoais trocadas no âmbito deste contrato.</div>
-  <div class="clause"><span class="clause-num">4.8 FORO:</span> As partes elegem o foro da comarca do Rio de Janeiro/RJ para dirimir quaisquer controvérsias oriundas deste instrumento, renunciando a qualquer outro por mais privilegiado que seja.</div>
+
 
   <h2>5. Aceite e Assinaturas</h2>
   <div style="font-size:10px;color:#3D5A80;margin-bottom:16px">

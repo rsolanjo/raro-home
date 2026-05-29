@@ -26,13 +26,15 @@ const newProj = () => ({
   purchase_list:[], rooms_config:[], annotations:[], notes:'',
 })
 
-export default function Projects({ projects, clients, proposals=[], onRefresh, currentUser }) {
+export default function Projects({ projects, clients, proposals=[], catalog=[], onRefresh, currentUser }) {
   const [sel, setSel] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState(newProj())
   const [tab, setTab] = useState('overview')
   const [note, setNote] = useState('')
   const [newRoom, setNewRoom] = useState('')
+  const [showAddItem, setShowAddItem] = useState(false)
+  const [newItem, setNewItem] = useState({item:'',code:'',qty:1,unit_price:0,supplier:'',arrival_date:'',arrived:false,buy_link:'',source:'catalog'})
 
   const active = projects.filter(p=>p.phase!=='done')
   const done = projects.filter(p=>p.phase==='done')
@@ -66,7 +68,7 @@ export default function Projects({ projects, clients, proposals=[], onRefresh, c
   }
 
   function addItem(){
-    upd({purchase_list:[...(proj.purchase_list||[]),{item:'',code:'',qty:1,unit_price:0,supplier:'',arrival_date:'',arrived:false,buy_link:''}]})
+    setNewItem({item:'',code:'',qty:1,unit_price:0,supplier:'',arrival_date:'',arrived:false,buy_link:'',source:'catalog'}); setShowAddItem(true)
   }
 
   function updItem(i,patch){
@@ -438,6 +440,68 @@ export default function Projects({ projects, clients, proposals=[], onRefresh, c
           </div>
         </div>
       </div>}
+      {showAddItem && (
+        <div className="modal-overlay">
+          <div className="modal" style={{width:520}} onClick={e=>e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title"><i className="ti ti-shopping-cart-plus" style={{marginRight:6}} aria-hidden/>Adicionar item à lista de compras</div>
+              <button className="modal-close" onClick={()=>setShowAddItem(false)}>×</button>
+            </div>
+            <div style={{display:'flex',gap:8,marginBottom:12}}>
+              <button className={`btn${newItem.source==='catalog'?' primary':''}`} style={{fontSize:11}} onClick={()=>setNewItem(p=>({...p,source:'catalog'}))}>Do catálogo</button>
+              <button className={`btn${newItem.source==='manual'?' primary':''}`} style={{fontSize:11}} onClick={()=>setNewItem(p=>({...p,source:'manual'}))}>Manual</button>
+            </div>
+            {newItem.source==='catalog' ? (
+              <div className="fg" style={{marginBottom:10}}>
+                <div className="flabel">Selecionar do catálogo</div>
+                <select value={newItem.code} onChange={e=>{
+                  const cat=catalog?.find(ci=>ci.code===e.target.value)
+                  if(cat) setNewItem(p=>({...p,code:cat.code,item:cat.name,unit_price:cat.sale_price||0}))
+                  else setNewItem(p=>({...p,code:e.target.value}))
+                }} style={{width:'100%',fontSize:13}}>
+                  <option value="">— Selecione —</option>
+                  {(catalog||[]).map(ci=><option key={ci.id} value={ci.code}>{ci.name} ({ci.code}) — R$ {(ci.sale_price||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div className="form-row full" style={{marginBottom:10}}>
+                <div className="fg">
+                  <div className="flabel">Descrição do item</div>
+                  <input value={newItem.item} onChange={e=>setNewItem(p=>({...p,item:e.target.value}))} placeholder="ex: Cabo CAT6 300m..." autoFocus/>
+                </div>
+              </div>
+            )}
+            <div className="form-row">
+              <div className="fg"><div className="flabel">Qtd</div>
+                <input type="number" min="1" value={newItem.qty} onChange={e=>setNewItem(p=>({...p,qty:e.target.value}))} style={{width:70}}/></div>
+              <div className="fg"><div className="flabel">Preço unit. (R$)</div>
+                <input type="number" value={newItem.unit_price} onChange={e=>setNewItem(p=>({...p,unit_price:e.target.value}))}/></div>
+              <div className="fg"><div className="flabel">Fornecedor</div>
+                <input value={newItem.supplier} onChange={e=>setNewItem(p=>({...p,supplier:e.target.value}))} placeholder="ex: QA Tech"/></div>
+            </div>
+            <div className="form-row">
+              <div className="fg"><div className="flabel">Previsão chegada</div>
+                <input type="date" value={newItem.arrival_date||''} onChange={e=>setNewItem(p=>({...p,arrival_date:e.target.value}))}/></div>
+              <div className="fg"><div className="flabel">Link de compra</div>
+                <input value={newItem.buy_link||''} onChange={e=>setNewItem(p=>({...p,buy_link:e.target.value}))} placeholder="URL..."/></div>
+            </div>
+            {newItem.item&&<div style={{background:'var(--surf)',borderRadius:5,padding:'6px 10px',fontSize:12,marginBottom:10,color:'var(--text2)'}}>
+              Total: <b style={{color:'var(--accent)'}}>R$ {((Number(newItem.qty)||1)*(Number(newItem.unit_price)||0)).toLocaleString('pt-BR',{minimumFractionDigits:2})}</b>
+            </div>}
+            <div style={{display:'flex',gap:8,justifyContent:'space-between'}}>
+              <button className="btn" onClick={()=>setShowAddItem(false)}>Fechar</button>
+              <div style={{display:'flex',gap:8}}>
+                <button className="btn" onClick={confirmAddItem} disabled={!newItem.item}>
+                  <i className="ti ti-plus" aria-hidden/>Adicionar + manter aberto
+                </button>
+                <button className="btn primary" onClick={()=>{confirmAddItem();setShowAddItem(false)}} disabled={!newItem.item}>
+                  <i className="ti ti-check" aria-hidden/>Adicionar e fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

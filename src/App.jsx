@@ -129,7 +129,7 @@ export default function App() {
           {page==='dashboard'  && <Dashboard proposals={data.proposals} projects={data.projects} stock={data.stock} clients={data.clients} onNav={nav} />}
           {page==='proposals'  && <Proposals proposals={data.proposals} onRefresh={refresh} onEdit={editProposal} onNew={newProposal} currentUser={user} clients={data.clients} />}
           {page==='builder'    && <ProposalBuilder clients={data.clients} onRefresh={refresh} editProposal={editingProposal} isAdmin={true} currentUser={user} />}
-          {page==='projects'   && <Projects projects={data.projects} clients={data.clients} proposals={data.proposals} onRefresh={refresh} currentUser={user} />}
+          {page==='projects'   && <Projects projects={data.projects} clients={data.clients} proposals={data.proposals} catalog={data.catalog} onRefresh={refresh} currentUser={user} />}
           {page==='schedule'   && <Schedule projects={data.projects} />}
           {page==='stock'      && <Stock stock={data.stock} catalog={data.catalog} suppliers={data.suppliers} onRefresh={refresh} currentUser={user} />}
           {page==='clients'    && <Clients clients={data.clients} proposals={data.proposals} projects={data.projects} onRefresh={refresh} onEditProposal={p=>{editProposal(p)}} currentUser={user} />}
