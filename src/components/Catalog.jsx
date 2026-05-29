@@ -78,6 +78,20 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState('all')
   const [showModal, setShowModal] = useState(false)
+
+  async function exportCatalog() {
+    const rows = [['Código','Nome','Categoria','Custo (R$)','Venda (R$)','Margem%','Pitch','Link']]
+    catalog.forEach(c => {
+      const mg = c.cost_price>0?Math.round((c.sale_price-c.cost_price)/c.cost_price*100):0
+      rows.push([c.code,c.name,c.category||'',c.cost_price||0,c.sale_price||0,`${mg}%`,c.pitch||'',c.buy_link||''])
+    })
+    const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n')
+    const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href=url; a.download=`catalogo-raro-${new Date().toISOString().slice(0,10)}.csv`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    setTimeout(()=>URL.revokeObjectURL(url),2000)
+  }
   const [editing, setEditing] = useState(null)
   const [showCatModal, setShowCatModal] = useState(false)
   const [newCat, setNewCat] = useState('')

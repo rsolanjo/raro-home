@@ -27,13 +27,14 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
 
       <div className="sb-section">Menu</div>
       {item('dashboard','layout-dashboard','Dashboard')}
-      {item('dashboard','layout-dashboard','Dashboard')}
       {item('financial','coin','Financeiro')}
       {item('reports','chart-bar','Relatórios')}
       {item('proposals','file-invoice','Orçamentos',counts.proposals)}
       {item('projects','layout-kanban','Projetos',counts.projects,'ok')}
       {item('schedule','calendar-event','Cronograma')}
 
+      <div className="sb-section">Sistema</div>
+      {item('backup','database-export','Backup & Restore')}
       <div className="sb-section">Cadastros</div>
       {item('clients','users','Clientes')}
       {item('catalog','list-details','Catálogo')}

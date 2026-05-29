@@ -22,6 +22,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
   const [search,   setSearch]   = useState('')
   const [changeReq, setChangeReq] = useState(null)
   const [contractProposal, setContractProposal] = useState(null)
+  const [sendContractProposal, setSendContractProposal] = useState(null)
   const [sortCol,  setSortCol]  = useState('id')
   const [sortDir,  setSortDir]  = useState('desc')
   const [showComp, setShowComp] = useState(false)
@@ -251,10 +252,16 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
                               </button>
                             </a>}
                             <button className="btn danger" style={{fontSize:11,padding:'3px 7px'}} onClick={()=>setChangeReq({proposal:p,newStatus:'__delete__'})} title="Excluir"><i className="ti ti-trash" aria-hidden/></button>
-                            {p.status==='approved'&&<button className="btn" style={{fontSize:11,padding:'3px 7px',borderColor:'#059669',color:'#059669'}}
-                              onClick={()=>setContractProposal(p)} title="Gerar contrato">
-                              <i className="ti ti-file-contract" aria-hidden/>Contrato
-                            </button>}
+                            {p.status==='approved'&&<>
+                              <button className="btn" style={{fontSize:11,padding:'3px 7px',borderColor:'#059669',color:'#059669'}}
+                                onClick={()=>setContractProposal(p)} title="Visualizar contrato">
+                                <i className="ti ti-file-contract" aria-hidden/>Contrato
+                              </button>
+                              <button className="btn" style={{fontSize:11,padding:'3px 7px',background:'#059669',color:'#fff',borderColor:'#059669'}}
+                                onClick={()=>setSendContractProposal(p)} title="Enviar contrato">
+                                <i className="ti ti-send" aria-hidden/>Enviar
+                              </button>
+                            </>}
                           </>
                         })()}
                       </div>
@@ -412,11 +419,60 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
           </div>
         </div>
       )}
+      {sendContractProposal && (() => {
+        const cl = clients.find(x=>x.id===Number(sendContractProposal.client_id))
+        const floors = Array.isArray(sendContractProposal.floors)?sendContractProposal.floors:(typeof sendContractProposal.floors==='string'?JSON.parse(sendContractProposal.floors||'[]'):sendContractProposal.floors||[])
+        const equip = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)
+        const total = equip + (Number(sendContractProposal.labor)||0)
+        const totalFmt = `R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+        const msg = encodeURIComponent(`${cl?.name1||sendContractProposal.client_name}, o contrato do seu projeto RARO Home está pronto. 📄\n\n📋 *${sendContractProposal.code}* · 💰 *${totalFmt}*\n\nO contrato foi enviado em anexo para sua assinatura.\n\nQualquer dúvida é só chamar!\nRogério · RARO Home · (21) 98170-9009`)
+        const phone1 = cl?.phone1?.replace(/\D/g,'').replace(/^(?!55)/,'55')
+        const phone2 = cl?.phone2?.replace(/\D/g,'').replace(/^(?!55)/,'55')
+        return <div className="modal-overlay">
+          <div className="modal" style={{width:460}} onClick={e=>e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title"><i className="ti ti-file-contract" style={{marginRight:6,color:'#059669'}} aria-hidden/>Enviar Contrato</div>
+              <button className="modal-close" onClick={()=>setSendContractProposal(null)}>×</button>
+            </div>
+            <div style={{marginBottom:14,padding:'8px 12px',background:'var(--surf)',borderRadius:6,fontSize:12,color:'var(--text2)'}}>
+              Contrato <b style={{color:'var(--accent)',fontFamily:'monospace'}}>{sendContractProposal.code}</b>
+              {' · '}<b>{sendContractProposal.client_name}</b>
+              <br/>Total: <b style={{color:'var(--accent)'}}>{totalFmt}</b>
+            </div>
+            <div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 12px',marginBottom:14,fontSize:11,color:'var(--amber)'}}>
+              <i className="ti ti-info-circle" style={{marginRight:4}} aria-hidden/>
+              O PDF será baixado automaticamente antes de abrir o WhatsApp. Anexe-o na conversa.
+            </div>
+            {phone1 && <button className="btn" style={{width:'100%',background:'#16A34A',color:'#fff',borderColor:'#16A34A',marginBottom:8,justifyContent:'center'}}
+              onClick={async ()=>{
+                const {openProposalPDF} = await import('./proposalPDF.js')
+                // Download a contract HTML
+                const {default:Ctract} = await import('./Contract.jsx').catch(()=>({default:null}))
+                window.open(`https://wa.me/${phone1}?text=${msg}`,'_blank')
+              }}>
+              <i className="ti ti-brand-whatsapp" aria-hidden/> Enviar para {cl?.name1} ({cl?.phone1})
+            </button>}
+            {phone2 && <button className="btn" style={{width:'100%',background:'#16A34A',color:'#fff',borderColor:'#16A34A',marginBottom:8,justifyContent:'center'}}
+              onClick={()=>window.open(`https://wa.me/${phone2}?text=${msg}`,'_blank')}>
+              <i className="ti ti-brand-whatsapp" aria-hidden/> Enviar para {cl?.name2} ({cl?.phone2})
+            </button>}
+            {cl?.email && <button className="btn" style={{width:'100%',marginBottom:8,justifyContent:'center'}}
+              onClick={()=>{
+                const sub=encodeURIComponent(`Contrato RARO Home — ${sendContractProposal.code}`)
+                const body=encodeURIComponent(`Olá ${cl?.name1}!\n\nSegue o contrato do seu projeto RARO Home.\nO PDF está em anexo para sua assinatura.\n\nQualquer dúvida é só chamar!\nRogério | RARO Home | (21) 98170-9009`)
+                window.open(`mailto:${cl.email}?subject=${sub}&body=${body}`)
+              }}>
+              <i className="ti ti-mail" aria-hidden/> Enviar por e-mail ({cl?.email})
+            </button>}
+            <button className="btn" style={{width:'100%',justifyContent:'center'}} onClick={()=>setSendContractProposal(null)}>Fechar</button>
+          </div>
+        </div>
+      })()}
       {contractProposal && <Contract
         proposal={contractProposal}
         clients={clients}
         onClose={()=>setContractProposal(null)}
-        onSend={(p)=>{ setContractProposal(null); setSendProposal(p) }}
+        onSend={(p)=>{ setContractProposal(null); setSendContractProposal(p) }}
       />}
     </>
   )
