@@ -624,6 +624,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
       labor:parse(laborValue||labor),
       floors:floors.map(f=>({name:f.name,rooms:f.rooms.map(r=>({name:r.name,icon:r.icon,highlight:r.highlight,pitch:r.pitch,price:parse(r.price),items:(r.items||[]).filter(it=>it.name)}))})),
       valid_days:30,
+      planta_data: plantaData,
     }
   }
 
@@ -636,6 +637,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
   const [isSaving, setIsSaving] = useState(false)
   const [showPlantaIA, setShowPlantaIA] = useState(false)
   const [showPlantaEditor, setShowPlantaEditor] = useState(false)
+  const [plantaData, setPlantaData] = useState(()=> savedProposal?.planta_data || null)
   const [pdfFontSize, setPdfFontSize] = useState(9) // matches buildPDF minimum
 
   async function handleSaveConfirm(){
@@ -1482,7 +1484,17 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
       {showPlantaEditor && <PlantaEditor
         floors={floors}
         catalog={catalog}
+        savedPlan={plantaData}
         onUpdateFloors={f=>{ setFloors(f); setCf(0); setCr(-1) }}
+        onSavePlan={async (data)=>{
+          setPlantaData(data)
+          // Persiste junto da proposta se já existe
+          if (savedProposal?.id) {
+            const p = buildProposalObject(status||'draft', labor)
+            p.id = savedProposal.id; p.planta_data = data
+            const s = await saveProposal(p); setSavedProposal(s)
+          }
+        }}
         onClose={()=>setShowPlantaEditor(false)}
       />}
       {showPlantaIA && <PlantaIA

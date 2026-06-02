@@ -48,7 +48,10 @@ async function pdfToImage(base64Pdf) {
   })
 }
 
-export default function PlantaEditor({ floors=[], catalog=[], onUpdateFloors, onClose }) {
+export default function PlantaEditor({ floors=[], catalog=[], onUpdateFloors, onSavePlan, savedPlan, onClose }) {
+  const [suggesting, setSuggesting] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [bgImage, setBgImage]         = useState(null)
   const [markers, setMarkers]         = useState([]) // {id, x%, y%, itemCode, itemName, room, qty, note}
   const [dragging, setDragging]       = useState(null) // {markerId, startX, startY}
@@ -87,6 +90,16 @@ export default function PlantaEditor({ floors=[], catalog=[], onUpdateFloors, on
     })
     setMarkers(allItems)
   }, [floors])
+
+
+  // Restaurar planta salva ao abrir
+  useEffect(() => {
+    if(savedPlan?.image && !bgImage) {
+      setBgImage(savedPlan.image)
+      if(savedPlan.markers?.length) setMarkers(savedPlan.markers)
+      setStep('edit')
+    }
+  }, [savedPlan])
 
   function handleFileUpload(e) {
     const file = e.target.files[0]
@@ -190,6 +203,88 @@ Seja direto. Use ✅ para recomendação positiva, ⚠️ para ressalva, ❌ par
     setAiLoading(false)
   }
 
+  // ── IA sugere posições de TODOS os equipamentos sobre a planta ──
+  async function suggestPositions() {
+    if(!bgImage) { alert('Carregue a planta primeiro.'); return }
+    setSuggesting(true)
+    // Lista de itens a posicionar (dos marcadores atuais OU dos itens do orçamento)
+    const itemList = markers.length
+      ? markers.map(m=>`${m.itemCode}: ${m.itemName} (${m.room||'sem ambiente'})`)
+      : floors.flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).map(i=>`${i.code}: ${i.name} (${r.name})`)))
+    try {
+      const finalImg = bgImage.split(',')[1]
+      const mime = bgImage.substring(5, bgImage.indexOf(';'))
+      const res = await fetch('/api/claude', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model:'claude-sonnet-4-20250514', max_tokens:4000,
+          messages:[{role:'user', content:[
+            { type:'image', source:{ type:'base64', media_type:mime, data:finalImg } },
+            { type:'text', text:
+`Você é um especialista em automação residencial Zigbee/Matter da RARO Home.
+Esta é a planta baixa de um apartamento. Preciso posicionar os equipamentos abaixo no MELHOR lugar de cada cômodo, seguindo boas práticas:
+- Keypad: ao lado da porta de cada ambiente (lado da maçaneta)
+- Câmera: canto superior cobrindo o ambiente
+- Hub IR: só em ambientes com ar-condicionado, com visão do aparelho
+- Caixa de som: no teto, distribuída
+- Sensor presença: entrada/corredor
+- Gateway/NVR/rack: ponto central discreto (sala)
+- Módulo: forro (luz) ou janela (cortina)
+
+EQUIPAMENTOS A POSICIONAR:
+${itemList.join('\n')}
+
+Responda APENAS com JSON (sem markdown):
+{"posicoes":[{"code":"QAT42Z2B","room":"Cozinha","x":42,"y":30,"nota":"ao lado da porta"}]}
+onde x e y são porcentagens (0-100) da imagem da planta (x=esquerda→direita, y=topo→baixo).` }
+          ]}]
+        })
+      })
+      const data = await res.json()
+      let txt = data.content?.[0]?.text || ''
+      if(txt.includes('```')) txt = txt.replace(/```json?\n?/g,'').replace(/```/g,'')
+      const parsed = JSON.parse(txt.trim())
+      let cid = Date.now()
+      const newMarkers = (parsed.posicoes||[]).map(p=>{
+        const cat = catalog.find(c=>c.code===p.code)
+        return {
+          id: cid++,
+          x: Math.max(2, Math.min(98, p.x)),
+          y: Math.max(2, Math.min(96, p.y)),
+          itemCode: p.code,
+          itemName: cat?.name || p.code,
+          room: p.room || '',
+          qty: 1,
+          note: p.nota || '',
+        }
+      })
+      if(newMarkers.length) {
+        setMarkers(newMarkers)
+        setAiMsg('✅ ' + newMarkers.length + ' equipamentos posicionados pela IA. Ajuste arrastando cada um.')
+        setShowAI(true); setPendingAction(null)
+      } else {
+        setAiMsg('A IA não retornou posições. Tente novamente.')
+        setShowAI(true)
+      }
+    } catch(e) {
+      setAiMsg('❌ Erro ao sugerir posições: ' + e.message)
+      setShowAI(true)
+    }
+    setSuggesting(false)
+  }
+
+  // ── Salvar planta marcada no projeto (Supabase via onSavePlan) ──
+  async function savePlan() {
+    if(!onSavePlan) return
+    setSaving(true)
+    try {
+      await onSavePlan({ image: bgImage, markers })
+      setSaved(true)
+      setTimeout(()=>setSaved(false), 2500)
+    } catch(e) { alert('Erro ao salvar: '+e.message) }
+    setSaving(false)
+  }
+
   function removeMarker(id) {
     const m = markers.find(x=>x.id===id)
     setPendingAction({type:'remove', marker:m})
@@ -274,9 +369,17 @@ Seja direto. Use ✅ para recomendação positiva, ⚠️ para ressalva, ❌ par
             style={{background:showLegend?'rgba(14,165,233,0.3)':'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',color:'#fff',padding:'5px 12px',borderRadius:5,cursor:'pointer',fontSize:11}}>
             <i className="ti ti-list" style={{marginRight:4}} aria-hidden/>Legenda
           </button>
+          <button onClick={suggestPositions} disabled={suggesting}
+            style={{background:suggesting?'rgba(124,58,237,0.4)':'#7C3AED',border:'none',color:'#fff',padding:'6px 14px',borderRadius:5,cursor:suggesting?'wait':'pointer',fontSize:12,fontWeight:600,display:'flex',alignItems:'center',gap:5}}>
+            <i className="ti ti-sparkles" aria-hidden/>{suggesting?'Analisando...':'IA sugere posições'}
+          </button>
+          {onSavePlan && <button onClick={savePlan} disabled={saving}
+            style={{background:saved?'#059669':'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',color:'#fff',padding:'6px 14px',borderRadius:5,cursor:'pointer',fontSize:12,fontWeight:600,display:'flex',alignItems:'center',gap:5}}>
+            <i className={`ti ${saved?'ti-check':'ti-device-floppy'}`} aria-hidden/>{saved?'Salvo!':saving?'Salvando...':'Salvar'}
+          </button>}
           <button onClick={doPrint}
             style={{background:'#0EA5E9',border:'none',color:'#fff',padding:'6px 14px',borderRadius:5,cursor:'pointer',fontSize:12,fontWeight:600,display:'flex',alignItems:'center',gap:5}}>
-            <i className="ti ti-printer" aria-hidden/>Imprimir para arquiteto
+            <i className="ti ti-printer" aria-hidden/>Exportar PDF
           </button>
         </>}
         <input ref={fileRef} type="file" accept="image/*,application/pdf,.pdf" style={{display:'none'}} onChange={handleFileUpload}/>
