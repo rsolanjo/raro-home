@@ -195,7 +195,7 @@ export default function PlantaEditor({ floors=[], catalog=[], onUpdateFloors, on
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514', max_tokens: 600,
+          model: 'claude-3-5-sonnet-latest', max_tokens: 600,
           messages: [{role:'user', content:
             `Você é um especialista em automação residencial Zigbee/Matter da RARO Home.
 Analise esta ação e dê um parecer técnico objetivo em português, máximo 3 parágrafos curtos.
@@ -236,7 +236,7 @@ Seja direto. Use ✅ para recomendação positiva, ⚠️ para ressalva, ❌ par
       const res = await fetch('/api/claude', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          model:'claude-sonnet-4-20250514', max_tokens:4000,
+          model:'claude-3-5-sonnet-latest', max_tokens:4000,
           messages:[{role:'user', content:[
             { type:'image', source:{ type:'base64', media_type:mime, data:finalImg } },
             { type:'text', text:

@@ -11,30 +11,31 @@ module.exports = async function handler(req, res) {
   try {
     let body = req.body
     if (typeof body === 'string') body = JSON.parse(body)
-    if (!body || !body.messages) { res.status(400).json({ error: 'Body inválido (sem messages)' }); return }
 
-    // Força um modelo válido e atual, ignorando o que vier do cliente
-    body.model = 'claude-3-5-sonnet-20241022'
+    // Modo diagnóstico: listar modelos
+    if (body && body.listModels) {
+      const lr = await fetch('https://api.anthropic.com/v1/models', {
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+      })
+      const ltext = await lr.text()
+      res.status(lr.status).send(ltext)
+      return
+    }
+
+    if (!body || !body.messages) { res.status(400).json({ error: 'Body inválido' }); return }
+
+    // Usa modelo enviado pelo cliente, ou um padrão seguro
+    if (!body.model) body.model = 'claude-3-5-sonnet-latest'
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
+      headers: { 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01' },
       body: JSON.stringify(body)
     })
-
     const text = await r.text()
-    if (!text) { res.status(502).json({ error: 'Anthropic retornou resposta vazia (status ' + r.status + ')' }); return }
-
-    let data
-    try { data = JSON.parse(text) }
-    catch(e) { res.status(502).json({ error: 'Resposta não-JSON da Anthropic: ' + text.slice(0,300) }); return }
-
-    res.status(r.status).json(data)
+    if (!text) { res.status(502).json({ error:'Resposta vazia (status '+r.status+')' }); return }
+    res.status(r.status).send(text)
   } catch (err) {
-    res.status(500).json({ error: 'Proxy error: ' + (err.message || String(err)) })
+    res.status(500).json({ error: 'Proxy error: ' + (err.message||String(err)) })
   }
 }
