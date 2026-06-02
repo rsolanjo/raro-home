@@ -67,6 +67,25 @@ function getIcon(name) {
   return '◈'
 }
 
+
+// Reduz imagem grande para caber no limite do proxy (max ~1600px, JPEG)
+async function downscaleImage(dataUrl, maxDim=1600, quality=0.85) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      let { width:w, height:h } = img
+      if (w <= maxDim && h <= maxDim) { resolve(dataUrl); return }
+      const scale = maxDim / Math.max(w, h)
+      const cv = document.createElement('canvas')
+      cv.width = Math.round(w*scale); cv.height = Math.round(h*scale)
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height)
+      resolve(cv.toDataURL('image/jpeg', quality))
+    }
+    img.onerror = () => resolve(dataUrl)
+    img.src = dataUrl
+  })
+}
+
 export default function PlantaIA({ catalog=[], onImport, onClose }) {
   const [step, setStep]         = useState('upload') // upload | analyzing | review
   const [imgData, setImgData]   = useState(null)

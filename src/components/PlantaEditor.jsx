@@ -48,6 +48,25 @@ async function pdfToImage(base64Pdf) {
   })
 }
 
+
+// Reduz imagem grande para caber no limite do proxy (max ~1600px, JPEG)
+async function downscaleImage(dataUrl, maxDim=1600, quality=0.85) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      let { width:w, height:h } = img
+      if (w <= maxDim && h <= maxDim) { resolve(dataUrl); return }
+      const scale = maxDim / Math.max(w, h)
+      const cv = document.createElement('canvas')
+      cv.width = Math.round(w*scale); cv.height = Math.round(h*scale)
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height)
+      resolve(cv.toDataURL('image/jpeg', quality))
+    }
+    img.onerror = () => resolve(dataUrl)
+    img.src = dataUrl
+  })
+}
+
 export default function PlantaEditor({ floors=[], catalog=[], onUpdateFloors, onSavePlan, savedPlan, onClose }) {
   const [suggesting, setSuggesting] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -212,8 +231,9 @@ Seja direto. Use ✅ para recomendação positiva, ⚠️ para ressalva, ❌ par
       ? markers.map(m=>`${m.itemCode}: ${m.itemName} (${m.room||'sem ambiente'})`)
       : floors.flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).map(i=>`${i.code}: ${i.name} (${r.name})`)))
     try {
-      const finalImg = bgImage.split(',')[1]
-      const mime = bgImage.substring(5, bgImage.indexOf(';'))
+      const small = await downscaleImage(bgImage)
+      const finalImg = small.split(',')[1]
+      const mime = small.substring(5, small.indexOf(';'))
       const res = await fetch('/api/claude', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
