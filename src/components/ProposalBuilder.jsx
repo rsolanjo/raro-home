@@ -505,7 +505,7 @@ ${cover}${roomPagesHtml.join('\n')}${totalPage}
 
 
 // ── COMPONENT ──────────────────────────────────────────────
-export default function ProposalBuilder({ clients, onRefresh, editProposal, isAdmin, currentUser }) {
+export default function ProposalBuilder({ clients, onRefresh, editProposal, execSeed, isAdmin, currentUser }) {
   const [catalog, setCatalog] = useState([])
   const [stock,   setStock]   = useState([])
   const [cats,    setCats]    = useState([])
@@ -519,13 +519,15 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
   const init = editProposal
   // floors from Supabase may be a string or array
   const initFloors = (() => {
+    // execSeed (vindo do Projeto Executivo) tem prioridade ao criar do zero
+    if (!init && execSeed?.floors?.length) return execSeed.floors
     const f = init?.floors
     if (!f) return null
     if (typeof f === 'string') { try { return JSON.parse(f) } catch { return null } }
     return Array.isArray(f) ? f : null
   })()
   const [clientId,    setClientId]    = useState(init?.client_id||'')
-  const [clientName,  setClientName]  = useState(init?.client_name||'')
+  const [clientName,  setClientName]  = useState(init?.client_name || execSeed?.client_name || '')
   const [description, setDescription] = useState(init?.description||'')
   const [labor,       setLabor]       = useState(String(init?.labor??''))
   const [proposalCode,setProposalCode]= useState(init?.code||'')
@@ -625,6 +627,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
       floors:floors.map(f=>({name:f.name,rooms:f.rooms.map(r=>({name:r.name,icon:r.icon,highlight:r.highlight,pitch:r.pitch,price:parse(r.price),items:(r.items||[]).filter(it=>it.name)}))})),
       valid_days:30,
       planta_data: plantaData,
+      exec_doc: execDocData,
     }
   }
 
@@ -637,7 +640,8 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, isAd
   const [isSaving, setIsSaving] = useState(false)
   const [showPlantaIA, setShowPlantaIA] = useState(false)
   const [showPlantaEditor, setShowPlantaEditor] = useState(false)
-  const [plantaData, setPlantaData] = useState(()=> savedProposal?.planta_data || null)
+  const [plantaData, setPlantaData] = useState(()=> savedProposal?.planta_data || execSeed?.planta_data || null)
+  const [execDocData] = useState(()=> savedProposal?.exec_doc || execSeed?.exec_doc || null)
   const [pdfFontSize, setPdfFontSize] = useState(9) // matches buildPDF minimum
 
   async function handleSaveConfirm(){

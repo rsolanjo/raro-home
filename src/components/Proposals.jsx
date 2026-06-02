@@ -166,7 +166,7 @@ const STATUS_NOTE = {
   draft:    '🔓 Reservas serão liberadas',
 }
 
-export default function Proposals({ proposals, onRefresh, onEdit, onNew, currentUser, onViewPDF, clients=[] }) {
+export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewExec, currentUser, onViewPDF, clients=[] }) {
   const [filter,   setFilter]   = useState('all')
   const [search,   setSearch]   = useState('')
   const [changeReq, setChangeReq] = useState(null)
@@ -292,6 +292,9 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, current
         <div className="topbar-acts">
           <button className="btn" onClick={()=>setShowComp(true)}>
             <i className="ti ti-chart-bar" aria-hidden/>Comparativo
+          </button>
+          <button className="btn" style={{borderColor:'#7C3AED',color:'#7C3AED'}} onClick={()=>onNewExec&&onNewExec()}>
+            <i className="ti ti-brain" aria-hidden/>Projeto Executivo (IA)
           </button>
           <button className="btn primary" onClick={onNew}>
             <i className="ti ti-plus" aria-hidden/>Novo orçamento

@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import Proposals from './components/Proposals.jsx'
 import ProposalBuilder from './components/ProposalBuilder.jsx'
+import ProjetoExecutivo from './components/ProjetoExecutivo.jsx'
 import Projects from './components/Projects.jsx'
 import Schedule from './components/Schedule.jsx'
 import Stock from './components/Stock.jsx'
@@ -61,7 +62,9 @@ export default function App() {
     if (user) refresh()
   }, [user])
 
+  const [execSeed, setExecSeed] = useState(null)
   function nav(p) { setPage(p); if (p !== 'builder') setEditingProposal(null) }
+  function newExec() { setPage('exec') }
   function editProposal(p) { setEditingProposal(p); setPage('builder') }
   function newProposal()   { setEditingProposal(null); setPage('builder') }
 
@@ -128,8 +131,11 @@ export default function App() {
 
         {!loading && <>
           {page==='dashboard'  && <Dashboard proposals={data.proposals} projects={data.projects} stock={data.stock} clients={data.clients} onNav={nav} />}
-          {page==='proposals'  && <Proposals proposals={data.proposals} onRefresh={refresh} onEdit={editProposal} onNew={newProposal} currentUser={user} clients={data.clients} />}
-          {page==='builder'    && <ProposalBuilder clients={data.clients} onRefresh={refresh} editProposal={editingProposal} isAdmin={true} currentUser={user} />}
+          {page==='proposals'  && <Proposals proposals={data.proposals} onRefresh={refresh} onEdit={editProposal} onNew={newProposal} onNewExec={newExec} currentUser={user} clients={data.clients} />}
+          {page==='builder'    && <ProposalBuilder clients={data.clients} onRefresh={refresh} editProposal={editingProposal} execSeed={execSeed} isAdmin={true} currentUser={user} />}
+          {page==='exec'       && <ProjetoExecutivo catalog={data.catalog} clients={data.clients} currentUser={user}
+            onClose={()=>setPage('proposals')}
+            onSaveToProposal={(seed)=>{ setExecSeed(seed); setEditingProposal(null); setPage('builder') }} />}
           {page==='projects'   && <Projects projects={data.projects} clients={data.clients} proposals={data.proposals} catalog={data.catalog} suppliers={data.suppliers} onRefresh={refresh} currentUser={user} />}
           {page==='schedule'   && <Schedule projects={data.projects} />}
           {page==='stock'      && <Stock stock={data.stock} catalog={data.catalog} suppliers={data.suppliers} onRefresh={refresh} currentUser={user} />}
