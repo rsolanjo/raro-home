@@ -51,6 +51,9 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
         <button onClick={onLogout} style={{background:'transparent',border:'none',color:'rgba(255,255,255,0.28)',cursor:'pointer',fontSize:11,padding:'10px 0 0 0',fontFamily:'inherit',display:'flex',alignItems:'center',gap:6,marginLeft:0,width:'100%'}}>
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
+        <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
+          v32 · build 2026-06
+        </div>
       </div>
     </div>
   )

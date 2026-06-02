@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><title>Teste API — RARO Home</title>
+<style>body{font-family:system-ui;max-width:600px;margin:40px auto;padding:20px}
+button{background:#0EA5E9;color:#fff;border:none;padding:12px 24px;border-radius:6px;font-size:15px;cursor:pointer}
+pre{background:#f4f4f4;padding:16px;border-radius:6px;white-space:pre-wrap;word-break:break-word;font-size:13px}
+.ok{color:#16a34a}.err{color:#dc2626}</style></head>
+<body>
+<h1>🔧 Teste da API RARO Home</h1>
+<p>Esta página testa o <code>/api/claude</code> com uma pergunta simples de texto (sem imagem), para isolar o problema.</p>
+<button onclick="testar()">Testar API agora</button>
+<pre id="out">Clique no botão para testar...</pre>
+<script>
+async function testar() {
+  const out = document.getElementById('out')
+  out.textContent = '⏳ Enviando requisição de teste...'
+  try {
+    const r = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        max_tokens: 100,
+        messages: [{ role: 'user', content: 'Responda apenas: OK FUNCIONANDO' }]
+      })
+    })
+    out.textContent = 'Status HTTP: ' + r.status + '\n\n'
+    const text = await r.text()
+    out.textContent += 'Resposta bruta:\n' + text + '\n\n'
+    try {
+      const data = JSON.parse(text)
+      if (data.content && data.content[0]) {
+        out.innerHTML = '<span class="ok">✅ API FUNCIONANDO!</span>\n\nResposta da IA: ' + data.content[0].text + '\n\nStatus: ' + r.status
+      } else if (data.error) {
+        out.innerHTML = '<span class="err">❌ Erro retornado:</span>\n\n' + JSON.stringify(data.error, null, 2)
+      }
+    } catch(e) {
+      out.innerHTML += '<span class="err">⚠️ Resposta não é JSON válido</span>'
+    }
+  } catch(e) {
+    out.innerHTML = '<span class="err">❌ Falha na requisição:</span>\n\n' + e.message
+  }
+}
+</script>
+</body>
+</html>

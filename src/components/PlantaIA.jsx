@@ -69,13 +69,12 @@ function getIcon(name) {
 
 
 // Reduz imagem grande para caber no limite do proxy (max ~1600px, JPEG)
-async function downscaleImage(dataUrl, maxDim=1600, quality=0.85) {
+async function downscaleImage(dataUrl, maxDim=1024, quality=0.7) {
   return new Promise((resolve) => {
     const img = new Image()
     img.onload = () => {
       let { width:w, height:h } = img
-      if (w <= maxDim && h <= maxDim) { resolve(dataUrl); return }
-      const scale = maxDim / Math.max(w, h)
+      const scale = Math.min(1, maxDim / Math.max(w, h))
       const cv = document.createElement('canvas')
       cv.width = Math.round(w*scale); cv.height = Math.round(h*scale)
       cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height)
@@ -235,8 +234,11 @@ Retorne APENAS este JSON (sem comentários, sem markdown):
       })
 
       // If proxy not found (local dev or not deployed), show config instructions
-      if(response.status === 404 || response.status === 405) {
-        throw new Error('Proxy /api/claude não encontrado. Configure no Vercel: Settings → Environment Variables → ANTHROPIC_API_KEY')
+      if(response.status === 404) {
+        throw new Error('Proxy /api/claude não encontrado no Vercel.')
+      }
+      if(response.status === 413 || response.status === 405) {
+        throw new Error('Imagem muito grande para o servidor. Tente uma planta de menor resolução.')
       }
 
       let data
