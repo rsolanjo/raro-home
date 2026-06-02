@@ -25,7 +25,7 @@ module.exports = async function handler(req, res) {
     if (!body || !body.messages) { res.status(400).json({ error: 'Body inválido' }); return }
 
     // Usa modelo enviado pelo cliente, ou um padrão seguro
-    if (!body.model) body.model = 'claude-3-5-sonnet-latest'
+    if (!body.model) body.model = 'claude-sonnet-4-5-20250929'
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
