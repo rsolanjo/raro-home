@@ -617,3 +617,77 @@ textarea { resize: vertical; min-height: 70px; }
   .modal { width: 480px !important; max-width: 90vw !important; border-radius: 10px !important; max-height: 90vh !important; }
   .form-row { flex-direction: row !important; }
 }
+
+/* ═══════════ BUILDER MOBILE — abas Cômodos/Editar ═══════════ */
+.builder-mobile-tabs { display: none; }
+.mobile-back-btn { display: none; }
+
+@media (max-width: 1024px) {
+  /* Tab bar visível no topo do builder */
+  .builder-mobile-tabs {
+    display: flex !important;
+    position: sticky; top: 0; z-index: 40;
+    background: var(--bg); border-bottom: 1px solid var(--border);
+    width: 100%;
+  }
+  .builder-mobile-tabs button {
+    flex: 1; background: transparent; border: none;
+    padding: 13px 10px; font-size: 13px; font-weight: 600;
+    color: var(--text3); cursor: pointer; font-family: inherit;
+    border-bottom: 3px solid transparent;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .builder-mobile-tabs button.active {
+    color: var(--accent); border-bottom-color: var(--accent);
+    background: var(--accent-lt);
+  }
+  .builder-mobile-tabs button:disabled { opacity: 0.4; }
+
+  /* O builder usa o toggle: mostra só um painel por vez */
+  .builder { flex-direction: column !important; position: relative; }
+  .builder.mp-rooms .b-right { display: none !important; }
+  .builder.mp-edit  .b-left  { display: none !important; }
+
+  /* Painel ativo ocupa tela toda */
+  .builder .b-left,
+  .builder .b-right {
+    width: 100% !important; max-width: 100% !important;
+    max-height: none !important; height: auto !important;
+    border: none !important; overflow-y: auto;
+  }
+
+  /* Botão voltar no topo do painel de edição */
+  .mobile-back-btn {
+    display: flex !important; align-items: center; gap: 6px;
+    width: 100%; background: var(--surf); border: none;
+    border-bottom: 1px solid var(--border);
+    padding: 11px 14px; font-size: 13px; font-weight: 600;
+    color: var(--accent); cursor: pointer; font-family: inherit;
+    position: sticky; top: 0; z-index: 30;
+  }
+
+  /* Botões maiores p/ dedo na obra */
+  .b-right .btn, .b-left .btn {
+    min-height: 38px; font-size: 13px !important;
+  }
+  .room-entry { padding: 13px 14px !important; min-height: 50px; }
+  .room-entry-name { font-size: 14px !important; }
+
+  /* Catálogo: itens maiores, lista mais alta */
+  .b-right input, .b-right select { font-size: 16px !important; } /* evita zoom iOS */
+  .floor-tabs .ftab { min-height: 38px; font-size: 13px; }
+}
+
+/* Botões de ação maiores e com alvo de toque no mobile (geral) */
+@media (max-width: 600px) {
+  .btn { min-height: 40px; }
+  .builder-mobile-tabs button { font-size: 12px; padding: 12px 6px; }
+}
+
+/* Linhas de orçamento — ações com alvo de toque maior no mobile */
+@media (max-width: 1024px) {
+  .tbl td .btn { min-height: 36px !important; min-width: 36px; font-size: 13px !important; padding: 6px 10px !important; }
+  .tbl td { padding: 8px 6px !important; }
+  .tbl { font-size: 13px; }
+}

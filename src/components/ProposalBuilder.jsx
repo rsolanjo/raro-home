@@ -507,6 +507,7 @@ ${cover}${roomPagesHtml.join('\n')}${totalPage}
 // ── COMPONENT ──────────────────────────────────────────────
 export default function ProposalBuilder({ clients, onRefresh, editProposal, execSeed, isAdmin, currentUser }) {
   const [catalog, setCatalog] = useState([])
+  const [mobilePanel, setMobilePanel] = useState('rooms') // 'rooms' | 'edit' (only affects mobile)
   const [stock,   setStock]   = useState([])
   const [cats,    setCats]    = useState([])
 
@@ -801,7 +802,16 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
         </div>
       </div>
 
-      <div className="builder" style={{height:'calc(100% - 46px)',display:'flex',gap:0}}>
+      <div className={`builder mp-${mobilePanel}`} style={{height:'calc(100% - 46px)',display:'flex',gap:0}}>
+        {/* Mobile tab bar — só aparece no celular via CSS */}
+        <div className="builder-mobile-tabs">
+          <button className={mobilePanel==='rooms'?'active':''} onClick={()=>setMobilePanel('rooms')}>
+            <i className="ti ti-list" aria-hidden/> Cômodos {floor?.rooms?.length?`(${floor.rooms.length})`:''}
+          </button>
+          <button className={mobilePanel==='edit'?'active':''} onClick={()=>setMobilePanel('edit')} disabled={!room}>
+            <i className="ti ti-edit" aria-hidden/> {room?`Editar: ${room.name||'cômodo'}`:'Editar'}
+          </button>
+        </div>
         {/* ── STICKY MARGIN PANEL (right side) ── */}
         {(()=>{
           const allItems=floors.flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).map(it=>({...it,roomName:r.name,floorName:f.name,qty:parseInt(it.qty)||1}))))
@@ -944,7 +954,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
             <input value={floor?.name||''} onChange={e=>{updFloor(cf,{name:e.target.value});setSaved(false)}} style={{fontSize:12}} placeholder="Nome do pavimento"/>
           </div>
           <div className="room-list">
-            {(floor?.rooms||[]).map((r,i)=><div key={r.id} className={`room-entry${cr===i?' active':''}`} onClick={()=>setCr(i)}>
+            {(floor?.rooms||[]).map((r,i)=><div key={r.id} className={`room-entry${cr===i?' active':''}`} onClick={()=>{setCr(i);setMobilePanel('edit')}}>
               <div className="room-entry-name">{r.icon} {r.name||`Cômodo ${i+1}`}</div>
               <div className="room-entry-price">{r.price?fmt(parse(r.price)):'–'}</div>
             </div>)}
@@ -963,6 +973,9 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
 
         {/* ── RIGHT PANEL ── */}
         <div className="b-right">
+          <button className="mobile-back-btn" onClick={()=>setMobilePanel('rooms')}>
+            <i className="ti ti-arrow-left" aria-hidden/> Voltar aos cômodos
+          </button>
           {!room&&<div className="empty-state"><i className="ti ti-mouse" aria-hidden/><p>Selecione ou adicione um cômodo à esquerda</p></div>}
           {room&&<div style={{maxWidth:560}}>
 

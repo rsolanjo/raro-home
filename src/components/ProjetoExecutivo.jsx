@@ -104,11 +104,23 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], onSaveToPropo
 
   async function startChat(imgUrl){
     setLoading(true)
+    const catList = (catalog||[]).slice(0,100).map(c=>`- ${c.name} (${c.category||'geral'})`).join('\n')
     const sys = `Você é um projetista especialista da RARO Home (automação residencial Zigbee/Matter, Rio de Janeiro). Está analisando a planta baixa enviada para criar um projeto de automação.
 
-Faça uma análise inicial CURTA do que vê na planta (ambientes identificados) e então faça as PERGUNTAS essenciais, UMA DE CADA VEZ, para entender o projeto antes de posicionar equipamentos. Pergunte sobre coisas como: onde ficará o CPD/rack, onde entra a fibra de internet e o destino, posição das cabeceiras nos quartos, quais ambientes terão ar-condicionado, perfil do cliente e prioridades.
+Estes são os EQUIPAMENTOS que a RARO Home tem no catálogo e pode instalar:
+${catList}
 
-Seja conversacional e objetivo. Faça uma pergunta por vez. Quando tiver informação suficiente (após 4-6 perguntas), diga exatamente: "ANÁLISE COMPLETA — pronto para posicionar os equipamentos." e liste um resumo do que entendeu.`
+Faça uma análise inicial CURTA do que vê na planta (liste os ambientes que identificou). Depois faça PERGUNTAS objetivas, UMA DE CADA VEZ, sempre relacionadas a posicionar BEM os equipamentos do catálogo acima. Exemplos de perguntas úteis:
+- Onde ficará o CPD/rack (onde concentrar gateway, NVR, amplificador)?
+- Onde entra a fibra de internet e qual o destino?
+- Em quais quartos e qual parede ficam as cabeceiras (para keypad de cabeceira)?
+- Quais ambientes terão ar-condicionado (para Hub IR)?
+- Quais ambientes terão som ambiente?
+- Quais ambientes terão câmera?
+- Cortinas motorizadas em quais ambientes?
+- Perfil do cliente e prioridades?
+
+Seja breve e conversacional, uma pergunta por vez. O usuário pode clicar em "Gerar sugestão" a qualquer momento, então não exija respostas para todas as perguntas — vá ajudando conforme ele responde.`
     try{
       const reply = await askClaude(
         [{role:'user',text:sys+'\n\nAnalise a planta e comece.'}],
@@ -125,12 +137,8 @@ Seja conversacional e objetivo. Faça uma pergunta por vez. Quando tiver informa
     const newChat=[...chat,userMsg]
     setChat(newChat); setChatInput(''); setLoading(true)
     try{
-      // include image only on first user turn for context economy; resend each time is costly
       const reply=await askClaude(newChat.map(m=>({role:m.role,text:m.text})), null, 'image/jpeg', 1200)
       setChat([...newChat,{role:'assistant',text:reply}])
-      if(reply.includes('ANÁLISE COMPLETA')) {
-        // ready to position
-      }
     }catch(err){ setChat([...newChat,{role:'assistant',text:'❌ Erro: '+err.message}]) }
     setLoading(false)
   }
@@ -155,15 +163,23 @@ Responda APENAS JSON (sem markdown):
         [{role:'user',text:prompt}],
         bgImage.split(',')[1],'image/jpeg',4000
       )
-      let j=reply.trim(); if(j.includes('```')) j=j.replace(/```json?\n?/g,'').replace(/```/g,'')
-      const parsed=JSON.parse(j)
+      let j=reply.trim()
+      if(j.includes('```')) j=j.replace(/```json?\n?/g,'').replace(/```/g,'')
+      // extrai o primeiro bloco JSON, caso a IA escreva texto antes/depois
+      const s=j.indexOf('{'), e=j.lastIndexOf('}')
+      if(s>=0 && e>s) j=j.slice(s,e+1)
+      let parsed
+      try{ parsed=JSON.parse(j) }
+      catch(pe){ throw new Error('A IA não retornou um JSON válido. Tente clicar em "Gerar sugestão" novamente. Resposta: '+reply.slice(0,150)) }
       let cid=Date.now()
       const mk=(parsed.itens||[]).map(it=>{
-        const cat=catalog.find(c=>c.code===it.code)
-        return {uid:cid++, id:it.id, code:it.code, name:cat?.name||it.code,
-          room:it.room||'', x:Math.max(2,Math.min(98,it.x)), y:Math.max(2,Math.min(96,it.y)),
-          note:it.nota||'', cost:cat?.cost_price||0, sale:cat?.sale_price||0, category:cat?.category||''}
+        const cat=catalog.find(c=>c.code===it.code) || catalog.find(c=>(c.name||'').toLowerCase()===(it.name||'').toLowerCase())
+        return {uid:cid++, id:it.id||('?'+(cid%1000)), code:it.code||cat?.code||'', name:cat?.name||it.name||it.code||'Item',
+          room:it.room||'', x:Math.max(2,Math.min(98,Number(it.x)||50)), y:Math.max(2,Math.min(96,Number(it.y)||50)),
+          note:it.nota||it.note||'', cost:cat?.cost_price||0, sale:cat?.sale_price||0, category:cat?.category||''}
       })
+      if(!mk.length) throw new Error('A IA não sugeriu itens. Verifique se há equipamentos no catálogo e tente novamente.')
+      mk.forEach((m,i)=>{ m.n = i+1 })  // legenda numérica única
       setMarkers(mk)
       setStep('editor')
     }catch(err){ alert('Erro ao posicionar: '+err.message) }
@@ -187,14 +203,14 @@ Responda APENAS JSON (sem markdown):
     const x=((e.clientX-r.left)/r.width)*100, y=((e.clientY-r.top)/r.height)*100
     const typeCount=markers.filter(m=>equipType(m.name)===equipType(addItem.name)).length+1
     const sym=EQUIP_STYLE[equipType(addItem.name)]?.s||'?'
-    setMarkers(ms=>[...ms,{uid:Date.now(),id:sym+typeCount,code:addItem.code,name:addItem.name,
+    setMarkers(ms=>[...ms,{uid:Date.now(),n:ms.length+1,id:sym+typeCount,code:addItem.code,name:addItem.name,
       room:'',x,y,note:'',cost:addItem.cost_price||0,sale:addItem.sale_price||0,category:addItem.category||''}])
     setAddMode(false); setAddItem(null)
   }
 
   async function generateExec(){
     setLoading(true)
-    const itemsList=markers.map(m=>`${m.id} · ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
+    const itemsList=markers.map(m=>`#${m.n} · ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
     const conversation=chat.map(m=>`${m.role==='user'?'Cliente':'Projetista'}: ${m.text}`).join('\n')
     const prompt=`Gere um PROJETO EXECUTIVO de automação para o arquiteto preparar a infraestrutura (pré-instalação).
 
@@ -207,11 +223,12 @@ EQUIPAMENTOS POSICIONADOS:
 ${itemsList}
 
 Gere um documento técnico em HTML (só o conteúdo interno, sem <html> ou <head>) com estas seções:
-1. Premissas do projeto
-2. Tabela de pontos por ambiente (posição, altura, tipo de cabo, metragem aproximada)
-3. Mapa de cabeamento (origem→destino, tipo de cabo)
-4. Checklist de obra (o que o arquiteto/eletricista prepara antes do revestimento)
-5. Riscos e cuidados
+1. LEGENDA NUMERADA — tabela com cada item (#número, equipamento, ambiente, nota) para localização rápida na planta
+2. Premissas do projeto
+3. Tabela de pontos por ambiente (use o #número, posição, altura, tipo de cabo, metragem aproximada)
+4. Mapa de cabeamento (origem→destino, tipo de cabo)
+5. Checklist de obra (o que o arquiteto/eletricista prepara antes do revestimento)
+6. Riscos e cuidados
 Use tabelas HTML simples. Linguagem técnica de obra. Tudo em português.`
     try{
       const reply=await askClaude([{role:'user',text:prompt}],null,'image/jpeg',4000)
@@ -315,15 +332,23 @@ Use tabelas HTML simples. Linguagem técnica de obra. Tudo em português.`
                 <div ref={chatEndRef}/>
               </div>
               <div style={{padding:16,borderTop:'1px solid rgba(255,255,255,0.08)'}}>
-                {chat.some(m=>m.text.includes('ANÁLISE COMPLETA')) && (
-                  <button onClick={generatePositions} disabled={loading} style={{...btnPrimary,width:'100%',marginBottom:10,background:'#7C3AED'}}>
-                    <i className="ti ti-sparkles" aria-hidden/> Posicionar equipamentos na planta
+                <div style={{display:'flex',gap:8,marginBottom:10}}>
+                  <button onClick={generatePositions} disabled={loading} style={{...btnPrimary,flex:1,background:'#7C3AED',justifyContent:'center'}}>
+                    <i className="ti ti-sparkles" aria-hidden/> {markers.length?'Refazer sugestão':'Gerar sugestão na planta'}
                   </button>
-                )}
+                  {markers.length>0 && (
+                    <button onClick={()=>setStep('editor')} disabled={loading} style={{...btnPrimary,flex:1,justifyContent:'center'}}>
+                      <i className="ti ti-edit" aria-hidden/> Ir para o editor
+                    </button>
+                  )}
+                </div>
                 <div style={{display:'flex',gap:8}}>
                   <input value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendChat()}
-                    placeholder="Responda à IA..." style={inputStyle}/>
+                    placeholder="Responda à IA ou pergunte algo..." style={inputStyle}/>
                   <button onClick={sendChat} disabled={loading} style={btnPrimary}><i className="ti ti-send" aria-hidden/></button>
+                </div>
+                <div style={{fontSize:10,color:'rgba(255,255,255,0.3)',marginTop:8,textAlign:'center'}}>
+                  Responda as perguntas da IA quando quiser, ou clique em "Gerar sugestão" a qualquer momento.
                 </div>
               </div>
             </div>
@@ -353,8 +378,9 @@ Use tabelas HTML simples. Linguagem técnica de obra. Tudo em português.`
                 <img src={bgImage} style={{display:'block',maxWidth:'100%',pointerEvents:'none'}} draggable={false}/>
                 {markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro; const sel=selected===m.uid
                   return <div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:'grab'}} onMouseDown={e=>onDown(e,m.uid)}>
-                    <div style={{width:sel?24:20,height:sel?24:20,borderRadius:'50%',background:st.c,color:'#fff',fontSize:9,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #fff',boxShadow:sel?`0 0 0 3px ${st.c}`:'0 1px 4px rgba(0,0,0,0.5)'}}>{st.s}</div>
-                    <div style={{position:'absolute',left:24,top:-2,background:'rgba(0,0,0,0.75)',color:'#fff',borderRadius:3,padding:'1px 4px',fontSize:8,whiteSpace:'nowrap',fontFamily:'monospace',fontWeight:600,pointerEvents:'none'}}>{m.id} {m.code}</div>
+                    <div style={{width:sel?28:24,height:sel?28:24,borderRadius:'50%',background:st.c,color:'#fff',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #fff',boxShadow:sel?`0 0 0 3px ${st.c}`:'0 1px 4px rgba(0,0,0,0.5)'}}>{m.n}</div>
+                    <div style={{position:'absolute',left:'50%',top:-9,transform:'translateX(-50%)',background:st.c,color:'#fff',borderRadius:'50%',width:13,height:13,fontSize:7,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'1px solid #fff',pointerEvents:'none'}}>{st.s}</div>
+                    <div style={{position:'absolute',left:'50%',top:sel?30:26,transform:'translateX(-50%)',background:'rgba(0,0,0,0.75)',color:'#fff',borderRadius:3,padding:'1px 4px',fontSize:7.5,whiteSpace:'nowrap',fontFamily:'monospace',fontWeight:600,pointerEvents:'none'}}>{m.code}</div>
                   </div>})}
               </div>
             </div>
@@ -370,7 +396,7 @@ Use tabelas HTML simples. Linguagem técnica de obra. Tudo em português.`
                   <input value={m.id} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,id:e.target.value}:x))} style={inputDark}/>
                   <label style={lbl}>Nota (posição/altura)</label>
                   <textarea value={m.note} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,note:e.target.value}:x))} rows={3} style={{...inputDark,resize:'vertical'}}/>
-                  <button onClick={()=>{setMarkers(ms=>ms.filter(x=>x.uid!==m.uid));setSelected(null)}} style={{...btnGhost,width:'100%',marginTop:10,color:'#FCA5A5',borderColor:'rgba(220,38,38,0.4)'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
+                  <button onClick={()=>{setMarkers(ms=>ms.filter(x=>x.uid!==m.uid).map((x,i)=>({...x,n:i+1})));setSelected(null)}} style={{...btnGhost,width:'100%',marginTop:10,color:'#FCA5A5',borderColor:'rgba(220,38,38,0.4)'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
                 </div>})() : (
                 <div style={{padding:14}}>
                   <div style={{fontSize:11,color:'#38BDF8',fontWeight:600,marginBottom:10,textTransform:'uppercase'}}>Resumo</div>
