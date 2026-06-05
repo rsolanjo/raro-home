@@ -23,6 +23,7 @@ function cleanPhone(p) {
 const empty = () => ({
   name1:'', name2:'', full_name1:'', full_name2:'',
   phone1:'', phone2:'', email:'', neighborhood:'', city:'',
+  cep:'', street:'', number:'', complement:'', state:'',
   housing_type:'Casa', total_rooms:'', area_m2:'', notes:'',
   wa_group_clients:'', wa_group_obra:'', plant_file:null,
 })
@@ -34,6 +35,26 @@ export default function Clients({ clients, proposals, projects, onRefresh, onEdi
   const [editing, setEditing] = useState(null)
   const [search, setSearch] = useState('')
   const [form, setForm] = useState(empty())
+  const [cepLoading, setCepLoading] = useState(false)
+
+  async function lookupCEP(cep) {
+    const clean = (cep||'').replace(/\D/g,'')
+    if (clean.length !== 8) return
+    setCepLoading(true)
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${clean}/json/`)
+      const d = await r.json()
+      if (!d.erro) {
+        setForm(prev => ({ ...prev,
+          street: d.logradouro || prev.street,
+          neighborhood: d.bairro || prev.neighborhood,
+          city: d.localidade || prev.city,
+          state: d.uf || prev.state,
+        }))
+      }
+    } catch(e) { /* silencioso */ }
+    setCepLoading(false)
+  }
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
@@ -63,6 +84,13 @@ export default function Clients({ clients, proposals, projects, onRefresh, onEdi
       console.error('Erro ao salvar cliente:', err)
       alert('Erro ao salvar: ' + err.message)
     }
+  }
+
+  function handlePlantNew(e, field) {
+    const file = e.target.files[0]; if(!file) return
+    const reader = new FileReader()
+    reader.onload = ev => f(field, { name:file.name, data:ev.target.result, type:file.type })
+    reader.readAsDataURL(file)
   }
 
   function handlePlant(e) {
@@ -115,7 +143,7 @@ export default function Clients({ clients, proposals, projects, onRefresh, onEdi
                   <td>
                     <div style={{fontWeight:600}}>{c.name1} & {c.name2}</div>
                     <div className="sub">{c.full_name1} · {c.full_name2}</div>
-                    <div className="sub">{c.neighborhood}{c.city?', '+c.city:''}</div>
+                    <div className="sub">{c.street?`${c.street}${c.number?', '+c.number:''} · `:''}{c.neighborhood}{c.city?', '+c.city:''}</div>
                   </td>
                   <td>
                     <div style={{fontSize:12}}>{c.phone1}</div>
@@ -226,6 +254,24 @@ export default function Clients({ clients, proposals, projects, onRefresh, onEdi
               </div>
             </div>
 
+            {/* Endereço com CEP */}
+            <div className="form-row">
+              <div className="fg" style={{maxWidth:160}}><div className="flabel">CEP {cepLoading&&<i className="ti ti-loader" style={{fontSize:11,marginLeft:4}} aria-hidden/>}</div>
+                <input value={form.cep} onChange={e=>{const v=e.target.value;f('cep',v);if(v.replace(/\D/g,'').length===8)lookupCEP(v)}} onBlur={e=>lookupCEP(e.target.value)} placeholder="00000-000" inputMode="numeric"/>
+              </div>
+              <div className="fg"><div className="flabel">Rua / Logradouro</div>
+                <input value={form.street} onChange={e=>f('street',e.target.value)} placeholder="preenchido pelo CEP"/>
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="fg" style={{maxWidth:120}}><div className="flabel">Número</div>
+                <input value={form.number} onChange={e=>f('number',e.target.value)} placeholder="ex: 120"/>
+              </div>
+              <div className="fg"><div className="flabel">Complemento</div>
+                <input value={form.complement} onChange={e=>f('complement',e.target.value)} placeholder="ap 302, bloco B..."/>
+              </div>
+            </div>
+
             {/* Localização */}
             <div className="form-row">
               <div className="fg"><div className="flabel">Bairro</div>
@@ -260,19 +306,28 @@ export default function Clients({ clients, proposals, projects, onRefresh, onEdi
               </div>
             </div>
 
-            {/* Planta */}
-            <div style={{marginBottom:12}}>
-              <div className="flabel" style={{marginBottom:5}}>Upload da planta</div>
-              <input type="file" accept=".pdf,image/*" onChange={handlePlant}
-                style={{fontSize:12,color:'var(--text2)'}}/>
-              {form.plant_file && (
-                <div style={{marginTop:6,fontSize:11,color:'var(--green)',display:'flex',alignItems:'center',gap:6}}>
-                  <i className="ti ti-file" aria-hidden/>{form.plant_file.name}
-                  {form.plant_file.type?.startsWith('image') && (
-                    <img src={form.plant_file.data} alt="planta" style={{height:40,borderRadius:4,marginLeft:8}}/>
-                  )}
+            {/* Plantas do cliente — medidas + elétrica */}
+            <div style={{marginBottom:12,background:'var(--surf)',border:'1px solid var(--border)',borderRadius:8,padding:'12px 14px'}}>
+              <div className="flabel" style={{marginBottom:8,fontWeight:600}}>📐 Plantas (ficam salvas no cliente)</div>
+              <div className="form-row">
+                <div className="fg">
+                  <div className="flabel">Planta de MEDIDAS</div>
+                  <input type="file" accept=".pdf,image/*" onChange={e=>handlePlantNew(e,'planta_medidas')} style={{fontSize:12,color:'var(--text2)'}}/>
+                  {form.planta_medidas && <div style={{marginTop:6,fontSize:11,color:'var(--green)',display:'flex',alignItems:'center',gap:6}}>
+                    <i className="ti ti-file-check" aria-hidden/>{form.planta_medidas.name}
+                    {form.planta_medidas.type?.startsWith('image') && <img src={form.planta_medidas.data} alt="" style={{height:36,borderRadius:4,marginLeft:6}}/>}
+                  </div>}
                 </div>
-              )}
+                <div className="fg">
+                  <div className="flabel">Planta ELÉTRICA</div>
+                  <input type="file" accept=".pdf,image/*" onChange={e=>handlePlantNew(e,'planta_eletrica')} style={{fontSize:12,color:'var(--text2)'}}/>
+                  {form.planta_eletrica && <div style={{marginTop:6,fontSize:11,color:'var(--green)',display:'flex',alignItems:'center',gap:6}}>
+                    <i className="ti ti-file-check" aria-hidden/>{form.planta_eletrica.name}
+                    {form.planta_eletrica.type?.startsWith('image') && <img src={form.planta_eletrica.data} alt="" style={{height:36,borderRadius:4,marginLeft:6}}/>}
+                  </div>}
+                </div>
+              </div>
+              <div style={{fontSize:10,color:'var(--text3)',marginTop:6}}>Estas plantas serão usadas na análise de IA do orçamento.</div>
             </div>
 
             {/* WhatsApp groups */}

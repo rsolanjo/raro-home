@@ -27,6 +27,7 @@ function calcTravelCost(km, visits, fuelPrice, consumption) {
 
 import { useState, useEffect, useRef } from 'react'
 import { saveProject, deleteProject, addAnnotation } from '../db/supabase.js'
+import DiarioObra from './DiarioObra.jsx'
 
 const PHASES = [
   { key:'visit',       label:'Visita',      color:'#7C3AED', icon:'ti-map-pin' },
@@ -149,6 +150,7 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
     {key:'project2',label:'Projeto & Planta',icon:'ti-map'},
     {key:'purchase',label:'Compras',icon:'ti-shopping-cart'},
     {key:'installation',label:'Instalação',icon:'ti-tool'},
+    {key:'diario',label:'Diário de Obra',icon:'ti-camera'},
     {key:'notes',label:'Anotações',icon:'ti-pencil'},
     {key:'costs',label:'Custos',icon:'ti-coin'},
   ]
@@ -632,6 +634,8 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
 
             </div>
           </div>}
+          {tab==='diario' && <DiarioObra proj={proj} onRefresh={onRefresh} currentUser={currentUser} />}
+
           {tab==='notes' && <div style={{maxWidth:640}}>
             <div style={{marginBottom:14,display:'flex',gap:8}}>
               <textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} placeholder="Nova anotação..." style={{flex:1,resize:'vertical'}} />

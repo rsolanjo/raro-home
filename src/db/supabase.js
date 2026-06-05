@@ -253,3 +253,26 @@ export async function importBackup(jsonText) {
     alert(`Backup importado: ${count} registros restaurados.`)
   } catch(err) { alert('Erro ao importar: ' + err.message) }
 }
+
+// ─── DIÁRIO DE OBRA ───────────────────────────────────────────
+// Upload de foto para o Supabase Storage (bucket 'obra'), retorna URL pública
+export async function uploadObraPhoto(projectId, file) {
+  const ext = (file.name?.split('.').pop() || 'jpg').toLowerCase()
+  const path = `proj-${projectId}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`
+  const { error } = await supabase.storage.from('obra').upload(path, file, {
+    cacheControl: '3600', upsert: false, contentType: file.type || 'image/jpeg'
+  })
+  if (error) { console.error('upload obra:', error); throw error }
+  const { data } = supabase.storage.from('obra').getPublicUrl(path)
+  return { url: data.publicUrl, path }
+}
+
+// O diário fica salvo em project.diary (JSONB) — array de entradas
+// entrada: { id, date, room, type, text, photos:[{url,path}], video_link, author, created_at }
+export async function saveDiary(projectId, diary) {
+  const { data, error } = await supabase.from('projects')
+    .update({ diary, updated_at: new Date().toISOString() })
+    .eq('id', projectId).select().single()
+  if (error) { console.error('saveDiary:', error); throw error }
+  return data
+}
