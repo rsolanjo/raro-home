@@ -77,6 +77,7 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], onSaveToPropo
   const [markers, setMarkers] = useState([])
   const [projectInfo, setProjectInfo] = useState({client:'',notes:''})
   const [selClient, setSelClient] = useState('')
+  const [clientSearch, setClientSearch] = useState('')
   const [execDoc, setExecDoc] = useState(null)
   const [selected, setSelected] = useState(null)
   const [dragging, setDragging] = useState(null)
@@ -161,16 +162,24 @@ Responda APENAS JSON (sem markdown):
     try{
       const reply=await askClaude(
         [{role:'user',text:prompt}],
-        bgImage.split(',')[1],'image/jpeg',4000
+        bgImage.split(',')[1],'image/jpeg',8000
       )
       let j=reply.trim()
       if(j.includes('```')) j=j.replace(/```json?\n?/g,'').replace(/```/g,'')
-      // extrai o primeiro bloco JSON, caso a IA escreva texto antes/depois
-      const s=j.indexOf('{'), e=j.lastIndexOf('}')
-      if(s>=0 && e>s) j=j.slice(s,e+1)
+      const s=j.indexOf('{')
+      if(s>=0) j=j.slice(s)
       let parsed
       try{ parsed=JSON.parse(j) }
-      catch(pe){ throw new Error('A IA não retornou um JSON válido. Tente clicar em "Gerar sugestão" novamente. Resposta: '+reply.slice(0,150)) }
+      catch(pe){
+        // tenta reparar JSON cortado: pega todos os objetos {..} completos do array
+        const objs=[...j.matchAll(/\{[^{}]*\}/g)].map(m=>m[0])
+        if(objs.length){
+          try{ parsed={itens: objs.map(o=>JSON.parse(o))} }
+          catch(e2){ throw new Error('A IA cortou a resposta. Clique em "Gerar sugestão" de novo.') }
+        } else {
+          throw new Error('A IA não retornou JSON. Tente novamente.')
+        }
+      }
       let cid=Date.now()
       const mk=(parsed.itens||[]).map(it=>{
         const cat=catalog.find(c=>c.code===it.code) || catalog.find(c=>(c.name||'').toLowerCase()===(it.name||'').toLowerCase())
@@ -179,7 +188,7 @@ Responda APENAS JSON (sem markdown):
           note:it.nota||it.note||'', cost:cat?.cost_price||0, sale:cat?.sale_price||0, category:cat?.category||''}
       })
       if(!mk.length) throw new Error('A IA não sugeriu itens. Verifique se há equipamentos no catálogo e tente novamente.')
-      mk.forEach((m,i)=>{ m.n = i+1 })  // legenda numérica única
+      mk.forEach((m,i)=>{ m.n = i+1 })
       setMarkers(mk)
       setStep('editor')
     }catch(err){ alert('Erro ao posicionar: '+err.message) }
@@ -343,16 +352,33 @@ Use tabelas HTML. Português técnico.`
               <div style={{fontSize:13,color:'rgba(255,255,255,0.5)',marginBottom:20}}>JPG, PNG ou PDF</div>
 
               <div style={{marginBottom:20,textAlign:'left'}}>
-                <label style={lbl}>Cliente (opcional — puxa dados cadastrados)</label>
-                <select value={selClient} onChange={e=>{
-                    setSelClient(e.target.value)
-                    const cl=clients.find(c=>String(c.id)===e.target.value)
-                    if(cl) setProjectInfo(p=>({...p,client:`${cl.name1||''}${cl.name2?' & '+cl.name2:''}`}))
-                  }} style={{...inputDark,marginBottom:0}}>
-                  <option value="">— Selecionar cliente cadastrado —</option>
-                  {clients.map(c=>(<option key={c.id} value={c.id}>{c.name1}{c.name2?' & '+c.name2:''}{c.neighborhood?' · '+c.neighborhood:''}</option>))}
-                </select>
-                <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:6}}>Ou deixe em branco para preencher manualmente depois.</div>
+                <label style={lbl}>Cliente</label>
+                <input value={clientSearch} onChange={e=>{setClientSearch(e.target.value);setSelClient('')}}
+                  placeholder="Digite o nome do cliente..." style={{...inputDark,marginBottom:6,fontSize:14,padding:'10px 12px'}}/>
+                {clientSearch && !selClient && (
+                  <div style={{maxHeight:180,overflowY:'auto',background:'rgba(255,255,255,0.06)',borderRadius:6,border:'1px solid rgba(255,255,255,0.1)'}}>
+                    {clients.filter(c=>{
+                      const q=clientSearch.toLowerCase()
+                      return (c.name1||'').toLowerCase().includes(q)||(c.name2||'').toLowerCase().includes(q)||(c.neighborhood||'').toLowerCase().includes(q)
+                    }).slice(0,8).map(c=>(
+                      <div key={c.id} onClick={()=>{
+                          setSelClient(c.id)
+                          setClientSearch(`${c.name1||''}${c.name2?' & '+c.name2:''}`)
+                          setProjectInfo(p=>({...p,client:`${c.name1||''}${c.name2?' & '+c.name2:''}`}))
+                          // se cliente tem plantas salvas, carrega
+                        }}
+                        style={{padding:'10px 12px',cursor:'pointer',color:'#fff',fontSize:13,borderBottom:'1px solid rgba(255,255,255,0.05)'}}
+                        onMouseEnter={e=>e.currentTarget.style.background='rgba(14,165,233,0.2)'}
+                        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                        {c.name1}{c.name2?' & '+c.name2:''}{c.neighborhood?` · ${c.neighborhood}`:''}
+                      </div>
+                    ))}
+                    {clients.filter(c=>(c.name1||'').toLowerCase().includes(clientSearch.toLowerCase())).length===0 &&
+                      <div style={{padding:'10px 12px',color:'rgba(255,255,255,0.4)',fontSize:12}}>Nenhum cliente encontrado. Pode seguir manual.</div>}
+                  </div>
+                )}
+                {selClient && <div style={{fontSize:12,color:'#38BDF8',marginTop:4}}><i className="ti ti-check" aria-hidden/> Cliente selecionado</div>}
+                <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:6}}>Ou deixe em branco para preencher manualmente.</div>
               </div>
 
               <button onClick={()=>fileRef.current?.click()} style={btnPrimary}>Selecionar planta e começar</button>
@@ -363,8 +389,8 @@ Use tabelas HTML. Português técnico.`
 
         {/* STEP CHAT */}
         {step==='chat' && (
-          <div style={{flex:1,display:'flex'}}>
-            <div style={{width:'45%',borderRight:'1px solid rgba(255,255,255,0.08)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,background:'#1a1a2e'}}>
+          <div className="pe-chat-wrap" style={{flex:1,display:'flex',minHeight:0}}>
+            <div className="pe-chat-img" style={{width:'42%',borderRight:'1px solid rgba(255,255,255,0.08)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,background:'#1a1a2e'}}>
               {bgImage && <img src={bgImage} style={{maxWidth:'100%',maxHeight:'100%',borderRadius:6}}/>}
             </div>
             <div style={{flex:1,display:'flex',flexDirection:'column'}}>
@@ -389,10 +415,12 @@ Use tabelas HTML. Português técnico.`
                     </button>
                   )}
                 </div>
-                <div style={{display:'flex',gap:8}}>
-                  <input value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendChat()}
-                    placeholder="Responda à IA ou pergunte algo..." style={inputStyle}/>
-                  <button onClick={sendChat} disabled={loading} style={btnPrimary}><i className="ti ti-send" aria-hidden/></button>
+                <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
+                  <textarea value={chatInput} onChange={e=>setChatInput(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendChat() } }}
+                    placeholder="Responda à IA... (Enter envia, Shift+Enter quebra linha)" rows={2}
+                    style={{...inputStyle,resize:'none',minHeight:44,maxHeight:120,lineHeight:1.4}}/>
+                  <button onClick={sendChat} disabled={loading} style={{...btnPrimary,height:44}}><i className="ti ti-send" aria-hidden/></button>
                 </div>
                 <div style={{fontSize:10,color:'rgba(255,255,255,0.3)',marginTop:8,textAlign:'center'}}>
                   Responda as perguntas da IA quando quiser, ou clique em "Gerar sugestão" a qualquer momento.
@@ -404,8 +432,8 @@ Use tabelas HTML. Português técnico.`
 
         {/* STEP EDITOR */}
         {step==='editor' && (
-          <div style={{flex:1,display:'flex'}}>
-            <div style={{width:230,background:'#0f172a',borderRight:'1px solid rgba(255,255,255,0.08)',overflowY:'auto'}}>
+          <div className="pe-editor-wrap" style={{flex:1,display:'flex',minHeight:0}}>
+            <div className="pe-editor-cat" style={{width:230,background:'#0f172a',borderRight:'1px solid rgba(255,255,255,0.08)',overflowY:'auto'}}>
               <div style={{padding:12,borderBottom:'1px solid rgba(255,255,255,0.08)',fontSize:11,color:'#38BDF8',fontWeight:600,textTransform:'uppercase'}}>Adicionar do catálogo</div>
               {addMode&&addItem&&<div style={{padding:'6px 12px',background:'rgba(14,165,233,0.15)',fontSize:11,color:'#38BDF8'}}>Clique na planta: {addItem.name}<br/><span onClick={()=>{setAddMode(false);setAddItem(null)}} style={{cursor:'pointer',textDecoration:'underline'}}>cancelar</span></div>}
               {Object.entries(catGroups).map(([g,items])=>(
@@ -420,7 +448,7 @@ Use tabelas HTML. Português técnico.`
                 </div>
               ))}
             </div>
-            <div style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20}}>
+            <div className="pe-editor-canvas" style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20}}>
               <div ref={containerRef} style={{position:'relative',display:'inline-block',cursor:addMode?'crosshair':'default'}} onClick={onCanvasClick}>
                 <img src={bgImage} style={{display:'block',maxWidth:'100%',pointerEvents:'none'}} draggable={false}/>
                 {markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro; const sel=selected===m.uid
@@ -431,7 +459,7 @@ Use tabelas HTML. Português técnico.`
                   </div>})}
               </div>
             </div>
-            <div style={{width:220,background:'#0f172a',borderLeft:'1px solid rgba(255,255,255,0.08)',overflowY:'auto'}}>
+            <div className="pe-editor-side" style={{width:220,background:'#0f172a',borderLeft:'1px solid rgba(255,255,255,0.08)',overflowY:'auto'}}>
               {selected ? (()=>{const m=markers.find(x=>x.uid===selected); if(!m)return null
                 return <div style={{padding:14}}>
                   <div style={{fontSize:11,color:'#38BDF8',fontWeight:600,marginBottom:10,textTransform:'uppercase'}}>Item {m.id}</div>

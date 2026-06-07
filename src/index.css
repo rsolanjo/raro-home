@@ -773,3 +773,18 @@ textarea { resize: vertical; min-height: 70px; }
 /* Tabs de projeto roláveis no mobile sem barra feia */
 .proj-tabs-scroll::-webkit-scrollbar { height: 0; }
 .proj-tabs-scroll { scrollbar-width: none; }
+
+/* ═══════════ PROJETO EXECUTIVO — mobile ═══════════ */
+@media (max-width: 1024px) {
+  /* Chat: imagem em cima (menor), conversa embaixo */
+  .pe-chat-wrap { flex-direction: column !important; }
+  .pe-chat-img { width: 100% !important; max-height: 180px; border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .pe-chat-img img { max-height: 150px !important; }
+
+  /* Editor: painéis viram empilhados e roláveis */
+  .pe-editor-wrap { flex-direction: column !important; overflow-y: auto !important; }
+  .pe-editor-cat, .pe-editor-side { width: 100% !important; max-height: 200px; border: none !important; border-bottom: 1px solid rgba(255,255,255,0.08) !important; }
+  .pe-editor-canvas { min-height: 50vh; }
+}
+/* Garantir que <select> tenha texto escuro nas opções (fix fundo branco) */
+select option { color: #1a1a1a; background: #fff; }

@@ -14,7 +14,14 @@ export default function Admins({ admins, clients=[], currentUser, onRefresh }) {
     setPinAction(()=>action); setShowPIN(true)
   }
 
-  async function handleSave(){ await saveAdmin({...form}); setShowModal(false); onRefresh() }
+  async function handleSave(){
+    if(!form.name?.trim()||!form.gmail?.trim()){ alert('Preencha nome e gmail.'); return }
+    if(form.role==='mestre'&&!form.client_id){ alert('Selecione o cliente/obra do mestre de obra.'); return }
+    try{
+      await saveAdmin({...form})
+      setShowModal(false); onRefresh()
+    }catch(e){ alert('Erro ao salvar usuário: '+e.message+'\n\nSe falar de "client_id", rode o SUPABASE_v39.sql.') }
+  }
 
   return (
     <>

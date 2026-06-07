@@ -293,11 +293,8 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
           <button className="btn" onClick={()=>setShowComp(true)}>
             <i className="ti ti-chart-bar" aria-hidden/>Comparativo
           </button>
-          <button className="btn" style={{borderColor:'#7C3AED',color:'#7C3AED'}} onClick={()=>onNewExec&&onNewExec()}>
-            <i className="ti ti-brain" aria-hidden/>Projeto Executivo (IA)
-          </button>
           <button className="btn primary" onClick={onNew}>
-            <i className="ti ti-plus" aria-hidden/>Novo orçamento
+            <i className="ti ti-plus" aria-hidden/>Novo
           </button>
         </div>
       </div>

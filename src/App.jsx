@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import Login from './components/Login.jsx'
 import MestreView from './components/MestreView.jsx'
+import NovoOrcamento from './components/NovoOrcamento.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import Proposals from './components/Proposals.jsx'
@@ -64,6 +65,8 @@ export default function App() {
   }, [user])
 
   const [execSeed, setExecSeed] = useState(null)
+  const [showNovo, setShowNovo] = useState(false)
+  const [novoCtx, setNovoCtx] = useState(null)
   function nav(p) { setPage(p); if (p !== 'builder') setEditingProposal(null) }
   function newExec() { setPage('exec') }
   function editProposal(p) { setEditingProposal(p); setPage('builder') }
@@ -135,7 +138,7 @@ export default function App() {
 
         {!loading && <>
           {page==='dashboard'  && <Dashboard proposals={data.proposals} projects={data.projects} stock={data.stock} clients={data.clients} onNav={nav} />}
-          {page==='proposals'  && <Proposals proposals={data.proposals} onRefresh={refresh} onEdit={editProposal} onNew={newProposal} onNewExec={newExec} currentUser={user} clients={data.clients} />}
+          {page==='proposals'  && <Proposals proposals={data.proposals} onRefresh={refresh} onEdit={editProposal} onNew={()=>setShowNovo(true)} onNewExec={newExec} currentUser={user} clients={data.clients} />}
           {page==='builder'    && <ProposalBuilder clients={data.clients} onRefresh={refresh} editProposal={editingProposal} execSeed={execSeed} isAdmin={true} currentUser={user} />}
           {page==='exec'       && <ProjetoExecutivo catalog={data.catalog} clients={data.clients} currentUser={user}
             onClose={()=>setPage('proposals')}
@@ -153,6 +156,15 @@ export default function App() {
           {page==='reports'    && <Reports projects={data.projects} proposals={data.proposals} stock={data.stock} clients={data.clients} currentUser={user} />}
         </>}
       </div>
+
+      {showNovo && <NovoOrcamento clients={data.clients}
+        onClose={()=>setShowNovo(false)}
+        onChoose={({type,client})=>{
+          setShowNovo(false)
+          setNovoCtx({client})
+          if(type==='executivo'){ setExecSeed(null); setPage('exec') }
+          else { setEditingProposal(client?{client_name:`${client.name1}${client.name2?' & '+client.name2:''}`, client_id:client.id}:null); setExecSeed(null); setPage('builder') }
+        }} />}
 
       {/* Bottom tab bar — só no celular */}
       <nav className="mobile-tabbar">
