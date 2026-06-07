@@ -237,8 +237,8 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
         </div>
 
         {/* Tabs */}
-        <div style={{borderBottom:'1px solid var(--border)',display:'flex',background:'var(--bg)',flexShrink:0}}>
-          {TABS.map(t=><button key={t.key} onClick={()=>setTab(t.key)} style={{padding:'9px 13px',border:'none',background:'transparent',cursor:'pointer',fontSize:11.5,color:tab===t.key?'var(--accent)':'var(--text2)',borderBottom:`2px solid ${tab===t.key?'var(--accent)':'transparent'}`,display:'flex',alignItems:'center',gap:5,fontFamily:'inherit',fontWeight:tab===t.key?500:400}}>
+        <div className="proj-tabs-scroll" style={{borderBottom:'1px solid var(--border)',display:'flex',background:'var(--bg)',flexShrink:0,overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+          {TABS.map(t=><button key={t.key} onClick={()=>setTab(t.key)} style={{padding:'9px 13px',border:'none',background:'transparent',cursor:'pointer',fontSize:11.5,color:tab===t.key?'var(--accent)':'var(--text2)',borderBottom:`2px solid ${tab===t.key?'var(--accent)':'transparent'}`,display:'flex',alignItems:'center',gap:5,fontFamily:'inherit',fontWeight:tab===t.key?500:400,whiteSpace:'nowrap',flexShrink:0}}>
             <i className={`ti ${t.icon}`} aria-hidden />{t.label}
           </button>)}
         </div>

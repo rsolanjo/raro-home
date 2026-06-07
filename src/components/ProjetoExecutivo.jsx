@@ -212,30 +212,77 @@ Responda APENAS JSON (sem markdown):
     setLoading(true)
     const itemsList=markers.map(m=>`#${m.n} · ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
     const conversation=chat.map(m=>`${m.role==='user'?'Cliente':'Projetista'}: ${m.text}`).join('\n')
-    const prompt=`Gere um PROJETO EXECUTIVO de automação para o arquiteto preparar a infraestrutura (pré-instalação).
+    const prompt=`Gere um PROJETO EXECUTIVO COMPLETO de automação para o arquiteto e o mestre de obra prepararem a infraestrutura (pré-instalação).
 
 IMPORTANTE: NÃO inclua modelos comerciais nem preços. É um guia técnico de obra.
 
-CONVERSA COM O CLIENTE:
+CONVERSA COM O CLIENTE (onde fica o CPD/rack, fibra, cabeceiras, etc.):
 ${conversation}
 
-EQUIPAMENTOS POSICIONADOS:
+EQUIPAMENTOS POSICIONADOS (cada um com #número único):
 ${itemsList}
 
-Gere um documento técnico em HTML (só o conteúdo interno, sem <html> ou <head>) com estas seções:
-1. LEGENDA NUMERADA — tabela com cada item (#número, equipamento, ambiente, nota) para localização rápida na planta
-2. Premissas do projeto
-3. Tabela de pontos por ambiente (use o #número, posição, altura, tipo de cabo, metragem aproximada)
-4. Mapa de cabeamento (origem→destino, tipo de cabo)
-5. Checklist de obra (o que o arquiteto/eletricista prepara antes do revestimento)
-6. Riscos e cuidados
-Use tabelas HTML simples. Linguagem técnica de obra. Tudo em português.`
+Gere um documento técnico em HTML (só o conteúdo interno, sem <html> ou <head>) com TODAS estas seções:
+
+1. LEGENDA NUMERADA DOS PONTOS — tabela com cada item (#número, equipamento, ambiente, altura, observação) para localização rápida na planta.
+
+2. LEGENDA DE ELÉTRICA (padrão da prancha) — inclua esta tabela de referência de alturas padrão:
+   - Quadro de distribuição de circuitos: H=1,50m
+   - Tomada baixa: H=0,30m
+   - Tomada média: H=1,10m / 1,30m
+   - Tomada alta: H=2,00m / 2,20m
+   - Tomada alta chuveiro: H=2,30m
+   - Ponto de ar-condicionado: H=2,40m (parede) ou no teto (cassete)
+   - Interruptor: H=1,10m
+   - Interruptor de cabeceira: H=0,90m
+   - Ponto de dados (internet): H=0,30m
+   - Ponto de antena: H=1,30m / 1,50m
+
+3. PREMISSAS DO PROJETO — incluindo onde fica o CPD/rack e que TODOS os keypads precisam de NEUTRO.
+
+4. TABELA DE PONTOS POR AMBIENTE — use o #número, posição na parede, altura, tipo de cabo (CAT6, cabo de som, fase+neutro, etc.) e metragem aproximada até o CPD.
+
+5. MAPA DE CABEAMENTO — origem (CPD) → destino, tipo e bitola de cabo, metragem.
+
+6. LISTA DE TODO O MATERIAL — quantitativo de cabos (metros por tipo), caixas, eletrodutos, conduletes, etc. que a obra precisa comprar.
+
+7. INSTRUÇÃO DE FOTOS NO CHECKLIST DIÁRIO — explique ao mestre de obra que, no app, ele deve tirar foto de cada ponto pelo número (#) antes de fechar a parede: "fotografe o ponto #5 antes do revestimento", etc.
+
+8. CHECKLIST DE OBRA — o que preparar antes do revestimento.
+
+9. PONTOS DE ATENÇÃO E RISCOS.
+
+Use tabelas HTML simples e títulos <h2>/<h3>. Linguagem técnica de obra. Tudo em português.`
     try{
-      const reply=await askClaude([{role:'user',text:prompt}],null,'image/jpeg',4000)
+      const reply=await askClaude([{role:'user',text:prompt}],null,'image/jpeg',8000)
       let html=reply; if(html.includes('```')) html=html.replace(/```html?\n?/g,'').replace(/```/g,'')
       setExecDoc(html)
       setStep('exec')
     }catch(err){ alert('Erro ao gerar projeto: '+err.message) }
+    setLoading(false)
+  }
+
+  // ── Gerar planta elétrica da automação a partir da planta baixa ──
+  async function generateElectrical(){
+    setLoading(true)
+    const itemsList=markers.map(m=>`#${m.n} · ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
+    const prompt=`Você é projetista elétrico. Com base na planta e nos pontos de automação posicionados, gere uma DESCRIÇÃO DE PLANTA ELÉTRICA da nossa instalação de automação (não a elétrica geral da casa, só o que automação exige).
+
+PONTOS:
+${itemsList}
+
+Gere HTML (sem <html>/<head>) com:
+1. LEGENDA DE SÍMBOLOS (no padrão de prancha elétrica): quadro de distribuição H=1,50m; tomada baixa H=0,30m; tomada média H=1,10m; tomada alta H=2,00m; ponto de ar H=2,40m; interruptor H=1,10m; interruptor de cabeceira H=0,90m; ponto de dados H=0,30m; ponto de luz no teto.
+2. CIRCUITOS NECESSÁRIOS — liste os circuitos que o eletricista deve criar no quadro, indicando quais precisam de NEUTRO (todos os de keypad/interruptor inteligente precisam).
+3. TABELA POR AMBIENTE — pontos elétricos que cada cômodo precisa para a automação funcionar (tomada para hub, ponto de dados para câmera/AP, fase+neutro para keypad, etc.), com altura.
+4. OBSERVAÇÕES DE INSTALAÇÃO ELÉTRICA — bitolas de fio, eletrodutos, e o lembrete do NEUTRO obrigatório.
+Use tabelas HTML. Português técnico.`
+    try{
+      const reply=await askClaude([{role:'user',text:prompt}],bgImage?bgImage.split(',')[1]:null,'image/jpeg',6000)
+      let html=reply; if(html.includes('```')) html=html.replace(/```html?\n?/g,'').replace(/```/g,'')
+      setExecDoc((execDoc||'')+'<hr style="margin:30px 0"><h1>Planta Elétrica da Automação</h1>'+html)
+      setStep('exec')
+    }catch(err){ alert('Erro ao gerar planta elétrica: '+err.message) }
     setLoading(false)
   }
 
@@ -422,6 +469,9 @@ Use tabelas HTML simples. Linguagem técnica de obra. Tudo em português.`
           <button onClick={()=>setStep('chat')} style={btnGhost}><i className="ti ti-arrow-left" aria-hidden/> Voltar à análise</button>
           <button onClick={generateExec} disabled={loading} style={{...btnPrimary,background:'#7C3AED'}}>
             <i className="ti ti-file-text" aria-hidden/> {loading?'Gerando...':'Gerar Projeto Executivo'}
+          </button>
+          <button onClick={generateElectrical} disabled={loading} style={{...btnPrimary,background:'#D97706'}}>
+            <i className="ti ti-bolt" aria-hidden/> Gerar Planta Elétrica
           </button>
         </div>
       )}

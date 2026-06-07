@@ -30,7 +30,7 @@ async function compress(file, maxDim=1280, q=0.72){
 function todayISO(){ return new Date().toISOString().slice(0,10) }
 function fmtDate(iso){ try{ return new Date(iso+'T12:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'}) }catch{ return iso } }
 
-export default function DiarioObra({ proj, onRefresh, currentUser }) {
+export default function DiarioObra({ proj, onRefresh, currentUser, mestreMode=false }) {
   const diary = Array.isArray(proj.diary) ? proj.diary : (typeof proj.diary==='string' ? JSON.parse(proj.diary||'[]') : [])
   const rooms = (proj.rooms_config||[]).map(r=>r.name||r).filter(Boolean)
   const customTypes = Array.isArray(proj.diary_types) ? proj.diary_types : []
@@ -48,6 +48,8 @@ export default function DiarioObra({ proj, onRefresh, currentUser }) {
   const [newType, setNewType] = useState('')
   const [lightbox, setLightbox] = useState(null)
   const fileRef = useRef()
+  const isToday = selDate === todayISO()
+  const canEdit = !mestreMode || isToday
 
   // Datas que têm registros (para navegação)
   const dates = [...new Set(diary.map(d=>d.date))].sort().reverse()
@@ -80,6 +82,7 @@ export default function DiarioObra({ proj, onRefresh, currentUser }) {
   }
 
   async function delEntry(id){
+    if(mestreMode){ const e=diary.find(x=>x.id===id); if(e && e.date!==todayISO()){ alert('Não é possível alterar registros de dias anteriores.'); return } }
     if(!confirm('Remover este registro?')) return
     try{ await saveDiary(proj.id, diary.filter(d=>d.id!==id)); onRefresh && await onRefresh() }
     catch(err){ alert('Erro: '+err.message) }
@@ -101,7 +104,12 @@ export default function DiarioObra({ proj, onRefresh, currentUser }) {
   return (
     <div className="diario-obra">
       {/* NOVO REGISTRO */}
-      <div className="diario-form">
+      {mestreMode && !isToday && (
+        <div style={{background:'#FEF3C7',border:'1px solid #F59E0B',borderRadius:8,padding:'10px 14px',marginBottom:14,fontSize:12,color:'#92400E'}}>
+          <i className="ti ti-lock" aria-hidden/> Você está vendo um dia anterior (somente leitura). Para adicionar registros, volte para hoje.
+        </div>
+      )}
+      {canEdit && <div className="diario-form">
         <div className="diario-form-title"><i className="ti ti-camera" aria-hidden/> Novo registro de obra</div>
 
         <div className="diario-row">
@@ -163,7 +171,7 @@ export default function DiarioObra({ proj, onRefresh, currentUser }) {
         <button className="btn primary diario-save" onClick={addEntry} disabled={saving||uploading}>
           <i className="ti ti-check" aria-hidden/> {saving?'Salvando...':'Salvar registro'}
         </button>
-      </div>
+      </div>}
 
       {/* NAVEGAÇÃO POR DIA */}
       {dates.length>0 && (
@@ -188,7 +196,7 @@ export default function DiarioObra({ proj, onRefresh, currentUser }) {
                 <div className="diario-entry-head">
                   <span className="diario-entry-type" style={{background:ti.color}}><i className={`ti ${ti.icon}`} aria-hidden/> {ti.label}</span>
                   {e.author && <span className="diario-entry-author">{e.author}</span>}
-                  <button className="diario-entry-del" onClick={()=>delEntry(e.id)}><i className="ti ti-trash" aria-hidden/></button>
+                  {(!mestreMode || e.date===todayISO()) && <button className="diario-entry-del" onClick={()=>delEntry(e.id)}><i className="ti ti-trash" aria-hidden/></button>}
                 </div>
                 {e.text && <div className="diario-entry-text">{e.text}</div>}
                 {e.photos?.length>0 && <div className="diario-entry-photos">

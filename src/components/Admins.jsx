@@ -2,9 +2,9 @@ import PINModal from './PINModal.jsx'
 import { useState } from 'react'
 import { saveAdmin, deleteAdmin , checkPINSession, setPINSession, verifyPIN } from '../db/supabase.js'
 
-export default function Admins({ admins, currentUser, onRefresh }) {
+export default function Admins({ admins, clients=[], currentUser, onRefresh }) {
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({name:'',gmail:'',role:'admin'})
+  const [form, setForm] = useState({name:'',gmail:'',role:'admin',client_id:''})
   const [showPIN, setShowPIN] = useState(false)
   const [pinAction, setPinAction] = useState(null)
   const f = (k,v) => setForm(p=>({...p,[k]:v}))
@@ -21,7 +21,7 @@ export default function Admins({ admins, currentUser, onRefresh }) {
       <div className="topbar">
         <div className="topbar-title"><i className="ti ti-shield" aria-hidden/>Administradores</div>
         <div className="topbar-acts">
-          <button className="btn primary" onClick={()=>requirePIN(()=>{setForm({name:'',gmail:'',role:'admin'});setShowModal(true)})}>
+          <button className="btn primary" onClick={()=>requirePIN(()=>{setForm({name:'',gmail:'',role:'admin',client_id:''});setShowModal(true)})}>
             <i className="ti ti-plus" aria-hidden/>Novo admin
           </button>
         </div>
@@ -72,10 +72,23 @@ export default function Admins({ admins, currentUser, onRefresh }) {
             <div className="form-row full" style={{marginBottom:16}}>
               <div className="fg"><div className="flabel">Papel</div>
                 <select value={form.role} onChange={e=>f('role',e.target.value)}>
-                  <option value="admin">Admin</option><option value="viewer">Visualizador</option>
+                  <option value="admin">Admin (acesso total)</option>
+                  <option value="viewer">Visualizador</option>
+                  <option value="mestre">Mestre de obra (só diário)</option>
                 </select>
               </div>
             </div>
+            {form.role==='mestre' && (
+              <div className="form-row full" style={{marginBottom:16}}>
+                <div className="fg"><div className="flabel">Cliente / obra atribuída</div>
+                  <select value={form.client_id||''} onChange={e=>f('client_id',e.target.value)}>
+                    <option value="">— Selecione a obra —</option>
+                    {(clients||[]).map(c=>(<option key={c.id} value={c.id}>{c.name1}{c.name2?' & '+c.name2:''}{c.neighborhood?' · '+c.neighborhood:''}</option>))}
+                  </select>
+                  <div style={{fontSize:10,color:'var(--text3)',marginTop:5}}>O mestre verá apenas o diário desta obra. Não acessa mais nada.</div>
+                </div>
+              </div>
+            )}
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button className="btn" onClick={()=>setShowModal(false)}>Cancelar</button>
               <button className="btn primary" onClick={()=>requirePIN(handleSave)}>Salvar</button>

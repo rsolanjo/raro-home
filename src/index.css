@@ -742,3 +742,34 @@ textarea { resize: vertical; min-height: 70px; }
   .diario-row { flex-direction: row; }  /* manter data+cômodo lado a lado */
   .diario-entry-photos img { width: 72px; height: 72px; }
 }
+
+/* ═══════════ MOBILE BOTTOM TAB BAR ═══════════ */
+.mobile-tabbar { display: none; }
+
+@media (max-width: 1024px) {
+  /* Esconde a sidebar no celular, mostra a tab bar */
+  .app > .sidebar { display: none !important; }
+  .main { padding-bottom: 64px !important; } /* espaço pra tab bar */
+
+  .mobile-tabbar {
+    display: flex !important;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    background: var(--bg); border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .mobile-tabbar button {
+    flex: 1; background: none; border: none; cursor: pointer;
+    padding: 8px 4px 10px; display: flex; flex-direction: column;
+    align-items: center; gap: 3px; color: var(--text3);
+    font-family: inherit; font-size: 10px; font-weight: 600;
+    min-height: 56px; justify-content: center;
+  }
+  .mobile-tabbar button i { font-size: 22px; }
+  .mobile-tabbar button.active { color: var(--accent); }
+  .mobile-tabbar button.active i { transform: scale(1.05); }
+}
+
+/* Tabs de projeto roláveis no mobile sem barra feia */
+.proj-tabs-scroll::-webkit-scrollbar { height: 0; }
+.proj-tabs-scroll { scrollbar-width: none; }

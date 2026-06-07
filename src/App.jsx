@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import Login from './components/Login.jsx'
+import MestreView from './components/MestreView.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import Proposals from './components/Proposals.jsx'
@@ -102,6 +103,9 @@ export default function App() {
     setUser(u)
   }} />
 
+  // Mestre de obra: vê apenas o diário da obra atribuída
+  if (user.role === 'mestre') return <MestreView user={user} onLogout={logout} />
+
   return (
     <div className="app">
       <Sidebar active={page} onNav={nav} counts={counts} user={user} onLogout={logout} />
@@ -143,12 +147,28 @@ export default function App() {
           {page==='catalog'    && <Catalog catalog={data.catalog} suppliers={data.suppliers} onRefresh={refresh} isAdmin={true} currentUser={user} />}
           {page==='suppliers'  && <Suppliers suppliers={data.suppliers} onRefresh={refresh} />}
           {page==='tools'      && <Tools tools={data.tools} onRefresh={refresh} />}
-          {page==='admins'     && <Admins admins={data.admins} currentUser={user} onRefresh={refresh} />}
+          {page==='admins'     && <Admins admins={data.admins} clients={data.clients} currentUser={user} onRefresh={refresh} />}
           {page==='financial'  && <Financial proposals={data.proposals} projects={data.projects} suppliers={data.suppliers} />}
           {page==='backup'     && <Backup />}
           {page==='reports'    && <Reports projects={data.projects} proposals={data.proposals} stock={data.stock} clients={data.clients} currentUser={user} />}
         </>}
       </div>
+
+      {/* Bottom tab bar — só no celular */}
+      <nav className="mobile-tabbar">
+        <button className={page==='dashboard'?'active':''} onClick={()=>nav('dashboard')}>
+          <i className="ti ti-layout-dashboard" aria-hidden/><span>Início</span>
+        </button>
+        <button className={page==='proposals'||page==='builder'||page==='exec'?'active':''} onClick={()=>nav('proposals')}>
+          <i className="ti ti-file-invoice" aria-hidden/><span>Orçamentos</span>
+        </button>
+        <button className={page==='projects'?'active':''} onClick={()=>nav('projects')}>
+          <i className="ti ti-briefcase" aria-hidden/><span>Projetos</span>
+        </button>
+        <button className={page==='clients'?'active':''} onClick={()=>nav('clients')}>
+          <i className="ti ti-users" aria-hidden/><span>Clientes</span>
+        </button>
+      </nav>
     </div>
   )
 }
