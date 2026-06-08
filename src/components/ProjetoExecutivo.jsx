@@ -6,6 +6,14 @@ const EQUIP_STYLE = {
   'Som':{c:'#BE185D',s:'S'},'Wi-Fi':{c:'#0E7490',s:'W'},'Sensor':{c:'#16A34A',s:'P'},
   'Tomada':{c:'#475569',s:'T'},'Outro':{c:'#374151',s:'?'},
 }
+
+// Itens que ficam DENTRO do rack (não vão soltos na planta — entram na tabela do rack)
+function isRackItem(name='', code='') {
+  const n=(name+' '+code).toLowerCase()
+  return /\b(hd|nvr|dvr|switch|patch|nobreak|no-break|path ?cord|dream machine|udm|controladora|servidor|fonte|r[aá]ck rack|mini rack|rack)\b/.test(n)
+    && !/gateway/.test(n)  // gateway fica na planta
+}
+
 function equipType(name='') {
   const n=name.toLowerCase()
   if(n.includes('gateway')) return 'Gateway'
@@ -78,6 +86,8 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], onSaveToPropo
   const [projectInfo, setProjectInfo] = useState({client:'',notes:''})
   const [selClient, setSelClient] = useState('')
   const [clientSearch, setClientSearch] = useState('')
+  const [catSearch, setCatSearch] = useState('')
+  const [catFilter, setCatFilter] = useState('')
   const [execDoc, setExecDoc] = useState(null)
   const [selected, setSelected] = useState(null)
   const [dragging, setDragging] = useState(null)
@@ -148,16 +158,28 @@ Seja breve e conversacional, uma pergunta por vez. O usuário pode clicar em "Ge
     setLoading(true)
     const catSummary = catalog.slice(0,80).map(c=>`${c.code}: ${c.name} (${c.category})`).join('\n')
     const conversation = chat.map(m=>`${m.role==='user'?'Cliente':'Projetista'}: ${m.text}`).join('\n')
-    const prompt = `Com base na conversa abaixo e na planta, posicione os equipamentos de automação RARO Home.
+    const prompt = `Você é um projetista de automação. Olhe a planta com ATENÇÃO e identifique cada cômodo e suas paredes/portas/janelas. Posicione os equipamentos RARO Home de forma ORGANIZADA e na MELHOR posição técnica de cada um.
 
-CONVERSA:
+CONVERSA (premissas, onde fica o rack, etc.):
 ${conversation}
 
 CATÁLOGO (use só estes códigos):
 ${catSummary}
 
-Para cada equipamento dê uma posição (x,y em % da imagem) e um ID único sequencial.
-Responda APENAS JSON (sem markdown):
+REGRAS DE POSICIONAMENTO (siga rigorosamente):
+- Identifique visualmente cada AMBIENTE na planta antes de posicionar. Cada item deve cair DENTRO do cômodo certo, não embolado no centro.
+- Keypad/interruptor: ao lado da porta, do lado da maçaneta (encostado na parede).
+- Keypad de cabeceira: na parede da cabeceira da cama.
+- Câmera: num canto alto do ambiente, apontada para a área útil.
+- Hub IR: só em ambiente com ar-condicionado, em parede com visão do aparelho.
+- Caixa de som: distribuída no teto do ambiente (afastada das paredes).
+- Sensor de presença: perto de portas/circulação.
+- Gateway/Rack: no ponto definido na conversa (ex: móvel da TV).
+- NÃO empilhe itens no mesmo ponto. Espalhe conforme a função real. Itens do mesmo cômodo devem ficar espaçados dentro dos limites daquele cômodo.
+- NÃO posicione itens de RACK (HD, switch, patch panel, nobreak, NVR, path cord) na planta — eles ficam dentro do rack. Posicione apenas o RACK em si.
+
+Para cada equipamento: posição (x,y em % da imagem, 0-100), código do catálogo, ambiente e nota com altura.
+Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
 {"itens":[{"id":"K1","code":"QAT42Z2B","room":"Sala","x":20,"y":40,"nota":"ao lado da porta, H=110cm"}]}`
     try{
       const reply=await askClaude(
@@ -181,7 +203,9 @@ Responda APENAS JSON (sem markdown):
         }
       }
       let cid=Date.now()
-      const mk=(parsed.itens||[]).map(it=>{
+      const mk=(parsed.itens||[])
+        .filter(it=>{ const cat=catalog.find(c=>c.code===it.code); return !isRackItem(cat?.name||it.name||'', it.code||'') })
+        .map(it=>{
         const cat=catalog.find(c=>c.code===it.code) || catalog.find(c=>(c.name||'').toLowerCase()===(it.name||'').toLowerCase())
         return {uid:cid++, id:it.id||('?'+(cid%1000)), code:it.code||cat?.code||'', name:cat?.name||it.name||it.code||'Item',
           room:it.room||'', x:Math.max(2,Math.min(98,Number(it.x)||50)), y:Math.max(2,Math.min(96,Number(it.y)||50)),
@@ -221,6 +245,7 @@ Responda APENAS JSON (sem markdown):
     setLoading(true)
     const itemsList=markers.map(m=>`#${m.n} · ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
     const conversation=chat.map(m=>`${m.role==='user'?'Cliente':'Projetista'}: ${m.text}`).join('\n')
+    const rackList=catalog.filter(c=>isRackItem(c.name,c.code)).map(c=>c.name).join(', ')
     const prompt=`Gere um PROJETO EXECUTIVO COMPLETO de automação para o arquiteto e o mestre de obra prepararem a infraestrutura (pré-instalação).
 
 IMPORTANTE: NÃO inclua modelos comerciais nem preços. É um guia técnico de obra.
@@ -235,7 +260,9 @@ Gere um documento técnico em HTML (só o conteúdo interno, sem <html> ou <head
 
 1. LEGENDA NUMERADA DOS PONTOS — tabela com cada item (#número, equipamento, ambiente, altura, observação) para localização rápida na planta.
 
-2. LEGENDA DE ELÉTRICA (padrão da prancha) — inclua esta tabela de referência de alturas padrão:
+2. TABELA DO RACK/CPD — liste os equipamentos que ficam DENTRO do rack (não na planta): NVR, HD, switch, patch panel, nobreak, path cords, etc. Com posição em U (U1, U2...) e função de cada um. Equipamentos de rack disponíveis: ${rackList}
+
+3. LEGENDA DE ELÉTRICA (padrão da prancha) — inclua esta tabela de referência de alturas padrão:
    - Quadro de distribuição de circuitos: H=1,50m
    - Tomada baixa: H=0,30m
    - Tomada média: H=1,10m / 1,30m
@@ -271,27 +298,30 @@ Use tabelas HTML simples e títulos <h2>/<h3>. Linguagem técnica de obra. Tudo 
     setLoading(false)
   }
 
-  // ── Gerar planta elétrica da automação a partir da planta baixa ──
+  // ── Tabela de cabeamento elétrico (texto/tabela, sem desenho — evita timeout) ──
   async function generateElectrical(){
     setLoading(true)
-    const itemsList=markers.map(m=>`#${m.n} · ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
-    const prompt=`Você é projetista elétrico. Com base na planta e nos pontos de automação posicionados, gere uma DESCRIÇÃO DE PLANTA ELÉTRICA da nossa instalação de automação (não a elétrica geral da casa, só o que automação exige).
+    const itemsList=markers.map(m=>`#${m.n} ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
+    const rackItems=catalog.filter(c=>isRackItem(c.name,c.code)).map(c=>c.name).join(', ')
+    const prompt=`Gere a TABELA DE CABEAMENTO da automação RARO Home (sem desenho, só tabelas HTML). Seja DIRETO e CONCISO.
 
-PONTOS:
+PONTOS (origem dos cabos = RACK/CPD):
 ${itemsList}
 
-Gere HTML (sem <html>/<head>) com:
-1. LEGENDA DE SÍMBOLOS (no padrão de prancha elétrica): quadro de distribuição H=1,50m; tomada baixa H=0,30m; tomada média H=1,10m; tomada alta H=2,00m; ponto de ar H=2,40m; interruptor H=1,10m; interruptor de cabeceira H=0,90m; ponto de dados H=0,30m; ponto de luz no teto.
-2. CIRCUITOS NECESSÁRIOS — liste os circuitos que o eletricista deve criar no quadro, indicando quais precisam de NEUTRO (todos os de keypad/interruptor inteligente precisam).
-3. TABELA POR AMBIENTE — pontos elétricos que cada cômodo precisa para a automação funcionar (tomada para hub, ponto de dados para câmera/AP, fase+neutro para keypad, etc.), com altura.
-4. OBSERVAÇÕES DE INSTALAÇÃO ELÉTRICA — bitolas de fio, eletrodutos, e o lembrete do NEUTRO obrigatório.
-Use tabelas HTML. Português técnico.`
+Gere HTML (sem <html>/<head>), conciso, com:
+<h2>Cabeamento — Origem → Destino</h2>
+<table> com colunas: Nº | Equipamento | Ambiente | Tipo de cabo | Bitola | Origem | Destino | Metragem aprox. | Por onde passa (forro/parede/piso)
+<h2>Circuitos no quadro (com NEUTRO)</h2>
+<table>: Circuito | Disjuntor | Precisa neutro? | Atende
+<h2>Observações</h2> bitolas e eletrodutos.
+
+Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use metragens realistas. Responda só o HTML.`
     try{
-      const reply=await askClaude([{role:'user',text:prompt}],bgImage?bgImage.split(',')[1]:null,'image/jpeg',6000)
+      const reply=await askClaude([{role:'user',text:prompt}],null,'image/jpeg',4000)
       let html=reply; if(html.includes('```')) html=html.replace(/```html?\n?/g,'').replace(/```/g,'')
-      setExecDoc((execDoc||'')+'<hr style="margin:30px 0"><h1>Planta Elétrica da Automação</h1>'+html)
+      setExecDoc((execDoc||'')+'<hr style="margin:30px 0"><h1>Planta de Cabeamento Elétrico</h1>'+html)
       setStep('exec')
-    }catch(err){ alert('Erro ao gerar planta elétrica: '+err.message) }
+    }catch(err){ alert('Erro ao gerar cabeamento: '+err.message+'\n\nSe foi timeout (504), tente de novo — agora a resposta é mais curta.') }
     setLoading(false)
   }
 
@@ -436,17 +466,27 @@ Use tabelas HTML. Português técnico.`
             <div className="pe-editor-cat" style={{width:230,background:'#0f172a',borderRight:'1px solid rgba(255,255,255,0.08)',overflowY:'auto'}}>
               <div style={{padding:12,borderBottom:'1px solid rgba(255,255,255,0.08)',fontSize:11,color:'#38BDF8',fontWeight:600,textTransform:'uppercase'}}>Adicionar do catálogo</div>
               {addMode&&addItem&&<div style={{padding:'6px 12px',background:'rgba(14,165,233,0.15)',fontSize:11,color:'#38BDF8'}}>Clique na planta: {addItem.name}<br/><span onClick={()=>{setAddMode(false);setAddItem(null)}} style={{cursor:'pointer',textDecoration:'underline'}}>cancelar</span></div>}
-              {Object.entries(catGroups).map(([g,items])=>(
-                <div key={g}>
+              <div style={{padding:'10px 12px',position:'sticky',top:0,background:'#0f172a',zIndex:2,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+                <input value={catSearch} onChange={e=>setCatSearch(e.target.value)} placeholder="Buscar item..."
+                  style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:6,padding:'8px 10px',color:'#fff',fontSize:13,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
+                <select value={catFilter} onChange={e=>setCatFilter(e.target.value)}
+                  style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:6,padding:'8px 10px',color:'#fff',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}>
+                  <option value="">Todas as categorias</option>
+                  {Object.keys(catGroups).map(g=><option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              {Object.entries(catGroups).filter(([g])=>!catFilter||g===catFilter).map(([g,items])=>{
+                const fil=items.filter(it=>!catSearch||(it.name||'').toLowerCase().includes(catSearch.toLowerCase())||(it.code||'').toLowerCase().includes(catSearch.toLowerCase()))
+                if(!fil.length) return null
+                return <div key={g}>
                   <div style={{padding:'6px 12px 2px',fontSize:9,color:'rgba(255,255,255,0.3)',textTransform:'uppercase'}}>{g}</div>
-                  {items.map((it,i)=>{const st=EQUIP_STYLE[equipType(it.name)]||EQUIP_STYLE.Outro
-                    return <div key={i} onClick={()=>{setAddItem(it);setAddMode(true)}} style={{padding:'6px 12px',cursor:'pointer',display:'flex',gap:8,alignItems:'center'}}
+                  {fil.map((it,i)=>{const st=EQUIP_STYLE[equipType(it.name)]||EQUIP_STYLE.Outro
+                    return <div key={i} onClick={()=>{setAddItem(it);setAddMode(true)}} style={{padding:'9px 12px',cursor:'pointer',display:'flex',gap:8,alignItems:'center',minHeight:38}}
                       onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.05)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      <span style={{width:18,height:18,borderRadius:'50%',background:st.c,color:'#fff',fontSize:9,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{st.s}</span>
-                      <span style={{fontSize:10,color:'rgba(255,255,255,0.8)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{it.name}</span>
+                      <span style={{width:20,height:20,borderRadius:'50%',background:st.c,color:'#fff',fontSize:9,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{st.s}</span>
+                      <span style={{fontSize:11,color:'rgba(255,255,255,0.85)',lineHeight:1.3}}>{it.name}{isRackItem(it.name,it.code)?<span style={{color:'#A78BFA',fontSize:9}}> · rack</span>:''}</span>
                     </div>})}
-                </div>
-              ))}
+                </div>})}
             </div>
             <div className="pe-editor-canvas" style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20}}>
               <div ref={containerRef} style={{position:'relative',display:'inline-block',cursor:addMode?'crosshair':'default'}} onClick={onCanvasClick}>

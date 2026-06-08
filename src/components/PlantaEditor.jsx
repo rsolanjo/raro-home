@@ -66,7 +66,7 @@ async function downscaleImage(dataUrl, maxDim=1024, quality=0.7) {
   })
 }
 
-export default function PlantaEditor({ floors=[], catalog=[], onUpdateFloors, onSavePlan, savedPlan, onClose }) {
+export default function PlantaEditor({ floors=[], catalog=[], onUpdateFloors, onSavePlan, savedPlan, clientPlants, onClose }) {
   const [suggesting, setSuggesting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -110,14 +110,26 @@ export default function PlantaEditor({ floors=[], catalog=[], onUpdateFloors, on
   }, [floors])
 
 
-  // Restaurar planta salva ao abrir
+  // Restaurar planta salva ao abrir; senão, oferecer planta do cliente
   useEffect(() => {
     if(savedPlan?.image && !bgImage) {
       setBgImage(savedPlan.image)
       if(savedPlan.markers?.length) setMarkers(savedPlan.markers)
       setStep('edit')
+    } else if(!bgImage && clientPlants && (clientPlants.medidas?.data || clientPlants.eletrica?.data)) {
+      // pergunta qual planta usar
+      const temMed = clientPlants.medidas?.data, temEle = clientPlants.eletrica?.data
+      let escolha = null
+      if(temMed && temEle) {
+        escolha = window.confirm('Este cliente tem 2 plantas salvas.\n\nOK = usar planta de MEDIDAS\nCancelar = usar planta ELÉTRICA') ? clientPlants.medidas : clientPlants.eletrica
+      } else {
+        escolha = temMed ? clientPlants.medidas : clientPlants.eletrica
+      }
+      if(escolha?.data && window.confirm('Usar a planta salva no cadastro do cliente? (Cancelar = adicionar outra)')) {
+        setBgImage(escolha.data); setStep('edit')
+      }
     }
-  }, [savedPlan])
+  }, [savedPlan, clientPlants])
 
   function handleFileUpload(e) {
     const file = e.target.files[0]

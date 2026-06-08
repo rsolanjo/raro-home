@@ -745,15 +745,17 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
           {savedMsg&&<span style={{fontSize:11,color:'var(--green)',marginLeft:8,fontWeight:500}}>{savedMsg}</span>}
         </div>
         <div className="topbar-acts">
-          {/* Test button */}
-          <button className="btn" style={{fontSize:11,borderColor:'var(--accent)',color:'var(--accent)',gap:6}}
-            onClick={()=>setShowPlantaIA(true)} title="Analisar planta com IA">
-            <i className="ti ti-brain" aria-hidden/>IA Planta
-          </button>
-          <button className="btn" style={{fontSize:11,borderColor:'#059669',color:'#059669',gap:6}}
-            onClick={()=>setShowPlantaEditor(true)} title="Abrir editor de planta com marcadores">
-            <i className="ti ti-map-pin" aria-hidden/>Editor Planta
-          </button>
+          {!plantaData?.image ? (
+            <button className="btn" style={{fontSize:11,borderColor:'#059669',color:'#059669',gap:6}}
+              onClick={()=>setShowPlantaEditor(true)} title="Adicionar planta">
+              <i className="ti ti-plus" aria-hidden/>Adicionar planta
+            </button>
+          ) : (
+            <button className="btn" style={{fontSize:11,borderColor:'#059669',color:'#059669',gap:6}}
+              onClick={()=>setShowPlantaEditor(true)} title="Abrir editor de planta">
+              <i className="ti ti-map-pin" aria-hidden/>Editor Planta
+            </button>
+          )}
           <select style={{fontSize:11,padding:'4px 8px',border:'1px solid #7C3AED',borderRadius:5,color:'#7C3AED',background:'var(--bg)',cursor:'pointer'}}
             value="" onChange={e=>{
               if(!e.target.value) return
@@ -1502,6 +1504,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
         floors={floors}
         catalog={catalog}
         savedPlan={plantaData}
+        clientPlants={(()=>{ const cl=clients.find(c=>c.id===Number(clientId)); return cl?{medidas:cl.planta_medidas,eletrica:cl.planta_eletrica}:null })()}
         onUpdateFloors={f=>{ setFloors(f); setCf(0); setCr(-1) }}
         onSavePlan={async (data)=>{
           setPlantaData(data)
