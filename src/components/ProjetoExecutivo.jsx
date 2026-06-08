@@ -272,51 +272,70 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
     const ctx=`Premissas da conversa:\n${conversation}\n\nPontos posicionados:\n${itemsList}`
 
     try{
-      // PARTE 1 — legenda + rack + premissas
-      setExecProgress('Gerando legenda e premissas... (1/3)')
+      // PARTE 1 — premissas + infraestrutura crítica + rack (padrão RARO Home)
+      setExecProgress('Premissas e infraestrutura... (1/3)')
       const p1=await askClaude([{role:'user',text:
-`Gere SÓ estas seções em HTML (sem <html>/<head>), conciso:
-<h2>1. Legenda dos Pontos</h2><table> Nº | Equipamento | Ambiente | Altura | Observação </table>
-<h2>2. Rack / CPD</h2><table> U | Equipamento | Função </table> (itens de rack: ${rackList||'NVR, switch, nobreak, patch'})
-<h2>3. Premissas</h2> onde fica o CPD, fibra, e que TODOS os keypads precisam de NEUTRO.
-${ctx}
-Responda só o HTML.`}],null,'image/jpeg',3000)
+`Você é projetista da RARO Home. Gere o INÍCIO de um Projeto Executivo de Automação no padrão da empresa (HTML, sem <html>/<head>, use <h2>/<h3>/<table>).
 
-      // PARTE 2 — caderno de cabos completo + pontos + material
-      setExecProgress('Gerando caderno de cabos e material... (2/3)')
+${ctx}
+
+Seções (siga EXATAMENTE este padrão):
+<h2>1. Premissas e Infraestrutura Geral</h2>
+<p>Conceito: automação centralizada. Toda a inteligência fica no CPD/rack. Descreva onde fica o CPD, por onde entra a fibra e que todos os cabos partem do CPD (use as premissas acima).</p>
+<h3>Pontos Críticos de Infraestrutura</h3>
+<table> Item | Especificação | Responsável </table>
+Inclua linhas para: CPD/Rack (tomada 110V dedicada + aterramento; abriga Gateway, NVR, amplificador, switch PoE), Fibra de internet (trajeto até o CPD), Quadro de luz (NEUTRO obrigatório em cada keypad), Neutro nos keypads (OBRIGATÓRIO, fase+neutro), Eletrodutos (3/4\" keypads, 1\" troncos de rede), Wi-Fi (Access Points PoE, cabo CAT6 até CPD), Hub IR (1 por ambiente com AC, visão direta do aparelho, nunca em banheiro).
+<h2>2. Rack / CPD — Distribuição</h2>
+<table> U | Equipamento | Função </table> (itens de rack: ${rackList||'Gateway, NVR, switch PoE, nobreak, patch panel, amplificador'})
+Responda só o HTML.`}],null,'image/jpeg',3500)
+
+      // PARTE 2 — posicionamento ponto a ponto (cota+altura+caixa+cabo CPD) — o coração
+      setExecProgress('Posicionamento ponto a ponto... (2/3)')
       const p2=await askClaude([{role:'user',text:
-`Gere SÓ estas seções em HTML (sem <html>/<head>). Seja DETALHADO nas tabelas.
+`Continue o Projeto Executivo RARO Home. Gere o POSICIONAMENTO EXATO ponto a ponto, agrupado por ambiente (HTML, <h2>/<h3>/<table>).
+
+${ctx}
+
+<h2>3. Posicionamento Exato — Ponto a Ponto</h2>
+<p>Para o eletricista. Parede ref. = de qual parede medir. Dist. = distância horizontal. Alt. = altura do piso acabado. Cabo CPD = metragem estimada de cabo até o rack.</p>
+Para CADA ambiente que tem pontos, gere um <h3>NOME DO AMBIENTE</h3> seguido de uma <table> com colunas:
+Ponto | Equipamento | Parede ref. | Dist. | Alt. | Caixa | Cabo até CPD
+Regras de altura: keypad H=1,10m (4×4 + NEUTRO); keypad cabeceira H=0,40m; câmera no teto 2,70m (CAT6 PoE); módulo no forro; cortina no bandô H=2,55m; som no teto (cabo 2×1,5mm²); tomada H=0,30m; Hub IR 2,40m. Estime metragem de cabo realista até o CPD. Use os equipamentos e ambientes do contexto acima.
+Responda só o HTML.`}],null,'image/jpeg',5500)
+
+      // PARTE 3 — caderno de cabos + material + checklist + riscos
+      setExecProgress('Caderno de cabos e material... (3/3)')
+      const p3=await askClaude([{role:'user',text:
+`Finalize o Projeto Executivo RARO Home (HTML, <h2>/<table>).
+
+${ctx}
+
 <h2>4. Caderno de Cabos (Origem → Destino)</h2>
 <table> ID | Origem | Destino | Tipo de cabo | Bitola | Metros </table>
-Crie uma linha para CADA cabo necessário. Convenções RARO Home:
-- Câmeras e Access Points: CAT6 U/UTP 4 pares 24AWG (externa: CAT6 F/UTP 23AWG), origem = switch PoE no rack.
-- Caixas de som: cabo 2×1,5mm², origem = amplificador no rack.
-- Keypads/interruptores: fase+neutro 2,5mm², origem = quadro de luz. SEMPRE com NEUTRO.
-- Gere IDs sequenciais por tipo (CAT-01, SOM-01, KEY-01...). Estime metros realistas pela distância ao rack.
-<h2>5. Pontos por Ambiente</h2><table> Nº | Ambiente | Equipamento | Posição na parede | Altura | Tipo de cabo </table>
-<h2>6. Material / Quantitativo</h2><table> Item | Quantidade </table> (total de metros por tipo de cabo, nº de caixas 4x2/4x4, eletrodutos, conectores RJ45, patch cords)
-${ctx}
-Alturas padrão: quadro H=1,50m; tomada baixa H=0,30m; interruptor H=1,10m; cabeceira H=0,90m; ar H=2,40m; dados H=0,30m; som no teto.
+Uma linha por cabo. Câmeras/APs: CAT6 U/UTP 24AWG (externa F/UTP 23AWG), origem switch PoE no rack. Som: 2×1,5mm² do amplificador. Keypads: fase+neutro 2,5mm² do quadro (SEMPRE neutro). IDs por tipo: CAT-01, SOM-01, KEY-01.
+<h2>5. Lista de Material / Quantitativo</h2>
+<table> Item | Quantidade </table> (metros totais por tipo de cabo, caixas 4×2 e 4×4, eletrodutos, conectores RJ45, patch cords)
+<h2>6. Checklist de Obra (antes do revestimento)</h2><ul> itens a conferir </ul>
+<h2>7. Fotos no Diário</h2><p>Instrua o mestre: fotografar cada ponto pelo número antes de fechar a parede, marcando no app.</p>
+<h2>8. Pontos de Atenção e Riscos</h2><ul></ul>
 Responda só o HTML.`}],null,'image/jpeg',5000)
 
-      // PARTE 3 — checklist + fotos + riscos
-      setExecProgress('Gerando checklist e riscos... (3/3)')
-      const p3=await askClaude([{role:'user',text:
-`Gere SÓ estas seções em HTML (sem <html>/<head>), conciso:
-<h2>6. Checklist de Obra</h2> o que preparar antes do revestimento.
-<h2>7. Fotos no Diário</h2> instrua o mestre a fotografar cada ponto pelo número (#) antes de fechar a parede.
-<h2>8. Pontos de Atenção e Riscos</h2>
-${ctx}
-Responda só o HTML.`}],null,'image/jpeg',2500)
-
       const clean=t=>{let h=t;if(h.includes('```'))h=h.replace(/```html?\n?/g,'').replace(/```/g,'');return h}
+      // Monta a planta com os marcadores numerados (imagem + bolinhas) para o caderno
+      let plantaHtml=''
+      if(bgImage){
+        const dots=markers.map(m=>{
+          const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
+          return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:${st.c};color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${m.n}</div>`
+        }).join('')
+        plantaHtml=`<h2>Planta de Pontos</h2><div style="position:relative;display:inline-block;max-width:100%;margin:10px 0"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>`
+      }
       const full=`<h1>Projeto Executivo de Automação</h1><p><b>Cliente:</b> ${projectInfo.client||'—'} · ${new Date().toLocaleDateString('pt-BR')}</p>`
-        +clean(p1)+clean(p2)+clean(p3)
+        +plantaHtml+clean(p1)+clean(p2)+clean(p3)
       setExecDoc(full)
       setStep('exec')
       setExecProgress('')
-      // SALVA TUDO EM ORÇAMENTO automaticamente
-      setTimeout(()=>{ if(window.confirm('Projeto Executivo gerado!\n\nAbrir o orçamento já preenchido com estes itens para revisar os preços e salvar?')) saveToProposal(full) }, 400)
+      // NÃO navega embora — mostra o documento. O usuário decide salvar/exportar pelos botões.
     }catch(err){ alert('Erro ao gerar projeto: '+err.message); setExecProgress('') }
     setLoading(false)
   }
