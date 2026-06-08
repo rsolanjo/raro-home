@@ -29,7 +29,7 @@ function equipType(name='') {
   return 'Outro'
 }
 
-async function downscale(dataUrl, maxDim=1024, q=0.7) {
+async function downscale(dataUrl, maxDim=1568, q=0.85) {
   return new Promise(res=>{
     const img=new Image()
     img.onload=()=>{
@@ -76,19 +76,21 @@ async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1
   return data.content?.[0]?.text || ''
 }
 
-export default function ProjetoExecutivo({ catalog=[], clients=[], onSaveToProposal, onClose, currentUser }) {
+export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, onSaveToProposal, onClose, currentUser }) {
   const [step, setStep] = useState('upload') // upload | chat | editor | exec
   const [bgImage, setBgImage] = useState(null)
   const [chat, setChat] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [markers, setMarkers] = useState([])
-  const [projectInfo, setProjectInfo] = useState({client:'',notes:''})
+  const [projectInfo, setProjectInfo] = useState({client: preClient?`${preClient.name1||''}${preClient.name2?' & '+preClient.name2:''}`:'', notes:''})
   const [selClient, setSelClient] = useState('')
   const [clientSearch, setClientSearch] = useState('')
   const [catSearch, setCatSearch] = useState('')
   const [catFilter, setCatFilter] = useState('')
   const [execDoc, setExecDoc] = useState(null)
+  const [execProgress, setExecProgress] = useState('')
+  const [zoom, setZoom] = useState(1)
   const [selected, setSelected] = useState(null)
   const [dragging, setDragging] = useState(null)
   const [addItem, setAddItem] = useState(null)
@@ -121,7 +123,7 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], onSaveToPropo
 Estes são os EQUIPAMENTOS que a RARO Home tem no catálogo e pode instalar:
 ${catList}
 
-Faça uma análise inicial CURTA do que vê na planta (liste os ambientes que identificou). Depois faça PERGUNTAS objetivas, UMA DE CADA VEZ, sempre relacionadas a posicionar BEM os equipamentos do catálogo acima. Exemplos de perguntas úteis:
+Faça uma análise inicial da planta com ATENÇÃO: observe as paredes, portas (aberturas em arco), janelas, e o texto/legendas escritos na planta para identificar cada ambiente pelo nome. Liste os ambientes que você identificou com confiança. Se algum trecho estiver ilegível ou ambíguo, diga que não tem certeza e pergunte — NÃO invente ambientes. Depois faça PERGUNTAS objetivas, UMA DE CADA VEZ, sempre relacionadas a posicionar BEM os equipamentos do catálogo acima. Exemplos de perguntas úteis:
 - Onde ficará o CPD/rack (onde concentrar gateway, NVR, amplificador)?
 - Onde entra a fibra de internet e qual o destino?
 - Em quais quartos e qual parede ficam as cabeceiras (para keypad de cabeceira)?
@@ -243,58 +245,52 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
 
   async function generateExec(){
     setLoading(true)
-    const itemsList=markers.map(m=>`#${m.n} · ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
+    setExecProgress('Iniciando...')
+    const itemsList=markers.map(m=>`#${m.n} ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
     const conversation=chat.map(m=>`${m.role==='user'?'Cliente':'Projetista'}: ${m.text}`).join('\n')
     const rackList=catalog.filter(c=>isRackItem(c.name,c.code)).map(c=>c.name).join(', ')
-    const prompt=`Gere um PROJETO EXECUTIVO COMPLETO de automação para o arquiteto e o mestre de obra prepararem a infraestrutura (pré-instalação).
+    const ctx=`Premissas da conversa:\n${conversation}\n\nPontos posicionados:\n${itemsList}`
 
-IMPORTANTE: NÃO inclua modelos comerciais nem preços. É um guia técnico de obra.
-
-CONVERSA COM O CLIENTE (onde fica o CPD/rack, fibra, cabeceiras, etc.):
-${conversation}
-
-EQUIPAMENTOS POSICIONADOS (cada um com #número único):
-${itemsList}
-
-Gere um documento técnico em HTML (só o conteúdo interno, sem <html> ou <head>) com TODAS estas seções:
-
-1. LEGENDA NUMERADA DOS PONTOS — tabela com cada item (#número, equipamento, ambiente, altura, observação) para localização rápida na planta.
-
-2. TABELA DO RACK/CPD — liste os equipamentos que ficam DENTRO do rack (não na planta): NVR, HD, switch, patch panel, nobreak, path cords, etc. Com posição em U (U1, U2...) e função de cada um. Equipamentos de rack disponíveis: ${rackList}
-
-3. LEGENDA DE ELÉTRICA (padrão da prancha) — inclua esta tabela de referência de alturas padrão:
-   - Quadro de distribuição de circuitos: H=1,50m
-   - Tomada baixa: H=0,30m
-   - Tomada média: H=1,10m / 1,30m
-   - Tomada alta: H=2,00m / 2,20m
-   - Tomada alta chuveiro: H=2,30m
-   - Ponto de ar-condicionado: H=2,40m (parede) ou no teto (cassete)
-   - Interruptor: H=1,10m
-   - Interruptor de cabeceira: H=0,90m
-   - Ponto de dados (internet): H=0,30m
-   - Ponto de antena: H=1,30m / 1,50m
-
-3. PREMISSAS DO PROJETO — incluindo onde fica o CPD/rack e que TODOS os keypads precisam de NEUTRO.
-
-4. TABELA DE PONTOS POR AMBIENTE — use o #número, posição na parede, altura, tipo de cabo (CAT6, cabo de som, fase+neutro, etc.) e metragem aproximada até o CPD.
-
-5. MAPA DE CABEAMENTO — origem (CPD) → destino, tipo e bitola de cabo, metragem.
-
-6. LISTA DE TODO O MATERIAL — quantitativo de cabos (metros por tipo), caixas, eletrodutos, conduletes, etc. que a obra precisa comprar.
-
-7. INSTRUÇÃO DE FOTOS NO CHECKLIST DIÁRIO — explique ao mestre de obra que, no app, ele deve tirar foto de cada ponto pelo número (#) antes de fechar a parede: "fotografe o ponto #5 antes do revestimento", etc.
-
-8. CHECKLIST DE OBRA — o que preparar antes do revestimento.
-
-9. PONTOS DE ATENÇÃO E RISCOS.
-
-Use tabelas HTML simples e títulos <h2>/<h3>. Linguagem técnica de obra. Tudo em português.`
     try{
-      const reply=await askClaude([{role:'user',text:prompt}],null,'image/jpeg',8000)
-      let html=reply; if(html.includes('```')) html=html.replace(/```html?\n?/g,'').replace(/```/g,'')
-      setExecDoc(html)
+      // PARTE 1 — legenda + rack + premissas
+      setExecProgress('Gerando legenda e premissas... (1/3)')
+      const p1=await askClaude([{role:'user',text:
+`Gere SÓ estas seções em HTML (sem <html>/<head>), conciso:
+<h2>1. Legenda dos Pontos</h2><table> Nº | Equipamento | Ambiente | Altura | Observação </table>
+<h2>2. Rack / CPD</h2><table> U | Equipamento | Função </table> (itens de rack: ${rackList||'NVR, switch, nobreak, patch'})
+<h2>3. Premissas</h2> onde fica o CPD, fibra, e que TODOS os keypads precisam de NEUTRO.
+${ctx}
+Responda só o HTML.`}],null,'image/jpeg',3000)
+
+      // PARTE 2 — pontos por ambiente + cabeamento
+      setExecProgress('Gerando pontos e cabeamento... (2/3)')
+      const p2=await askClaude([{role:'user',text:
+`Gere SÓ estas seções em HTML (sem <html>/<head>), conciso:
+<h2>4. Pontos por Ambiente</h2><table> Nº | Ambiente | Posição na parede | Altura | Tipo de cabo | Metragem aprox. até CPD </table>
+<h2>5. Material Necessário</h2><table> Item | Quantidade </table> (cabos em metros por tipo, caixas, eletrodutos)
+${ctx}
+Alturas padrão: quadro H=1,50m; tomada baixa H=0,30m; interruptor H=1,10m; cabeceira H=0,90m; ar H=2,40m; dados H=0,30m.
+Responda só o HTML.`}],null,'image/jpeg',3500)
+
+      // PARTE 3 — checklist + fotos + riscos
+      setExecProgress('Gerando checklist e riscos... (3/3)')
+      const p3=await askClaude([{role:'user',text:
+`Gere SÓ estas seções em HTML (sem <html>/<head>), conciso:
+<h2>6. Checklist de Obra</h2> o que preparar antes do revestimento.
+<h2>7. Fotos no Diário</h2> instrua o mestre a fotografar cada ponto pelo número (#) antes de fechar a parede.
+<h2>8. Pontos de Atenção e Riscos</h2>
+${ctx}
+Responda só o HTML.`}],null,'image/jpeg',2500)
+
+      const clean=t=>{let h=t;if(h.includes('```'))h=h.replace(/```html?\n?/g,'').replace(/```/g,'');return h}
+      const full=`<h1>Projeto Executivo de Automação</h1><p><b>Cliente:</b> ${projectInfo.client||'—'} · ${new Date().toLocaleDateString('pt-BR')}</p>`
+        +clean(p1)+clean(p2)+clean(p3)
+      setExecDoc(full)
       setStep('exec')
-    }catch(err){ alert('Erro ao gerar projeto: '+err.message) }
+      setExecProgress('')
+      // SALVA TUDO EM ORÇAMENTO automaticamente
+      setTimeout(()=>{ if(window.confirm('Projeto Executivo gerado! Salvar tudo em Orçamento agora?')) saveToProposal(full) }, 400)
+    }catch(err){ alert('Erro ao gerar projeto: '+err.message); setExecProgress('') }
     setLoading(false)
   }
 
@@ -341,15 +337,16 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
     w.document.close(); setTimeout(()=>w.print(),600)
   }
 
-  function saveToProposal(){
+  function saveToProposal(docOverride){
     if(!onSaveToProposal) return
+    const docToSave = typeof docOverride==='string' ? docOverride : execDoc
     const roomMap={}
     markers.forEach(m=>{ const r=m.room||'Geral'; if(!roomMap[r])roomMap[r]=[]; roomMap[r].push(m) })
     const floors=[{name:'Pavimento único', rooms:Object.entries(roomMap).map(([name,items])=>({
       name, items:items.map(m=>({name:m.name,code:m.code,qty:'1',cost_price:m.cost,sale_price:m.sale,category:m.category})),
       price:String(items.reduce((s,m)=>s+(m.sale||0),0))
     }))}]
-    onSaveToProposal({ floors, planta_data:{image:bgImage,markers}, client_name:projectInfo.client||selClient, exec_doc:execDoc })
+    onSaveToProposal({ floors, planta_data:{image:bgImage,markers}, client_name:projectInfo.client||selClient, exec_doc:docToSave })
   }
 
   const catGroups={}; (catalog||[]).forEach(c=>{const g=c.category||'Outro';(catGroups[g]=catGroups[g]||[]).push(c)})
@@ -381,6 +378,15 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
               <div style={{fontSize:18,fontWeight:600,marginBottom:8}}>Carregue a planta do cliente</div>
               <div style={{fontSize:13,color:'rgba(255,255,255,0.5)',marginBottom:20}}>JPG, PNG ou PDF</div>
 
+              {preClient ? (
+                <div style={{marginBottom:20,textAlign:'left',background:'rgba(14,165,233,0.1)',border:'1px solid rgba(14,165,233,0.3)',borderRadius:8,padding:'12px 14px'}}>
+                  <div style={{fontSize:11,color:'#38BDF8',textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Cliente</div>
+                  <div style={{fontSize:15,color:'#fff',fontWeight:600}}>{preClient.name1}{preClient.name2?' & '+preClient.name2:''}</div>
+                  {preClient.neighborhood && <div style={{fontSize:12,color:'rgba(255,255,255,0.5)'}}>{preClient.neighborhood}</div>}
+                  {(preClient.planta_medidas?.data||preClient.planta_eletrica?.data) &&
+                    <div style={{fontSize:11,color:'#16A34A',marginTop:6}}><i className="ti ti-file-check" aria-hidden/> Planta salva no cadastro disponível</div>}
+                </div>
+              ) : (
               <div style={{marginBottom:20,textAlign:'left'}}>
                 <label style={lbl}>Cliente</label>
                 <input value={clientSearch} onChange={e=>{setClientSearch(e.target.value);setSelClient('')}}
@@ -395,7 +401,6 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
                           setSelClient(c.id)
                           setClientSearch(`${c.name1||''}${c.name2?' & '+c.name2:''}`)
                           setProjectInfo(p=>({...p,client:`${c.name1||''}${c.name2?' & '+c.name2:''}`}))
-                          // se cliente tem plantas salvas, carrega
                         }}
                         style={{padding:'10px 12px',cursor:'pointer',color:'#fff',fontSize:13,borderBottom:'1px solid rgba(255,255,255,0.05)'}}
                         onMouseEnter={e=>e.currentTarget.style.background='rgba(14,165,233,0.2)'}
@@ -410,6 +415,7 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
                 {selClient && <div style={{fontSize:12,color:'#38BDF8',marginTop:4}}><i className="ti ti-check" aria-hidden/> Cliente selecionado</div>}
                 <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:6}}>Ou deixe em branco para preencher manualmente.</div>
               </div>
+              )}
 
               <button onClick={()=>fileRef.current?.click()} style={btnPrimary}>Selecionar planta e começar</button>
               <input ref={fileRef} type="file" accept="image/*,application/pdf,.pdf" style={{display:'none'}} onChange={handleFile}/>
@@ -488,9 +494,14 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
                     </div>})}
                 </div>})}
             </div>
-            <div className="pe-editor-canvas" style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20}}>
-              <div ref={containerRef} style={{position:'relative',display:'inline-block',cursor:addMode?'crosshair':'default'}} onClick={onCanvasClick}>
-                <img src={bgImage} style={{display:'block',maxWidth:'100%',pointerEvents:'none'}} draggable={false}/>
+            <div className="pe-editor-canvas" style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20,position:'relative'}}>
+              <div style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content'}}>
+                <button onClick={()=>setZoom(z=>Math.max(0.5,z-0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>−</button>
+                <span style={{color:'#fff',fontSize:11,display:'flex',alignItems:'center',padding:'0 4px'}}>{Math.round(zoom*100)}%</span>
+                <button onClick={()=>setZoom(z=>Math.min(3,z+0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>+</button>
+              </div>
+              <div ref={containerRef} style={{position:'relative',display:'inline-block',cursor:addMode?'crosshair':'default',width:`${zoom*100}%`,transformOrigin:'top center'}} onClick={onCanvasClick}>
+                <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false}/>
                 {markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro; const sel=selected===m.uid
                   return <div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:'grab'}} onMouseDown={e=>onDown(e,m.uid)}>
                     <div style={{width:sel?28:24,height:sel?28:24,borderRadius:'50%',background:st.c,color:'#fff',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #fff',boxShadow:sel?`0 0 0 3px ${st.c}`:'0 1px 4px rgba(0,0,0,0.5)'}}>{m.n}</div>
@@ -536,7 +547,7 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
         <div style={{background:'#060B1A',padding:'12px 16px',display:'flex',gap:10,justifyContent:'flex-end',flexShrink:0}}>
           <button onClick={()=>setStep('chat')} style={btnGhost}><i className="ti ti-arrow-left" aria-hidden/> Voltar à análise</button>
           <button onClick={generateExec} disabled={loading} style={{...btnPrimary,background:'#7C3AED'}}>
-            <i className="ti ti-file-text" aria-hidden/> {loading?'Gerando...':'Gerar Projeto Executivo'}
+            <i className="ti ti-file-text" aria-hidden/> {loading?(execProgress||'Gerando...'):'Gerar Projeto Executivo'}
           </button>
           <button onClick={generateElectrical} disabled={loading} style={{...btnPrimary,background:'#D97706'}}>
             <i className="ti ti-bolt" aria-hidden/> Gerar Planta Elétrica

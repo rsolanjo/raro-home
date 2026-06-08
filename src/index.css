@@ -788,3 +788,19 @@ textarea { resize: vertical; min-height: 70px; }
 }
 /* Garantir que <select> tenha texto escuro nas opções (fix fundo branco) */
 select option { color: #1a1a1a; background: #fff; }
+
+/* ═══════════ MENU MOBILE (sheet) ═══════════ */
+.mobile-menu-sheet { display:none; }
+@media (max-width: 1024px) {
+  .mobile-menu-sheet { display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; align-items:flex-end; animation:fadein .15s; }
+  .mobile-menu-card { background:var(--bg); width:100%; border-radius:18px 18px 0 0; padding:14px 18px calc(18px + env(safe-area-inset-bottom,0)); max-height:80vh; overflow-y:auto; animation:slideup .2s; }
+  .mmenu-handle { width:40px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 14px; }
+  .mmenu-user { display:flex; align-items:center; gap:12px; padding-bottom:14px; border-bottom:1px solid var(--border); margin-bottom:14px; }
+  .mmenu-avatar { width:42px; height:42px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px; }
+  .mmenu-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .mmenu-item { display:flex; flex-direction:column; align-items:center; gap:6px; padding:14px 6px; border:1px solid var(--border); border-radius:12px; background:var(--surf); color:var(--text2); cursor:pointer; font-family:inherit; font-size:11px; font-weight:600; }
+  .mmenu-item i { font-size:22px; color:var(--accent); }
+  .mmenu-logout { width:100%; margin-top:14px; padding:13px; border:1px solid #FCA5A5; border-radius:12px; background:rgba(220,38,38,0.08); color:#DC2626; font-weight:700; cursor:pointer; font-family:inherit; font-size:14px; }
+  @keyframes slideup { from{transform:translateY(100%)} to{transform:translateY(0)} }
+  @keyframes fadein { from{opacity:0} to{opacity:1} }
+}

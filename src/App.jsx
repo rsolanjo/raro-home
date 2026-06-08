@@ -67,6 +67,7 @@ export default function App() {
   const [execSeed, setExecSeed] = useState(null)
   const [showNovo, setShowNovo] = useState(false)
   const [novoCtx, setNovoCtx] = useState(null)
+  const [mobileMenu, setMobileMenu] = useState(false)
   function nav(p) { setPage(p); if (p !== 'builder') setEditingProposal(null) }
   function newExec() { setPage('exec') }
   function editProposal(p) { setEditingProposal(p); setPage('builder') }
@@ -141,6 +142,7 @@ export default function App() {
           {page==='proposals'  && <Proposals proposals={data.proposals} onRefresh={refresh} onEdit={editProposal} onNew={()=>setShowNovo(true)} onNewExec={newExec} currentUser={user} clients={data.clients} />}
           {page==='builder'    && <ProposalBuilder clients={data.clients} onRefresh={refresh} editProposal={editingProposal} execSeed={execSeed} isAdmin={true} currentUser={user} />}
           {page==='exec'       && <ProjetoExecutivo catalog={data.catalog} clients={data.clients} currentUser={user}
+            preClient={novoCtx?.client}
             onClose={()=>setPage('proposals')}
             onSaveToProposal={(seed)=>{ setExecSeed(seed); setEditingProposal(null); setPage('builder') }} />}
           {page==='projects'   && <Projects projects={data.projects} clients={data.clients} proposals={data.proposals} catalog={data.catalog} suppliers={data.suppliers} onRefresh={refresh} currentUser={user} />}
@@ -180,7 +182,33 @@ export default function App() {
         <button className={page==='clients'?'active':''} onClick={()=>nav('clients')}>
           <i className="ti ti-users" aria-hidden/><span>Clientes</span>
         </button>
+        <button className={mobileMenu?'active':''} onClick={()=>setMobileMenu(true)}>
+          <i className="ti ti-menu-2" aria-hidden/><span>Menu</span>
+        </button>
       </nav>
+
+      {mobileMenu && (
+        <div className="mobile-menu-sheet" onClick={()=>setMobileMenu(false)}>
+          <div className="mobile-menu-card" onClick={e=>e.stopPropagation()}>
+            <div className="mmenu-handle"/>
+            <div className="mmenu-user">
+              <div className="mmenu-avatar">{(user.name||'U')[0].toUpperCase()}</div>
+              <div><div style={{fontWeight:600,fontSize:14}}>{user.name}</div><div style={{fontSize:11,color:'var(--text3)'}}>{user.role==='admin'?'Administrador':user.role}</div></div>
+            </div>
+            <div className="mmenu-grid">
+              {[['dashboard','ti-layout-dashboard','Dashboard'],['proposals','ti-file-invoice','Orçamentos'],['projects','ti-briefcase','Projetos'],['clients','ti-users','Clientes'],['catalog','ti-package','Catálogo'],['stock','ti-box','Estoque'],['financial','ti-coin','Financeiro'],['schedule','ti-calendar','Cronograma'],['suppliers','ti-truck','Fornecedores'],['admins','ti-user-shield','Usuários']].map(([k,ic,lb])=>(
+                <button key={k} onClick={()=>{nav(k);setMobileMenu(false)}} className="mmenu-item">
+                  <i className={`ti ${ic}`} aria-hidden/><span>{lb}</span>
+                </button>
+              ))}
+            </div>
+            <button className="mmenu-logout" onClick={logout}>
+              <i className="ti ti-logout" aria-hidden/> Sair
+            </button>
+            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v42 · build 2026-06</div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

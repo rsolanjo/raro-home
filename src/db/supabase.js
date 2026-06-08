@@ -70,6 +70,41 @@ export async function saveProposal(p) {
   return saved
 }
 export async function deleteProposal(id) { await releaseReservation(id); return del('proposals', id) }
+
+// Cancela o orçamento (não apaga): libera estoque, cancela projeto/cronograma vinculados,
+// e retorna aviso sobre o financeiro se já houve gasto.
+export async function cancelProposal(proposal) {
+  const id = proposal.id
+  // 1) libera reservas e devolve qualquer dedução de estoque
+  await releaseReservation(id)
+  try { await _returnStockDeduction(proposal) } catch(e) { console.warn('retorno estoque:', e) }
+  // 2) marca o orçamento como cancelado
+  await upsert('proposals', { id, status:'cancelled', updated_at:new Date().toISOString() })
+  // 3) cancela projeto vinculado (não apaga — marca status)
+  const projects = await all('projects','created_at')
+  const linked = projects.filter(pr=>String(pr.proposal_id)===String(id) || pr.proposal_code===proposal.code)
+  for (const pr of linked) {
+    await upsert('projects', { id:pr.id, status:'cancelled', updated_at:new Date().toISOString() })
+  }
+  // 4) checa financeiro: se houve gasto, avisa (não remove silenciosamente)
+  let spent = 0
+  for (const pr of linked) {
+    const costs = pr.costs || []
+    spent += costs.reduce((s,c)=>s+(Number(c.value)||0),0)
+  }
+  return { cancelledProjects: linked.length, spent }
+}
+
+// Devolve ao estoque o que foi deduzido (inverso de _applyStockDeduction)
+async function _returnStockDeduction(proposal) {
+  if (proposal.status!=='approved') return
+  const items = (proposal.floors||[]).flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).filter(i=>i.code).map(i=>({code:i.code,qty:parseInt(i.qty)||1}))))
+  const stock = await all('stock','name')
+  for (const it of items) {
+    const s = stock.find(x=>x.code===it.code)
+    if (s) await upsert('stock', { id:s.id, qty:(Number(s.qty)||0)+it.qty })
+  }
+}
 export function generateProposalCode(client) {
   const n1=(client?.name1||'X')[0].toUpperCase(), n2=(client?.name2||'X')[0].toUpperCase()
   return `${n1}${n2}-${Math.floor(1000+Math.random()*9000)}`

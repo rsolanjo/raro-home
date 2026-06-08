@@ -150,7 +150,7 @@ function ContractSendModal({ proposal, clients, onClose }) {
 
 import { openProposalPDF } from './proposalPDF.js'
 import React, { useState } from 'react'
-import { saveProposal, deleteProposal, getProposals, auditedSave, saveProject, getProjects } from '../db/supabase.js'
+import { saveProposal, deleteProposal, cancelProposal, getProposals, auditedSave, saveProject, getProjects, verifyPIN } from '../db/supabase.js'
 
 const STATUS = {
   draft:    { label:'Rascunho',   cls:'b-gray' },
@@ -158,6 +158,7 @@ const STATUS = {
   approved: { label:'Aprovado',   cls:'b-green' },
   waiting:  { label:'Aguardando', cls:'b-amber' },
   rejected: { label:'Recusado',   cls:'b-red' },
+  cancelled:{ label:'Cancelado',  cls:'b-gray' },
 }
 const STATUS_NOTE = {
   sent:     '📦 Itens do estoque serão reservados',
@@ -269,10 +270,23 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
   }
   async function handleDelete() {
     if (!changeReq) return
+    const prop = changeReq.proposal
+    // 1) confirmação explícita
+    if (!window.confirm(`Cancelar o orçamento "${prop.code||prop.client_name||prop.id}"?\n\nIsto vai:\n• Marcar o orçamento como CANCELADO\n• Cancelar projeto e cronograma vinculados\n• Devolver os itens ao estoque\n\nOs dados não são apagados, ficam como cancelados.`)) return
+    // 2) PIN
+    const pin = window.prompt('Digite o PIN para confirmar o cancelamento:')
+    if (pin===null) return
+    const ok = await verifyPIN(pin)
+    if (!ok) { alert('PIN incorreto. Cancelamento abortado.'); return }
     try {
-      await deleteProposal(changeReq.proposal.id)
-      await auditedSave('orçamentos','delete',changeReq.proposal,currentUser?.name)
-    } catch(err) { console.error(err) }
+      const res = await cancelProposal(prop)
+      await auditedSave('orçamentos','cancel',prop,currentUser?.name)
+      if (res.spent>0) {
+        alert(`Orçamento cancelado.\n\n⚠️ ATENÇÃO: este projeto já tinha R$ ${res.spent.toLocaleString('pt-BR')} em custos lançados no financeiro. Esses lançamentos foram mantidos para seu controle — revise na aba Financeiro se precisa estorná-los.`)
+      } else {
+        alert('Orçamento cancelado e itens devolvidos ao estoque.')
+      }
+    } catch(err) { console.error(err); alert('Erro ao cancelar: '+err.message) }
     setChangeReq(null)
     onRefresh()
   }
