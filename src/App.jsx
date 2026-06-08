@@ -68,6 +68,8 @@ export default function App() {
   const [showNovo, setShowNovo] = useState(false)
   const [novoCtx, setNovoCtx] = useState(null)
   const [mobileMenu, setMobileMenu] = useState(false)
+  const [execFromProposal, setExecFromProposal] = useState(null)
+  function generateExecFromProposal(p){ setExecFromProposal(p); setExecSeed(null); setNovoCtx(null); setPage('exec') }
   function nav(p) { setPage(p); if (p !== 'builder') setEditingProposal(null) }
   function newExec() { setPage('exec') }
   function editProposal(p) { setEditingProposal(p); setPage('builder') }
@@ -139,11 +141,12 @@ export default function App() {
 
         {!loading && <>
           {page==='dashboard'  && <Dashboard proposals={data.proposals} projects={data.projects} stock={data.stock} clients={data.clients} onNav={nav} />}
-          {page==='proposals'  && <Proposals proposals={data.proposals} onRefresh={refresh} onEdit={editProposal} onNew={()=>setShowNovo(true)} onNewExec={newExec} currentUser={user} clients={data.clients} />}
-          {page==='builder'    && <ProposalBuilder clients={data.clients} onRefresh={refresh} editProposal={editingProposal} execSeed={execSeed} isAdmin={true} currentUser={user} />}
+          {page==='proposals'  && <Proposals proposals={data.proposals} onRefresh={refresh} onEdit={editProposal} onNew={()=>setShowNovo(true)} onGenerateExec={generateExecFromProposal} onNewExec={newExec} currentUser={user} clients={data.clients} />}
+          {page==='builder'    && <ProposalBuilder clients={data.clients} onRefresh={refresh} editProposal={editingProposal} execSeed={execSeed} onGenerateExec={generateExecFromProposal} isAdmin={true} currentUser={user} />}
           {page==='exec'       && <ProjetoExecutivo catalog={data.catalog} clients={data.clients} currentUser={user}
             preClient={novoCtx?.client}
-            onClose={()=>setPage('proposals')}
+            fromProposal={execFromProposal}
+            onClose={()=>{setExecFromProposal(null);setPage('proposals')}}
             onSaveToProposal={(seed)=>{ setExecSeed(seed); setEditingProposal(null); setPage('builder') }} />}
           {page==='projects'   && <Projects projects={data.projects} clients={data.clients} proposals={data.proposals} catalog={data.catalog} suppliers={data.suppliers} onRefresh={refresh} currentUser={user} />}
           {page==='schedule'   && <Schedule projects={data.projects} />}
@@ -205,7 +208,7 @@ export default function App() {
             <button className="mmenu-logout" onClick={logout}>
               <i className="ti ti-logout" aria-hidden/> Sair
             </button>
-            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v43 · build 2026-06</div>
+            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v44 · build 2026-06</div>
           </div>
         </div>
       )}

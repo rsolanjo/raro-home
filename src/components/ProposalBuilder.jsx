@@ -505,7 +505,7 @@ ${cover}${roomPagesHtml.join('\n')}${totalPage}
 
 
 // ── COMPONENT ──────────────────────────────────────────────
-export default function ProposalBuilder({ clients, onRefresh, editProposal, execSeed, isAdmin, currentUser }) {
+export default function ProposalBuilder({ clients, onRefresh, editProposal, execSeed, onGenerateExec, isAdmin, currentUser }) {
   const [catalog, setCatalog] = useState([])
   const [mobilePanel, setMobilePanel] = useState('rooms') // 'rooms' | 'edit' (only affects mobile)
   const [stock,   setStock]   = useState([])
@@ -751,6 +751,12 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
           {savedMsg&&<span style={{fontSize:11,color:'var(--green)',marginLeft:8,fontWeight:500}}>{savedMsg}</span>}
         </div>
         <div className="topbar-acts">
+          {editProposal && onGenerateExec && (
+            <button className="btn" style={{fontSize:11,borderColor:'#7C3AED',color:'#7C3AED',gap:6}}
+              onClick={()=>onGenerateExec(editProposal)} title="Gerar Projeto Executivo com os itens deste orçamento">
+              <i className="ti ti-brain" aria-hidden/>Gerar Projeto Executivo
+            </button>
+          )}
           {!plantaData?.image ? (
             <button className="btn" style={{fontSize:11,borderColor:'#059669',color:'#059669',gap:6}}
               onClick={()=>setShowPlantaEditor(true)} title="Adicionar planta">

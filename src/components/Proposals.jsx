@@ -167,7 +167,25 @@ const STATUS_NOTE = {
   draft:    '🔓 Reservas serão liberadas',
 }
 
-export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewExec, currentUser, onViewPDF, clients=[] }) {
+export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewExec, onGenerateExec, currentUser, onViewPDF, clients=[] }) {
+  const [hideCancelled, setHideCancelled] = useState(true)
+
+  const cancelledCount = proposals.filter(p=>p.status==='cancelled').length
+
+  async function purgeCancelled(){
+    const pwd = window.prompt('Para APAGAR definitivamente os orçamentos cancelados, digite a senha especial:')
+    if(pwd===null) return
+    if(pwd!=='456'){ alert('Senha incorreta.'); return }
+    const cancelled = proposals.filter(p=>p.status==='cancelled')
+    if(!cancelled.length){ alert('Não há orçamentos cancelados.'); return }
+    if(!window.confirm(`Apagar definitivamente ${cancelled.length} orçamento(s) cancelado(s)? Esta ação não pode ser desfeita.`)) return
+    try{
+      const { deleteProposal } = await import('../db/supabase.js')
+      for(const p of cancelled){ await deleteProposal(p.id) }
+      alert('Orçamentos cancelados apagados.')
+      onRefresh()
+    }catch(e){ alert('Erro: '+e.message) }
+  }
   const [filter,   setFilter]   = useState('all')
   const [search,   setSearch]   = useState('')
   const [changeReq, setChangeReq] = useState(null)
@@ -201,6 +219,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
   }
 
   const sorted = [...proposals]
+    .filter(p => hideCancelled ? p.status!=='cancelled' : true)
     .filter(p => filter==='all' || p.status===filter)
     .filter(p => !search ||
       p.client_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -304,6 +323,16 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
       <div className="topbar">
         <div className="topbar-title"><i className="ti ti-file-invoice" aria-hidden/>Orçamentos</div>
         <div className="topbar-acts">
+          {cancelledCount>0 && (
+            <button className="btn" style={{fontSize:11}} onClick={()=>setHideCancelled(h=>!h)} title="Mostrar/ocultar cancelados">
+              <i className={`ti ${hideCancelled?'ti-eye':'ti-eye-off'}`} aria-hidden/>{hideCancelled?`Ver cancelados (${cancelledCount})`:'Ocultar cancelados'}
+            </button>
+          )}
+          {cancelledCount>0 && !hideCancelled && (
+            <button className="btn danger" style={{fontSize:11}} onClick={purgeCancelled} title="Apagar cancelados (senha)">
+              <i className="ti ti-trash" aria-hidden/>Limpar cancelados
+            </button>
+          )}
           <button className="btn" onClick={()=>setShowComp(true)}>
             <i className="ti ti-chart-bar" aria-hidden/>Comparativo
           </button>
@@ -372,6 +401,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
                     <td>
                       <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
                         <button className="btn" style={{fontSize:11,padding:'3px 7px'}} onClick={()=>onEdit(p)} title="Editar"><i className="ti ti-edit" aria-hidden/></button>
+                        {onGenerateExec && p.status!=='cancelled' && <button className="btn" style={{fontSize:11,padding:'3px 7px',borderColor:'#7C3AED',color:'#7C3AED'}} onClick={()=>onGenerateExec(p)} title="Gerar Projeto Executivo"><i className="ti ti-brain" aria-hidden/></button>}
                         {/* Action buttons - with client phone lookup */}
                         {(()=>{
                           const cl = clients.find(c=>c.id===Number(p.client_id))

@@ -19,12 +19,6 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
         </div>
       </div>
 
-      {/* New proposal button — hidden on mobile */}
-      <button className="sb-new" onClick={()=>onNav('builder')}>
-        <i className="ti ti-plus" aria-hidden />
-        <span className="sb-label">Nova proposta</span>
-      </button>
-
       <div className="sb-section">Menu</div>
       {item('dashboard','layout-dashboard','Dashboard')}
       {item('financial','coin','Financeiro')}
@@ -52,7 +46,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v43 · build 2026-06
+          v44 · build 2026-06
         </div>
       </div>
     </div>

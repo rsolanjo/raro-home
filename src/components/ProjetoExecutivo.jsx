@@ -76,13 +76,13 @@ async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1
   return data.content?.[0]?.text || ''
 }
 
-export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, onSaveToProposal, onClose, currentUser }) {
-  const [step, setStep] = useState('upload') // upload | chat | editor | exec
-  const [bgImage, setBgImage] = useState(null)
+export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fromProposal, onSaveToProposal, onClose, currentUser }) {
+  const [step, setStep] = useState(()=> fromProposal?.planta_data?.markers?.length ? 'editor' : 'upload') // upload | chat | editor | exec
+  const [bgImage, setBgImage] = useState(()=> fromProposal?.planta_data?.image || null)
   const [chat, setChat] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [markers, setMarkers] = useState([])
+  const [markers, setMarkers] = useState(()=> fromProposal?.planta_data?.markers || [])
   const [projectInfo, setProjectInfo] = useState({client: preClient?`${preClient.name1||''}${preClient.name2?' & '+preClient.name2:''}`:'', notes:''})
   const [selClient, setSelClient] = useState('')
   const [clientSearch, setClientSearch] = useState('')
@@ -100,6 +100,26 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, on
   const chatEndRef = useRef()
 
   useEffect(()=>{ chatEndRef.current?.scrollIntoView({behavior:'smooth'}) },[chat])
+
+  // Se veio de um orçamento SEM planta posicionada, monta os itens como lista (centro da planta) para o usuário posicionar
+  useEffect(()=>{
+    if(fromProposal && !fromProposal?.planta_data?.markers?.length && !markers.length){
+      const floors = typeof fromProposal.floors==='string' ? (()=>{try{return JSON.parse(fromProposal.floors)}catch{return[]}})() : (fromProposal.floors||[])
+      const mk=[]; let n=1
+      floors.forEach(fl=>(fl.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{
+        if(!it.name && !it.code) return
+        const cat=catalog.find(c=>c.code===it.code)
+        const qty=parseInt(it.qty)||1
+        for(let i=0;i<qty;i++){
+          if(isRackItem(it.name||cat?.name||'', it.code||'')) continue
+          mk.push({uid:Date.now()+Math.random(), n:n++, id:'', code:it.code||cat?.code||'', name:it.name||cat?.name||'Item',
+            room:r.name||'', x:48+(Math.random()*8-4), y:48+(Math.random()*8-4), note:'',
+            cost:it.cost_price||cat?.cost_price||0, sale:it.sale_price||cat?.sale_price||0, category:it.category||cat?.category||''})
+        }
+      })))
+      if(mk.length){ setMarkers(mk); if(!fromProposal?.planta_data?.image) setStep('editor') }
+    }
+  },[])  // eslint-disable-line
 
   async function handleFile(e){
     const f=e.target.files[0]; if(!f) return
@@ -157,7 +177,7 @@ Seja breve e conversacional, uma pergunta por vez. O usuário pode clicar em "Ge
   }
 
   async function generatePositions(){
-    setLoading(true)
+    setLoading(true); setExecProgress('Analisando a planta e posicionando os equipamentos...')
     const catSummary = catalog.slice(0,80).map(c=>`${c.code}: ${c.name} (${c.category})`).join('\n')
     const conversation = chat.map(m=>`${m.role==='user'?'Cliente':'Projetista'}: ${m.text}`).join('\n')
     const prompt = `Você é um projetista de automação. Olhe a planta com ATENÇÃO e identifique cada cômodo e suas paredes/portas/janelas. Posicione os equipamentos RARO Home de forma ORGANIZADA e na MELHOR posição técnica de cada um.
@@ -262,15 +282,22 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
 ${ctx}
 Responda só o HTML.`}],null,'image/jpeg',3000)
 
-      // PARTE 2 — pontos por ambiente + cabeamento
-      setExecProgress('Gerando pontos e cabeamento... (2/3)')
+      // PARTE 2 — caderno de cabos completo + pontos + material
+      setExecProgress('Gerando caderno de cabos e material... (2/3)')
       const p2=await askClaude([{role:'user',text:
-`Gere SÓ estas seções em HTML (sem <html>/<head>), conciso:
-<h2>4. Pontos por Ambiente</h2><table> Nº | Ambiente | Posição na parede | Altura | Tipo de cabo | Metragem aprox. até CPD </table>
-<h2>5. Material Necessário</h2><table> Item | Quantidade </table> (cabos em metros por tipo, caixas, eletrodutos)
+`Gere SÓ estas seções em HTML (sem <html>/<head>). Seja DETALHADO nas tabelas.
+<h2>4. Caderno de Cabos (Origem → Destino)</h2>
+<table> ID | Origem | Destino | Tipo de cabo | Bitola | Metros </table>
+Crie uma linha para CADA cabo necessário. Convenções RARO Home:
+- Câmeras e Access Points: CAT6 U/UTP 4 pares 24AWG (externa: CAT6 F/UTP 23AWG), origem = switch PoE no rack.
+- Caixas de som: cabo 2×1,5mm², origem = amplificador no rack.
+- Keypads/interruptores: fase+neutro 2,5mm², origem = quadro de luz. SEMPRE com NEUTRO.
+- Gere IDs sequenciais por tipo (CAT-01, SOM-01, KEY-01...). Estime metros realistas pela distância ao rack.
+<h2>5. Pontos por Ambiente</h2><table> Nº | Ambiente | Equipamento | Posição na parede | Altura | Tipo de cabo </table>
+<h2>6. Material / Quantitativo</h2><table> Item | Quantidade </table> (total de metros por tipo de cabo, nº de caixas 4x2/4x4, eletrodutos, conectores RJ45, patch cords)
 ${ctx}
-Alturas padrão: quadro H=1,50m; tomada baixa H=0,30m; interruptor H=1,10m; cabeceira H=0,90m; ar H=2,40m; dados H=0,30m.
-Responda só o HTML.`}],null,'image/jpeg',3500)
+Alturas padrão: quadro H=1,50m; tomada baixa H=0,30m; interruptor H=1,10m; cabeceira H=0,90m; ar H=2,40m; dados H=0,30m; som no teto.
+Responda só o HTML.`}],null,'image/jpeg',5000)
 
       // PARTE 3 — checklist + fotos + riscos
       setExecProgress('Gerando checklist e riscos... (3/3)')
@@ -296,7 +323,7 @@ Responda só o HTML.`}],null,'image/jpeg',2500)
 
   // ── Tabela de cabeamento elétrico (texto/tabela, sem desenho — evita timeout) ──
   async function generateElectrical(){
-    setLoading(true)
+    setLoading(true); setExecProgress('Gerando tabela de cabeamento elétrico...')
     const itemsList=markers.map(m=>`#${m.n} ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
     const rackItems=catalog.filter(c=>isRackItem(c.name,c.code)).map(c=>c.name).join(', ')
     const prompt=`Gere a TABELA DE CABEAMENTO da automação RARO Home (sem desenho, só tabelas HTML). Seja DIRETO e CONCISO.
@@ -353,6 +380,16 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
 
   return (
     <div style={{position:'fixed',inset:0,background:'#0f172a',zIndex:1000,display:'flex',flexDirection:'column'}}>
+      {loading && (
+        <div style={{position:'fixed',inset:0,background:'rgba(6,11,26,0.82)',zIndex:2000,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:18,padding:24}}>
+          <div style={{width:54,height:54,border:'4px solid rgba(124,58,237,0.25)',borderTopColor:'#A78BFA',borderRadius:'50%',animation:'spin 0.9s linear infinite'}}/>
+          <div style={{color:'#fff',fontSize:15,fontWeight:600,textAlign:'center'}}>{execProgress||'Processando com IA...'}</div>
+          <div style={{width:'min(300px,80vw)',height:6,background:'rgba(255,255,255,0.12)',borderRadius:3,overflow:'hidden'}}>
+            <div style={{height:'100%',background:'linear-gradient(90deg,#7C3AED,#38BDF8)',borderRadius:3,animation:'progslide 1.4s ease-in-out infinite',width:'40%'}}/>
+          </div>
+          <div style={{color:'rgba(255,255,255,0.4)',fontSize:11,textAlign:'center',maxWidth:280}}>Isso pode levar alguns segundos. Não feche a tela.</div>
+        </div>
+      )}
       {/* Toolbar */}
       <div style={{background:'#060B1A',padding:'10px 16px',display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
         <button onClick={onClose} style={btnGhost}><i className="ti ti-arrow-left" aria-hidden/> Sair</button>
@@ -501,7 +538,12 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
                 <button onClick={()=>setZoom(z=>Math.min(3,z+0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>+</button>
               </div>
               <div ref={containerRef} style={{position:'relative',display:'inline-block',cursor:addMode?'crosshair':'default',width:`${zoom*100}%`,transformOrigin:'top center'}} onClick={onCanvasClick}>
-                <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false}/>
+                {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false}/>
+                  : <div style={{width:600,maxWidth:'80vw',aspectRatio:'4/3',background:'rgba(255,255,255,0.04)',border:'2px dashed rgba(255,255,255,0.2)',borderRadius:10,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,color:'rgba(255,255,255,0.5)'}}>
+                      <i className="ti ti-photo-plus" style={{fontSize:40}} aria-hidden/>
+                      <div style={{fontSize:14,textAlign:'center',padding:'0 20px'}}>Sem planta carregada.<br/>Os itens estão listados — carregue uma planta para posicioná-los.</div>
+                      <button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{...btnPrimary,background:'#0EA5E9'}}><i className="ti ti-upload" aria-hidden/> Carregar planta</button>
+                    </div>}
                 {markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro; const sel=selected===m.uid
                   return <div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:'grab'}} onMouseDown={e=>onDown(e,m.uid)}>
                     <div style={{width:sel?28:24,height:sel?28:24,borderRadius:'50%',background:st.c,color:'#fff',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #fff',boxShadow:sel?`0 0 0 3px ${st.c}`:'0 1px 4px rgba(0,0,0,0.5)'}}>{m.n}</div>
@@ -561,7 +603,7 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
           <button onClick={saveToProposal} style={btnPrimary}><i className="ti ti-device-floppy" aria-hidden/> Salvar em Orçamento</button>
         </div>
       )}
-      <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
+      <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes progslide{0%{margin-left:-40%}100%{margin-left:100%}}`}</style>
     </div>
   )
 }
