@@ -804,3 +804,29 @@ select option { color: #1a1a1a; background: #fff; }
   @keyframes slideup { from{transform:translateY(100%)} to{transform:translateY(0)} }
   @keyframes fadein { from{opacity:0} to{opacity:1} }
 }
+
+/* ═══════════ DIÁRIO GUIADO (mestre) ═══════════ */
+.dg-wrap { padding-bottom: 20px; }
+.dg-progress { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+.dg-progress-bar { height: 100%; background: var(--accent); border-radius: 3px; transition: width .3s; }
+.dg-step { font-size: 12px; color: var(--text3); margin-bottom: 14px; }
+.dg-room { font-size: 22px; font-weight: 700; color: var(--text1); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.dg-room i { color: var(--accent); }
+.dg-equip { background: var(--accent-lt); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; }
+.dg-equip-title { font-size: 11px; color: var(--accent); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
+.dg-equip-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.dg-equip-chip { background: var(--bg); border: 1px solid var(--border); border-radius: 14px; padding: 5px 11px; font-size: 12px; color: var(--text2); }
+.dg-label { font-size: 14px; font-weight: 600; margin: 16px 0 8px; display: flex; align-items: center; gap: 8px; }
+.dg-req { font-size: 10px; color: #DC2626; background: rgba(220,38,38,0.1); padding: 2px 7px; border-radius: 8px; font-weight: 600; }
+.dg-photos { display: flex; flex-wrap: wrap; gap: 10px; }
+.dg-thumb { position: relative; width: 90px; height: 90px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+.dg-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.dg-thumb-x { position: absolute; top: 3px; right: 3px; background: rgba(0,0,0,0.7); color: #fff; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 12px; }
+.dg-add-photo { width: 90px; height: 90px; border-radius: 10px; border: 2px dashed var(--accent); background: var(--accent-lt); color: var(--accent); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; font-weight: 600; font-family: inherit; }
+.dg-add-photo i { font-size: 24px; }
+.dg-types { display: flex; flex-wrap: wrap; gap: 8px; }
+.dg-type { background: var(--bg); border: 1.5px solid; border-radius: 20px; padding: 9px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 5px; min-height: 42px; }
+.dg-textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text1); font-size: 16px; font-family: inherit; box-sizing: border-box; resize: vertical; }
+.dg-save { width: 100%; margin-top: 22px; padding: 16px; border: none; border-radius: 12px; background: var(--accent); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; }
+.dg-save:disabled { opacity: 0.6; }
+.dg-skip { width: 100%; margin-top: 10px; padding: 12px; border: none; background: transparent; color: var(--text3); font-size: 13px; cursor: pointer; font-family: inherit; }

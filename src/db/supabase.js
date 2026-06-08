@@ -315,7 +315,7 @@ export async function saveDiary(projectId, diary) {
 // Diário guardado direto no cliente (quando ainda não há projeto formal)
 export async function saveClientDiary(clientId, diary) {
   const { data, error } = await supabase.from('clients')
-    .update({ diary_obra: diary, updated_at: new Date().toISOString() })
+    .update({ diary_obra: diary })
     .eq('id', clientId).select().single()
   if (error) { console.error('saveClientDiary:', error); throw error }
   return data

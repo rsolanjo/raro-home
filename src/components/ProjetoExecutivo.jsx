@@ -332,10 +332,34 @@ Formato (preencha com base nos pontos reais; estime metragens realistas):
 }`}],null,'image/jpeg',8000)
 
       setExecProgress('Montando documento...')
-      let j=reply.trim(); if(j.includes('```')) j=j.replace(/```json?\n?/g,'').replace(/```/g,'')
+      let j=reply.trim()
+      if(j.includes('```')) j=j.replace(/```json?\n?/g,'').replace(/```/g,'')
       const s=j.indexOf('{'); if(s>0) j=j.slice(s)
-      const e=j.lastIndexOf('}'); if(e>0) j=j.slice(0,e+1)
-      let data; try{ data=JSON.parse(j) }catch(pe){ throw new Error('A IA retornou dados inválidos. Tente novamente.') }
+      let data=null
+      // 1ª tentativa: parse direto (recortando até a última chave)
+      try{
+        const e=j.lastIndexOf('}')
+        data=JSON.parse(e>0 ? j.slice(0,e+1) : j)
+      }catch(_){
+        // 2ª tentativa: reparar JSON cortado — fecha arrays/objetos abertos
+        try{
+          let t=j
+          // remove vírgula/linha incompleta no fim
+          t=t.replace(/,\s*$/,'')
+          // conta chaves/colchetes abertos e fecha
+          const opensB=(t.match(/\{/g)||[]).length, closeB=(t.match(/\}/g)||[]).length
+          const opensA=(t.match(/\[/g)||[]).length, closeA=(t.match(/\]/g)||[]).length
+          // corta no último item completo (última chave fechada seguida de vírgula ou fim)
+          const lastObj=t.lastIndexOf('}')
+          if(lastObj>0) t=t.slice(0,lastObj+1)
+          t+=']'.repeat(Math.max(0,opensA-closeA))
+          t+='}'.repeat(Math.max(0,opensB-closeB))
+          data=JSON.parse(t)
+        }catch(e2){
+          throw new Error('A IA cortou a resposta no meio. Clique em "Gerar/Regerar" novamente — geralmente funciona na 2ª vez.')
+        }
+      }
+      if(!data || typeof data!=='object') throw new Error('Resposta vazia da IA. Tente novamente.')
 
       const full=buildExecHtml(data)
       setExecDoc(full)
