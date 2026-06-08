@@ -31,8 +31,15 @@ export default function MestreView({ user, onLogout }) {
   useEffect(()=>{ load() },[])
 
   const client = clients.find(c=>String(c.id)===String(selClientId)) || null
-  const proj = client ? (projects.find(p=>String(p.client_id)===String(client.id))
-    || projects.find(p=>p.client_name===`${client.name1} & ${client.name2}` || p.client_name===client.name1)) : null
+  const proj = client ? (
+    projects.find(p=>String(p.client_id)===String(client.id))
+    || projects.find(p=>{
+        const cn=(p.client_name||'').toLowerCase().trim()
+        const n1=(client.name1||'').toLowerCase().trim()
+        const full=`${client.name1||''} & ${client.name2||''}`.toLowerCase().trim()
+        return cn && (cn===full || cn===n1 || (n1 && cn.includes(n1)))
+      })
+  ) : null
 
   return (
     <div style={{minHeight:'100vh',background:'var(--bg)',display:'flex',flexDirection:'column'}}>
@@ -66,10 +73,9 @@ export default function MestreView({ user, onLogout }) {
           <i className="ti ti-alert-circle" style={{fontSize:30,display:'block',marginBottom:10}} aria-hidden/>
           Nenhuma obra atribuída a você. Peça ao administrador para vincular sua conta a uma ou mais obras.
         </div>}
-        {!loading && client && !proj && <div style={{textAlign:'center',padding:40,color:'var(--text3)'}}>
-          <i className="ti ti-clipboard-off" style={{fontSize:30,display:'block',marginBottom:10}} aria-hidden/>
-          A obra de {client.name1} ainda não tem projeto criado. O diário será liberado quando virar projeto.
-        </div>}
+        {!loading && client && !proj && (
+          <DiarioObra key={'cli-'+client.id} proj={{id:'client-'+client.id, client_name:`${client.name1}${client.name2?' & '+client.name2:''}`, rooms_config:[], diary:client.diary_obra||[], _clientDiary:true, _clientId:client.id}} onRefresh={load} currentUser={user} mestreMode={true} />
+        )}
         {!loading && proj && <DiarioObra key={proj.id} proj={proj} onRefresh={load} currentUser={user} mestreMode={true} />}
       </div>
       <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>

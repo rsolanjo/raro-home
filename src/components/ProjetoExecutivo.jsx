@@ -62,18 +62,34 @@ async function pdfToImg(b64){
 async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1500) {
   const content = []
   if(imageB64) content.push({type:'image',source:{type:'base64',media_type:mime,data:imageB64}})
-  // messages is array of {role, text}; we flatten last user text + history into one
   const apiMessages = messages.map(m=>({role:m.role, content: m.role==='user' && m===messages[messages.length-1] && imageB64
     ? [...content, {type:'text',text:m.text}]
     : m.text }))
-  const res = await fetch('/api/claude',{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-5-20250929',max_tokens:maxTokens,messages:apiMessages})
-  })
-  const txt = await res.text()
-  if(!res.ok) throw new Error('API '+res.status+': '+txt.slice(0,200))
-  const data = JSON.parse(txt)
-  return data.content?.[0]?.text || ''
+  const payload = JSON.stringify({model:'claude-sonnet-4-5-20250929',max_tokens:maxTokens,messages:apiMessages})
+
+  let lastErr=''
+  // tenta até 3 vezes em erros temporários (500/529/timeout)
+  for(let attempt=0; attempt<3; attempt++){
+    try{
+      const res = await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:payload})
+      const txt = await res.text()
+      if(res.ok){
+        const data = JSON.parse(txt)
+        return data.content?.[0]?.text || ''
+      }
+      lastErr = 'API '+res.status+': '+txt.slice(0,150)
+      // 500/502/503/529 = temporário → espera e tenta de novo
+      if([500,502,503,529].includes(res.status)){
+        await new Promise(r=>setTimeout(r, 1500*(attempt+1)))
+        continue
+      }
+      throw new Error(lastErr)  // erro definitivo (4xx) → não insiste
+    }catch(e){
+      lastErr = e.message
+      if(attempt<2){ await new Promise(r=>setTimeout(r, 1500*(attempt+1))); continue }
+    }
+  }
+  throw new Error(lastErr+' (após 3 tentativas)')
 }
 
 export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fromProposal, onSaveToProposal, onClose, currentUser }) {
@@ -301,7 +317,7 @@ ${ctx}
 Para CADA ambiente que tem pontos, gere um <h3>NOME DO AMBIENTE</h3> seguido de uma <table> com colunas:
 Ponto | Equipamento | Parede ref. | Dist. | Alt. | Caixa | Cabo até CPD
 Regras de altura: keypad H=1,10m (4×4 + NEUTRO); keypad cabeceira H=0,40m; câmera no teto 2,70m (CAT6 PoE); módulo no forro; cortina no bandô H=2,55m; som no teto (cabo 2×1,5mm²); tomada H=0,30m; Hub IR 2,40m. Estime metragem de cabo realista até o CPD. Use os equipamentos e ambientes do contexto acima.
-Responda só o HTML.`}],null,'image/jpeg',5500)
+Responda só o HTML.`}],null,'image/jpeg',4000)
 
       // PARTE 3 — caderno de cabos + material + checklist + riscos
       setExecProgress('Caderno de cabos e material... (3/3)')

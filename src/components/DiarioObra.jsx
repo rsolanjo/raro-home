@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { uploadObraPhoto, saveDiary } from '../db/supabase.js'
+import { uploadObraPhoto, saveDiary, saveClientDiary } from '../db/supabase.js'
 
 const DEFAULT_TYPES = [
   {key:'problema', label:'Problema', color:'#DC2626', icon:'ti-alert-triangle'},
@@ -62,10 +62,15 @@ export default function DiarioObra({ proj, onRefresh, currentUser, mestreMode=fa
     setUploading(true)
     try{
       const up=[]
-      for(const f of files){ const c=await compress(f); const r=await uploadObraPhoto(proj.id,c); up.push(r) }
+      for(const f of files){ const c=await compress(f); const r=await uploadObraPhoto(proj._clientDiary?('cli-'+proj._clientId):proj.id,c); up.push(r) }
       setPhotos(p=>[...p,...up])
     }catch(err){ alert('Erro ao enviar foto: '+err.message+'\n\nVerifique se o bucket "obra" existe no Supabase Storage (público).') }
     setUploading(false)
+  }
+
+  async function persistDiary(newDiary){
+    if(proj._clientDiary) return saveClientDiary(proj._clientId, newDiary)
+    return saveDiary(proj.id, newDiary)
   }
 
   async function addEntry(){
@@ -74,7 +79,7 @@ export default function DiarioObra({ proj, onRefresh, currentUser, mestreMode=fa
     const entry={ id:Date.now(), date:selDate, room, type, text:text.trim(),
       photos, video_link:videoLink.trim(), author:currentUser?.name||'', created_at:new Date().toISOString() }
     try{
-      await saveDiary(proj.id,[...diary,entry])
+      await persistDiary([...diary,entry])
       setText(''); setPhotos([]); setVideoLink('')
       onRefresh && await onRefresh()
     }catch(err){ alert('Erro ao salvar: '+err.message) }
@@ -84,7 +89,7 @@ export default function DiarioObra({ proj, onRefresh, currentUser, mestreMode=fa
   async function delEntry(id){
     if(mestreMode){ const e=diary.find(x=>x.id===id); if(e && e.date!==todayISO()){ alert('Não é possível alterar registros de dias anteriores.'); return } }
     if(!confirm('Remover este registro?')) return
-    try{ await saveDiary(proj.id, diary.filter(d=>d.id!==id)); onRefresh && await onRefresh() }
+    try{ await persistDiary(diary.filter(d=>d.id!==id)); onRefresh && await onRefresh() }
     catch(err){ alert('Erro: '+err.message) }
   }
 
