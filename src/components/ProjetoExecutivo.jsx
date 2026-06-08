@@ -65,31 +65,41 @@ async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1
   const apiMessages = messages.map(m=>({role:m.role, content: m.role==='user' && m===messages[messages.length-1] && imageB64
     ? [...content, {type:'text',text:m.text}]
     : m.text }))
-  const payload = JSON.stringify({model:'claude-sonnet-4-5-20250929',max_tokens:maxTokens,messages:apiMessages})
+  const payload = JSON.stringify({model:'claude-sonnet-4-5-20250929',max_tokens:maxTokens,clientStream:true,messages:apiMessages})
 
-  let lastErr=''
-  // tenta até 3 vezes em erros temporários (500/529/timeout)
-  for(let attempt=0; attempt<3; attempt++){
-    try{
-      const res = await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:payload})
-      const txt = await res.text()
-      if(res.ok){
-        const data = JSON.parse(txt)
-        return data.content?.[0]?.text || ''
-      }
-      lastErr = 'API '+res.status+': '+txt.slice(0,150)
-      // 500/502/503/529 = temporário → espera e tenta de novo
-      if([500,502,503,529].includes(res.status)){
-        await new Promise(r=>setTimeout(r, 1500*(attempt+1)))
-        continue
-      }
-      throw new Error(lastErr)  // erro definitivo (4xx) → não insiste
-    }catch(e){
-      lastErr = e.message
-      if(attempt<2){ await new Promise(r=>setTimeout(r, 1500*(attempt+1))); continue }
+  const res = await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:payload})
+  if(!res.ok){
+    const t = await res.text()
+    throw new Error('API '+res.status+': '+t.slice(0,150))
+  }
+  const ct = res.headers.get('content-type')||''
+  // Resposta antiga (JSON) — compatibilidade
+  if(ct.includes('application/json')){
+    const data = await res.json()
+    return data.content?.[0]?.text || ''
+  }
+  // Stream SSE — lê os deltas e monta o texto
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let full='', buffer=''
+  while(true){
+    const {done,value} = await reader.read()
+    if(done) break
+    buffer += decoder.decode(value,{stream:true})
+    const lines = buffer.split('\n')
+    buffer = lines.pop()||''
+    for(const line of lines){
+      if(!line.startsWith('data:')) continue
+      const d=line.slice(5).trim()
+      if(!d||d==='[DONE]') continue
+      try{
+        const evt=JSON.parse(d)
+        if(evt.type==='content_block_delta' && evt.delta?.text) full+=evt.delta.text
+        if(evt.type==='error') throw new Error(evt.error?.message||'erro no stream')
+      }catch(e){ if(e.message&&e.message!=='Unexpected end of JSON input') {/*parcial*/} }
     }
   }
-  throw new Error(lastErr+' (após 3 tentativas)')
+  return full
 }
 
 export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fromProposal, onSaveToProposal, onClose, currentUser }) {
@@ -222,7 +232,7 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
     try{
       const reply=await askClaude(
         [{role:'user',text:prompt}],
-        bgImage.split(',')[1],'image/jpeg',8000
+        bgImage.split(',')[1],'image/jpeg',6000
       )
       let j=reply.trim()
       if(j.includes('```')) j=j.replace(/```json?\n?/g,'').replace(/```/g,'')
@@ -303,7 +313,7 @@ Seções (siga EXATAMENTE este padrão):
 Inclua linhas para: CPD/Rack (tomada 110V dedicada + aterramento; abriga Gateway, NVR, amplificador, switch PoE), Fibra de internet (trajeto até o CPD), Quadro de luz (NEUTRO obrigatório em cada keypad), Neutro nos keypads (OBRIGATÓRIO, fase+neutro), Eletrodutos (3/4\" keypads, 1\" troncos de rede), Wi-Fi (Access Points PoE, cabo CAT6 até CPD), Hub IR (1 por ambiente com AC, visão direta do aparelho, nunca em banheiro).
 <h2>2. Rack / CPD — Distribuição</h2>
 <table> U | Equipamento | Função </table> (itens de rack: ${rackList||'Gateway, NVR, switch PoE, nobreak, patch panel, amplificador'})
-Responda só o HTML.`}],null,'image/jpeg',3500)
+Responda só o HTML.`}],null,'image/jpeg',3000)
 
       // PARTE 2 — posicionamento ponto a ponto (cota+altura+caixa+cabo CPD) — o coração
       setExecProgress('Posicionamento ponto a ponto... (2/3)')
@@ -334,7 +344,7 @@ Uma linha por cabo. Câmeras/APs: CAT6 U/UTP 24AWG (externa F/UTP 23AWG), origem
 <h2>6. Checklist de Obra (antes do revestimento)</h2><ul> itens a conferir </ul>
 <h2>7. Fotos no Diário</h2><p>Instrua o mestre: fotografar cada ponto pelo número antes de fechar a parede, marcando no app.</p>
 <h2>8. Pontos de Atenção e Riscos</h2><ul></ul>
-Responda só o HTML.`}],null,'image/jpeg',5000)
+Responda só o HTML.`}],null,'image/jpeg',3500)
 
       const clean=t=>{let h=t;if(h.includes('```'))h=h.replace(/```html?\n?/g,'').replace(/```/g,'');return h}
       // Monta a planta com os marcadores numerados (imagem + bolinhas) para o caderno
