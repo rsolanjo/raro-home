@@ -289,7 +289,7 @@ Responda só o HTML.`}],null,'image/jpeg',2500)
       setStep('exec')
       setExecProgress('')
       // SALVA TUDO EM ORÇAMENTO automaticamente
-      setTimeout(()=>{ if(window.confirm('Projeto Executivo gerado! Salvar tudo em Orçamento agora?')) saveToProposal(full) }, 400)
+      setTimeout(()=>{ if(window.confirm('Projeto Executivo gerado!\n\nAbrir o orçamento já preenchido com estes itens para revisar os preços e salvar?')) saveToProposal(full) }, 400)
     }catch(err){ alert('Erro ao gerar projeto: '+err.message); setExecProgress('') }
     setLoading(false)
   }

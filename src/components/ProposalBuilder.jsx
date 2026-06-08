@@ -539,7 +539,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
       : [mkFloor('Primeiro Pavimento')]
   )
   const [cf, setCf] = useState(0)
-  const [cr, setCr] = useState(-1)
+  const [cr, setCr] = useState(()=> (!editProposal && execSeed?.floors?.[0]?.rooms?.length) ? 0 : -1)
   const [catFilter, setCatFilter] = useState('all')
   const [catSearch, setCatSearch] = useState('')
   const [editingItemPrice, setEditingItemPrice] = useState(null)
@@ -736,6 +736,12 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
 
   return (
     <>
+      {execSeed?.floors?.length && !editProposal && (
+        <div style={{background:'rgba(124,58,237,0.12)',borderBottom:'1px solid #7C3AED',padding:'10px 16px',display:'flex',alignItems:'center',gap:10,fontSize:13,color:'var(--text1)'}}>
+          <i className="ti ti-brain" style={{color:'#7C3AED',fontSize:18}} aria-hidden/>
+          <span>Itens importados do <b>Projeto Executivo</b>. Revise os preços e clique em <b>"Salvar proposta"</b> para gravar — sem salvar, nada aparece na lista de orçamentos.</span>
+        </div>
+      )}
       <div className="topbar">
         <div className="topbar-title">
           <i className="ti ti-file-invoice" aria-hidden/>
