@@ -751,10 +751,20 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
           {savedMsg&&<span style={{fontSize:11,color:'var(--green)',marginLeft:8,fontWeight:500}}>{savedMsg}</span>}
         </div>
         <div className="topbar-acts">
+          {execDocData && (
+            <button className="btn" style={{fontSize:11,borderColor:'#0369A1',color:'#0369A1',gap:6}}
+              onClick={()=>{
+                const w=window.open('','_blank')
+                w.document.write(`<html><head><title>Projeto Executivo</title><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0">${execDocData}<button onclick="window.print()" style="position:fixed;top:10px;right:10px;background:#0EA5E9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600">Salvar PDF</button></body></html>`)
+                w.document.close()
+              }} title="Ver o Projeto Executivo salvo">
+              <i className="ti ti-file-text" aria-hidden/>Ver Projeto Executivo
+            </button>
+          )}
           {editProposal && onGenerateExec && (
             <button className="btn" style={{fontSize:11,borderColor:'#7C3AED',color:'#7C3AED',gap:6}}
-              onClick={()=>onGenerateExec(editProposal)} title="Gerar Projeto Executivo com os itens deste orçamento">
-              <i className="ti ti-brain" aria-hidden/>Gerar Projeto Executivo
+              onClick={()=>onGenerateExec(editProposal)} title="Gerar/Regerar Projeto Executivo">
+              <i className="ti ti-brain" aria-hidden/>{execDocData?'Regerar Executivo':'Gerar Projeto Executivo'}
             </button>
           )}
           {!plantaData?.image ? (

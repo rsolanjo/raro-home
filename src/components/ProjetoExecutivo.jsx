@@ -291,79 +291,110 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
 
   async function generateExec(){
     setLoading(true)
-    setExecProgress('Iniciando...')
+    setExecProgress('Coletando dados...')
     const itemsList=markers.map(m=>`#${m.n} ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
     const conversation=chat.map(m=>`${m.role==='user'?'Cliente':'Projetista'}: ${m.text}`).join('\n')
     const rackList=catalog.filter(c=>isRackItem(c.name,c.code)).map(c=>c.name).join(', ')
     const ctx=`Premissas da conversa:\n${conversation}\n\nPontos posicionados:\n${itemsList}`
 
     try{
-      // PARTE 1 — premissas + infraestrutura crítica + rack (padrão RARO Home)
-      setExecProgress('Premissas e infraestrutura... (1/3)')
-      const p1=await askClaude([{role:'user',text:
-`Você é projetista da RARO Home. Gere o INÍCIO de um Projeto Executivo de Automação no padrão da empresa (HTML, sem <html>/<head>, use <h2>/<h3>/<table>).
+      // 1 chamada: dados estruturados em JSON (mais leve, formatação fica no template)
+      setExecProgress('Gerando dados do projeto com IA...')
+      const reply=await askClaude([{role:'user',text:
+`Você é projetista da RARO Home (automação Zigbee/Matter). Gere os DADOS de um Projeto Executivo a partir do contexto. Responda APENAS JSON válido (sem markdown, sem texto fora do JSON).
 
 ${ctx}
 
-Seções (siga EXATAMENTE este padrão):
-<h2>1. Premissas e Infraestrutura Geral</h2>
-<p>Conceito: automação centralizada. Toda a inteligência fica no CPD/rack. Descreva onde fica o CPD, por onde entra a fibra e que todos os cabos partem do CPD (use as premissas acima).</p>
-<h3>Pontos Críticos de Infraestrutura</h3>
-<table> Item | Especificação | Responsável </table>
-Inclua linhas para: CPD/Rack (tomada 110V dedicada + aterramento; abriga Gateway, NVR, amplificador, switch PoE), Fibra de internet (trajeto até o CPD), Quadro de luz (NEUTRO obrigatório em cada keypad), Neutro nos keypads (OBRIGATÓRIO, fase+neutro), Eletrodutos (3/4\" keypads, 1\" troncos de rede), Wi-Fi (Access Points PoE, cabo CAT6 até CPD), Hub IR (1 por ambiente com AC, visão direta do aparelho, nunca em banheiro).
-<h2>2. Rack / CPD — Distribuição</h2>
-<table> U | Equipamento | Função </table> (itens de rack: ${rackList||'Gateway, NVR, switch PoE, nobreak, patch panel, amplificador'})
-Responda só o HTML.`}],null,'image/jpeg',3000)
+Convenções RARO Home:
+- CPD/Rack centraliza tudo (Gateway, NVR, switch PoE, amplificador). Todos os cabos partem dele.
+- Keypads precisam SEMPRE de fase+neutro 2,5mm² do quadro de luz. Altura 1,10m (cabeceira 0,40m).
+- Câmeras/APs: CAT6 PoE do switch. Som: 2×1,5mm² do amplificador. Hub IR só onde tem AC.
+- Alturas: tomada 0,30m, interruptor 1,10m, ar 2,40m, som no teto, módulo no forro, cortina bandô 2,55m.
 
-      // PARTE 2 — posicionamento ponto a ponto (cota+altura+caixa+cabo CPD) — o coração
-      setExecProgress('Posicionamento ponto a ponto... (2/3)')
-      const p2=await askClaude([{role:'user',text:
-`Continue o Projeto Executivo RARO Home. Gere o POSICIONAMENTO EXATO ponto a ponto, agrupado por ambiente (HTML, <h2>/<h3>/<table>).
+Formato (preencha com base nos pontos reais; estime metragens realistas):
+{
+ "premissas": ["frase 1","frase 2"],
+ "infraestrutura": [{"item":"CPD/Rack","espec":"...","resp":"Arquiteto/RARO"}],
+ "rack": [{"u":"U1","equip":"Gateway","funcao":"..."}],
+ "pontos": [{"ambiente":"Estar (8,00×6,20m)","linhas":[{"ponto":"K","equip":"Keypad 6 botões","parede":"entrada","dist":"0,15m","alt":"1,10m","caixa":"4×4 + NEUTRO","cabo":"3m"}]}],
+ "cabos_rede": [{"id":"CAT-01","origem":"switch PoE rack","destino":"Câmera C1 Estar","tipo":"CAT6 U/UTP","bitola":"24AWG","metros":"12"}],
+ "cabos_som": [{"id":"SOM-01","origem":"amplificador rack","destino":"Caixa S1 Sala","tipo":"2×1,5mm²","bitola":"1,5mm²","metros":"11"}],
+ "cabos_eletricos": [{"id":"ELT-01","origem":"quadro luz","destino":"Módulo M1 Sala","tipo":"fase+neutro","bitola":"2,5mm²","metros":"10"}],
+ "alim_keypads": [{"id":"KEY-01","origem":"quadro luz","destino":"Keypad entrada Sala","cota":"1,10m","comodo":"Sala","metros":"3"}],
+ "modulos": [{"id":"M1","funcao":"Iluminação principal","ambiente":"Sala","carga":"luz","posicao":"forro centro"}],
+ "rack_detalhe": ["Rack 12U embutido no móvel da TV","Tomada 110V dedicada + aterramento"],
+ "resumo_cabos": [{"tipo":"CAT6","metros_total":"180"},{"tipo":"Cabo som","metros_total":"95"}],
+ "checklist_obra": ["item para o eletricista 1","item 2"],
+ "checklist_raro": ["item equipe RARO 1"],
+ "pecas": [{"item":"Keypad 4 botões","qtd":"5"}],
+ "banheiros_sensores": [{"ambiente":"Circulação","ponto":"Sensor presença","obs":"luz automática"}],
+ "riscos": ["risco/atenção 1"]
+}`}],null,'image/jpeg',8000)
 
-${ctx}
+      setExecProgress('Montando documento...')
+      let j=reply.trim(); if(j.includes('```')) j=j.replace(/```json?\n?/g,'').replace(/```/g,'')
+      const s=j.indexOf('{'); if(s>0) j=j.slice(s)
+      const e=j.lastIndexOf('}'); if(e>0) j=j.slice(0,e+1)
+      let data; try{ data=JSON.parse(j) }catch(pe){ throw new Error('A IA retornou dados inválidos. Tente novamente.') }
 
-<h2>3. Posicionamento Exato — Ponto a Ponto</h2>
-<p>Para o eletricista. Parede ref. = de qual parede medir. Dist. = distância horizontal. Alt. = altura do piso acabado. Cabo CPD = metragem estimada de cabo até o rack.</p>
-Para CADA ambiente que tem pontos, gere um <h3>NOME DO AMBIENTE</h3> seguido de uma <table> com colunas:
-Ponto | Equipamento | Parede ref. | Dist. | Alt. | Caixa | Cabo até CPD
-Regras de altura: keypad H=1,10m (4×4 + NEUTRO); keypad cabeceira H=0,40m; câmera no teto 2,70m (CAT6 PoE); módulo no forro; cortina no bandô H=2,55m; som no teto (cabo 2×1,5mm²); tomada H=0,30m; Hub IR 2,40m. Estime metragem de cabo realista até o CPD. Use os equipamentos e ambientes do contexto acima.
-Responda só o HTML.`}],null,'image/jpeg',4000)
-
-      // PARTE 3 — caderno de cabos + material + checklist + riscos
-      setExecProgress('Caderno de cabos e material... (3/3)')
-      const p3=await askClaude([{role:'user',text:
-`Finalize o Projeto Executivo RARO Home (HTML, <h2>/<table>).
-
-${ctx}
-
-<h2>4. Caderno de Cabos (Origem → Destino)</h2>
-<table> ID | Origem | Destino | Tipo de cabo | Bitola | Metros </table>
-Uma linha por cabo. Câmeras/APs: CAT6 U/UTP 24AWG (externa F/UTP 23AWG), origem switch PoE no rack. Som: 2×1,5mm² do amplificador. Keypads: fase+neutro 2,5mm² do quadro (SEMPRE neutro). IDs por tipo: CAT-01, SOM-01, KEY-01.
-<h2>5. Lista de Material / Quantitativo</h2>
-<table> Item | Quantidade </table> (metros totais por tipo de cabo, caixas 4×2 e 4×4, eletrodutos, conectores RJ45, patch cords)
-<h2>6. Checklist de Obra (antes do revestimento)</h2><ul> itens a conferir </ul>
-<h2>7. Fotos no Diário</h2><p>Instrua o mestre: fotografar cada ponto pelo número antes de fechar a parede, marcando no app.</p>
-<h2>8. Pontos de Atenção e Riscos</h2><ul></ul>
-Responda só o HTML.`}],null,'image/jpeg',3500)
-
-      const clean=t=>{let h=t;if(h.includes('```'))h=h.replace(/```html?\n?/g,'').replace(/```/g,'');return h}
-      // Monta a planta com os marcadores numerados (imagem + bolinhas) para o caderno
-      let plantaHtml=''
-      if(bgImage){
-        const dots=markers.map(m=>{
-          const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
-          return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:${st.c};color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${m.n}</div>`
-        }).join('')
-        plantaHtml=`<h2>Planta de Pontos</h2><div style="position:relative;display:inline-block;max-width:100%;margin:10px 0"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>`
-      }
-      const full=`<h1>Projeto Executivo de Automação</h1><p><b>Cliente:</b> ${projectInfo.client||'—'} · ${new Date().toLocaleDateString('pt-BR')}</p>`
-        +plantaHtml+clean(p1)+clean(p2)+clean(p3)
+      const full=buildExecHtml(data)
       setExecDoc(full)
       setStep('exec')
       setExecProgress('')
-      // NÃO navega embora — mostra o documento. O usuário decide salvar/exportar pelos botões.
     }catch(err){ alert('Erro ao gerar projeto: '+err.message); setExecProgress('') }
     setLoading(false)
+  }
+
+  // Monta o HTML final bonito (capa estilo proposta + seções + tabelas estilizadas)
+  function buildExecHtml(d){
+    const cliente=projectInfo.client||'Cliente'
+    const hoje=new Date().toLocaleDateString('pt-BR')
+    const T=(rows,cols)=>`<table class="ex-tbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`
+    const esc=s=>(s==null?'':String(s))
+    // planta com marcadores
+    let planta=''
+    if(bgImage){
+      const dots=markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
+        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;background:${st.c};color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${m.n}</div>`}).join('')
+      planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div></div>`
+    }
+    const sec=(title,inner)=>inner?`<div class="ex-sec"><h2>${title}</h2>${inner}</div>`:''
+    const list=arr=>arr&&arr.length?`<ul class="ex-ul">${arr.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''
+    const pontosHtml=(d.pontos||[]).map(a=>`<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T((a.linhas||[]).map(l=>`<tr><td><b>${esc(l.ponto)}</b></td><td>${esc(l.equip)}</td><td>${esc(l.parede)}</td><td>${esc(l.dist)}</td><td>${esc(l.alt)}</td><td>${esc(l.caixa)}</td><td>${esc(l.cabo)}</td></tr>`).join(''),['Ponto','Equip.','Parede ref.','Dist.','Alt.','Caixa','Cabo CPD'])}`).join('')
+
+    return `<style>${EXEC_CSS}</style>
+<div class="ex-doc">
+  <!-- CAPA -->
+  <div class="ex-cover">
+    <div class="ex-cover-top">DOCUMENTO TÉCNICO · PROJETO EXECUTIVO</div>
+    <div class="ex-logo"><div class="ex-logo-mark">R</div><div class="ex-logo-name">RARO<span>HOME</span></div></div>
+    <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
+    <div class="ex-cover-title">Projeto Executivo de Automação</div>
+    <div class="ex-cover-sub">Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto</div>
+    <div class="ex-cover-client"><div class="ex-cc-name">${esc(cliente)}</div><div class="ex-cc-meta">${hoje} · RARO Home</div></div>
+    <div class="ex-cover-foot">RARO Home · contato@rarohome.com.br · (21) 98170-9009</div>
+  </div>
+
+  ${planta}
+  ${sec('1. Premissas Confirmadas', list(d.premissas))}
+  ${sec('2. Premissas e Infraestrutura Geral', (d.infraestrutura||[]).length?T(d.infraestrutura.map(r=>`<tr><td><b>${esc(r.item)}</b></td><td>${esc(r.espec)}</td><td>${esc(r.resp)}</td></tr>`).join(''),['Item','Especificação','Responsável']):'')}
+  ${sec('3. Detalhe do RACK / CPD (Sala de Estar)', list(d.rack_detalhe)+((d.rack||[]).length?T(d.rack.map(r=>`<tr><td><b>${esc(r.u)}</b></td><td>${esc(r.equip)}</td><td>${esc(r.funcao)}</td></tr>`).join(''),['U','Equipamento','Função']):''))}
+  ${sec('4. Módulos e Caixas de Teto — Posição Exata', (d.modulos||[]).length?T(d.modulos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.funcao)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.carga)}</td><td>${esc(r.posicao)}</td></tr>`).join(''),['ID','Função','Ambiente','Carga','Posição']):'')}
+  ${sec('5. Keypads, Câmeras e Pontos de Parede — Posicionamento Exato', pontosHtml)}
+  ${sec('6. Cabos de Rede', (d.cabos_rede||[]).length?T(d.cabos_rede.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros']):'')}
+  ${sec('7. Cabos de Som — Amplificador no RACK', (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros']):'')}
+  ${sec('8. Cabos Elétricos', (d.cabos_eletricos||[]).length?T(d.cabos_eletricos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros']):'')}
+  ${sec('9. Alimentação dos Keypads (Fase + Neutro)', (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m']):'')}
+  ${sec('10. Módulos e Cargas (iluminação + cortinas)', (d.modulos||[]).length?T(d.modulos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.funcao)}</td><td>${esc(r.carga)}</td><td>${esc(r.ambiente)}</td></tr>`).join(''),['ID','Função','Carga','Ambiente']):'')}
+  ${sec('11. Banheiros, Circulação e Sensores', (d.banheiros_sensores||[]).length?T(d.banheiros_sensores.map(r=>`<tr><td><b>${esc(r.ambiente)}</b></td><td>${esc(r.ponto)}</td><td>${esc(r.obs)}</td></tr>`).join(''),['Ambiente','Ponto','Observação']):'')}
+  ${sec('12. Resumo Geral de Cabeamento', (d.resumo_cabos||[]).length?T(d.resumo_cabos.map(r=>`<tr><td><b>${esc(r.tipo)}</b></td><td>${esc(r.metros_total)}m</td></tr>`).join(''),['Tipo de cabo','Metragem total']):'')}
+  ${sec('13. Mapa de Cabeamento (saindo do CPD)', '<p class="ex-p">Todos os cabos partem do CPD/Rack na Sala de Estar. Consulte as tabelas de cabos (seções 6 a 9) para origem, destino e metragem de cada trecho.</p>')}
+  ${sec('14. Lista Completa de Peças (sem valores)', (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td>${esc(r.qtd)}</td></tr>`).join(''),['Item','Qtd']):'')}
+  ${sec('15. Checklist de Obra — para Elias / Eletricista', list(d.checklist_obra))}
+  ${sec('16. Checklist de Instalação — Equipe RARO Home', list(d.checklist_raro))}
+  ${sec('17. Pontos de Atenção e Riscos', list(d.riscos))}
+  ${sec('18. Fotos no Diário de Obra', '<p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>')}
+</div>`
   }
 
   // ── Tabela de cabeamento elétrico (texto/tabela, sem desenho — evita timeout) ──
@@ -395,18 +426,12 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
 
   function exportPdf(){
     const w=window.open('','_blank')
-    w.document.write(`<html><head><title>Projeto Executivo — RARO Home</title>
-      <style>body{font-family:sans-serif;font-size:12px;padding:30px;color:#1a1a1a;max-width:900px;margin:0 auto}
-      h1,h2,h3{color:#0369A1}table{width:100%;border-collapse:collapse;margin:12px 0}
-      th{background:#060B1A;color:#fff;padding:6px 8px;text-align:left;font-size:11px}
-      td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}
-      tr:nth-child(even) td{background:#f7fafc}</style></head><body>
-      <h1>RARO Home — Projeto Executivo de Automação</h1>
-      <p><b>Cliente:</b> ${projectInfo.client||selClient||'—'} · <b>Data:</b> ${new Date().toLocaleDateString('pt-BR')}</p>
-      <hr>${execDoc}
-      <p style="margin-top:30px;font-size:10px;color:#999">RARO Home · contato@rarohome.com.br · (21) 98170-9009</p>
+    w.document.write(`<html><head><title>Projeto Executivo — RARO Home</title><meta charset="utf-8">
+      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      <style>body{margin:0}${EXEC_CSS}</style></head><body>
+      ${execDoc}
       </body></html>`)
-    w.document.close(); setTimeout(()=>w.print(),600)
+    w.document.close(); setTimeout(()=>w.print(),700)
   }
 
   function saveToProposal(docOverride){
@@ -623,8 +648,9 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
 
         {/* STEP EXEC */}
         {step==='exec' && (
-          <div style={{flex:1,overflowY:'auto',background:'#fff',padding:30}}>
-            <div style={{maxWidth:900,margin:'0 auto'}} dangerouslySetInnerHTML={{__html:execDoc||''}}/>
+          <div style={{flex:1,overflowY:'auto',background:'#e8eaed',padding:'20px 0'}}>
+            <style>{EXEC_CSS}</style>
+            <div style={{maxWidth:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)'}} dangerouslySetInnerHTML={{__html:execDoc||''}}/>
           </div>
         )}
       </div>
@@ -652,6 +678,34 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
     </div>
   )
 }
+
+const EXEC_CSS=`
+.ex-doc{font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;font-size:12px;line-height:1.5}
+.ex-doc *{box-sizing:border-box}
+.ex-cover{background:linear-gradient(160deg,#060B1A 0%,#0d1b3a 100%);color:#fff;padding:60px 40px;text-align:center;position:relative}
+.ex-cover-top{font-size:10px;letter-spacing:3px;color:#6B8CAE;text-transform:uppercase;margin-bottom:40px}
+.ex-logo{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:8px}
+.ex-logo-mark{width:54px;height:54px;border:2px solid #38BDF8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:#38BDF8}
+.ex-logo-name{font-size:26px;font-weight:300;letter-spacing:8px}
+.ex-logo-name span{font-weight:700}
+.ex-cover-tag{font-size:10px;letter-spacing:4px;color:#6B8CAE;margin:6px 0 50px}
+.ex-cover-title{font-family:'DM Serif Display',Georgia,serif;font-size:34px;line-height:1.15;margin-bottom:16px}
+.ex-cover-sub{font-size:13px;color:#9CB3CE;line-height:1.7;margin-bottom:50px}
+.ex-cover-client{background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);border-radius:10px;padding:20px;margin:0 auto;max-width:380px}
+.ex-cc-name{font-size:20px;font-weight:700}
+.ex-cc-meta{font-size:11px;color:#9CB3CE;margin-top:4px}
+.ex-cover-foot{margin-top:50px;font-size:9px;color:#5a7align}
+.ex-sec{padding:24px 40px;border-bottom:1px solid #eef}
+.ex-sec h2{font-family:'DM Serif Display',Georgia,serif;font-size:18px;color:#060B1A;margin-bottom:14px;padding-bottom:7px;border-bottom:2px solid #0EA5E9}
+.ex-amb{font-size:13px;color:#0369A1;font-weight:700;margin:16px 0 6px;background:#EFF6FF;padding:6px 10px;border-radius:5px}
+.ex-tbl{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:11px}
+.ex-tbl th{background:#060B1A;color:#fff;padding:7px 9px;text-align:left;font-size:10px;font-weight:600}
+.ex-tbl td{padding:6px 9px;border-bottom:1px solid #eef2f7;vertical-align:top}
+.ex-tbl tr:nth-child(even) td{background:#f7fafc}
+.ex-ul{margin:6px 0 6px 18px}
+.ex-ul li{margin-bottom:5px}
+.ex-p{font-size:12px;line-height:1.6;color:#374151}
+`
 
 const btnPrimary={background:'#0EA5E9',color:'#fff',border:'none',padding:'8px 16px',borderRadius:6,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:6}
 const btnGhost={background:'rgba(255,255,255,0.1)',color:'#fff',border:'1px solid rgba(255,255,255,0.2)',padding:'7px 14px',borderRadius:6,cursor:'pointer',fontSize:12,fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}
