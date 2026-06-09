@@ -15,7 +15,17 @@ function buildContract(proposal, client) {
   const bothNames = name2 ? `${name1} e ${name2}` : name1
   const addr = [client?.neighborhood, client?.city].filter(Boolean).join(', ') || '—'
   const housing = client?.housing_type || 'residencial'
-  const scopeItems = floors.flatMap(fl=>(fl.rooms||[]).map(r=>`${r.icon||'◈'} ${r.name} (${(r.items||[]).filter(i=>i.name).length} itens)`))
+  const scopeRooms = floors.flatMap(fl=>(fl.rooms||[]).map(r=>{
+    // agrupa itens por nome com quantidade
+    const counts={}
+    ;(r.items||[]).filter(i=>i.name).forEach(it=>{
+      const nm=it.name
+      const q=parseInt(it.qty)||1
+      counts[nm]=(counts[nm]||0)+q
+    })
+    const itemList=Object.entries(counts).map(([nm,q])=>q>1?`${q}× ${nm}`:nm)
+    return { icon:r.icon||'◈', name:r.name, total:Object.values(counts).reduce((s,q)=>s+q,0), itemList }
+  })).filter(r=>r.itemList.length)
 
   function numPorExtenso(valor) {
     const n = Math.round(valor * 100)
@@ -76,6 +86,12 @@ function buildContract(proposal, client) {
     .total-extenso{font-size:9.5px;color:rgba(255,255,255,0.65);font-style:italic}
     .scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:8px 0}
     .scope-item{background:#F5FAFF;border:0.5px solid #C8DEFF;border-radius:3px;padding:4px 8px;font-size:10px;color:#1E3A5F}
+    .scope-detail{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+    .scope-room{background:#F5FAFF;border:0.5px solid #C8DEFF;border-radius:4px;padding:6px 9px;break-inside:avoid}
+    .scope-room-hdr{font-size:10px;font-weight:700;color:#0D2540;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+    .scope-room-qty{font-size:8px;font-weight:600;color:#fff;background:#0369A1;border-radius:8px;padding:1px 7px;margin-left:auto}
+    .scope-room-items{display:flex;flex-wrap:wrap;gap:3px}
+    .scope-chip{font-size:8.5px;color:#1E3A5F;background:#fff;border:0.5px solid #D6E6FB;border-radius:3px;padding:2px 6px}
     .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:36px}
     .sig-box{text-align:center}
     .sig-signed{min-height:44px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px}
@@ -127,8 +143,12 @@ function buildContract(proposal, client) {
 
   <h2>2. Objeto do Contrato</h2>
   <div class="clause">O presente instrumento tem por objeto a prestação de serviços de automação residencial, fornecimento, instalação e configuração de equipamentos de tecnologia, conforme proposta técnica nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I.</div>
-  <div style="margin:8px 0 4px;font-size:9px;font-weight:600;color:#1E3A5F;text-transform:uppercase;letter-spacing:1px">Ambientes contemplados:</div>
-  <div class="scope-grid">${scopeItems.map(i=>`<div class="scope-item">${i}</div>`).join('')}</div>
+  <div style="margin:8px 0 4px;font-size:9px;font-weight:600;color:#1E3A5F;text-transform:uppercase;letter-spacing:1px">Ambientes e itens contemplados:</div>
+  <div class="scope-detail">${scopeRooms.map(r=>`
+    <div class="scope-room">
+      <div class="scope-room-hdr">${r.icon} ${r.name} <span class="scope-room-qty">${r.total} ${r.total===1?'item':'itens'}</span></div>
+      <div class="scope-room-items">${r.itemList.map(it=>`<span class="scope-chip">${it}</span>`).join('')}</div>
+    </div>`).join('')}</div>
 
   <h2>3. Valor Total e Forma de Pagamento</h2>
   <div class="total-box">

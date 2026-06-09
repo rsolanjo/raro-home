@@ -230,6 +230,9 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
           <div className="section">
             <div className="sec-hdr">
               <div className="sec-title"><i className="ti ti-shopping-cart" aria-hidden />Falta comprar (orçamentos enviados/aprovados)</div>
+              <span style={{fontSize:10,color:'var(--text3)',marginRight:'auto',marginLeft:10}}>
+                {proposals.filter(p=>p.status==='sent'||p.status==='approved').length} orç. analisados
+              </span>
               <button className="btn" style={{fontSize:11,padding:'4px 9px'}} onClick={()=>onNav('stock')}>Ver estoque</button>
             </div>
             <table className="tbl">
