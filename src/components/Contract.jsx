@@ -53,7 +53,7 @@ function buildContract(proposal, client) {
   const ROG_SIG = `<div style="position:relative;display:inline-block"><div style="font-family:'Dancing Script',cursive;font-size:28px;color:#0369A1;opacity:0.9;letter-spacing:1px;line-height:1">Rogério Silva</div><div style="position:absolute;bottom:-2px;left:0;right:0;height:0.5px;background:#0369A1;opacity:0.4"></div></div>`
 
   return `<!DOCTYPE html><html lang="pt-BR"><head>
-  <meta charset="UTF-8"><title>Contrato RARO Home — ${proposal.code||proposal.id}</title>
+  <meta charset="UTF-8"><title>Contrato RARO Home — ${client?.name1||proposal.client_name||'Cliente'}${proposal.code?' — '+proposal.code:''}</title>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
     @page{size:A4;margin:18mm 16mm}

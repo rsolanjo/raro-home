@@ -43,9 +43,10 @@ export default function MestreView({ user, onLogout }) {
   // checa se o diário de HOJE já foi feito nesta obra
   function diaryDoneToday(p){
     if(!p) return false
-    const today=new Date().toISOString().slice(0,10)
+    const d0=new Date(); const today=`${d0.getFullYear()}-${String(d0.getMonth()+1).padStart(2,'0')}-${String(d0.getDate()).padStart(2,'0')}`
     const diary = Array.isArray(p.diary)?p.diary:(typeof p.diary==='string'?(()=>{try{return JSON.parse(p.diary)}catch{return[]}})():[])
-    return diary.some(d=>d.date===today)
+    // só conta como feito se houver entrada de HOJE com conteúdo real (cômodo + foto OU descrição)
+    return diary.some(d=>d && d.date===today && (d.room||d.text) && ((d.photos&&d.photos.length)||d.text))
   }
   const jaFeitoHoje = diaryDoneToday(proj)
 

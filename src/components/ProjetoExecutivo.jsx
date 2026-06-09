@@ -490,7 +490,9 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
   function exportPdf(){
     const w=window.open('','_blank')
     const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
-    w.document.write(`<html><head><title>Projeto Executivo — ${cliNome} — RARO Home</title><meta charset="utf-8">
+    const codigo=(fromProposal?.code||'').replace(/[\\/:*?"<>|]/g,'')
+    const tituloPdf=`Projeto Executivo RARO Home — ${cliNome}${codigo?' — '+codigo:''}`
+    w.document.write(`<html><head><title>${tituloPdf}</title><meta charset="utf-8">
       <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
       <style>body{margin:0}${EXEC_CSS}</style></head><body>
       ${execDoc}

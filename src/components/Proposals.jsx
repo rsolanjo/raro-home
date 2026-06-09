@@ -402,15 +402,15 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
                             {onGenerateExec && p.status!=='cancelled' &&
                               <button className="btn" style={btn({borderColor:'#7C3AED',color:'#7C3AED'})} onClick={()=>onGenerateExec(p)} title="Criar Projeto Executivo (IA)"><i className="ti ti-brain" aria-hidden/></button>}
                             <button className="btn" style={btn({borderColor:'#16A34A',color:'#16A34A'})} onClick={()=>onEdit(p)} title="Gerar proposta de venda e instalacao"><i className="ti ti-currency-dollar" aria-hidden/></button>
-                            <button className="btn" style={btn({color:'var(--accent)',borderColor:'var(--accent)'})}
+                            <button className="btn" style={btn({color:'var(--accent)',borderColor:'var(--accent)',marginLeft:8})}
                               onClick={()=>openProposalPDF(pWithPhones,false)} title="Ver proposta"><i className="ti ti-eye" aria-hidden/></button>
                             {p.exec_doc && <button className="btn" style={btn({color:'#0369A1',borderColor:'#0369A1'})}
-                              onClick={()=>{ const w=window.open('','_blank'); w.document.write(`<html><head><title>Projeto Executivo</title><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0">${p.exec_doc}<button onclick="window.print()" style="position:fixed;top:10px;right:10px;background:#0EA5E9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600">Salvar PDF</button></body></html>`); w.document.close() }}
+                              onClick={()=>{ const w=window.open('','_blank'); w.document.write(`<html><head><title>Projeto Executivo RARO Home — ${p.client_name||'Cliente'}${p.code?' — '+p.code:''}</title><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0">${p.exec_doc}<button onclick="window.print()" style="position:fixed;top:10px;right:10px;background:#0EA5E9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600">Salvar PDF</button></body></html>`); w.document.close() }}
                               title="Ver Projeto Executivo"><i className="ti ti-file-text" aria-hidden/></button>}
                             <button className="btn" style={btn({color:'#7C3AED',borderColor:'#7C3AED'})}
                               onClick={()=>openProposalPDF(pWithPhones,true)} title="Ver versao admin (com custos)"><i className="ti ti-shield" aria-hidden/></button>
-                            {p.status==='approved' && <button className="btn" style={btn({borderColor:'#059669',color:'#059669'})}
-                              onClick={()=>setContractProposal(p)} title="Abrir contrato"><i className="ti ti-file-contract" aria-hidden/></button>}
+                            {p.status!=='cancelled' && <button className="btn" style={btn({borderColor:'#059669',color:'#059669'})}
+                              onClick={()=>setContractProposal(p)} title="Abrir contrato"><i className="ti ti-license" aria-hidden/></button>}
                             {phone1 && <button className="btn" style={btn({color:'#16A34A',borderColor:'#16A34A'})} title="Enviar proposta por WhatsApp"
                               onClick={async ()=>{ await openProposalPDF({...pWithPhones,_download:true},false); setTimeout(()=>window.open(`https://wa.me/${phone1}?text=${msg}`,'_blank'),1200) }}>
                               <i className="ti ti-send" aria-hidden/></button>}

@@ -27,7 +27,7 @@ async function compress(file, maxDim=1280, q=0.72){
   })
 }
 
-function todayISO(){ return new Date().toISOString().slice(0,10) }
+function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}` }
 function fmtDate(iso){ try{ return new Date(iso+'T12:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'}) }catch{ return iso } }
 
 export default function DiarioObra({ proj, onRefresh, currentUser, mestreMode=false }) {
@@ -88,7 +88,11 @@ export default function DiarioObra({ proj, onRefresh, currentUser, mestreMode=fa
 
   async function delEntry(id){
     if(mestreMode){ const e=diary.find(x=>x.id===id); if(e && e.date!==todayISO()){ alert('Não é possível alterar registros de dias anteriores.'); return } }
-    if(!confirm('Remover este registro?')) return
+    // senha especial para apagar registro do diário
+    const pwd=window.prompt('Para apagar este registro do diário, digite a senha:')
+    if(pwd===null) return
+    if(pwd!=='456'){ alert('Senha incorreta.'); return }
+    if(!confirm('Remover este registro definitivamente?')) return
     try{ await persistDiary(diary.filter(d=>d.id!==id)); onRefresh && await onRefresh() }
     catch(err){ alert('Erro: '+err.message) }
   }

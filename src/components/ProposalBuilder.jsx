@@ -494,7 +494,7 @@ function buildPDF(data, adminMode=false){
 .tl.main{font-size:8px!important}
 .tv.main{font-size:26px!important}`
 
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>RARO Home — ${client_name} — ${proposal_code}</title><style>${PDF_CSS}${extraCSS}</style></head><body>
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Proposta RARO Home — ${client_name}${proposal_code?' — '+proposal_code:''}</title><style>${PDF_CSS}${extraCSS}</style></head><body>
 <div class="no-print" style="position:sticky;top:0;z-index:99;background:${adminMode?'#4C1D95':'#060B1A'};color:#F0F6FF;padding:9px 20px;display:flex;align-items:center;justify-content:space-between;font-family:'DM Sans',sans-serif;font-size:12px">
   <span><strong>RARO Home</strong>${adminMode?' — VERSÃO ADMIN':''} — ${client_name} · ${proposal_code}</span>
   <button onclick="window.print()" style="background:#8C6D46;color:#fff;border:none;padding:7px 18px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">⬇ Salvar como PDF</button>
@@ -755,7 +755,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
             <button className="btn" style={{fontSize:11,borderColor:'#0369A1',color:'#0369A1',gap:6}}
               onClick={()=>{
                 const w=window.open('','_blank')
-                w.document.write(`<html><head><title>Projeto Executivo</title><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0">${execDocData}<button onclick="window.print()" style="position:fixed;top:10px;right:10px;background:#0EA5E9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600">Salvar PDF</button></body></html>`)
+                w.document.write(`<html><head><title>Projeto Executivo RARO Home — ${savedProposal?.client_name||clientName||'Cliente'}${savedProposal?.code?' — '+savedProposal.code:''}</title><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0">${execDocData}<button onclick="window.print()" style="position:fixed;top:10px;right:10px;background:#0EA5E9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600">Salvar PDF</button></body></html>`)
                 w.document.close()
               }} title="Ver o Projeto Executivo salvo">
               <i className="ti ti-file-text" aria-hidden/>Ver Projeto Executivo

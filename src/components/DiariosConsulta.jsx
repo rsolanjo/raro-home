@@ -34,6 +34,7 @@ export default function DiariosConsulta({ projects=[], clients=[] }) {
   filtered.forEach(e=>{ (byDay[e.date]=byDay[e.date]||[]).push(e) })
 
   const fmtDate = d => { if(!d) return '—'; const [y,m,dd]=d.split('-'); return `${dd}/${m}/${y}` }
+  const purl = ph => typeof ph==='string'?ph:(ph?.url||'')
 
   function exportPDF(){
     const TYPE_LABEL2={ andamento:'Andamento', problema:'Problema', concluido:'Concluído', material:'Material', outro:'Outro' }
@@ -51,13 +52,13 @@ export default function DiariosConsulta({ projects=[], clients=[] }) {
             </div>
             <div style="font-size:12px;color:#374151;margin-bottom:10px;line-height:1.5">${e.text||''}</div>
             <div style="display:flex;flex-wrap:wrap;gap:8px">
-              ${(e.photos||[]).map(ph=>`<img src="${ph}" style="width:160px;height:120px;object-fit:cover;border-radius:6px;border:1px solid #ddd"/>`).join('')}
+              ${(e.photos||[]).map(ph=>`<img src="${purl(ph)}" style="width:160px;height:120px;object-fit:cover;border-radius:6px;border:1px solid #ddd"/>`).join('')}
             </div>
           </div>`).join('')}
       </div>`).join('')
 
     const w=window.open('','_blank')
-    w.document.write(`<html><head><meta charset="utf-8"><title>Diário de Obra — ${titulo} — RARO Home</title>
+    w.document.write(`<html><head><meta charset="utf-8"><title>Diário de Obra RARO Home — ${titulo}${fDia?' — '+fmtDate(fDia):''}</title>
       <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
       <style>body{font-family:'DM Sans',sans-serif;margin:0;color:#1a1a1a}
       .cover{background:linear-gradient(160deg,#F5FAFF,#E8F2FC);padding:50px 40px;text-align:center;border-bottom:3px solid #0EA5E9}
@@ -131,7 +132,7 @@ export default function DiariosConsulta({ projects=[], clients=[] }) {
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12}}>
               {entries.map((e,i)=>(
                 <div key={i} style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden'}}>
-                  {e.photos?.[0] && <img src={e.photos[0]} alt="" style={{width:'100%',height:150,objectFit:'cover',display:'block'}}/>}
+                  {e.photos?.[0] && <img src={purl(e.photos[0])} alt="" style={{width:'100%',height:150,objectFit:'cover',display:'block'}}/>}
                   <div style={{padding:12}}>
                     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6,flexWrap:'wrap'}}>
                       <span style={{fontSize:10,fontWeight:700,color:'#fff',background:TYPE_COLOR[e.type]||'#6B7280',padding:'2px 8px',borderRadius:10}}>{TYPE_LABEL[e.type]||e.type}</span>
