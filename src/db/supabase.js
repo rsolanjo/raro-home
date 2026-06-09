@@ -65,14 +65,44 @@ export async function saveProposal(p) {
   const saved = await upsert('proposals', { ...p, updated_at: new Date().toISOString() })
   const items = (p.floors||[]).flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).filter(i=>i.code).map(i=>({code:i.code,qty:parseInt(i.qty)||1}))))
   // rascunho, enviado e aguardando → RESERVA o estoque
-  if (['draft','sent','waiting'].includes(p.status)) await reserveStock(saved.id, items, saved.code||`#${saved.id}`, saved.client_name)
+  if (['draft','sent'].includes(p.status)) await reserveStock(saved.id, items, saved.code||`#${saved.id}`, saved.client_name)
   // recusado e cancelado → LIBERA a reserva (devolve)
   if (['rejected','cancelled'].includes(p.status)) await releaseReservation(saved.id)
   // aprovado → TIRA efetivamente do estoque
   if (p.status==='approved') await _applyStockDeduction(saved)
   return saved
 }
-export async function deleteProposal(id) { await releaseReservation(id); return del('proposals', id) }
+export async function deleteProposal(id) {
+  await releaseReservation(id)
+  // apaga TAMBÉM os projetos vinculados a este orçamento
+  try {
+    const projects = await all('projects','created_at')
+    const linked = projects.filter(pr=>String(pr.proposal_id)===String(id))
+    for (const pr of linked) await del('projects', pr.id)
+  } catch(e){ console.warn('del projetos vinculados:', e) }
+  return del('proposals', id)
+}
+
+// Mantém Projetos/Cronograma em sincronia com o status do orçamento:
+// aprovado → garante projeto; qualquer outro status → remove o projeto vinculado
+export async function syncProjectFromProposal(proposal) {
+  const projects = await all('projects','created_at')
+  const linked = projects.filter(pr=>String(pr.proposal_id)===String(proposal.id))
+  if (proposal.status === 'approved') {
+    if (!linked.length) {
+      await upsert('projects', {
+        client_id: proposal.client_id, client_name: proposal.client_name,
+        description: proposal.description || `Proposta ${proposal.code}`,
+        type:'residencial', phase:'visit',
+        proposal_id: proposal.id, proposal_code: proposal.code,
+        notes:`Projeto criado automaticamente a partir da proposta ${proposal.code}`,
+      })
+    }
+  } else {
+    // saiu de aprovado (rascunho/enviado/recusado/cancelado) → remove o projeto vinculado
+    for (const pr of linked) await del('projects', pr.id)
+  }
+}
 
 // Cancela o orçamento (não apaga): libera estoque, cancela projeto/cronograma vinculados,
 // e retorna aviso sobre o financeiro se já houve gasto.

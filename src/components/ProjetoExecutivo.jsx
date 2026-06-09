@@ -375,6 +375,54 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
     const list=arr=>arr&&arr.length?`<ul class="ex-ul">${arr.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''
     const pontosHtml=(d.pontos||[]).map(a=>`<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T((a.linhas||[]).map(l=>`<tr><td><b>${esc(l.ponto)}</b></td><td>${esc(l.equip)}</td><td>${esc(l.parede)}</td><td>${esc(l.dist)}</td><td>${esc(l.alt)}</td><td>${esc(l.caixa)}</td><td>${esc(l.cabo)}</td></tr>`).join(''),['Ponto','Equip.','Parede ref.','Dist.','Alt.','Caixa','Cabo CPD'])}`).join('')
 
+    // TÓPICO 19 — itens por cômodo (do catálogo), qtd por cômodo e total geral
+    const byRoom={}; const geral={}
+    markers.forEach(m=>{
+      const r=m.room||'Geral'; const key=m.name||m.code||'Item'
+      const inCat=catalog.some(c=>c.code===m.code || c.name===m.name)
+      if(!byRoom[r]) byRoom[r]={}
+      if(!byRoom[r][key]) byRoom[r][key]={qty:0,cat:inCat}
+      byRoom[r][key].qty++
+      if(!geral[key]) geral[key]={qty:0,cat:inCat}
+      geral[key].qty++
+    })
+    let itensComodoHtml=''
+    Object.entries(byRoom).forEach(([room,items])=>{
+      const total=Object.values(items).reduce((s,i)=>s+i.qty,0)
+      itensComodoHtml+=`<h3 class="ex-amb">${esc(room)} — ${total} item(ns)</h3>`+T(
+        Object.entries(items).map(([nm,i])=>`<tr><td>${esc(nm)}</td><td>${i.cat?'<span style="color:#16A34A;font-weight:600">Catálogo</span>':'<span style="color:#D97706">Avulso</span>'}</td><td><b>${i.qty}</b></td></tr>`).join(''),
+        ['Item','Origem','Qtd'])
+    })
+    const totalGeralHtml=Object.keys(geral).length?T(
+      Object.entries(geral).sort((a,b)=>b[1].qty-a[1].qty).map(([nm,i])=>`<tr><td>${esc(nm)}</td><td>${i.cat?'Catálogo':'Avulso'}</td><td><b>${i.qty}</b></td></tr>`).join('')
+       +`<tr style="background:#060B1A"><td style="color:#fff;font-weight:700">TOTAL GERAL</td><td></td><td style="color:#fff;font-weight:700">${Object.values(geral).reduce((s,i)=>s+i.qty,0)}</td></tr>`,
+      ['Item','Origem','Qtd total'])
+      :''
+
+    // TÓPICO 20 — gráficos e timeline
+    const totalPontos=markers.length
+    const roomCounts=Object.entries(byRoom).map(([r,items])=>({room:r,qty:Object.values(items).reduce((s,i)=>s+i.qty,0)})).sort((a,b)=>b.qty-a.qty)
+    const maxRoom=Math.max(1,...roomCounts.map(r=>r.qty))
+    const barColors=['#0EA5E9','#7C3AED','#16A34A','#D97706','#DC2626','#0891B2','#DB2777','#65A30D']
+    const chartHtml=`<div style="margin:8px 0 18px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:#0D1420">Distribuição de pontos por ambiente (${totalPontos} no total)</div>
+      ${roomCounts.map((r,i)=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
+        <div style="width:130px;font-size:11px;text-align:right;color:#456;flex-shrink:0">${esc(r.room)}</div>
+        <div style="flex:1;background:#eef2f7;border-radius:4px;height:20px;position:relative">
+          <div style="width:${Math.round(r.qty/maxRoom*100)}%;background:${barColors[i%barColors.length]};height:100%;border-radius:4px;min-width:24px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:#fff;font-size:10px;font-weight:700">${r.qty}</div>
+        </div></div>`).join('')}
+    </div>`
+    const fases=['Infraestrutura / Eletroduto','Passagem de cabos','Instalação de equipamentos','Configuração e cenas','Testes e entrega']
+    const timelineHtml=`<div style="font-size:12px;font-weight:600;margin:14px 0 12px;color:#0D1420">Fases do projeto</div>
+      <div style="position:relative;padding-left:8px">${fases.map((f,i)=>`
+        <div style="display:flex;gap:12px;margin-bottom:0">
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <div style="width:18px;height:18px;border-radius:50%;background:${barColors[i%barColors.length]};color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>
+            ${i<fases.length-1?'<div style="width:2px;flex:1;background:#dde6f0;min-height:24px"></div>':''}
+          </div>
+          <div style="font-size:12px;color:#374151;padding-bottom:18px;padding-top:1px">${f}</div>
+        </div>`).join('')}</div>`
+
     return `<style>${EXEC_CSS}</style>
 <div class="ex-doc">
   <!-- CAPA -->
@@ -392,8 +440,8 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
   ${sec('1. Premissas Confirmadas', list(d.premissas))}
   ${sec('2. Premissas e Infraestrutura Geral', (d.infraestrutura||[]).length?T(d.infraestrutura.map(r=>`<tr><td><b>${esc(r.item)}</b></td><td>${esc(r.espec)}</td><td>${esc(r.resp)}</td></tr>`).join(''),['Item','Especificação','Responsável']):'')}
   ${sec('3. Detalhe do RACK / CPD (Sala de Estar)', list(d.rack_detalhe)+((d.rack||[]).length?T(d.rack.map(r=>`<tr><td><b>${esc(r.u)}</b></td><td>${esc(r.equip)}</td><td>${esc(r.funcao)}</td></tr>`).join(''),['U','Equipamento','Função']):''))}
-  ${sec('4. Módulos e Caixas de Teto — Posição Exata', (d.modulos||[]).length?T(d.modulos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.funcao)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.carga)}</td><td>${esc(r.posicao)}</td></tr>`).join(''),['ID','Função','Ambiente','Carga','Posição']):'')}
-  ${sec('5. Keypads, Câmeras e Pontos de Parede — Posicionamento Exato', pontosHtml)}
+  ${sec('4. Módulos e Caixas de Teto', (d.modulos||[]).length?T(d.modulos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.funcao)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.carga)}</td><td>${esc(r.posicao)}</td></tr>`).join(''),['ID','Função','Ambiente','Carga','Posição']):'')}
+  ${sec('5. Keypads, Câmeras e Pontos de Parede', pontosHtml)}
   ${sec('6. Cabos de Rede', (d.cabos_rede||[]).length?T(d.cabos_rede.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros']):'')}
   ${sec('7. Cabos de Som — Amplificador no RACK', (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros']):'')}
   ${sec('8. Cabos Elétricos', (d.cabos_eletricos||[]).length?T(d.cabos_eletricos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros']):'')}
@@ -401,12 +449,14 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
   ${sec('10. Módulos e Cargas (iluminação + cortinas)', (d.modulos||[]).length?T(d.modulos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.funcao)}</td><td>${esc(r.carga)}</td><td>${esc(r.ambiente)}</td></tr>`).join(''),['ID','Função','Carga','Ambiente']):'')}
   ${sec('11. Banheiros, Circulação e Sensores', (d.banheiros_sensores||[]).length?T(d.banheiros_sensores.map(r=>`<tr><td><b>${esc(r.ambiente)}</b></td><td>${esc(r.ponto)}</td><td>${esc(r.obs)}</td></tr>`).join(''),['Ambiente','Ponto','Observação']):'')}
   ${sec('12. Resumo Geral de Cabeamento', (d.resumo_cabos||[]).length?T(d.resumo_cabos.map(r=>`<tr><td><b>${esc(r.tipo)}</b></td><td>${esc(r.metros_total)}m</td></tr>`).join(''),['Tipo de cabo','Metragem total']):'')}
-  ${sec('13. Mapa de Cabeamento (saindo do CPD)', '<p class="ex-p">Todos os cabos partem do CPD/Rack na Sala de Estar. Consulte as tabelas de cabos (seções 6 a 9) para origem, destino e metragem de cada trecho.</p>')}
-  ${sec('14. Lista Completa de Peças (sem valores)', (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td>${esc(r.qtd)}</td></tr>`).join(''),['Item','Qtd']):'')}
+  ${sec('13. Mapa de Cabeamento', '<p class="ex-p">Todos os cabos partem do CPD/Rack na Sala de Estar. Consulte as tabelas de cabos (seções 6 a 9) para origem, destino e metragem de cada trecho.</p>')}
+  ${sec('14. Lista Completa de Peças', (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td>${esc(r.qtd)}</td></tr>`).join(''),['Item','Qtd']):'')}
   ${sec('15. Checklist de Obra — para o Arquiteto / Eletricista', list(d.checklist_obra))}
   ${sec('16. Checklist de Instalação — Equipe RARO Home', list(d.checklist_raro))}
   ${sec('17. Pontos de Atenção e Riscos', list(d.riscos))}
   ${sec('18. Fotos no Diário de Obra', '<p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>')}
+  ${sec('19. Itens por Cômodo e Total Geral', itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml)}
+  ${sec('20. Gráficos e Linha do Tempo do Projeto', chartHtml + timelineHtml)}
 </div>`
   }
 
@@ -439,7 +489,8 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
 
   function exportPdf(){
     const w=window.open('','_blank')
-    w.document.write(`<html><head><title>Projeto Executivo — RARO Home</title><meta charset="utf-8">
+    const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
+    w.document.write(`<html><head><title>Projeto Executivo — ${cliNome} — RARO Home</title><meta charset="utf-8">
       <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
       <style>body{margin:0}${EXEC_CSS}</style></head><body>
       ${execDoc}

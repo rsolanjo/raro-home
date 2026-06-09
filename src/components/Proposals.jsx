@@ -150,13 +150,12 @@ function ContractSendModal({ proposal, clients, onClose }) {
 
 import { openProposalPDF } from './proposalPDF.js'
 import React, { useState } from 'react'
-import { saveProposal, deleteProposal, cancelProposal, getProposals, auditedSave, saveProject, getProjects, verifyPIN } from '../db/supabase.js'
+import { saveProposal, deleteProposal, cancelProposal, getProposals, auditedSave, saveProject, getProjects, verifyPIN, syncProjectFromProposal } from '../db/supabase.js'
 
 const STATUS = {
   draft:    { label:'Rascunho',   cls:'b-gray' },
   sent:     { label:'Enviado',    cls:'b-blue' },
   approved: { label:'Aprovado',   cls:'b-green' },
-  waiting:  { label:'Aguardando', cls:'b-amber' },
   rejected: { label:'Recusado',   cls:'b-red' },
   cancelled:{ label:'Cancelado',  cls:'b-gray' },
 }
@@ -265,25 +264,8 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
     const saved = await saveProposal(updated)
     if (!saved) throw new Error('Supabase não retornou o registro salvo')
     await auditedSave('orçamentos','status_change',saved,currentUser?.name,before)
-    // Auto-create project when proposal is approved
-    if (changeReq.newStatus === 'approved') {
-      try {
-        const existingProjects = await getProjects()
-        const alreadyExists = existingProjects.some(p=>p.proposal_id===changeReq.proposal.id)
-        if (!alreadyExists) {
-          await saveProject({
-            client_id: changeReq.proposal.client_id,
-            client_name: changeReq.proposal.client_name,
-            description: changeReq.proposal.description || `Proposta ${changeReq.proposal.code}`,
-            type: 'residencial',
-            phase: 'visit',
-            proposal_id: changeReq.proposal.id,
-            proposal_code: changeReq.proposal.code,
-            notes: `Projeto criado automaticamente a partir da proposta ${changeReq.proposal.code}`,
-          })
-        }
-      } catch(e) { console.error('Error creating project:', e) }
-    }
+    // Sincroniza Projetos/Cronograma com o status (aprovado cria, outros removem)
+    try { await syncProjectFromProposal(saved) } catch(e){ console.error('sync projeto:', e) }
     setChangeReq(null); onRefresh()
     } catch(err) { console.error('Erro ao confirmar mudança:', err); alert('Erro: ' + err.message) }
   }

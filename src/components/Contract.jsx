@@ -182,7 +182,21 @@ function buildContract(proposal, client) {
 export default function Contract({ proposal, clients, onClose, onSend, onGenerated }) {
   const [sending, setSending] = useState(false)
   const [saved, setSaved] = useState(false)
-  const client = clients?.find(c => c.id === Number(proposal?.client_id))
+  const baseClient = clients?.find(c => c.id === Number(proposal?.client_id))
+  const [showReview, setShowReview] = useState(true)
+  const [edits, setEdits] = useState({
+    name1: baseClient?.full_name1 || baseClient?.name1 || '',
+    name2: baseClient?.full_name2 || baseClient?.name2 || '',
+    cpf1: baseClient?.cpf1 || baseClient?.cpf || '',
+    neighborhood: baseClient?.neighborhood || '',
+    city: baseClient?.city || '',
+    phone1: baseClient?.phone1 || '',
+    email: baseClient?.email || '',
+  })
+  // cliente efetivo = base + edições
+  const client = { ...baseClient, full_name1:edits.name1, name1:edits.name1, full_name2:edits.name2, name2:edits.name2,
+    cpf1:edits.cpf1, cpf:edits.cpf1, neighborhood:edits.neighborhood, city:edits.city, phone1:edits.phone1, email:edits.email }
+  const ed=(k,v)=>setEdits(p=>({...p,[k]:v}))
 
   function openContract() { downloadContract() }
 
@@ -260,6 +274,31 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
             </button>
           )}
         </div>
+        {/* Painel de revisão de dados */}
+        {showReview && (
+          <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'14px 16px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+              <i className="ti ti-user-check" style={{color:'var(--accent)'}} aria-hidden/>
+              <b style={{fontSize:13}}>Confira os dados do cliente antes de gerar o contrato</b>
+              <button className="btn" style={{marginLeft:'auto',fontSize:11}} onClick={()=>setShowReview(false)}><i className="ti ti-check" aria-hidden/>Dados corretos, ocultar</button>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10}}>
+              {[['name1','Nome completo (1º contratante)'],['name2','Nome completo (2º contratante)'],['cpf1','CPF'],['phone1','Telefone'],['email','E-mail'],['neighborhood','Bairro'],['city','Cidade']].map(([k,lb])=>(
+                <div key={k}>
+                  <div style={{fontSize:10,color:'var(--text3)',marginBottom:3}}>{lb}</div>
+                  <input value={edits[k]} onChange={e=>ed(k,e.target.value)} placeholder={lb}
+                    style={{width:'100%',padding:'7px 9px',borderRadius:6,border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text1)',fontFamily:'inherit',fontSize:12}}/>
+                </div>
+              ))}
+            </div>
+            <div style={{fontSize:10,color:'var(--text3)',marginTop:8}}>As alterações aqui valem só para este contrato. Para salvar no cadastro, edite o cliente na tela de Clientes.</div>
+          </div>
+        )}
+        {!showReview && (
+          <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'8px 16px'}}>
+            <button className="btn" style={{fontSize:11}} onClick={()=>setShowReview(true)}><i className="ti ti-edit" aria-hidden/>Revisar/editar dados do cliente</button>
+          </div>
+        )}
         {/* Contract preview */}
         <iframe
           srcDoc={buildContract(proposal, client)}

@@ -23,6 +23,29 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
     }, 0)
   const criticalStock = stock.filter(s => s.qty <= s.min_qty).length
 
+  // FALTA DE ESTOQUE real: o que está comprometido (orçamentos enviados/aprovados) vs o que há em estoque
+  const shortages = (()=>{
+    const need = {}  // key -> {qty, name, code}
+    proposals.filter(p=>p.status==='sent'||p.status==='approved').forEach(p=>{
+      const floors = Array.isArray(p.floors)?p.floors:(typeof p.floors==='string'?(()=>{try{return JSON.parse(p.floors)}catch{return[]}})():[])
+      floors.forEach(f=>(f.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{
+        const key = it.code || (it.name||'').trim().toLowerCase()
+        if(!key) return
+        const q=parseInt(it.qty)||1
+        if(!need[key]) need[key]={qty:0,name:it.name||it.code,code:it.code||''}
+        need[key].qty+=q
+      })))
+    })
+    const out=[]
+    Object.entries(need).forEach(([key,info])=>{
+      // procura no estoque por código OU por nome
+      const s=stock.find(x=>(info.code&&x.code===info.code) || (x.name||'').trim().toLowerCase()===(info.name||'').trim().toLowerCase())
+      const have=s?(Number(s.qty)||0):0
+      if(have < info.qty) out.push({ code:info.code||info.name, name:info.name, need:info.qty, have, missing:info.qty-have, inStock: !!s })
+    })
+    return out.sort((a,b)=>b.missing-a.missing)
+  })()
+
   // Diários: obra ativa (projeto criado) sem registro hoje = pendente; com registro hoje = efetuado
   const today = new Date().toISOString().slice(0,10)
   const diaryStats = (()=>{
@@ -102,9 +125,9 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
             <div className="met-sub"><span className="dot" style={{background:'var(--accent)'}}/>instalação/config ativa</div>
           </div>
           <div className="met">
-            <div className="met-label">Estoque crítico</div>
-            <div className="met-val amber">{criticalStock}</div>
-            <div className="met-sub"><span className="dot" style={{background:'var(--red)'}}/>{stock.filter(s=>s.qty===0).length} item(s) zerado(s)</div>
+            <div className="met-label">Falta comprar</div>
+            <div className="met-val" style={{color:shortages.length>0?'var(--red)':'var(--green)'}}>{shortages.length}</div>
+            <div className="met-sub"><span className="dot" style={{background:shortages.length>0?'var(--red)':'var(--green)'}}/>{shortages.length>0?'item(ns) faltando p/ orçamentos':'estoque cobre tudo'}</div>
           </div>
           <div className="met" style={{cursor:'pointer'}} onClick={()=>onNav('diarios')}>
             <div className="met-label">Diários pendentes hoje</div>
@@ -199,6 +222,28 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
                   </tr>
                 })}
                 {stock.filter(s=>s.qty<=s.min_qty).length===0&&<tr><td colSpan={3} style={{textAlign:'center',padding:16,color:'var(--text3)'}}>Estoque OK ✓</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── FALTA DE ESTOQUE (itens comprometidos em orçamentos) ── */}
+          <div className="section">
+            <div className="sec-hdr">
+              <div className="sec-title"><i className="ti ti-shopping-cart" aria-hidden />Falta comprar (orçamentos enviados/aprovados)</div>
+              <button className="btn" style={{fontSize:11,padding:'4px 9px'}} onClick={()=>onNav('stock')}>Ver estoque</button>
+            </div>
+            <table className="tbl">
+              <thead><tr><th>Item</th><th>Precisa</th><th>Em estoque</th><th>Falta</th></tr></thead>
+              <tbody>
+                {shortages.slice(0,12).map(s=>(
+                  <tr key={s.code}>
+                    <td style={{fontSize:12}}>{s.name}{!s.inStock&&<span style={{fontSize:9,color:'var(--red)',marginLeft:6}}>(não cadastrado)</span>}</td>
+                    <td style={{fontWeight:600}}>{s.need}</td>
+                    <td style={{color:s.have===0?'var(--red)':'var(--text2)'}}>{s.have}</td>
+                    <td style={{color:'var(--red)',fontWeight:700}}>{s.missing}</td>
+                  </tr>
+                ))}
+                {shortages.length===0&&<tr><td colSpan={4} style={{textAlign:'center',padding:16,color:'var(--text3)'}}>Estoque cobre todos os orçamentos ✓</td></tr>}
               </tbody>
             </table>
           </div>

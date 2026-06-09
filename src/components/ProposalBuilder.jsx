@@ -761,18 +761,13 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
               <i className="ti ti-file-text" aria-hidden/>Ver Projeto Executivo
             </button>
           )}
-          {editProposal && onGenerateExec && (
+          {editProposal && onGenerateExec && false && (
             <button className="btn" style={{fontSize:11,borderColor:'#7C3AED',color:'#7C3AED',gap:6}}
               onClick={()=>onGenerateExec(editProposal)} title="Gerar/Regerar Projeto Executivo">
               <i className="ti ti-brain" aria-hidden/>{execDocData?'Regerar Executivo':'Gerar Projeto Executivo'}
             </button>
           )}
-          {!plantaData?.image ? (
-            <button className="btn" style={{fontSize:11,borderColor:'#059669',color:'#059669',gap:6}}
-              onClick={()=>setShowPlantaEditor(true)} title="Adicionar planta">
-              <i className="ti ti-plus" aria-hidden/>Adicionar planta
-            </button>
-          ) : (
+          {plantaData?.image && (
             <button className="btn" style={{fontSize:11,borderColor:'#059669',color:'#059669',gap:6}}
               onClick={()=>setShowPlantaEditor(true)} title="Abrir editor de planta">
               <i className="ti ti-map-pin" aria-hidden/>Editor Planta
@@ -806,9 +801,6 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
           <button className="btn" onClick={()=>openPDF(false, true)}>
             <i className="ti ti-eye" aria-hidden/>Visualizar
           </button>
-          {isAdmin&&<button className="btn" style={{fontSize:11,borderColor:'#7C3AED',color:'#7C3AED'}} onClick={()=>openPDF(true, true)}>
-            <i className="ti ti-eye" aria-hidden/>Ver Admin
-          </button>}
           {/* SALVAR */}
           <button className="btn" onClick={()=>{ setLaborInput(labor); setShowSaveModal(true) }}>
             <i className="ti ti-device-floppy" aria-hidden/>Salvar proposta
