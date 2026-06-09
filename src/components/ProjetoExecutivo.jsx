@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { LOGO_EXEC } from '../logos.js'
 
 const EQUIP_STYLE = {
   'Gateway':{c:'#0EA5E9',s:'G'},'NVR':{c:'#7C3AED',s:'N'},'Câmera':{c:'#DC2626',s:'C'},
@@ -342,8 +343,8 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
  "alim_keypads":[{"id":"KEY-01","origem":"quadro luz","destino":"Keypad entrada Sala","cota":"1,10m","comodo":"Sala","metros":"3"}],
  "resumo_cabos":[{"tipo":"CAT6","metros_total":"180"}],
  "pecas":[{"item":"Keypad 4 botões","qtd":"5"}],
- "checklist_obra":["item eletricista 1"],
- "checklist_raro":["item equipe RARO 1"],
+ "checklist_obra":["LISTE 10 a 14 itens DETALHADOS para o arquiteto/eletricista preparar ANTES do revestimento: passar eletrodutos (bitolas), deixar caixas 4x4 nos keypads com NEUTRO, ponto de rede no CPD, tomada 110V dedicada+aterramento no rack, eletroduto seco para câmeras até o forro, caixa de passagem, sangria para som no teto, ponto de força para AC, prever vão do rack no móvel, deixar fio-guia nos eletrodutos, identificar circuitos no quadro, etc"],
+ "checklist_raro":["LISTE 6 a 10 itens da equipe RARO Home: conferir neutro em todas as caixas de keypad, testar PoE em cada câmera/AP, energizar e parear gateway, configurar cenas, etiquetar patch panel, testar som por zona, validar cobertura Wi-Fi, treinar cliente, etc"],
  "riscos":["atenção 1"]
 }`, 5000)
 
@@ -379,7 +380,7 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
   <!-- CAPA -->
   <div class="ex-cover">
     <div class="ex-cover-top">DOCUMENTO TÉCNICO · PROJETO EXECUTIVO</div>
-    <div class="ex-logo"><div class="ex-logo-mark">R</div><div class="ex-logo-name">RARO<span>HOME</span></div></div>
+    <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:200px;max-width:60%;margin:0 auto 8px;display:block"/>
     <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
     <div class="ex-cover-title">Projeto Executivo de Automação</div>
     <div class="ex-cover-sub">Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto</div>
@@ -402,7 +403,7 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
   ${sec('12. Resumo Geral de Cabeamento', (d.resumo_cabos||[]).length?T(d.resumo_cabos.map(r=>`<tr><td><b>${esc(r.tipo)}</b></td><td>${esc(r.metros_total)}m</td></tr>`).join(''),['Tipo de cabo','Metragem total']):'')}
   ${sec('13. Mapa de Cabeamento (saindo do CPD)', '<p class="ex-p">Todos os cabos partem do CPD/Rack na Sala de Estar. Consulte as tabelas de cabos (seções 6 a 9) para origem, destino e metragem de cada trecho.</p>')}
   ${sec('14. Lista Completa de Peças (sem valores)', (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td>${esc(r.qtd)}</td></tr>`).join(''),['Item','Qtd']):'')}
-  ${sec('15. Checklist de Obra — para Elias / Eletricista', list(d.checklist_obra))}
+  ${sec('15. Checklist de Obra — para o Arquiteto / Eletricista', list(d.checklist_obra))}
   ${sec('16. Checklist de Instalação — Equipe RARO Home', list(d.checklist_raro))}
   ${sec('17. Pontos de Atenção e Riscos', list(d.riscos))}
   ${sec('18. Fotos no Diário de Obra', '<p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>')}
@@ -447,13 +448,12 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
   }
 
   // 1 clique: salva o executivo no orçamento E abre o PDF
-  function exportPdfAndSave(){
-    saveToProposal()          // salva em orçamento (exec_doc + itens + planta)
-    setTimeout(()=>exportPdf(), 200)  // abre o PDF formatado
+  async function exportPdfAndSave(){
+    await saveToProposal()    // salva/atualiza exec_doc no orçamento
+    setTimeout(()=>exportPdf(), 200)
   }
 
-  function saveToProposal(docOverride){
-    if(!onSaveToProposal) return
+  async function saveToProposal(docOverride){
     const docToSave = typeof docOverride==='string' ? docOverride : execDoc
     const roomMap={}
     markers.forEach(m=>{ const r=m.room||'Geral'; if(!roomMap[r])roomMap[r]=[]; roomMap[r].push(m) })
@@ -461,7 +461,20 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
       name, items:items.map(m=>({name:m.name,code:m.code,qty:'1',cost_price:m.cost,sale_price:m.sale,category:m.category})),
       price:String(items.reduce((s,m)=>s+(m.sale||0),0))
     }))}]
-    onSaveToProposal({ floors, planta_data:{image:bgImage,markers}, client_name:projectInfo.client||selClient, exec_doc:docToSave })
+
+    // Se veio de um orçamento JÁ SALVO, grava o exec_doc direto no banco (sobrescreve)
+    if(fromProposal?.id){
+      try{
+        const { saveProposal } = await import('../db/supabase.js')
+        const updated = { ...fromProposal, exec_doc:docToSave, planta_data:{image:bgImage,markers} }
+        await saveProposal(updated)
+        alert('✅ Projeto Executivo salvo no orçamento! Você já pode revê-lo pelo botão "ver projeto".')
+        onClose && onClose()
+        return
+      }catch(e){ alert('Erro ao salvar: '+e.message); return }
+    }
+    // Senão (fluxo novo), abre o builder pré-preenchido para revisar e salvar
+    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers}, client_name:projectInfo.client||selClient, exec_doc:docToSave })
   }
 
   const catGroups={}; (catalog||[]).forEach(c=>{const g=c.category||'Outro';(catGroups[g]=catGroups[g]||[]).push(c)})
@@ -699,19 +712,15 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
 const EXEC_CSS=`
 .ex-doc{font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;font-size:12px;line-height:1.5}
 .ex-doc *{box-sizing:border-box}
-.ex-cover{background:linear-gradient(160deg,#060B1A 0%,#0d1b3a 100%);color:#fff;padding:60px 40px;text-align:center;position:relative}
-.ex-cover-top{font-size:10px;letter-spacing:3px;color:#6B8CAE;text-transform:uppercase;margin-bottom:40px}
-.ex-logo{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:8px}
-.ex-logo-mark{width:54px;height:54px;border:2px solid #38BDF8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:#38BDF8}
-.ex-logo-name{font-size:26px;font-weight:300;letter-spacing:8px}
-.ex-logo-name span{font-weight:700}
-.ex-cover-tag{font-size:10px;letter-spacing:4px;color:#6B8CAE;margin:6px 0 50px}
-.ex-cover-title{font-family:'DM Serif Display',Georgia,serif;font-size:34px;line-height:1.15;margin-bottom:16px}
-.ex-cover-sub{font-size:13px;color:#9CB3CE;line-height:1.7;margin-bottom:50px}
-.ex-cover-client{background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);border-radius:10px;padding:20px;margin:0 auto;max-width:380px}
-.ex-cc-name{font-size:20px;font-weight:700}
-.ex-cc-meta{font-size:11px;color:#9CB3CE;margin-top:4px}
-.ex-cover-foot{margin-top:50px;font-size:9px;color:#5a7align}
+.ex-cover{background:linear-gradient(160deg,#F5FAFF 0%,#E8F2FC 100%);color:#0D1420;padding:60px 40px;text-align:center;position:relative;border-bottom:3px solid #0EA5E9}
+.ex-cover-top{font-size:10px;letter-spacing:3px;color:#6B8CAE;text-transform:uppercase;margin-bottom:30px}
+.ex-cover-tag{font-size:10px;letter-spacing:4px;color:#0EA5E9;margin:6px 0 40px}
+.ex-cover-title{font-family:'DM Serif Display',Georgia,serif;font-size:34px;line-height:1.15;margin-bottom:16px;color:#0D1420}
+.ex-cover-sub{font-size:13px;color:#456;line-height:1.7;margin-bottom:40px}
+.ex-cover-client{background:#fff;border:1px solid #cfe3f5;border-radius:10px;padding:20px;margin:0 auto;max-width:380px;box-shadow:0 2px 10px rgba(14,165,233,0.08)}
+.ex-cc-name{font-size:20px;font-weight:700;color:#0D1420}
+.ex-cc-meta{font-size:11px;color:#6B8CAE;margin-top:4px}
+.ex-cover-foot{margin-top:40px;font-size:9px;color:#8fa3b8}
 .ex-sec{padding:24px 40px;border-bottom:1px solid #eef}
 .ex-sec h2{font-family:'DM Serif Display',Georgia,serif;font-size:18px;color:#060B1A;margin-bottom:14px;padding-bottom:7px;border-bottom:2px solid #0EA5E9}
 .ex-amb{font-size:13px;color:#0369A1;font-weight:700;margin:16px 0 6px;background:#EFF6FF;padding:6px 10px;border-radius:5px}

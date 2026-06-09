@@ -8,6 +8,7 @@ import Proposals from './components/Proposals.jsx'
 import ProposalBuilder from './components/ProposalBuilder.jsx'
 import ProjetoExecutivo from './components/ProjetoExecutivo.jsx'
 import Projects from './components/Projects.jsx'
+import DiariosConsulta from './components/DiariosConsulta.jsx'
 import Schedule from './components/Schedule.jsx'
 import Stock from './components/Stock.jsx'
 import Clients from './components/Clients.jsx'
@@ -149,6 +150,7 @@ export default function App() {
             onClose={()=>{setExecFromProposal(null);setPage('proposals')}}
             onSaveToProposal={(seed)=>{ setExecSeed(seed); setEditingProposal(null); setPage('builder') }} />}
           {page==='projects'   && <Projects projects={data.projects} clients={data.clients} proposals={data.proposals} catalog={data.catalog} suppliers={data.suppliers} onRefresh={refresh} currentUser={user} />}
+          {page==='diarios'    && <DiariosConsulta projects={data.projects} clients={data.clients} />}
           {page==='schedule'   && <Schedule projects={data.projects} />}
           {page==='stock'      && <Stock stock={data.stock} catalog={data.catalog} suppliers={data.suppliers} onRefresh={refresh} currentUser={user} />}
           {page==='clients'    && <Clients clients={data.clients} proposals={data.proposals} projects={data.projects} onRefresh={refresh} onEditProposal={p=>{editProposal(p)}} currentUser={user} />}
@@ -199,7 +201,7 @@ export default function App() {
               <div><div style={{fontWeight:600,fontSize:14}}>{user.name}</div><div style={{fontSize:11,color:'var(--text3)'}}>{user.role==='admin'?'Administrador':user.role}</div></div>
             </div>
             <div className="mmenu-grid">
-              {[['dashboard','ti-layout-dashboard','Dashboard'],['proposals','ti-file-invoice','Orçamentos'],['projects','ti-briefcase','Projetos'],['clients','ti-users','Clientes'],['catalog','ti-package','Catálogo'],['stock','ti-box','Estoque'],['financial','ti-coin','Financeiro'],['schedule','ti-calendar','Cronograma'],['suppliers','ti-truck','Fornecedores'],['admins','ti-user-shield','Usuários']].map(([k,ic,lb])=>(
+              {[['dashboard','ti-layout-dashboard','Dashboard'],['proposals','ti-file-invoice','Orçamentos'],['projects','ti-briefcase','Projetos'],['diarios','ti-notebook','Diários'],['clients','ti-users','Clientes'],['catalog','ti-package','Catálogo'],['stock','ti-box','Estoque'],['financial','ti-coin','Financeiro'],['schedule','ti-calendar','Cronograma'],['suppliers','ti-truck','Fornecedores'],['admins','ti-user-shield','Usuários']].map(([k,ic,lb])=>(
                 <button key={k} onClick={()=>{nav(k);setMobileMenu(false)}} className="mmenu-item">
                   <i className={`ti ${ic}`} aria-hidden/><span>{lb}</span>
                 </button>
@@ -208,7 +210,7 @@ export default function App() {
             <button className="mmenu-logout" onClick={logout}>
               <i className="ti ti-logout" aria-hidden/> Sair
             </button>
-            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v51 · build 2026-06</div>
+            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v53 · build 2026-06</div>
           </div>
         </div>
       )}

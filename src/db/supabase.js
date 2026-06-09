@@ -64,8 +64,11 @@ export async function getProposals()   { return all('proposals', 'created_at') }
 export async function saveProposal(p) {
   const saved = await upsert('proposals', { ...p, updated_at: new Date().toISOString() })
   const items = (p.floors||[]).flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).filter(i=>i.code).map(i=>({code:i.code,qty:parseInt(i.qty)||1}))))
-  if (p.status==='sent'||p.status==='approved') await reserveStock(saved.id, items, saved.code||`#${saved.id}`, saved.client_name)
-  if (p.status==='rejected'||p.status==='draft') await releaseReservation(saved.id)
+  // rascunho, enviado e aguardando → RESERVA o estoque
+  if (['draft','sent','waiting'].includes(p.status)) await reserveStock(saved.id, items, saved.code||`#${saved.id}`, saved.client_name)
+  // recusado e cancelado → LIBERA a reserva (devolve)
+  if (['rejected','cancelled'].includes(p.status)) await releaseReservation(saved.id)
+  // aprovado → TIRA efetivamente do estoque
   if (p.status==='approved') await _applyStockDeduction(saved)
   return saved
 }

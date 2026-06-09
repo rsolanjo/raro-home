@@ -28,16 +28,26 @@ export default function MestreView({ user, onLogout }) {
   }
   useEffect(()=>{ load() },[])
 
-  const myClients = clients
+  // só clientes que TÊM projeto criado (orçamento aprovado virou projeto)
+  function projectFor(c){
+    if(!c) return null
+    return projects.find(p=>String(p.client_id)===String(c.id))
+      || projects.find(p=>{ const cn=(p.client_name||'').toLowerCase().trim(); const n1=(c.name1||'').toLowerCase().trim()
+          const full=`${c.name1||''} & ${c.name2||''}`.toLowerCase().trim()
+          return cn && (cn===full||cn===n1||(n1&&cn.includes(n1))) })
+  }
+  const myClients = clients.filter(c=>projectFor(c))  // só obras ativas
   const client = myClients.find(c=>String(c.id)===String(selClientId)) || null
+  const proj = projectFor(client)
 
-  // acha projeto da obra
-  const proj = client ? (
-    projects.find(p=>String(p.client_id)===String(client.id))
-    || projects.find(p=>{ const cn=(p.client_name||'').toLowerCase().trim(); const n1=(client.name1||'').toLowerCase().trim()
-        const full=`${client.name1||''} & ${client.name2||''}`.toLowerCase().trim()
-        return cn && (cn===full||cn===n1||(n1&&cn.includes(n1))) })
-  ) : null
+  // checa se o diário de HOJE já foi feito nesta obra
+  function diaryDoneToday(p){
+    if(!p) return false
+    const today=new Date().toISOString().slice(0,10)
+    const diary = Array.isArray(p.diary)?p.diary:(typeof p.diary==='string'?(()=>{try{return JSON.parse(p.diary)}catch{return[]}})():[])
+    return diary.some(d=>d.date===today)
+  }
+  const jaFeitoHoje = diaryDoneToday(proj)
 
   // monta rooms + equipamentos por cômodo a partir do projeto/proposta
   function buildRooms(){
@@ -61,9 +71,8 @@ export default function MestreView({ user, onLogout }) {
   }
   const {rooms, equip} = buildRooms()
 
-  // objeto proj para o diário (usa projeto real OU cliente como fallback)
-  const diaryProj = proj || (client ? {id:'client-'+client.id, _clientDiary:true, _clientId:client.id,
-    client_name:`${client.name1}${client.name2?' & '+client.name2:''}`, diary:client.diary_obra||[]} : null)
+  // só projeto real (obra ativa); sem fallback de cliente
+  const diaryProj = proj
 
   return (
     <div style={{minHeight:'100vh',height:'100vh',background:'var(--bg)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
@@ -106,11 +115,24 @@ export default function MestreView({ user, onLogout }) {
             </>
           )}
 
-          {/* DIÁRIO GUIADO */}
+          {/* DIÁRIO GUIADO ou aviso de já feito */}
           {!loading && selClientId && client && diaryProj && (
-            <DiarioGuiado proj={diaryProj} rooms={rooms} equipmentByRoom={equip}
-              currentUser={user} clientName={`${client.name1}${client.name2?' & '+client.name2:''}`}
-              onDone={load}/>
+            jaFeitoHoje ? (
+              <div style={{textAlign:'center',padding:'40px 20px'}}>
+                <div style={{width:72,height:72,borderRadius:'50%',background:'#16A34A',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 18px'}}>
+                  <i className="ti ti-check" style={{fontSize:36,color:'#fff'}} aria-hidden/>
+                </div>
+                <h2 style={{fontSize:19,marginBottom:8}}>Diário de hoje já foi feito!</h2>
+                <p style={{fontSize:13,color:'var(--text3)',marginBottom:20}}>O diário desta obra para hoje já foi registrado. Volte amanhã para o próximo.</p>
+                <button onClick={()=>setSelClientId(null)} style={{background:'var(--accent)',border:'none',color:'#fff',padding:'12px 24px',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                  <i className="ti ti-arrow-left" aria-hidden/> Voltar às obras
+                </button>
+              </div>
+            ) : (
+              <DiarioGuiado proj={diaryProj} rooms={rooms} equipmentByRoom={equip}
+                currentUser={user} clientName={`${client.name1}${client.name2?' & '+client.name2:''}`}
+                onDone={()=>{ load(); setSelClientId(null) }}/>
+            )
           )}
         </div>
       </div>

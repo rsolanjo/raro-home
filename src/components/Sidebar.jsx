@@ -25,6 +25,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
       {item('reports','chart-bar','Relatórios')}
       {item('proposals','file-invoice','Orçamentos',counts.proposals)}
       {item('projects','layout-kanban','Projetos',counts.projects,'ok')}
+      {item('diarios','notebook','Diários')}
       {item('schedule','calendar-event','Cronograma')}
 
       <div className="sb-section">Sistema</div>
@@ -46,7 +47,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v51 · build 2026-06
+          v53 · build 2026-06
         </div>
       </div>
     </div>

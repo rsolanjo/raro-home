@@ -23,6 +23,19 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
     }, 0)
   const criticalStock = stock.filter(s => s.qty <= s.min_qty).length
 
+  // Diários: obra ativa (projeto criado) sem registro hoje = pendente; com registro hoje = efetuado
+  const today = new Date().toISOString().slice(0,10)
+  const diaryStats = (()=>{
+    let pend=0, done=0
+    const pendList=[]
+    projects.filter(p=>p.phase!=='done').forEach(p=>{
+      const diary = Array.isArray(p.diary)?p.diary:(typeof p.diary==='string'?(()=>{try{return JSON.parse(p.diary)}catch{return[]}})():[])
+      const hasToday = diary.some(d=>d.date===today)
+      if(hasToday) done++; else { pend++; pendList.push(p.client_name||p.name||`#${p.id}`) }
+    })
+    return { pend, done, pendList }
+  })()
+
   function fmtDate(d) {
     if (!d) return '—'
     return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'short' })
@@ -92,6 +105,16 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
             <div className="met-label">Estoque crítico</div>
             <div className="met-val amber">{criticalStock}</div>
             <div className="met-sub"><span className="dot" style={{background:'var(--red)'}}/>{stock.filter(s=>s.qty===0).length} item(s) zerado(s)</div>
+          </div>
+          <div className="met" style={{cursor:'pointer'}} onClick={()=>onNav('diarios')}>
+            <div className="met-label">Diários pendentes hoje</div>
+            <div className="met-val" style={{color: diaryStats.pend>0?'var(--amber)':'var(--green)'}}>{diaryStats.pend}</div>
+            <div className="met-sub"><span className="dot" style={{background:diaryStats.pend>0?'var(--amber)':'var(--green)'}}/>{diaryStats.pend>0?'obra(s) ativa(s) sem registro hoje':'tudo em dia'}</div>
+          </div>
+          <div className="met" style={{cursor:'pointer'}} onClick={()=>onNav('diarios')}>
+            <div className="met-label">Diários efetuados hoje</div>
+            <div className="met-val" style={{color:'var(--green)'}}>{diaryStats.done}</div>
+            <div className="met-sub"><span className="dot" style={{background:'var(--green)'}}/>obra(s) com registro hoje</div>
           </div>
           {incomplete.length > 0 && (
             <div className="met" style={{cursor:'pointer',borderColor:'var(--amber)'}} onClick={()=>onNav('clients')}>
