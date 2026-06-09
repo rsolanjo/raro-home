@@ -26,9 +26,15 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
   // FALTA DE ESTOQUE real: o que está comprometido (orçamentos enviados/aprovados) vs o que há em estoque
   const shortages = (()=>{
     const need = {}  // key -> {qty, name, code}
+    const parseFloors = p => {
+      let fl = p.floors
+      // pode vir como objeto, string JSON, ou string duplamente codificada
+      for(let i=0;i<2 && typeof fl==='string';i++){ try{ fl=JSON.parse(fl) }catch{ fl=[]; break } }
+      return Array.isArray(fl)?fl:[]
+    }
     proposals.filter(p=>p.status==='sent'||p.status==='approved').forEach(p=>{
-      const floors = Array.isArray(p.floors)?p.floors:(typeof p.floors==='string'?(()=>{try{return JSON.parse(p.floors)}catch{return[]}})():[])
-      floors.forEach(f=>(f.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{
+      parseFloors(p).forEach(f=>((f&&f.rooms)||[]).forEach(r=>((r&&r.items)||[]).forEach(it=>{
+        if(!it) return
         const key = it.code || (it.name||'').trim().toLowerCase()
         if(!key) return
         const q=parseInt(it.qty)||1
@@ -38,7 +44,6 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
     })
     const out=[]
     Object.entries(need).forEach(([key,info])=>{
-      // procura no estoque por código OU por nome
       const s=stock.find(x=>(info.code&&x.code===info.code) || (x.name||'').trim().toLowerCase()===(info.name||'').trim().toLowerCase())
       const have=s?(Number(s.qty)||0):0
       if(have < info.qty) out.push({ code:info.code||info.name, name:info.name, need:info.qty, have, missing:info.qty-have, inStock: !!s })
@@ -203,52 +208,75 @@ export default function Dashboard({ proposals, projects, stock, clients, onNav }
             </table>
           </div>
 
-          {/* Stock critical */}
+          {/* ── ESTOQUE & COMPRAS (unificado) ── */}
           <div className="section">
             <div className="sec-hdr">
-              <div className="sec-title"><i className="ti ti-box" aria-hidden />Estoque crítico</div>
-              <button className="btn" style={{fontSize:11,padding:'4px 9px'}} onClick={()=>onNav('stock')}>Ver estoque</button>
-            </div>
-            <table className="tbl">
-              <thead><tr><th>Item</th><th>Qtd</th><th>Nível</th></tr></thead>
-              <tbody>
-                {stock.filter(s=>s.qty<=s.min_qty).slice(0,6).map(s=>{
-                  const pct=Math.min(100,Math.round(s.qty/Math.max(s.min_qty,1)*100))
-                  const clr=s.qty===0?'var(--red)':'var(--amber)'
-                  return <tr key={s.id}>
-                    <td style={{color:clr,fontSize:12}}>{s.name}</td>
-                    <td style={{color:clr,fontWeight:600}}>{s.qty}</td>
-                    <td><div className="stk-bar"><div className="stk-fill" style={{width:`${pct}%`,background:clr}}/></div></td>
-                  </tr>
-                })}
-                {stock.filter(s=>s.qty<=s.min_qty).length===0&&<tr><td colSpan={3} style={{textAlign:'center',padding:16,color:'var(--text3)'}}>Estoque OK ✓</td></tr>}
-              </tbody>
-            </table>
-          </div>
-
-          {/* ── FALTA DE ESTOQUE (itens comprometidos em orçamentos) ── */}
-          <div className="section">
-            <div className="sec-hdr">
-              <div className="sec-title"><i className="ti ti-shopping-cart" aria-hidden />Falta comprar (orçamentos enviados/aprovados)</div>
+              <div className="sec-title"><i className="ti ti-box" aria-hidden />Estoque & Compras</div>
               <span style={{fontSize:10,color:'var(--text3)',marginRight:'auto',marginLeft:10}}>
-                {proposals.filter(p=>p.status==='sent'||p.status==='approved').length} orç. analisados
+                {proposals.filter(p=>p.status==='sent'||p.status==='approved').length} orç. ativos
               </span>
               <button className="btn" style={{fontSize:11,padding:'4px 9px'}} onClick={()=>onNav('stock')}>Ver estoque</button>
             </div>
-            <table className="tbl">
-              <thead><tr><th>Item</th><th>Precisa</th><th>Em estoque</th><th>Falta</th></tr></thead>
-              <tbody>
-                {shortages.slice(0,12).map(s=>(
-                  <tr key={s.code}>
-                    <td style={{fontSize:12}}>{s.name}{!s.inStock&&<span style={{fontSize:9,color:'var(--red)',marginLeft:6}}>(não cadastrado)</span>}</td>
-                    <td style={{fontWeight:600}}>{s.need}</td>
-                    <td style={{color:s.have===0?'var(--red)':'var(--text2)'}}>{s.have}</td>
-                    <td style={{color:'var(--red)',fontWeight:700}}>{s.missing}</td>
-                  </tr>
-                ))}
-                {shortages.length===0&&<tr><td colSpan={4} style={{textAlign:'center',padding:16,color:'var(--text3)'}}>Estoque cobre todos os orçamentos ✓</td></tr>}
-              </tbody>
-            </table>
+
+            {/* Alerta principal de falta */}
+            {shortages.length>0 ? (
+              <div style={{background:'rgba(220,38,38,0.08)',border:'1px solid #FCA5A5',borderRadius:8,padding:'10px 12px',marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
+                <i className="ti ti-alert-triangle" style={{color:'#DC2626',fontSize:20}} aria-hidden/>
+                <div style={{fontSize:12,color:'#B91C1C'}}>
+                  <b>{shortages.length} item(ns) em falta</b> para cobrir os orçamentos enviados/aprovados. Precisa comprar antes de instalar.
+                </div>
+              </div>
+            ) : (
+              proposals.filter(p=>p.status==='sent'||p.status==='approved').length>0 &&
+              <div style={{background:'rgba(22,163,74,0.08)',border:'1px solid #86EFAC',borderRadius:8,padding:'10px 12px',marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
+                <i className="ti ti-circle-check" style={{color:'#16A34A',fontSize:20}} aria-hidden/>
+                <div style={{fontSize:12,color:'#15803D'}}>O estoque cobre todos os itens dos orçamentos ativos.</div>
+              </div>
+            )}
+
+            {/* Tabela: itens a comprar */}
+            {shortages.length>0 && (
+              <table className="tbl">
+                <thead><tr><th>Item a comprar</th><th>Precisa</th><th>Em estoque</th><th>Falta</th></tr></thead>
+                <tbody>
+                  {shortages.slice(0,12).map(s=>(
+                    <tr key={s.code}>
+                      <td style={{fontSize:12}}>{s.name}{!s.inStock&&<span style={{fontSize:9,color:'var(--red)',marginLeft:6}}>(não cadastrado no estoque)</span>}</td>
+                      <td style={{fontWeight:600}}>{s.need}</td>
+                      <td style={{color:s.have===0?'var(--red)':'var(--text2)',fontWeight:600}}>{s.have}</td>
+                      <td style={{color:'var(--red)',fontWeight:700}}>{s.missing}</td>
+                    </tr>
+                  ))}
+                  {shortages.length>12 && <tr><td colSpan={4} style={{textAlign:'center',fontSize:11,color:'var(--text3)',padding:8}}>+ {shortages.length-12} item(ns)... veja todos no estoque</td></tr>}
+                </tbody>
+              </table>
+            )}
+
+            {/* Itens abaixo do mínimo (estoque cadastrado) */}
+            {stock.filter(s=>s.qty<=s.min_qty).length>0 && (
+              <>
+                <div style={{fontSize:10,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,margin:'12px 0 6px'}}>Abaixo do estoque mínimo</div>
+                <table className="tbl">
+                  <thead><tr><th>Item</th><th>Qtd</th><th>Nível</th></tr></thead>
+                  <tbody>
+                    {stock.filter(s=>s.qty<=s.min_qty).slice(0,6).map(s=>{
+                      const pct=Math.min(100,Math.round(s.qty/Math.max(s.min_qty,1)*100))
+                      const clr=s.qty===0?'var(--red)':'var(--amber)'
+                      return <tr key={s.id}>
+                        <td style={{color:clr,fontSize:12}}>{s.name}</td>
+                        <td style={{color:clr,fontWeight:600}}>{s.qty}</td>
+                        <td><div className="stk-bar"><div className="stk-fill" style={{width:`${pct}%`,background:clr}}/></div></td>
+                      </tr>
+                    })}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            {/* Estado vazio real: nada cadastrado E nenhum orçamento ativo */}
+            {stock.length===0 && proposals.filter(p=>p.status==='sent'||p.status==='approved').length===0 && (
+              <div style={{textAlign:'center',padding:16,color:'var(--text3)',fontSize:12}}>Nenhum item no estoque e nenhum orçamento ativo.</div>
+            )}
           </div>
         </div>
 
