@@ -400,9 +400,6 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
                     </td>
                     <td>
                       <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-                        <button className="btn" style={{fontSize:11,padding:'3px 7px'}} onClick={()=>onEdit(p)} title="Editar"><i className="ti ti-edit" aria-hidden/></button>
-                        {onGenerateExec && p.status!=='cancelled' && <button className="btn" style={{fontSize:11,padding:'3px 7px',borderColor:'#7C3AED',color:'#7C3AED'}} onClick={()=>onGenerateExec(p)} title="Gerar Projeto Executivo"><i className="ti ti-brain" aria-hidden/></button>}
-                        {/* Action buttons - with client phone lookup */}
                         {(()=>{
                           const cl = clients.find(c=>c.id===Number(p.client_id))
                           const pWithPhones = { ...p,
@@ -411,65 +408,31 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
                             itemFontSize: 7,
                             floors: Array.isArray(p.floors) ? p.floors : (typeof p.floors==='string'?JSON.parse(p.floors||'[]'):p.floors||[])
                           }
-                          const phone1 = cl?.phone1?.replace(/\D/g,'').replace(/^(?!55)/,'55')
-                          const phone2 = cl?.phone2?.replace(/\D/g,'').replace(/^(?!55)/,'55')
-                          const waGroup = cl?.wa_group_clients || ''
+                          const phone1 = cl?.phone1?.replace(/\\D/g,'').replace(/^(?!55)/,'55')
                           const floors = Array.isArray(pWithPhones.floors) ? pWithPhones.floors : []
                           const equipTotal = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)
                           const total = equipTotal + (Number(p.labor)||0)
                           const totalFmt = total>0?`R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`:'a confirmar'
-                          const msg = encodeURIComponent(`Olá ${cl?.name1||p.client_name}! Tudo bem?\n\nSegue sua proposta RARO Home:\n📋 *${p.code||'#'+p.id}*\n💰 *${totalFmt}*\n\nO PDF da proposta foi enviado em anexo nesta conversa.\n\nQualquer dúvida, estou à disposição! 🏠\n\n— Rogério | RARO Home\n📱 (21) 98170-9009`)
+                          const msg = encodeURIComponent(`Ola ${cl?.name1||p.client_name}! Segue sua proposta RARO Home: ${p.code||'#'+p.id} - ${totalFmt}. O PDF foi enviado em anexo. Qualquer duvida estou a disposicao! - Rogerio | RARO Home (21) 98170-9009`)
+                          const btn=(extra)=>({fontSize:11,padding:'3px 7px',...extra})
                           return <>
-                            <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'var(--accent)',borderColor:'var(--accent)'}}
-                              onClick={()=>openProposalPDF(pWithPhones,false)} title="Visualizar proposta">
-                              <i className="ti ti-eye" aria-hidden/>Ver
-                            </button>
-                            <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#7C3AED',borderColor:'#7C3AED'}}
-                              onClick={()=>openProposalPDF(pWithPhones,true)} title="Ver versão admin">
-                              <i className="ti ti-shield" aria-hidden/>Admin
-                            </button>
-                            <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'var(--green)',borderColor:'var(--green)'}}
-                              onClick={()=>{ openProposalPDF({...pWithPhones,_download:true},false) }} title="Gerar PDF">
-                              <i className="ti ti-download" aria-hidden/>PDF
-                            </button>
-                            {/* WhatsApp send buttons */}
-                            {phone1&&<button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#16A34A',borderColor:'#16A34A'}} title={`Baixar PDF e abrir WA para ${cl?.name1}`}
-                              onClick={async ()=>{
-                                await openProposalPDF({...pWithPhones,_download:true},false)
-                                setTimeout(()=>window.open(`https://wa.me/${phone1}?text=${msg}`,'_blank'),1200)
-                              }}>
-                              <i className="ti ti-brand-whatsapp" aria-hidden/>WA1
-                            </button>}
-                            {phone2&&<button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#16A34A',borderColor:'#16A34A'}} title={`Baixar PDF e abrir WA para ${cl?.name2}`}
-                              onClick={async ()=>{
-                                await openProposalPDF({...pWithPhones,_download:true},false)
-                                setTimeout(()=>window.open(`https://wa.me/${phone2}?text=${msg}`,'_blank'),1200)
-                              }}>
-                              <i className="ti ti-brand-whatsapp" aria-hidden/>WA2
-                            </button>}
-                            {waGroup&&<a href={waGroup} target="_blank" rel="noreferrer">
-                              <button className="btn" style={{fontSize:11,padding:'3px 7px',color:'#16A34A',borderColor:'#16A34A'}} title="Enviar para grupo do cliente">
-                                <i className="ti ti-brand-whatsapp" aria-hidden/>Grupo
-                              </button>
-                            </a>}
-                            <button className="btn danger" style={{fontSize:11,padding:'3px 7px'}} onClick={()=>setChangeReq({proposal:p,newStatus:'__delete__'})} title="Excluir"><i className="ti ti-trash" aria-hidden/></button>
-                            {p.status==='approved'&&<>
-                              <button className="btn" style={{fontSize:11,padding:'3px 7px',borderColor:'#059669',color:'#059669'}}
-                                onClick={()=>setContractProposal(p)} title="Abrir contrato">
-                                <i className="ti ti-file-contract" aria-hidden/>Contrato
-                              </button>
-                              <button
-                                className={`btn${contractsGenerated[p.id]?' primary':''}`}
-                                style={{fontSize:11,padding:'3px 7px',
-                                  ...(contractsGenerated[p.id]
-                                    ?{background:'#059669',color:'#fff',borderColor:'#059669'}
-                                    :{opacity:0.45,cursor:'not-allowed',borderColor:'#059669',color:'#059669'})}}
-                                disabled={!contractsGenerated[p.id]}
-                                title={contractsGenerated[p.id]?'Enviar contrato':'Salve o contrato primeiro (botão na página do contrato)'}
-                                onClick={()=>contractsGenerated[p.id]&&setSendContractProposal(p)}>
-                                <i className="ti ti-send" aria-hidden/>Enviar
-                              </button>
-                            </>}
+                            <button className="btn" style={btn()} onClick={()=>onEdit(p)} title="Editar orcamento"><i className="ti ti-edit" aria-hidden/></button>
+                            {onGenerateExec && p.status!=='cancelled' &&
+                              <button className="btn" style={btn({borderColor:'#7C3AED',color:'#7C3AED'})} onClick={()=>onGenerateExec(p)} title="Criar Projeto Executivo (IA)"><i className="ti ti-brain" aria-hidden/></button>}
+                            <button className="btn" style={btn({borderColor:'#16A34A',color:'#16A34A'})} onClick={()=>onEdit(p)} title="Gerar proposta de venda e instalacao"><i className="ti ti-currency-dollar" aria-hidden/></button>
+                            <button className="btn" style={btn({color:'var(--accent)',borderColor:'var(--accent)'})}
+                              onClick={()=>openProposalPDF(pWithPhones,false)} title="Ver proposta"><i className="ti ti-eye" aria-hidden/></button>
+                            {p.exec_doc && <button className="btn" style={btn({color:'#0369A1',borderColor:'#0369A1'})}
+                              onClick={()=>{ const w=window.open('','_blank'); w.document.write(`<html><head><title>Projeto Executivo</title><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0">${p.exec_doc}<button onclick="window.print()" style="position:fixed;top:10px;right:10px;background:#0EA5E9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600">Salvar PDF</button></body></html>`); w.document.close() }}
+                              title="Ver Projeto Executivo"><i className="ti ti-file-text" aria-hidden/></button>}
+                            <button className="btn" style={btn({color:'#7C3AED',borderColor:'#7C3AED'})}
+                              onClick={()=>openProposalPDF(pWithPhones,true)} title="Ver versao admin (com custos)"><i className="ti ti-shield" aria-hidden/></button>
+                            {p.status==='approved' && <button className="btn" style={btn({borderColor:'#059669',color:'#059669'})}
+                              onClick={()=>setContractProposal(p)} title="Abrir contrato"><i className="ti ti-file-contract" aria-hidden/></button>}
+                            {phone1 && <button className="btn" style={btn({color:'#16A34A',borderColor:'#16A34A'})} title="Enviar proposta por WhatsApp"
+                              onClick={async ()=>{ await openProposalPDF({...pWithPhones,_download:true},false); setTimeout(()=>window.open(`https://wa.me/${phone1}?text=${msg}`,'_blank'),1200) }}>
+                              <i className="ti ti-send" aria-hidden/></button>}
+                            <button className="btn danger" style={btn()} onClick={()=>setChangeReq({proposal:p,newStatus:'__delete__'})} title="Cancelar/Excluir"><i className="ti ti-trash" aria-hidden/></button>
                           </>
                         })()}
                       </div>

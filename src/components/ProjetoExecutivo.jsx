@@ -446,6 +446,12 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
     w.document.close(); setTimeout(()=>w.print(),700)
   }
 
+  // 1 clique: salva o executivo no orçamento E abre o PDF
+  function exportPdfAndSave(){
+    saveToProposal()          // salva em orçamento (exec_doc + itens + planta)
+    setTimeout(()=>exportPdf(), 200)  // abre o PDF formatado
+  }
+
   function saveToProposal(docOverride){
     if(!onSaveToProposal) return
     const docToSave = typeof docOverride==='string' ? docOverride : execDoc
@@ -682,8 +688,7 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
       {step==='exec' && (
         <div style={{background:'#060B1A',padding:'12px 16px',display:'flex',gap:10,justifyContent:'flex-end',flexShrink:0}}>
           <button onClick={()=>setStep('editor')} style={btnGhost}><i className="ti ti-arrow-left" aria-hidden/> Editor</button>
-          <button onClick={exportPdf} style={btnGhost}><i className="ti ti-printer" aria-hidden/> Extrair PDF</button>
-          <button onClick={saveToProposal} style={btnPrimary}><i className="ti ti-device-floppy" aria-hidden/> Salvar em Orçamento</button>
+          <button onClick={exportPdfAndSave} style={btnPrimary}><i className="ti ti-file-download" aria-hidden/> Gerar PDF e salvar em Orçamento</button>
         </div>
       )}
       <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes progslide{0%{margin-left:-40%}100%{margin-left:100%}}`}</style>
