@@ -289,78 +289,66 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
     setAddMode(false); setAddItem(null)
   }
 
+  // Pede JSON à IA com reparo + 1 retry automático
+  async function askJSON(prompt, maxTokens){
+    for(let attempt=0; attempt<2; attempt++){
+      const reply=await askClaude([{role:'user',text:prompt}],null,'image/jpeg',maxTokens)
+      let j=reply.trim()
+      if(j.includes('```')) j=j.replace(/```json?\n?/g,'').replace(/```/g,'')
+      const s=j.indexOf('{'); if(s>0) j=j.slice(s)
+      try{ const e=j.lastIndexOf('}'); return JSON.parse(e>0?j.slice(0,e+1):j) }
+      catch(_){
+        try{
+          let t=j.replace(/,\s*$/,'')
+          const lastObj=t.lastIndexOf('}'); if(lastObj>0) t=t.slice(0,lastObj+1)
+          const oA=(t.match(/\[/g)||[]).length, cA=(t.match(/\]/g)||[]).length
+          const oB=(t.match(/\{/g)||[]).length, cB=(t.match(/\}/g)||[]).length
+          t+=']'.repeat(Math.max(0,oA-cA))+'}'.repeat(Math.max(0,oB-cB))
+          return JSON.parse(t)
+        }catch(e2){ if(attempt===0) continue; throw new Error('A IA cortou a resposta. Tente novamente.') }
+      }
+    }
+  }
+
   async function generateExec(){
     setLoading(true)
     setExecProgress('Coletando dados...')
     const itemsList=markers.map(m=>`#${m.n} ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
     const conversation=chat.map(m=>`${m.role==='user'?'Cliente':'Projetista'}: ${m.text}`).join('\n')
-    const rackList=catalog.filter(c=>isRackItem(c.name,c.code)).map(c=>c.name).join(', ')
     const ctx=`Premissas da conversa:\n${conversation}\n\nPontos posicionados:\n${itemsList}`
+    const conv=`Convenções RARO Home: CPD/Rack centraliza tudo. Keypads SEMPRE fase+neutro 2,5mm² do quadro (1,10m; cabeceira 0,40m). Câmeras/APs CAT6 PoE do switch. Som 2×1,5mm² do amplificador. Hub IR só com AC. Alturas: tomada 0,30m, ar 2,40m, som no teto, módulo forro, cortina 2,55m.`
 
     try{
-      // 1 chamada: dados estruturados em JSON (mais leve, formatação fica no template)
-      setExecProgress('Gerando dados do projeto com IA...')
-      const reply=await askClaude([{role:'user',text:
-`Você é projetista da RARO Home (automação Zigbee/Matter). Gere os DADOS de um Projeto Executivo a partir do contexto. Responda APENAS JSON válido (sem markdown, sem texto fora do JSON).
+      // BLOCO 1 — premissas, infra, rack, pontos por ambiente, módulos
+      setExecProgress('Posicionamento e premissas... (1/2)')
+      const d1=await askJSON(
+`Projetista RARO Home. Responda APENAS JSON válido (sem markdown). ${conv}\n\n${ctx}\n\n{
+ "premissas":["..."],
+ "infraestrutura":[{"item":"CPD/Rack","espec":"...","resp":"Arquiteto/RARO"}],
+ "rack":[{"u":"U1","equip":"Gateway","funcao":"..."}],
+ "rack_detalhe":["Rack embutido...","Tomada 110V dedicada"],
+ "pontos":[{"ambiente":"Estar (8,00×6,20m)","linhas":[{"ponto":"K","equip":"Keypad 6 botões","parede":"entrada","dist":"0,15m","alt":"1,10m","caixa":"4×4 + NEUTRO","cabo":"3m"}]}],
+ "modulos":[{"id":"M1","funcao":"Iluminação","ambiente":"Sala","carga":"luz","posicao":"forro"}],
+ "banheiros_sensores":[{"ambiente":"Circulação","ponto":"Sensor presença","obs":"luz automática"}]
+}`, 6000)
 
-${ctx}
-
-Convenções RARO Home:
-- CPD/Rack centraliza tudo (Gateway, NVR, switch PoE, amplificador). Todos os cabos partem dele.
-- Keypads precisam SEMPRE de fase+neutro 2,5mm² do quadro de luz. Altura 1,10m (cabeceira 0,40m).
-- Câmeras/APs: CAT6 PoE do switch. Som: 2×1,5mm² do amplificador. Hub IR só onde tem AC.
-- Alturas: tomada 0,30m, interruptor 1,10m, ar 2,40m, som no teto, módulo no forro, cortina bandô 2,55m.
-
-Formato (preencha com base nos pontos reais; estime metragens realistas):
-{
- "premissas": ["frase 1","frase 2"],
- "infraestrutura": [{"item":"CPD/Rack","espec":"...","resp":"Arquiteto/RARO"}],
- "rack": [{"u":"U1","equip":"Gateway","funcao":"..."}],
- "pontos": [{"ambiente":"Estar (8,00×6,20m)","linhas":[{"ponto":"K","equip":"Keypad 6 botões","parede":"entrada","dist":"0,15m","alt":"1,10m","caixa":"4×4 + NEUTRO","cabo":"3m"}]}],
- "cabos_rede": [{"id":"CAT-01","origem":"switch PoE rack","destino":"Câmera C1 Estar","tipo":"CAT6 U/UTP","bitola":"24AWG","metros":"12"}],
- "cabos_som": [{"id":"SOM-01","origem":"amplificador rack","destino":"Caixa S1 Sala","tipo":"2×1,5mm²","bitola":"1,5mm²","metros":"11"}],
- "cabos_eletricos": [{"id":"ELT-01","origem":"quadro luz","destino":"Módulo M1 Sala","tipo":"fase+neutro","bitola":"2,5mm²","metros":"10"}],
- "alim_keypads": [{"id":"KEY-01","origem":"quadro luz","destino":"Keypad entrada Sala","cota":"1,10m","comodo":"Sala","metros":"3"}],
- "modulos": [{"id":"M1","funcao":"Iluminação principal","ambiente":"Sala","carga":"luz","posicao":"forro centro"}],
- "rack_detalhe": ["Rack 12U embutido no móvel da TV","Tomada 110V dedicada + aterramento"],
- "resumo_cabos": [{"tipo":"CAT6","metros_total":"180"},{"tipo":"Cabo som","metros_total":"95"}],
- "checklist_obra": ["item para o eletricista 1","item 2"],
- "checklist_raro": ["item equipe RARO 1"],
- "pecas": [{"item":"Keypad 4 botões","qtd":"5"}],
- "banheiros_sensores": [{"ambiente":"Circulação","ponto":"Sensor presença","obs":"luz automática"}],
- "riscos": ["risco/atenção 1"]
-}`}],null,'image/jpeg',8000)
+      // BLOCO 2 — cabos, alimentação, resumo, peças, checklists, riscos
+      setExecProgress('Cabos e checklists... (2/2)')
+      const d2=await askJSON(
+`Projetista RARO Home. Responda APENAS JSON válido (sem markdown). ${conv}\n\n${ctx}\n\n{
+ "cabos_rede":[{"id":"CAT-01","origem":"switch PoE rack","destino":"Câmera C1","tipo":"CAT6 U/UTP","bitola":"24AWG","metros":"12"}],
+ "cabos_som":[{"id":"SOM-01","origem":"amplificador rack","destino":"Caixa S1","tipo":"2×1,5mm²","bitola":"1,5mm²","metros":"11"}],
+ "cabos_eletricos":[{"id":"ELT-01","origem":"quadro luz","destino":"Módulo M1","tipo":"fase+neutro","bitola":"2,5mm²","metros":"10"}],
+ "alim_keypads":[{"id":"KEY-01","origem":"quadro luz","destino":"Keypad entrada Sala","cota":"1,10m","comodo":"Sala","metros":"3"}],
+ "resumo_cabos":[{"tipo":"CAT6","metros_total":"180"}],
+ "pecas":[{"item":"Keypad 4 botões","qtd":"5"}],
+ "checklist_obra":["item eletricista 1"],
+ "checklist_raro":["item equipe RARO 1"],
+ "riscos":["atenção 1"]
+}`, 5000)
 
       setExecProgress('Montando documento...')
-      let j=reply.trim()
-      if(j.includes('```')) j=j.replace(/```json?\n?/g,'').replace(/```/g,'')
-      const s=j.indexOf('{'); if(s>0) j=j.slice(s)
-      let data=null
-      // 1ª tentativa: parse direto (recortando até a última chave)
-      try{
-        const e=j.lastIndexOf('}')
-        data=JSON.parse(e>0 ? j.slice(0,e+1) : j)
-      }catch(_){
-        // 2ª tentativa: reparar JSON cortado — fecha arrays/objetos abertos
-        try{
-          let t=j
-          // remove vírgula/linha incompleta no fim
-          t=t.replace(/,\s*$/,'')
-          // conta chaves/colchetes abertos e fecha
-          const opensB=(t.match(/\{/g)||[]).length, closeB=(t.match(/\}/g)||[]).length
-          const opensA=(t.match(/\[/g)||[]).length, closeA=(t.match(/\]/g)||[]).length
-          // corta no último item completo (última chave fechada seguida de vírgula ou fim)
-          const lastObj=t.lastIndexOf('}')
-          if(lastObj>0) t=t.slice(0,lastObj+1)
-          t+=']'.repeat(Math.max(0,opensA-closeA))
-          t+='}'.repeat(Math.max(0,opensB-closeB))
-          data=JSON.parse(t)
-        }catch(e2){
-          throw new Error('A IA cortou a resposta no meio. Clique em "Gerar/Regerar" novamente — geralmente funciona na 2ª vez.')
-        }
-      }
-      if(!data || typeof data!=='object') throw new Error('Resposta vazia da IA. Tente novamente.')
-
+      const data={...d1,...d2}
       const full=buildExecHtml(data)
       setExecDoc(full)
       setStep('exec')
