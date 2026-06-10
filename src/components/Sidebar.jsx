@@ -1,4 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
+// v61 — novo logo + melhorias projeto executivo
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -12,7 +13,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
     <div className="sidebar">
       {/* Logo — hidden on mobile */}
       <div className="sb-logo">
-        <img src={LOGO_DARK} alt="RARO Home" style={{height:32,width:'auto',borderRadius:4}} />
+        <img src={LOGO_DARK} alt="RARO Home" style={{height:40,width:40,borderRadius:6,objectFit:'contain'}} />
         <div>
           <div className="sb-brand">RARO Home</div>
           <div className="sb-sub">Automação Residencial</div>
@@ -47,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v60 · build 2026-06
+          v61 · build 2026-06
         </div>
       </div>
     </div>

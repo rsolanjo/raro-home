@@ -8,11 +8,10 @@ const EQUIP_STYLE = {
   'Tomada':{c:'#475569',s:'T'},'Outro':{c:'#374151',s:'?'},
 }
 
-// Itens que ficam DENTRO do rack (não vão soltos na planta — entram na tabela do rack)
 function isRackItem(name='', code='') {
   const n=(name+' '+code).toLowerCase()
   return /\b(hd|nvr|dvr|switch|patch|nobreak|no-break|path ?cord|dream machine|udm|controladora|servidor|fonte|r[aá]ck rack|mini rack|rack)\b/.test(n)
-    && !/gateway/.test(n)  // gateway fica na planta
+    && !/gateway/.test(n)
 }
 
 function equipType(name='') {
@@ -74,12 +73,10 @@ async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1
     throw new Error('API '+res.status+': '+t.slice(0,150))
   }
   const ct = res.headers.get('content-type')||''
-  // Resposta antiga (JSON) — compatibilidade
   if(ct.includes('application/json')){
     const data = await res.json()
     return data.content?.[0]?.text || ''
   }
-  // Stream SSE — lê os deltas e monta o texto
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let full='', buffer=''
@@ -104,7 +101,7 @@ async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1
 }
 
 export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fromProposal, onSaveToProposal, onClose, currentUser }) {
-  const [step, setStep] = useState(()=> fromProposal?.planta_data?.markers?.length ? 'editor' : 'upload') // upload | chat | editor | exec
+  const [step, setStep] = useState(()=> fromProposal?.planta_data?.markers?.length ? 'editor' : 'upload')
   const [bgImage, setBgImage] = useState(()=> fromProposal?.planta_data?.image || null)
   const [chat, setChat] = useState([])
   const [chatInput, setChatInput] = useState('')
@@ -128,7 +125,6 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
 
   useEffect(()=>{ chatEndRef.current?.scrollIntoView({behavior:'smooth'}) },[chat])
 
-  // Se veio de um orçamento SEM planta posicionada, monta os itens como lista (centro da planta) para o usuário posicionar
   useEffect(()=>{
     if(fromProposal && !fromProposal?.planta_data?.markers?.length && !markers.length){
       const floors = typeof fromProposal.floors==='string' ? (()=>{try{return JSON.parse(fromProposal.floors)}catch{return[]}})() : (fromProposal.floors||[])
@@ -167,20 +163,32 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
     const catList = (catalog||[]).slice(0,100).map(c=>`- ${c.name} (${c.category||'geral'})`).join('\n')
     const sys = `Você é um projetista especialista da RARO Home (automação residencial Zigbee/Matter, Rio de Janeiro). Está analisando a planta baixa enviada para criar um projeto de automação.
 
-Estes são os EQUIPAMENTOS que a RARO Home tem no catálogo e pode instalar:
+Estes são os EQUIPAMENTOS que a RARO Home tem no catálogo:
 ${catList}
 
-Faça uma análise inicial da planta com ATENÇÃO: observe as paredes, portas (aberturas em arco), janelas, e o texto/legendas escritos na planta para identificar cada ambiente pelo nome. Liste os ambientes que você identificou com confiança. Se algum trecho estiver ilegível ou ambíguo, diga que não tem certeza e pergunte — NÃO invente ambientes. Depois faça PERGUNTAS objetivas, UMA DE CADA VEZ, sempre relacionadas a posicionar BEM os equipamentos do catálogo acima. Exemplos de perguntas úteis:
-- Onde ficará o CPD/rack (onde concentrar gateway, NVR, amplificador)?
-- Onde entra a fibra de internet e qual o destino?
-- Em quais quartos e qual parede ficam as cabeceiras (para keypad de cabeceira)?
-- Quais ambientes terão ar-condicionado (para Hub IR)?
+REGRAS IMPORTANTES DO PROJETO (sempre aplique):
+1. Em TODA cabeceira de cama (quartos/suítes) → combo padrão: 1 keypad 1 botão + 1 tomada USB (meio) + 1 tomada embaixo, em cada lado da cama.
+2. Sempre pergunte sobre ar-condicionado em cada ambiente. Ambientes com AC E com TV precisam de Hub IR.
+3. Sugira sensor de presença (mmWave) na entrada principal e em todos os banheiros.
+4. Sempre sugira rede Wi-Fi robusta com Access Points distribuídos — verifique cobertura por andar/área.
+5. Sempre pergunte o que vai no rack (gateway, switch, amplificador, etc.) e sugira configuração.
+
+REGRAS DO RACK:
+- Base: sempre tem Dream Machine SE como roteador/gateway principal
+- Dream Machine SE tem 8 portas — conte APs + câmeras; se passar de 6 ativos, adicione switch PoE+
+- NÃO usar NVR separado — o Dream Machine SE gravação integrada funciona
+- NÃO usar DIO/filtro de fibra — conexão direta ao rack
+
+Analise a planta com atenção, identifique os ambientes, e faça PERGUNTAS OBJETIVAS sobre:
+- Onde ficará o rack/CPD?
+- Quais ambientes têm ar-condicionado? (para Hub IR)
+- Qual lado da cama é a cabeceira em cada quarto?
 - Quais ambientes terão som ambiente?
 - Quais ambientes terão câmera?
-- Cortinas motorizadas em quais ambientes?
-- Perfil do cliente e prioridades?
+- Cortinas motorizadas onde?
+- Perfil do cliente?
 
-Seja breve e conversacional, uma pergunta por vez. O usuário pode clicar em "Gerar sugestão" a qualquer momento, então não exija respostas para todas as perguntas — vá ajudando conforme ele responde.`
+Seja breve, uma pergunta por vez.`
     try{
       const reply = await askClaude(
         [{role:'user',text:sys+'\n\nAnalise a planta e comece.'}],
@@ -207,28 +215,26 @@ Seja breve e conversacional, uma pergunta por vez. O usuário pode clicar em "Ge
     setLoading(true); setExecProgress('Analisando a planta e posicionando os equipamentos...')
     const catSummary = catalog.slice(0,80).map(c=>`${c.code}: ${c.name} (${c.category})`).join('\n')
     const conversation = chat.map(m=>`${m.role==='user'?'Cliente':'Projetista'}: ${m.text}`).join('\n')
-    const prompt = `Você é um projetista de automação. Olhe a planta com ATENÇÃO e identifique cada cômodo e suas paredes/portas/janelas. Posicione os equipamentos RARO Home de forma ORGANIZADA e na MELHOR posição técnica de cada um.
+    const prompt = `Você é um projetista de automação RARO Home. Posicione os equipamentos na planta.
 
-CONVERSA (premissas, onde fica o rack, etc.):
+CONVERSA (premissas):
 ${conversation}
 
 CATÁLOGO (use só estes códigos):
 ${catSummary}
 
-REGRAS DE POSICIONAMENTO (siga rigorosamente):
-- Identifique visualmente cada AMBIENTE na planta antes de posicionar. Cada item deve cair DENTRO do cômodo certo, não embolado no centro.
-- Keypad/interruptor: ao lado da porta, do lado da maçaneta (encostado na parede).
-- Keypad de cabeceira: na parede da cabeceira da cama.
-- Câmera: num canto alto do ambiente, apontada para a área útil.
-- Hub IR: só em ambiente com ar-condicionado, em parede com visão do aparelho.
-- Caixa de som: distribuída no teto do ambiente (afastada das paredes).
-- Sensor de presença: perto de portas/circulação.
-- Gateway/Rack: no ponto definido na conversa (ex: móvel da TV).
-- NÃO empilhe itens no mesmo ponto. Espalhe conforme a função real. Itens do mesmo cômodo devem ficar espaçados dentro dos limites daquele cômodo.
-- NÃO posicione itens de RACK (HD, switch, patch panel, nobreak, NVR, path cord) na planta — eles ficam dentro do rack. Posicione apenas o RACK em si.
+REGRAS DE POSICIONAMENTO:
+- Identifique visualmente cada AMBIENTE na planta.
+- Keypad entrada: ao lado da porta, lado maçaneta, H=1,10m.
+- CABECEIRA DE CAMA (OBRIGATÓRIO em todo quarto/suíte): posicione combo em CADA lado da cama: 1x keypad 1 botão (H=0,70m) + 1x tomada USB + 1x tomada comum. Isso vale para suíte master, suíte 2, quarto, etc.
+- Câmera: canto alto do ambiente, H=2,50m.
+- Hub IR: só em ambientes com AR-CONDICIONADO E/OU TV, visão do aparelho.
+- Sensor mmWave: entrada principal + todos os banheiros, no teto H=2,70m.
+- Access Point: 1 por área de 50m², teto centro.
+- Som: distribuído no teto do ambiente.
+- NÃO empilhe itens. Items do rack (switch, patch panel) NÃO vão na planta.
 
-Para cada equipamento: posição (x,y em % da imagem, 0-100), código do catálogo, ambiente e nota com altura.
-Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
+Responda APENAS JSON válido:
 {"itens":[{"id":"K1","code":"QAT42Z2B","room":"Sala","x":20,"y":40,"nota":"ao lado da porta, H=110cm"}]}`
     try{
       const reply=await askClaude(
@@ -242,7 +248,6 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
       let parsed
       try{ parsed=JSON.parse(j) }
       catch(pe){
-        // tenta reparar JSON cortado: pega todos os objetos {..} completos do array
         const objs=[...j.matchAll(/\{[^{}]*\}/g)].map(m=>m[0])
         if(objs.length){
           try{ parsed={itens: objs.map(o=>JSON.parse(o))} }
@@ -268,7 +273,6 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
     setLoading(false)
   }
 
-  // Drag
   function onDown(e,uid){ e.preventDefault(); e.stopPropagation(); setSelected(uid)
     const r=containerRef.current.getBoundingClientRect(); setDragging({uid,ox:e.clientX,oy:e.clientY,r}) }
   const onMove=useCallback(e=>{ if(!dragging)return; const{uid,ox,oy,r}=dragging
@@ -290,7 +294,6 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
     setAddMode(false); setAddItem(null)
   }
 
-  // Pede JSON à IA com reparo + 1 retry automático
   async function askJSON(prompt, maxTokens){
     for(let attempt=0; attempt<2; attempt++){
       const reply=await askClaude([{role:'user',text:prompt}],null,'image/jpeg',maxTokens)
@@ -304,7 +307,7 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
           const lastObj=t.lastIndexOf('}'); if(lastObj>0) t=t.slice(0,lastObj+1)
           const oA=(t.match(/\[/g)||[]).length, cA=(t.match(/\]/g)||[]).length
           const oB=(t.match(/\{/g)||[]).length, cB=(t.match(/\}/g)||[]).length
-          t+=']'.repeat(Math.max(0,oA-cA))+'}'.repeat(Math.max(0,oB-cB))
+          t+=']'.repeat(Math.max(0,oA-cA))+'}'. repeat(Math.max(0,oB-cB))
           return JSON.parse(t)
         }catch(e2){ if(attempt===0) continue; throw new Error('A IA cortou a resposta. Tente novamente.') }
       }
@@ -317,36 +320,43 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
     const itemsList=markers.map(m=>`#${m.n} ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
     const conversation=chat.map(m=>`${m.role==='user'?'Cliente':'Projetista'}: ${m.text}`).join('\n')
     const ctx=`Premissas da conversa:\n${conversation}\n\nPontos posicionados:\n${itemsList}`
-    const conv=`Convenções RARO Home: CPD/Rack centraliza tudo. Keypads SEMPRE fase+neutro 2,5mm² do quadro (1,10m; cabeceira 0,40m). Câmeras/APs CAT6 PoE do switch. Som 2×1,5mm² do amplificador. Hub IR só com AC. Alturas: tomada 0,30m, ar 2,40m, som no teto, módulo forro, cortina 2,55m.`
+    const conv=`Convenções RARO Home: CPD/Rack centraliza tudo. Keypads SEMPRE fase+neutro 2,5mm² do quadro. Keypads entrada: 1,10m; cabeceira: 0,70m. Câmeras/APs CAT6 PoE. Som 2×1,5mm² do amplificador. Hub IR só com AC/TV. Alturas: tomada 0,30m, USB 0,90m, som teto, módulo forro, cortina 2,55m. Rack: sempre Dream Machine SE (8 portas). Se APs+Câmeras > 6, adicionar Switch PoE+. NÃO usar NVR separado. NÃO usar DIO.`
+
+    // Conta APs e câmeras para decidir se precisa de switch
+    const aps = markers.filter(m=>m.name.toLowerCase().includes('access point')||m.name.toLowerCase().includes('ap ')||m.name.toLowerCase().includes('wi-fi')||m.name.toLowerCase().includes('wifi')).length
+    const cams = markers.filter(m=>m.name.toLowerCase().includes('câmera')||m.name.toLowerCase().includes('camera')||m.name.toLowerCase().includes('dome')).length
+    const precisaSwitch = (aps+cams) > 6
+    const rackNote = `APs: ${aps}, Câmeras: ${cams}. Dream Machine SE tem 8 portas. ${precisaSwitch?'PRECISA de Switch PoE+ adicional ('+((aps+cams)-6)+' portas a mais que o DM).':'Dream Machine SE comporta tudo ('+( aps+cams)+' dispositivos PoE).'}`
 
     try{
-      // BLOCO 1 — premissas, infra, rack, pontos por ambiente, módulos
-      setExecProgress('Posicionamento e premissas... (1/2)')
+      // BLOCO 1 — premissas, rack (com visual), pontos por ambiente, módulos
+      setExecProgress('Rack, premissas e pontos... (1/2)')
       const d1=await askJSON(
-`Projetista RARO Home. Responda APENAS JSON válido (sem markdown). ${conv}\n\n${ctx}\n\n{
+`Projetista RARO Home. Responda APENAS JSON válido (sem markdown). ${conv}\n\n${ctx}\n\nINFO RACK: ${rackNote}\n\n{
  "premissas":["..."],
- "infraestrutura":[{"item":"CPD/Rack","espec":"...","resp":"Arquiteto/RARO"}],
- "rack":[{"u":"U1","equip":"Gateway","funcao":"..."}],
- "rack_detalhe":["Rack embutido...","Tomada 110V dedicada"],
- "pontos":[{"ambiente":"Estar (8,00×6,20m)","linhas":[{"ponto":"K","equip":"Keypad 6 botões","parede":"entrada","dist":"0,15m","alt":"1,10m","caixa":"4×4 + NEUTRO","cabo":"3m"}]}],
- "modulos":[{"id":"M1","funcao":"Iluminação","ambiente":"Sala","carga":"luz","posicao":"forro"}],
- "banheiros_sensores":[{"ambiente":"Circulação","ponto":"Sensor presença","obs":"luz automática"}]
+ "rack_config":{"dream_machine_portas":8,"aps":${aps},"cameras":${cams},"precisa_switch":${precisaSwitch},"switch_portas":${precisaSwitch?16:0},"observacao":"..."},
+ "rack_items":[{"u":"U1","equip":"Dream Machine SE","funcao":"Roteador principal / gateway Zigbee / 8 portas PoE","watts":"25W"},{"u":"U2","equip":"Switch PoE+ 16p","funcao":"só se precisa_switch=true","watts":"..."}],
+ "rack_detalhe":["Rack embutido no armário...","Tomada 110V dedicada 20A...","Ventilação forçada...","..."],
+ "pontos":[{"ambiente":"Estar (8,00×6,20m)","linhas":[{"ponto":"K1","equip":"Keypad 6 botões","parede":"entrada","dist":"0,15m","alt":"1,10m","caixa":"4×4 + NEUTRO","cabo":"2,5mm² ~8m"}]}],
+ "modulos_teto":[{"ambiente":"Estar","itens":["5x spot LED M1","Módulo cortina M2 (forro, 2,55m)","Caixa som S1-S5 (teto, 2,70m)","Sensor mmWave P1 (teto centro)"]}],
+ "modulos":[{"id":"M1","funcao":"Iluminação","ambiente":"Sala","carga":"5 spots LED","posicao":"forro gesso"}],
+ "banheiros_sensores":[{"ambiente":"Banheiro Master","ponto":"Sensor mmWave teto","obs":"luz automática, umidade"}]
 }`, 6000)
 
-      // BLOCO 2 — cabos, alimentação, resumo, peças, checklists, riscos
-      setExecProgress('Cabos e checklists... (2/2)')
+      // BLOCO 2 — cabos detalhados (por cômodo), alimentação, resumo, peças, checklists, riscos
+      setExecProgress('Cabos detalhados e checklists... (2/2)')
       const d2=await askJSON(
 `Projetista RARO Home. Responda APENAS JSON válido (sem markdown). ${conv}\n\n${ctx}\n\n{
- "cabos_rede":[{"id":"CAT-01","origem":"switch PoE rack","destino":"Câmera C1","tipo":"CAT6 U/UTP","bitola":"24AWG","metros":"12"}],
- "cabos_som":[{"id":"SOM-01","origem":"amplificador rack","destino":"Caixa S1","tipo":"2×1,5mm²","bitola":"1,5mm²","metros":"11"}],
- "cabos_eletricos":[{"id":"ELT-01","origem":"quadro luz","destino":"Módulo M1","tipo":"fase+neutro","bitola":"2,5mm²","metros":"10"}],
- "alim_keypads":[{"id":"KEY-01","origem":"quadro luz","destino":"Keypad entrada Sala","cota":"1,10m","comodo":"Sala","metros":"3"}],
- "resumo_cabos":[{"tipo":"CAT6","metros_total":"180"}],
- "pecas":[{"item":"Keypad 4 botões","qtd":"5"}],
- "checklist_obra":["LISTE 10 a 14 itens DETALHADOS para o arquiteto/eletricista preparar ANTES do revestimento: passar eletrodutos (bitolas), deixar caixas 4x4 nos keypads com NEUTRO, ponto de rede no CPD, tomada 110V dedicada+aterramento no rack, eletroduto seco para câmeras até o forro, caixa de passagem, sangria para som no teto, ponto de força para AC, prever vão do rack no móvel, deixar fio-guia nos eletrodutos, identificar circuitos no quadro, etc"],
- "checklist_raro":["LISTE 6 a 10 itens da equipe RARO Home: conferir neutro em todas as caixas de keypad, testar PoE em cada câmera/AP, energizar e parear gateway, configurar cenas, etiquetar patch panel, testar som por zona, validar cobertura Wi-Fi, treinar cliente, etc"],
- "riscos":["atenção 1"]
-}`, 5000)
+ "cabos_rede":[{"id":"CAT-01","origem":"DM SE porta 1","destino":"AP #1 Sala","tipo":"CAT6 U/UTP","bitola":"24AWG","metros":"12","cor_etiqueta":"Azul","porta_patch":"P01","etiqueta":"AP-SALA"}],
+ "cabos_som":[{"id":"SOM-01","origem":"Amplificador rack saída 1","destino":"Caixa S1 Sala","tipo":"2×1,5mm²","metros":"5","etiqueta":"SOM-S1"}],
+ "cabos_eletricos_por_comodo":[{"comodo":"Sala","itens":[{"id":"ELT-01","equip":"Keypad K1 entrada","tipo":"fase+neutro+terra","fios":"3x2,5mm²","origem":"Quadro QDL disj.C1","destino":"caixa 4x4 parede, H=1,10m","metros":"8","obs":"NEUTRO obrigatório"},{"id":"ELT-02","equip":"Módulo Cortina M2","tipo":"fase+neutro","fios":"2x2,5mm²","origem":"Quadro QDL disj.C2","destino":"forro 2,55m","metros":"10","obs":""}]}],
+ "alim_keypads":[{"id":"KEY-01","origem":"Quadro luz disj.K1","destino":"Keypad K1 entrada Sala","cota":"1,10m","comodo":"Sala","metros":"8","fios":"2x2,5mm² F+N"}],
+ "resumo_cabos":[{"tipo":"CAT6 U/UTP interno","metros_total":"275"},{"tipo":"Cabo 2×1,5mm² som","metros_total":"62"},{"tipo":"Cabo elétrico 2,5mm² keypads","metros_total":"420"},{"tipo":"Cabo elétrico 2,5mm² módulos","metros_total":"80"}],
+ "pecas":[{"item":"Keypad Zigbee 1 botão","qtd":"6"}],
+ "checklist_obra":["1. Passar eletroduto 3/4\" em todas as paredes antes do revestimento","2. Deixar caixa 4×4 em CADA keypad com NEUTRO chegando (obrigatório)","3. Eletroduto seco 3/4\" do rack até forro para câmeras","4. Passe de cabo CAT6 do rack até cada AP no teto antes de fechar forro","5. Tomada 110V 20A dedicada + aterramento no nicho do rack","6. Prever vão adequado no móvel/armário para o rack (largura 19pol + ventilação)","7. Deixar fio-guia em todos os eletrodutos","8. Sangria no teto para cada caixa de som embutida","9. Ponto de força para cada módulo de cortina no forro","10. Identificar todos os circuitos no quadro","11. Caixa de passagem no teto para CAT6 (se necessário)","12. Marcar com fita todos os pontos antes de rebocar"],
+ "checklist_raro":["1. Conferir neutro chegando em 100% das caixas de keypad","2. Testar continuidade de cada cabo CAT6 antes de terminar","3. Crimpar patch panel com etiquetas conforme tabela","4. Energizar Dream Machine SE e configurar Wi-Fi","5. Parear todos os keypads e módulos Zigbee","6. Configurar cenas e automações por ambiente","7. Testar cobertura Wi-Fi em todos os cômodos","8. Testar som por zona e ajustar volume","9. Configurar monitoramento de câmeras","10. Treinar cliente no app"],
+ "riscos":["Neutro ausente nas caixas pode danificar keypads — conferir antes de instalar","Interferência Wi-Fi em 2.4GHz com vizinhos — configurar canais manualmente","Forro de gesso pode dificultar passagem de cabo após obra — confirmar antes do fechamento"]
+}`, 5500)
 
       setExecProgress('Montando documento...')
       const data={...d1,...d2}
@@ -354,28 +364,107 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
       setExecDoc(full)
       setStep('exec')
       setExecProgress('')
+
+      // AUTO-SAVE se veio de proposta
+      if(fromProposal?.id){
+        try{
+          const { saveProposal } = await import('../db/supabase.js')
+          const updated = { ...fromProposal, exec_doc:full, planta_data:{image:bgImage,markers} }
+          await saveProposal(updated)
+        }catch(e){ console.warn('Auto-save falhou:', e.message) }
+      }
     }catch(err){ alert('Erro ao gerar projeto: '+err.message); setExecProgress('') }
     setLoading(false)
   }
 
-  // Monta o HTML final bonito (capa estilo proposta + seções + tabelas estilizadas)
   function buildExecHtml(d){
     const cliente=projectInfo.client||'Cliente'
     const hoje=new Date().toLocaleDateString('pt-BR')
     const T=(rows,cols)=>`<table class="ex-tbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`
     const esc=s=>(s==null?'':String(s))
-    // planta com marcadores
+
+    // Planta com marcadores
     let planta=''
     if(bgImage){
       const dots=markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;background:${st.c};color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${m.n}</div>`}).join('')
       planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div></div>`
     }
+
     const sec=(title,inner)=>inner?`<div class="ex-sec"><h2>${title}</h2>${inner}</div>`:''
     const list=arr=>arr&&arr.length?`<ul class="ex-ul">${arr.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''
-    const pontosHtml=(d.pontos||[]).map(a=>`<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T((a.linhas||[]).map(l=>`<tr><td><b>${esc(l.ponto)}</b></td><td>${esc(l.equip)}</td><td>${esc(l.parede)}</td><td>${esc(l.dist)}</td><td>${esc(l.alt)}</td><td>${esc(l.caixa)}</td><td>${esc(l.cabo)}</td></tr>`).join(''),['Ponto','Equip.','Parede ref.','Dist.','Alt.','Caixa','Cabo CPD'])}`).join('')
 
-    // TÓPICO 19 — itens por cômodo (do catálogo), qtd por cômodo e total geral
+    // Tópico 3 — Rack com visual gráfico
+    const rackCfg = d.rack_config || {}
+    const rackItems = d.rack_items || d.rack || []
+    const aps = rackCfg.aps||0, cams = rackCfg.cameras||0
+    const totalPoe = aps+cams
+    const precisaSwitch = rackCfg.precisa_switch || totalPoe > 6
+    const RACK_COLORS = ['#0EA5E9','#16A34A','#7C3AED','#D97706','#DC2626','#0891B2','#DB2777','#374151','#059669','#475569','#0E7490','#BE185D']
+
+    const rackVisual = `
+<div style="margin:12px 0 20px;border:2px solid #1e293b;border-radius:8px;overflow:hidden;max-width:560px">
+  <div style="background:#0D1420;color:#38BDF8;font-size:11px;font-weight:700;padding:8px 14px;letter-spacing:1px;display:flex;justify-content:space-between;align-items:center">
+    <span>🖥 RACK 12U — CPD</span>
+    <span style="color:rgba(255,255,255,0.5);font-size:9px;font-weight:400">${rackCfg.dream_machine_portas||8} portas DM SE · ${totalPoe} dispositivos PoE · ${precisaSwitch?'Switch adicional necessário':'DM SE comporta tudo'}</span>
+  </div>
+  ${rackItems.map((r,i)=>`
+  <div style="display:flex;align-items:stretch;border-bottom:1px solid #e2e8f0;min-height:32px">
+    <div style="background:${RACK_COLORS[i%RACK_COLORS.length]};color:#fff;font-size:10px;font-weight:700;width:46px;display:flex;align-items:center;justify-content:center;flex-shrink:0;writing-mode:horizontal-tb;padding:4px">${esc(r.u)}</div>
+    <div style="flex:1;background:${i%2===0?'#f8fafc':'#fff'};padding:6px 12px;display:flex;align-items:center;gap:12px">
+      <div style="font-size:11px;font-weight:600;color:#0D1420;min-width:180px">${esc(r.equip)}</div>
+      <div style="font-size:10px;color:#64748b;flex:1">${esc(r.funcao)}</div>
+      ${r.watts?`<div style="font-size:9px;color:#94a3b8;background:#f1f5f9;padding:2px 6px;border-radius:4px;white-space:nowrap">${esc(r.watts)}</div>`:''}
+    </div>
+  </div>`).join('')}
+  <div style="background:#f1f5f9;padding:8px 14px;display:flex;gap:20px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:6px"><div style="width:10px;height:10px;border-radius:50%;background:#16A34A"></div><span style="font-size:10px;color:#374151">APs: <b>${aps}</b></span></div>
+    <div style="display:flex;align-items:center;gap:6px"><div style="width:10px;height:10px;border-radius:50%;background:#DC2626"></div><span style="font-size:10px;color:#374151">Câmeras: <b>${cams}</b></span></div>
+    <div style="display:flex;align-items:center;gap:6px"><div style="width:10px;height:10px;border-radius:50%;background:#0EA5E9"></div><span style="font-size:10px;color:#374151">Total PoE: <b>${totalPoe}/${rackCfg.dream_machine_portas||8}</b></span></div>
+    ${precisaSwitch?`<div style="display:flex;align-items:center;gap:6px;background:#FEF3C7;padding:3px 8px;border-radius:4px"><span style="font-size:10px;color:#92400E">⚠ Switch PoE+ ${rackCfg.switch_portas||16}p adicionado</span></div>`:'<div style="display:flex;align-items:center;gap:6px;background:#D1FAE5;padding:3px 8px;border-radius:4px"><span style="font-size:10px;color:#065F46">✓ Dream Machine SE suficiente</span></div>'}
+  </div>
+</div>`
+
+    // Tópico 4 — Módulos e caixas de teto por cômodo
+    const modulosTeto = d.modulos_teto || []
+    const modulosTetoHtml = modulosTeto.length
+      ? modulosTeto.map(mt=>`
+<div style="margin-bottom:12px;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
+  <div style="background:#0369A1;color:#fff;padding:6px 12px;font-size:12px;font-weight:700">${esc(mt.ambiente)}</div>
+  <div style="padding:8px 12px;background:#fff">
+    ${(mt.itens||[]).map(it=>`<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid #f1f5f9;font-size:11px;color:#374151"><span style="color:#0EA5E9">▸</span>${esc(it)}</div>`).join('')}
+  </div>
+</div>`).join('')
+      : (d.modulos||[]).length ? T(d.modulos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.funcao)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.carga)}</td><td>${esc(r.posicao)}</td></tr>`).join(''),['ID','Função','Ambiente','Carga','Posição']) : ''
+
+    // Tópico 5 — Pontos de parede
+    const pontosHtml=(d.pontos||[]).map(a=>`<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T((a.linhas||[]).map(l=>`<tr><td><b>${esc(l.ponto)}</b></td><td>${esc(l.equip)}</td><td>${esc(l.parede)}</td><td>${esc(l.dist)}</td><td>${esc(l.alt)}</td><td>${esc(l.caixa)}</td><td>${esc(l.cabo)}</td></tr>`).join(''),['Ponto','Equip.','Parede ref.','Dist.','Alt.','Caixa','Cabo'])}`).join('')
+
+    // Tópico 6 — Cabos de rede com patch panel e etiquetas
+    const cabosRedeHtml = (d.cabos_rede||[]).length
+      ? T(d.cabos_rede.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td><td><span style="background:${r.cor_etiqueta==='Azul'?'#0EA5E9':r.cor_etiqueta==='Amarelo'?'#D97706':r.cor_etiqueta==='Verde'?'#16A34A':r.cor_etiqueta==='Vermelho'?'#DC2626':'#374151'};color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">${esc(r.cor_etiqueta||'Azul')}</span></td><td style="font-family:monospace;font-size:10px;background:#F0F9FF;color:#0369A1"><b>${esc(r.porta_patch||'-')}</b></td><td style="font-family:monospace;font-size:10px;font-weight:700;color:#0D1420">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['ID','Origem','Destino','Tipo','Bitola','Metros','Cor Cabo','Porta PP','Etiqueta'])
+      : ''
+
+    // Tópico 8 — Cabos elétricos detalhados por cômodo
+    const cabosEletHtml = (d.cabos_eletricos_por_comodo||[]).length
+      ? d.cabos_eletricos_por_comodo.map(comodo=>`
+<h3 class="ex-amb">${esc(comodo.comodo)}</h3>
+${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip)}</td><td>${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.fios)}</td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.metros)}m</td><td style="color:#6B7280;font-size:10px">${esc(r.obs)}</td></tr>`).join(''),['ID','Equipamento','Tipo','Fios/Bitola','Origem','Destino','m','Obs'])}`).join('')
+      : (d.cabos_eletricos||[]).length
+        ? T(d.cabos_eletricos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros'])
+        : ''
+
+    // Tópico 10 — Módulos e cargas
+    const modulosCargas = (d.modulos||[]).length
+      ? T(d.modulos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.funcao)}</td><td>${esc(r.carga)}</td><td>${esc(r.ambiente)}</td></tr>`).join(''),['ID','Função','Carga','Ambiente'])
+      : ''
+
+    // Tópico 11 — Banheiros e sensores
+    const banhHtml = (d.banheiros_sensores||[]).length
+      ? T(d.banheiros_sensores.map(r=>`<tr><td><b>${esc(r.ambiente)}</b></td><td>${esc(r.ponto)}</td><td>${esc(r.obs)}</td></tr>`).join(''),['Ambiente','Ponto','Observação'])
+      : ''
+
+    // Tópico 19 — Itens por cômodo
     const byRoom={}; const geral={}
     markers.forEach(m=>{
       const r=m.room||'Geral'; const key=m.name||m.code||'Item'
@@ -399,36 +488,76 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
       ['Item','Origem','Qtd total'])
       :''
 
-    // TÓPICO 20 — gráficos e timeline
+    // Tópico 20 — 4 gráficos + timeline
     const totalPontos=markers.length
     const roomCounts=Object.entries(byRoom).map(([r,items])=>({room:r,qty:Object.values(items).reduce((s,i)=>s+i.qty,0)})).sort((a,b)=>b.qty-a.qty)
     const maxRoom=Math.max(1,...roomCounts.map(r=>r.qty))
     const barColors=['#0EA5E9','#7C3AED','#16A34A','#D97706','#DC2626','#0891B2','#DB2777','#65A30D']
-    const chartHtml=`<div style="margin:8px 0 18px">
-      <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:#0D1420">Distribuição de pontos por ambiente (${totalPontos} no total)</div>
+
+    // Gráfico 1 — Barras por ambiente
+    const grafico1=`<div style="margin:8px 0 24px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+      <div style="font-size:12px;font-weight:700;margin-bottom:12px;color:#0D1420">📊 Distribuição de Pontos por Ambiente (${totalPontos} total)</div>
       ${roomCounts.map((r,i)=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
         <div style="width:130px;font-size:11px;text-align:right;color:#456;flex-shrink:0">${esc(r.room)}</div>
-        <div style="flex:1;background:#eef2f7;border-radius:4px;height:20px;position:relative">
+        <div style="flex:1;background:#eef2f7;border-radius:4px;height:22px;position:relative">
           <div style="width:${Math.round(r.qty/maxRoom*100)}%;background:${barColors[i%barColors.length]};height:100%;border-radius:4px;min-width:24px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:#fff;font-size:10px;font-weight:700">${r.qty}</div>
         </div></div>`).join('')}
     </div>`
+
+    // Gráfico 2 — Pizza de tipos de equipamento
+    const tiposCounts={}
+    markers.forEach(m=>{const t=equipType(m.name); tiposCounts[t]=(tiposCounts[t]||0)+1})
+    const tiposEntries=Object.entries(tiposCounts).sort((a,b)=>b[1]-a[1])
+    const tiposColors={'Gateway':'#0EA5E9','NVR':'#7C3AED','Câmera':'#DC2626','Keypad':'#059669','Hub IR':'#D97706','Módulo':'#6366F1','Som':'#BE185D','Wi-Fi':'#0E7490','Sensor':'#16A34A','Tomada':'#475569','Outro':'#374151'}
+    const grafico2=`<div style="margin:8px 0 24px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+      <div style="font-size:12px;font-weight:700;margin-bottom:12px;color:#0D1420">🔌 Tipos de Equipamento</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${tiposEntries.map(([tipo,qty])=>`<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:8px 14px;min-width:140px">
+          <div style="width:32px;height:32px;border-radius:50%;background:${tiposColors[tipo]||'#374151'};color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center">${qty}</div>
+          <span style="font-size:12px;color:#374151;font-weight:500">${tipo}</span>
+        </div>`).join('')}
+      </div>
+    </div>`
+
+    // Gráfico 3 — Distribuição de cabeamento
+    const resumoCabos = d.resumo_cabos || []
+    const maxMetros = Math.max(1,...resumoCabos.map(r=>parseInt(r.metros_total)||0))
+    const cabosColors=['#0EA5E9','#16A34A','#D97706','#DC2626','#7C3AED','#0E7490']
+    const grafico3 = resumoCabos.length ? `<div style="margin:8px 0 24px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+      <div style="font-size:12px;font-weight:700;margin-bottom:12px;color:#0D1420">📏 Metragem de Cabeamento por Tipo</div>
+      ${resumoCabos.map((r,i)=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
+        <div style="width:160px;font-size:10px;text-align:right;color:#456;flex-shrink:0">${esc(r.tipo)}</div>
+        <div style="flex:1;background:#eef2f7;border-radius:4px;height:22px">
+          <div style="width:${Math.round((parseInt(r.metros_total)||0)/maxMetros*100)}%;background:${cabosColors[i%cabosColors.length]};height:100%;border-radius:4px;min-width:30px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#fff;font-size:10px;font-weight:700">${r.metros_total}m</div>
+        </div></div>`).join('')}
+    </div>` : ''
+
+    // Gráfico 4 — Checklist de progresso visual
     const fases=['Infraestrutura / Eletroduto','Passagem de cabos','Instalação de equipamentos','Configuração e cenas','Testes e entrega']
-    const timelineHtml=`<div style="font-size:12px;font-weight:600;margin:14px 0 12px;color:#0D1420">Fases do projeto</div>
-      <div style="position:relative;padding-left:8px">${fases.map((f,i)=>`
-        <div style="display:flex;gap:12px;margin-bottom:0">
-          <div style="display:flex;flex-direction:column;align-items:center">
-            <div style="width:18px;height:18px;border-radius:50%;background:${barColors[i%barColors.length]};color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>
-            ${i<fases.length-1?'<div style="width:2px;flex:1;background:#dde6f0;min-height:24px"></div>':''}
+    const fasesDesc=['Eletrodutos, caixas 4×4, tomadas dedicadas, nichos','CAT6, elétrico keypads, som, cabos câmeras/APs','Rack, equipamentos, keypads, câmeras, sensores','Gateway, parear dispositivos, cenas, app','Wi-Fi, som, câmeras, validação, treinamento']
+    const faseDuration=['2 sem','1 sem','2 sem','1 sem','3 dias']
+    const grafico4=`<div style="margin:8px 0 24px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+      <div style="font-size:12px;font-weight:700;margin-bottom:14px;color:#0D1420">📅 Fases do Projeto</div>
+      <div style="position:relative">
+        ${fases.map((f,i)=>`<div style="display:flex;gap:14px;margin-bottom:0">
+          <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+            <div style="width:32px;height:32px;border-radius:50%;background:${barColors[i%barColors.length]};color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center">${i+1}</div>
+            ${i<fases.length-1?'<div style="width:2px;flex:1;background:#dde6f0;min-height:28px"></div>':''}
           </div>
-          <div style="font-size:12px;color:#374151;padding-bottom:18px;padding-top:1px">${f}</div>
-        </div>`).join('')}</div>`
+          <div style="padding-bottom:22px;padding-top:4px;flex:1">
+            <div style="font-size:12px;font-weight:700;color:#0D1420">${f}</div>
+            <div style="font-size:10px;color:#64748b;margin-top:2px">${fasesDesc[i]}</div>
+            <div style="display:inline-block;background:${barColors[i%barColors.length]}22;color:${barColors[i%barColors.length]};font-size:10px;font-weight:600;padding:1px 8px;border-radius:8px;margin-top:4px">${faseDuration[i]}</div>
+          </div></div>`).join('')}
+      </div>
+    </div>`
 
     return `<style>${EXEC_CSS}</style>
 <div class="ex-doc">
   <!-- CAPA -->
   <div class="ex-cover">
     <div class="ex-cover-top">DOCUMENTO TÉCNICO · PROJETO EXECUTIVO</div>
-    <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:200px;max-width:60%;margin:0 auto 8px;display:block"/>
+    <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:160px;max-width:50%;margin:0 auto 8px;display:block;border-radius:8px;background:#101828;padding:8px"/>
     <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
     <div class="ex-cover-title">Projeto Executivo de Automação</div>
     <div class="ex-cover-sub">Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto</div>
@@ -438,56 +567,27 @@ Responda APENAS JSON válido (sem texto antes/depois, sem markdown):
 
   ${planta}
   ${sec('1. Premissas Confirmadas', list(d.premissas))}
-  ${sec('2. Premissas e Infraestrutura Geral', (d.infraestrutura||[]).length?T(d.infraestrutura.map(r=>`<tr><td><b>${esc(r.item)}</b></td><td>${esc(r.espec)}</td><td>${esc(r.resp)}</td></tr>`).join(''),['Item','Especificação','Responsável']):'')}
-  ${sec('3. Detalhe do RACK / CPD (Sala de Estar)', list(d.rack_detalhe)+((d.rack||[]).length?T(d.rack.map(r=>`<tr><td><b>${esc(r.u)}</b></td><td>${esc(r.equip)}</td><td>${esc(r.funcao)}</td></tr>`).join(''),['U','Equipamento','Função']):''))}
-  ${sec('4. Módulos e Caixas de Teto', (d.modulos||[]).length?T(d.modulos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.funcao)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.carga)}</td><td>${esc(r.posicao)}</td></tr>`).join(''),['ID','Função','Ambiente','Carga','Posição']):'')}
+  ${sec('3. Detalhe do RACK / CPD', list(d.rack_detalhe)+rackVisual)}
+  ${sec('4. Módulos e Caixas de Teto — por Cômodo', modulosTetoHtml)}
   ${sec('5. Keypads, Câmeras e Pontos de Parede', pontosHtml)}
-  ${sec('6. Cabos de Rede', (d.cabos_rede||[]).length?T(d.cabos_rede.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros']):'')}
-  ${sec('7. Cabos de Som — Amplificador no RACK', (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros']):'')}
-  ${sec('8. Cabos Elétricos', (d.cabos_eletricos||[]).length?T(d.cabos_eletricos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros']):'')}
-  ${sec('9. Alimentação dos Keypads (Fase + Neutro)', (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m']):'')}
-  ${sec('10. Módulos e Cargas (iluminação + cortinas)', (d.modulos||[]).length?T(d.modulos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.funcao)}</td><td>${esc(r.carga)}</td><td>${esc(r.ambiente)}</td></tr>`).join(''),['ID','Função','Carga','Ambiente']):'')}
-  ${sec('11. Banheiros, Circulação e Sensores', (d.banheiros_sensores||[]).length?T(d.banheiros_sensores.map(r=>`<tr><td><b>${esc(r.ambiente)}</b></td><td>${esc(r.ponto)}</td><td>${esc(r.obs)}</td></tr>`).join(''),['Ambiente','Ponto','Observação']):'')}
-  ${sec('12. Resumo Geral de Cabeamento', (d.resumo_cabos||[]).length?T(d.resumo_cabos.map(r=>`<tr><td><b>${esc(r.tipo)}</b></td><td>${esc(r.metros_total)}m</td></tr>`).join(''),['Tipo de cabo','Metragem total']):'')}
-  ${sec('13. Mapa de Cabeamento', '<p class="ex-p">Todos os cabos partem do CPD/Rack na Sala de Estar. Consulte as tabelas de cabos (seções 6 a 9) para origem, destino e metragem de cada trecho.</p>')}
-  ${sec('14. Lista Completa de Peças', (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td>${esc(r.qtd)}</td></tr>`).join(''),['Item','Qtd']):'')}
+  ${sec('6. Cabos de Rede — Patch Panel e Etiquetas', cabosRedeHtml)}
+  ${sec('7. Cabos de Som — Amplificador no RACK', (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-size:10px">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['ID','Origem','Destino','Tipo','Metros','Etiqueta']):'')}}
+  ${sec('8. Cabos Elétricos — por Cômodo', cabosEletHtml)}
+  ${sec('9. Alimentação dos Keypads (Fase + Neutro)', (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x2,5mm²')}</td></tr>`).join(''),['ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m','Fios']):'')}}
+  ${sec('10. Módulos e Cargas (iluminação + cortinas)', modulosCargas)}
+  ${sec('11. Banheiros, Circulação e Sensores', banhHtml)}
+  ${sec('12. Resumo Geral de Cabeamento', (d.resumo_cabos||[]).length?T(d.resumo_cabos.map(r=>`<tr><td><b>${esc(r.tipo)}</b></td><td>${esc(r.metros_total)}m</td></tr>`).join(''),['Tipo de cabo','Metragem total']):'')}}
+  ${sec('14. Lista Completa de Peças', (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td>${esc(r.qtd)}</td></tr>`).join(''),['Item','Qtd']):'')}}
   ${sec('15. Checklist de Obra — para o Arquiteto / Eletricista', list(d.checklist_obra))}
   ${sec('16. Checklist de Instalação — Equipe RARO Home', list(d.checklist_raro))}
   ${sec('17. Pontos de Atenção e Riscos', list(d.riscos))}
   ${sec('18. Fotos no Diário de Obra', '<p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>')}
   ${sec('19. Itens por Cômodo e Total Geral', itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml)}
-  ${sec('20. Gráficos e Linha do Tempo do Projeto', chartHtml + timelineHtml)}
+  ${sec('20. Gráficos e Linha do Tempo do Projeto', grafico1 + grafico2 + grafico3 + grafico4)}
 </div>`
   }
 
-  // ── Tabela de cabeamento elétrico (texto/tabela, sem desenho — evita timeout) ──
-  async function generateElectrical(){
-    setLoading(true); setExecProgress('Gerando tabela de cabeamento elétrico...')
-    const itemsList=markers.map(m=>`#${m.n} ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
-    const rackItems=catalog.filter(c=>isRackItem(c.name,c.code)).map(c=>c.name).join(', ')
-    const prompt=`Gere a TABELA DE CABEAMENTO da automação RARO Home (sem desenho, só tabelas HTML). Seja DIRETO e CONCISO.
-
-PONTOS (origem dos cabos = RACK/CPD):
-${itemsList}
-
-Gere HTML (sem <html>/<head>), conciso, com:
-<h2>Cabeamento — Origem → Destino</h2>
-<table> com colunas: Nº | Equipamento | Ambiente | Tipo de cabo | Bitola | Origem | Destino | Metragem aprox. | Por onde passa (forro/parede/piso)
-<h2>Circuitos no quadro (com NEUTRO)</h2>
-<table>: Circuito | Disjuntor | Precisa neutro? | Atende
-<h2>Observações</h2> bitolas e eletrodutos.
-
-Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use metragens realistas. Responda só o HTML.`
-    try{
-      const reply=await askClaude([{role:'user',text:prompt}],null,'image/jpeg',4000)
-      let html=reply; if(html.includes('```')) html=html.replace(/```html?\n?/g,'').replace(/```/g,'')
-      setExecDoc((execDoc||'')+'<hr style="margin:30px 0"><h1>Planta de Cabeamento Elétrico</h1>'+html)
-      setStep('exec')
-    }catch(err){ alert('Erro ao gerar cabeamento: '+err.message+'\n\nSe foi timeout (504), tente de novo — agora a resposta é mais curta.') }
-    setLoading(false)
-  }
-
-  function exportPdf(){
+  async function exportPdf(){
     const w=window.open('','_blank')
     const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
     const codigo=(fromProposal?.code||'').replace(/[\\/:*?"<>|]/g,'')
@@ -500,9 +600,8 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
     w.document.close(); setTimeout(()=>w.print(),700)
   }
 
-  // 1 clique: salva o executivo no orçamento E abre o PDF
   async function exportPdfAndSave(){
-    await saveToProposal()    // salva/atualiza exec_doc no orçamento
+    await saveToProposal()
     setTimeout(()=>exportPdf(), 200)
   }
 
@@ -515,18 +614,16 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
       price:String(items.reduce((s,m)=>s+(m.sale||0),0))
     }))}]
 
-    // Se veio de um orçamento JÁ SALVO, grava o exec_doc direto no banco (sobrescreve)
     if(fromProposal?.id){
       try{
         const { saveProposal } = await import('../db/supabase.js')
         const updated = { ...fromProposal, exec_doc:docToSave, planta_data:{image:bgImage,markers} }
         await saveProposal(updated)
-        alert('✅ Projeto Executivo salvo no orçamento! Você já pode revê-lo pelo botão "ver projeto".')
+        alert('✅ Projeto Executivo salvo no orçamento!')
         onClose && onClose()
         return
       }catch(e){ alert('Erro ao salvar: '+e.message); return }
     }
-    // Senão (fluxo novo), abre o builder pré-preenchido para revisar e salvar
     if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers}, client_name:projectInfo.client||selClient, exec_doc:docToSave })
   }
 
@@ -574,8 +671,6 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
                   <div style={{fontSize:11,color:'#38BDF8',textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Cliente</div>
                   <div style={{fontSize:15,color:'#fff',fontWeight:600}}>{preClient.name1}{preClient.name2?' & '+preClient.name2:''}</div>
                   {preClient.neighborhood && <div style={{fontSize:12,color:'rgba(255,255,255,0.5)'}}>{preClient.neighborhood}</div>}
-                  {(preClient.planta_medidas?.data||preClient.planta_eletrica?.data) &&
-                    <div style={{fontSize:11,color:'#16A34A',marginTop:6}}><i className="ti ti-file-check" aria-hidden/> Planta salva no cadastro disponível</div>}
                 </div>
               ) : (
               <div style={{marginBottom:20,textAlign:'left'}}>
@@ -599,12 +694,9 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
                         {c.name1}{c.name2?' & '+c.name2:''}{c.neighborhood?` · ${c.neighborhood}`:''}
                       </div>
                     ))}
-                    {clients.filter(c=>(c.name1||'').toLowerCase().includes(clientSearch.toLowerCase())).length===0 &&
-                      <div style={{padding:'10px 12px',color:'rgba(255,255,255,0.4)',fontSize:12}}>Nenhum cliente encontrado. Pode seguir manual.</div>}
                   </div>
                 )}
                 {selClient && <div style={{fontSize:12,color:'#38BDF8',marginTop:4}}><i className="ti ti-check" aria-hidden/> Cliente selecionado</div>}
-                <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:6}}>Ou deixe em branco para preencher manualmente.</div>
               </div>
               )}
 
@@ -649,9 +741,6 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
                     style={{...inputStyle,resize:'none',minHeight:44,maxHeight:120,lineHeight:1.4}}/>
                   <button onClick={sendChat} disabled={loading} style={{...btnPrimary,height:44}}><i className="ti ti-send" aria-hidden/></button>
                 </div>
-                <div style={{fontSize:10,color:'rgba(255,255,255,0.3)',marginTop:8,textAlign:'center'}}>
-                  Responda as perguntas da IA quando quiser, ou clique em "Gerar sugestão" a qualquer momento.
-                </div>
               </div>
             </div>
           </div>
@@ -695,7 +784,7 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
                 {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false}/>
                   : <div style={{width:600,maxWidth:'80vw',aspectRatio:'4/3',background:'rgba(255,255,255,0.04)',border:'2px dashed rgba(255,255,255,0.2)',borderRadius:10,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,color:'rgba(255,255,255,0.5)'}}>
                       <i className="ti ti-photo-plus" style={{fontSize:40}} aria-hidden/>
-                      <div style={{fontSize:14,textAlign:'center',padding:'0 20px'}}>Sem planta carregada.<br/>Os itens estão listados — carregue uma planta para posicioná-los.</div>
+                      <div style={{fontSize:14,textAlign:'center',padding:'0 20px'}}>Sem planta carregada.</div>
                       <button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{...btnPrimary,background:'#0EA5E9'}}><i className="ti ti-upload" aria-hidden/> Carregar planta</button>
                     </div>}
                 {markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro; const sel=selected===m.uid
@@ -746,9 +835,6 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
           <button onClick={generateExec} disabled={loading} style={{...btnPrimary,background:'#7C3AED'}}>
             <i className="ti ti-file-text" aria-hidden/> {loading?(execProgress||'Gerando...'):'Gerar Projeto Executivo'}
           </button>
-          <button onClick={generateElectrical} disabled={loading} style={{...btnPrimary,background:'#D97706'}}>
-            <i className="ti ti-bolt" aria-hidden/> Gerar Planta Elétrica
-          </button>
         </div>
       )}
       {step==='exec' && (
@@ -765,7 +851,7 @@ Tipos: câmera/AP=CAT6 PoE; keypad=fase+neutro 2,5mm²; som=cabo 2x1,5mm². Use 
 const EXEC_CSS=`
 .ex-doc{font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;font-size:12px;line-height:1.5}
 .ex-doc *{box-sizing:border-box}
-.ex-cover{background:linear-gradient(160deg,#F5FAFF 0%,#E8F2FC 100%);color:#0D1420;padding:60px 40px;text-align:center;position:relative;border-bottom:3px solid #0EA5E9}
+.ex-cover{background:linear-gradient(160deg,#F5FAFF 0%,#E8F2FC 100%);color:#0D1420;padding:60px 40px;text-align:center;position:relative;border-bottom:3px solid #0EA5E9;page-break-after:always}
 .ex-cover-top{font-size:10px;letter-spacing:3px;color:#6B8CAE;text-transform:uppercase;margin-bottom:30px}
 .ex-cover-tag{font-size:10px;letter-spacing:4px;color:#0EA5E9;margin:6px 0 40px}
 .ex-cover-title{font-family:'DM Serif Display',Georgia,serif;font-size:34px;line-height:1.15;margin-bottom:16px;color:#0D1420}
@@ -774,9 +860,9 @@ const EXEC_CSS=`
 .ex-cc-name{font-size:20px;font-weight:700;color:#0D1420}
 .ex-cc-meta{font-size:11px;color:#6B8CAE;margin-top:4px}
 .ex-cover-foot{margin-top:40px;font-size:9px;color:#8fa3b8}
-.ex-sec{padding:24px 40px;border-bottom:1px solid #eef}
+.ex-sec{padding:24px 40px;border-bottom:1px solid #eef;page-break-inside:avoid}
 .ex-sec h2{font-family:'DM Serif Display',Georgia,serif;font-size:18px;color:#060B1A;margin-bottom:14px;padding-bottom:7px;border-bottom:2px solid #0EA5E9}
-.ex-amb{font-size:13px;color:#0369A1;font-weight:700;margin:16px 0 6px;background:#EFF6FF;padding:6px 10px;border-radius:5px}
+.ex-amb{font-size:13px;color:#0369A1;font-weight:700;margin:16px 0 6px;background:#EFF6FF;padding:6px 10px;border-radius:5px;page-break-after:avoid}
 .ex-tbl{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:11px}
 .ex-tbl th{background:#060B1A;color:#fff;padding:7px 9px;text-align:left;font-size:10px;font-weight:600}
 .ex-tbl td{padding:6px 9px;border-bottom:1px solid #eef2f7;vertical-align:top}
