@@ -151,7 +151,6 @@ function ContractSendModal({ proposal, clients, onClose }) {
 import { openProposalPDF } from './proposalPDF.js'
 import React, { useState } from 'react'
 import { saveProposal, deleteProposal, cancelProposal, getProposals, auditedSave, saveProject, getProjects, verifyPIN, syncProjectFromProposal } from '../db/supabase.js'
-import { SEED_PROPOSAL } from '../data/seedEduardoRegina.js'
 
 const STATUS = {
   draft:    { label:'Rascunho',   cls:'b-gray' },
@@ -202,28 +201,6 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
   const [sortCol,  setSortCol]  = useState('id')
   const [sortDir,  setSortDir]  = useState('desc')
   const [showComp, setShowComp] = useState(false)
-  const [importing, setImporting] = useState(false)
-
-  // ── Importar projeto Eduardo & Regina (seed) ──────────────
-  async function importEduardoRegina() {
-    if (importing) return
-    const exists = proposals.some(p => (p.code||'')==='ER-2026' || (p.client_name||'').toLowerCase().includes('eduardo & regina'))
-    if (exists && !window.confirm('Já existe um orçamento Eduardo & Regina. Criar outra cópia mesmo assim?')) return
-    if (!window.confirm('Importar o orçamento "Eduardo & Regina" (Copacabana/RJ) com o Projeto Executivo completo (53 pontos)?\n\nEle entra como RASCUNHO e você pode editar depois.')) return
-    setImporting(true)
-    try {
-      const saved = await saveProposal({ ...SEED_PROPOSAL })
-      if (!saved) throw new Error('Supabase não retornou o registro salvo')
-      try { await auditedSave('orçamentos','seed_import',saved,currentUser?.name,null) } catch(e){ console.warn('audit:', e) }
-      onRefresh()
-      alert('✅ Orçamento Eduardo & Regina importado! Abra para ver a planta de pontos e o Projeto Executivo.')
-    } catch(err) {
-      console.error('Erro ao importar Eduardo & Regina:', err)
-      alert('Erro ao importar: ' + err.message)
-    } finally {
-      setImporting(false)
-    }
-  }
 
   // ── Sort ──────────────────────────────────────────────────
   function toggleSort(col) {
@@ -340,9 +317,6 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
           )}
           <button className="btn" onClick={()=>setShowComp(true)}>
             <i className="ti ti-chart-bar" aria-hidden/>Comparativo
-          </button>
-          <button className="btn" onClick={importEduardoRegina} disabled={importing} title="Importar o projeto executivo Eduardo & Regina (Copacabana/RJ)">
-            <i className={`ti ${importing?'ti-loader-2':'ti-download'}`} aria-hidden/>{importing?'Importando…':'Importar Eduardo & Regina'}
           </button>
           <button className="btn primary" onClick={onNew}>
             <i className="ti ti-plus" aria-hidden/>Novo
