@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { LOGO_DARK, LOGO_COVER } from '../logos.js'
 
+// Logo específico para o contrato (fundo branco puro — body do contrato é #fff)
+// Re-usa o SVG do LOGO_COVER mas troca o fundo #F5FAFF → #ffffff
+const LOGO_CONTRACT = LOGO_COVER.includes('base64,')
+  ? 'data:image/svg+xml;base64,' + btoa(atob(LOGO_COVER.split('base64,')[1]).replace('#F5FAFF','#ffffff'))
+  : LOGO_COVER
+
 const fmt = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
 
 export function buildContract(proposal, client) {
@@ -110,7 +116,7 @@ export function buildContract(proposal, client) {
 
   <div class="header">
     <div>
-      <img src="${LOGO_COVER}" alt="RARO HOME" style="height:80px;width:auto;margin-bottom:10px;display:block"/>
+      <img src="${LOGO_CONTRACT}" alt="RARO HOME" style="height:80px;width:auto;margin-bottom:10px;display:block"/>
       <div class="badge">Contrato de Prestação de Serviços</div>
       <h1>Termo de Execução de Projeto</h1>
       <div style="font-size:9px;color:#6B8CAE">Automação Residencial · Tecnologia · Lazer</div>

@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v67 — logo branco em PDFs; trocar planta fix; sem botões editar no builder; duplo clique=PDF; margens contrato
+// v70 — painel de cômodos editável no chat (IA identifica, usuário edita/adiciona/remove)
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v67b · build 2026-06
+          v70 · build 2026-06
         </div>
       </div>
     </div>

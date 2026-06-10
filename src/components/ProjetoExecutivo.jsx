@@ -119,10 +119,43 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
   const [dragging, setDragging] = useState(null)
   const [addItem, setAddItem] = useState(null)
   const [addMode, setAddMode] = useState(false)
-  const fileRef = useRef()
-  const bgOnlyRef = useRef()  // trocar só o fundo sem reiniciar análise
-  const containerRef = useRef()
+  const [imgZoom, setImgZoom]   = useState(1)
+  const [imgPan,  setImgPan]    = useState({x:0, y:0})
+  const [panning, setPanning]   = useState(null)   // {startX, startY, panX, panY}
+  const imgContainerRef = useRef()
+
+  // Reset zoom/pan quando trocar de imagem
+  useEffect(()=>{ setImgZoom(1); setImgPan({x:0,y:0}) },[bgImage])
+
+  function onImgWheel(e){
+    e.preventDefault()
+    const delta = e.deltaY < 0 ? 0.15 : -0.15
+    setImgZoom(z => Math.min(8, Math.max(0.3, z + delta * z)))
+  }
+  function onImgMouseDown(e){
+    if(e.button !== 0) return
+    e.preventDefault()
+    setPanning({startX: e.clientX, startY: e.clientY, panX: imgPan.x, panY: imgPan.y})
+  }
+  function onImgMouseMove(e){
+    if(!panning) return
+    setImgPan({x: panning.panX + (e.clientX - panning.startX), y: panning.panY + (e.clientY - panning.startY)})
+  }
+  function onImgMouseUp(){ setPanning(null) }
+  function onImgDblClick(){ setImgZoom(1); setImgPan({x:0,y:0}) }
+
   const chatEndRef = useRef()
+  const fileRef = useRef()
+  const bgOnlyRef = useRef()
+  const containerRef = useRef()
+
+  // Attach wheel with passive:false so preventDefault() works
+  useEffect(()=>{
+    const el = imgContainerRef.current
+    if(!el) return
+    el.addEventListener('wheel', onImgWheel, {passive:false})
+    return ()=> el.removeEventListener('wheel', onImgWheel)
+  }) // re-runs each render to always get latest handler; cheap since no real side-effect
 
   useEffect(()=>{ chatEndRef.current?.scrollIntoView({behavior:'smooth'}) },[chat])
 
@@ -168,12 +201,12 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
     }
   },[])  // eslint-disable-line
 
-  // Auto-carrega a planta cadastrada no cliente (planta_medidas → planta_eletrica),
-  // quando o orçamento ainda não tem uma planta de fundo própria.
+  // Se há planta cadastrada no cliente, guarda para mostrar na tela de upload
+  const [clientePlanta, setClientePlanta] = useState(null) // {url, label}
+
   useEffect(()=>{
-    if(bgImage) return
-    if(fromProposal?.planta_data?.image) return
-    const cli = clients.find(c=> c.id===Number(fromProposal?.client_id) )
+    if(bgImage || fromProposal?.planta_data?.image) return
+    const cli = clients.find(c=> c.id===Number(fromProposal?.client_id))
       || (preClient && clients.find(c=>c.id===Number(preClient.id)))
       || preClient || null
     const planta = cli?.planta_medidas || cli?.planta_eletrica
@@ -186,11 +219,19 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
           url = await pdfToImg(url.split(',')[1])
         }
         url = await downscale(url)
-        if(!cancelled){ setBgImage(url) }
-      }catch(e){ console.warn('auto planta cliente:', e?.message) }
+        const label = cli?.planta_medidas ? 'Planta de Medidas' : 'Planta Elétrica'
+        if(!cancelled) setClientePlanta({url, label})
+      }catch(e){ console.warn('planta cliente:', e?.message) }
     })()
     return ()=>{ cancelled=true }
   },[])  // eslint-disable-line
+
+  function usarPlantaCliente(){
+    if(!clientePlanta) return
+    setBgImage(clientePlanta.url)
+    setStep('chat')
+    startChat(clientePlanta.url)
+  }
 
   async function handleFile(e){
     const f=e.target.files[0]; if(!f) return
@@ -220,43 +261,42 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
     reader.readAsDataURL(f)
   }
 
+  const [rooms, setRooms] = useState([])       // [{id,name,floor}]
+  const [editingRoom, setEditingRoom] = useState(null)
+
   async function startChat(imgUrl){
     setLoading(true)
     const catList = (catalog||[]).slice(0,100).map(c=>`- ${c.name} (${c.category||'geral'})`).join('\n')
-    const sys = `Você é um projetista especialista da RARO Home (automação residencial Zigbee/Matter, Rio de Janeiro). Está analisando a planta baixa enviada para criar um projeto de automação.
+    const sys = `Você é um projetista especialista da RARO Home. Analise a planta e siga EXATAMENTE este formato de resposta:
 
-Estes são os EQUIPAMENTOS que a RARO Home tem no catálogo:
+AMBIENTES_JSON:{"rooms":[{"id":1,"name":"Sala de Estar","floor":"Pavimento 1"},{"id":2,"name":"Cozinha","floor":"Pavimento 1"}]}
+
+# Análise Inicial da Planta
+
+(aqui o texto normal da análise)
+
+CATÁLOGO RARO Home:
 ${catList}
 
-REGRAS IMPORTANTES DO PROJETO (sempre aplique):
-1. Em TODA cabeceira de cama (quartos/suítes) → combo padrão: 1 keypad 1 botão + 1 tomada USB (meio) + 1 tomada embaixo, em cada lado da cama.
-2. Sempre pergunte sobre ar-condicionado em cada ambiente. Ambientes com AC E com TV precisam de Hub IR.
-3. Sugira sensor de presença (mmWave) na entrada principal e em todos os banheiros.
-4. Sempre sugira rede Wi-Fi robusta com Access Points distribuídos — verifique cobertura por andar/área.
-5. Sempre pergunte o que vai no rack (gateway, switch, amplificador, etc.) e sugira configuração.
+REGRAS DO PROJETO:
+1. CABECEIRA DE CAMA: combo por lado — keypad 1 botão + tomada USB + tomada comum.
+2. Banheiros/entrada: sensor mmWave no teto.
+3. Ambientes com AC e/ou TV: Hub IR.
+4. Wi-Fi: 1 AP por 50m², teto centro.
+5. Rack: Dream Machine SE + switch PoE+ se >6 dispositivos PoE.
 
-REGRAS DO RACK:
-- Base: sempre tem Dream Machine SE como roteador/gateway principal
-- Dream Machine SE tem 8 portas — conte APs + câmeras; se passar de 6 ativos, adicione switch PoE+
-- NÃO usar NVR separado — o Dream Machine SE gravação integrada funciona
-- NÃO usar DIO/filtro de fibra — conexão direta ao rack
-
-Analise a planta com atenção, identifique os ambientes, e faça PERGUNTAS OBJETIVAS sobre:
-- Onde ficará o rack/CPD?
-- Quais ambientes têm ar-condicionado? (para Hub IR)
-- Qual lado da cama é a cabeceira em cada quarto?
-- Quais ambientes terão som ambiente?
-- Quais ambientes terão câmera?
-- Cortinas motorizadas onde?
-- Perfil do cliente?
-
-Seja breve, uma pergunta por vez.`
+Na linha AMBIENTES_JSON liste TODOS os cômodos que você vê na planta (numerados, com pavimento).
+Depois, na análise, faça perguntas sobre: rack, AC por cômodo, cabeceiras, som, câmeras, cortinas.`
     try{
       const reply = await askClaude(
         [{role:'user',text:sys+'\n\nAnalise a planta e comece.'}],
-        imgUrl.split(',')[1], 'image/jpeg', 1200
+        imgUrl.split(',')[1], 'image/jpeg', 1800
       )
-      setChat([{role:'assistant',text:reply}])
+      // Extrai o JSON de cômodos da resposta
+      const jm = reply.match(/AMBIENTES_JSON:(\{[^\n]+\})/)
+      if(jm){ try{ const p=JSON.parse(jm[1]); if(Array.isArray(p.rooms)) setRooms(p.rooms.map((r,i)=>({...r,id:r.id||i+1}))) }catch(e){} }
+      const cleanReply = reply.replace(/AMBIENTES_JSON:\{[^\n]+\}\n?/,'').trim()
+      setChat([{role:'assistant',text:cleanReply}])
     }catch(err){ setChat([{role:'assistant',text:'❌ Erro: '+err.message}]) }
     setLoading(false)
   }
@@ -277,8 +317,11 @@ Seja breve, uma pergunta por vez.`
     setLoading(true); setExecProgress('Analisando a planta e posicionando os equipamentos...')
     const catSummary = catalog.slice(0,80).map(c=>`${c.code}: ${c.name} (${c.category})`).join('\n')
     const conversation = chat.map(m=>`${m.role==='user'?'Cliente':'Projetista'}: ${m.text}`).join('\n')
+    const roomsConfirmed = rooms.length
+      ? `\nCÔMODOS CONFIRMADOS (use exatamente estes nomes no campo "room"):\n${rooms.map(r=>`${r.id}. ${r.name}${r.floor?' ('+r.floor+')':''}`).join('\n')}\n`
+      : ''
     const prompt = `Você é um projetista de automação RARO Home. Posicione os equipamentos na planta.
-
+${roomsConfirmed}
 CONVERSA (premissas):
 ${conversation}
 
@@ -798,7 +841,28 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
               </div>
               )}
 
-              <button onClick={()=>fileRef.current?.click()} style={btnPrimary}>Selecionar planta e começar</button>
+              {/* Planta do cliente disponível → mostra preview + pergunta */}
+              {clientePlanta ? (
+                <div style={{marginBottom:20}}>
+                  <div style={{fontSize:12,color:'#38BDF8',fontWeight:600,marginBottom:8,textTransform:'uppercase',letterSpacing:1}}>
+                    <i className="ti ti-photo-check" style={{marginRight:6}} aria-hidden/>
+                    {clientePlanta.label} encontrada no cadastro
+                  </div>
+                  <div style={{border:'2px solid #38BDF8',borderRadius:8,overflow:'hidden',marginBottom:12}}>
+                    <img src={clientePlanta.url} style={{width:'100%',maxHeight:200,objectFit:'contain',display:'block',background:'#111'}} alt="planta do cliente"/>
+                  </div>
+                  <div style={{display:'flex',gap:8}}>
+                    <button onClick={usarPlantaCliente} style={{...btnPrimary,flex:1,justifyContent:'center'}}>
+                      <i className="ti ti-check" aria-hidden/> Usar essa planta
+                    </button>
+                    <button onClick={()=>fileRef.current?.click()} style={{...btnGhost,flex:1,justifyContent:'center'}}>
+                      <i className="ti ti-upload" aria-hidden/> Escolher outra
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={()=>fileRef.current?.click()} style={btnPrimary}>Selecionar planta e começar</button>
+              )}
               <input ref={fileRef} type="file" accept="image/*,application/pdf,.pdf" style={{display:'none'}} onChange={handleFile}/>
             </div>
           </div>
@@ -807,8 +871,90 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         {/* STEP CHAT */}
         {step==='chat' && (
           <div className="pe-chat-wrap" style={{flex:1,display:'flex',minHeight:0}}>
-            <div className="pe-chat-img" style={{width:'42%',borderRight:'1px solid rgba(255,255,255,0.08)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,background:'#1a1a2e'}}>
-              {bgImage && <img src={bgImage} style={{maxWidth:'100%',maxHeight:'100%',borderRadius:6}}/>}
+            {/* Painel da planta com zoom (scroll) + pan (arrastar) + reset (duplo clique) */}
+            <div
+              ref={imgContainerRef}
+              className="pe-chat-img"
+              style={{width:'48%',borderRight:'1px solid rgba(255,255,255,0.08)',overflow:'hidden',
+                position:'relative',background:'#111827',cursor:panning?'grabbing':'grab',userSelect:'none'}}
+              onMouseDown={onImgMouseDown}
+              onMouseMove={onImgMouseMove}
+              onMouseUp={onImgMouseUp}
+              onMouseLeave={onImgMouseUp}
+              onDoubleClick={onImgDblClick}
+            >
+              {bgImage && (
+                <img
+                  src={bgImage}
+                  draggable={false}
+                  style={{
+                    position:'absolute', top:'50%', left:'50%',
+                    transform:`translate(calc(-50% + ${imgPan.x}px), calc(-50% + ${imgPan.y}px)) scale(${imgZoom})`,
+                    transformOrigin:'center center',
+                    maxWidth:'none', width:'90%',
+                    transition: panning ? 'none' : 'transform 0.1s ease',
+                    pointerEvents:'none',
+                  }}
+                  alt="planta"
+                />
+              )}
+              {/* HUD: zoom level + instrução */}
+              <div style={{position:'absolute',bottom:10,left:10,right:10,display:'flex',justifyContent:'space-between',alignItems:'center',pointerEvents:'none'}}>
+                <div style={{background:'rgba(0,0,0,0.65)',color:'#fff',fontSize:11,padding:'3px 8px',borderRadius:5,backdropFilter:'blur(4px)'}}>
+                  🔍 {Math.round(imgZoom*100)}% · scroll = zoom · arrastar = mover · 2× clique = reset
+                </div>
+                <div style={{display:'flex',gap:4,pointerEvents:'all'}}>
+                  <button onClick={e=>{e.stopPropagation();setImgZoom(z=>Math.min(8,z*1.4))}}
+                    style={{background:'rgba(0,0,0,0.6)',color:'#fff',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,width:28,height:28,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>+</button>
+                  <button onClick={e=>{e.stopPropagation();setImgZoom(z=>Math.max(0.3,z/1.4))}}
+                    style={{background:'rgba(0,0,0,0.6)',color:'#fff',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,width:28,height:28,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>−</button>
+                </div>
+              </div>
+            </div>
+            {/* ── Painel de cômodos editável ─────────────────────── */}
+            <div style={{width:200,borderRight:'1px solid rgba(255,255,255,0.08)',background:'#0f1729',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+              <div style={{padding:'10px 12px',borderBottom:'1px solid rgba(255,255,255,0.08)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <span style={{fontSize:11,fontWeight:700,color:'#38BDF8',textTransform:'uppercase',letterSpacing:1}}>Cômodos</span>
+                <span style={{fontSize:10,color:'rgba(255,255,255,0.35)'}}>{rooms.length}</span>
+              </div>
+              <div style={{flex:1,overflowY:'auto',padding:'6px 0'}}>
+                {rooms.map((r,i)=>(
+                  <div key={r.id} style={{display:'flex',alignItems:'center',gap:4,padding:'4px 8px',borderBottom:'1px solid rgba(255,255,255,0.04)',fontSize:12}}>
+                    <div style={{width:18,height:18,borderRadius:4,background:'#1e3a5f',color:'#38BDF8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,flexShrink:0}}>{r.id}</div>
+                    {editingRoom===r.id
+                      ? <input autoFocus value={r.name} onChange={e=>setRooms(rs=>rs.map(x=>x.id===r.id?{...x,name:e.target.value}:x))}
+                          onBlur={()=>setEditingRoom(null)} onKeyDown={e=>{if(e.key==='Enter'||e.key==='Escape')setEditingRoom(null)}}
+                          style={{flex:1,background:'rgba(255,255,255,0.1)',border:'1px solid #38BDF8',borderRadius:3,color:'#fff',fontSize:11,padding:'2px 5px',outline:'none'}}/>
+                      : <span style={{flex:1,color:'#e2e8f0',lineHeight:1.3,cursor:'pointer',fontSize:11}} onDoubleClick={()=>setEditingRoom(r.id)} title="Duplo clique para editar">{r.name}{r.floor&&<span style={{display:'block',fontSize:9,color:'rgba(255,255,255,0.35)'}}>{r.floor}</span>}</span>
+                    }
+                    <button onClick={()=>setEditingRoom(editingRoom===r.id?null:r.id)} title="Editar nome"
+                      style={{background:'none',border:'none',cursor:'pointer',color:'rgba(255,255,255,0.3)',padding:2,flexShrink:0,lineHeight:1}}
+                      onMouseEnter={e=>e.currentTarget.style.color='#38BDF8'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.3)'}>
+                      <i className="ti ti-pencil" style={{fontSize:11}} aria-hidden/>
+                    </button>
+                    <button onClick={()=>setRooms(rs=>rs.filter(x=>x.id!==r.id))} title="Remover cômodo"
+                      style={{background:'none',border:'none',cursor:'pointer',color:'rgba(255,255,255,0.2)',padding:2,flexShrink:0,lineHeight:1}}
+                      onMouseEnter={e=>e.currentTarget.style.color='#F87171'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.2)'}>
+                      <i className="ti ti-x" style={{fontSize:11}} aria-hidden/>
+                    </button>
+                  </div>
+                ))}
+                {rooms.length===0 && <div style={{padding:'12px 10px',fontSize:11,color:'rgba(255,255,255,0.3)',textAlign:'center',lineHeight:1.5}}>A IA irá<br/>identificar os<br/>cômodos</div>}
+              </div>
+              {/* Adicionar cômodo */}
+              <div style={{padding:'6px 8px',borderTop:'1px solid rgba(255,255,255,0.08)'}}>
+                <button onClick={()=>{
+                  const name=window.prompt('Nome do cômodo:')
+                  if(!name?.trim()) return
+                  const floor=rooms.length?rooms[rooms.length-1].floor:''
+                  const maxId=rooms.reduce((m,r)=>Math.max(m,r.id||0),0)
+                  setRooms(rs=>[...rs,{id:maxId+1,name:name.trim(),floor}])
+                }} style={{width:'100%',background:'rgba(56,189,248,0.1)',border:'1px dashed rgba(56,189,248,0.3)',borderRadius:5,color:'#38BDF8',cursor:'pointer',padding:'5px 0',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',gap:4,fontFamily:'inherit'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='rgba(56,189,248,0.2)'}
+                  onMouseLeave={e=>e.currentTarget.style.background='rgba(56,189,248,0.1)'}>
+                  <i className="ti ti-plus" style={{fontSize:12}} aria-hidden/> Adicionar
+                </button>
+              </div>
             </div>
             <div style={{flex:1,display:'flex',flexDirection:'column'}}>
               <div style={{flex:1,overflowY:'auto',padding:20}}>
