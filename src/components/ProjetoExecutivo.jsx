@@ -100,6 +100,33 @@ async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1
   return full
 }
 
+// Componente inline para adicionar cômodo sem prompt()
+function AddRoomInline({ onAdd }){
+  const [name, setName] = React.useState('')
+  const [floor, setFloor] = React.useState('Pavimento 1')
+  const [open, setOpen] = React.useState(false)
+  if(!open) return (
+    <button onClick={()=>setOpen(true)} style={{width:'100%',background:'rgba(56,189,248,0.1)',border:'1px dashed rgba(56,189,248,0.3)',borderRadius:5,color:'#38BDF8',cursor:'pointer',padding:'5px 0',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',gap:4,fontFamily:'inherit'}}
+      onMouseEnter={e=>e.currentTarget.style.background='rgba(56,189,248,0.2)'} onMouseLeave={e=>e.currentTarget.style.background='rgba(56,189,248,0.1)'}>
+      <i className="ti ti-plus" style={{fontSize:12}} aria-hidden/> Adicionar cômodo
+    </button>
+  )
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:4}}>
+      <input autoFocus placeholder="Nome do cômodo" value={name} onChange={e=>setName(e.target.value)}
+        onKeyDown={e=>e.key==='Escape'&&setOpen(false)}
+        style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(56,189,248,0.4)',borderRadius:4,color:'#fff',fontSize:11,padding:'4px 7px',outline:'none'}}/>
+      <input placeholder="Pavimento (ex: Pavimento 1)" value={floor} onChange={e=>setFloor(e.target.value)}
+        style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:4,color:'#fff',fontSize:11,padding:'4px 7px',outline:'none'}}/>
+      <div style={{display:'flex',gap:4}}>
+        <button onClick={()=>{ if(name.trim()){ onAdd({name:name.trim(),floor:floor.trim()}); setName(''); setOpen(false) } }}
+          style={{flex:1,background:'#0EA5E9',border:'none',borderRadius:4,color:'#fff',cursor:'pointer',padding:'4px 0',fontSize:11,fontFamily:'inherit'}}>Confirmar</button>
+        <button onClick={()=>setOpen(false)} style={{flex:1,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:4,color:'rgba(255,255,255,0.5)',cursor:'pointer',padding:'4px 0',fontSize:11,fontFamily:'inherit'}}>Cancelar</button>
+      </div>
+    </div>
+  )
+}
+
 export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fromProposal, onSaveToProposal, onClose, currentUser }) {
   const [step, setStep] = useState(()=> fromProposal?.planta_data?.markers?.length ? 'editor' : 'upload')
   const [bgImage, setBgImage] = useState(()=> fromProposal?.planta_data?.image || null)
@@ -229,8 +256,8 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
   function usarPlantaCliente(){
     if(!clientePlanta) return
     setBgImage(clientePlanta.url)
-    setStep('chat')
-    startChat(clientePlanta.url)
+    setStep('rooms')
+    startRooms(clientePlanta.url)
   }
 
   async function handleFile(e){
@@ -241,8 +268,8 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
       if(f.type==='application/pdf'){ try{ url=await pdfToImg(url.split(',')[1]) }catch(err){ alert('Erro PDF: '+err.message); return } }
       url=await downscale(url)
       setBgImage(url)
-      setStep('chat')
-      startChat(url)
+      setStep('rooms')
+      startRooms(url)
     }
     reader.readAsDataURL(f)
   }
@@ -264,16 +291,44 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
   const [rooms, setRooms] = useState([])       // [{id,name,floor}]
   const [editingRoom, setEditingRoom] = useState(null)
 
-  async function startChat(imgUrl){
+  // ETAPA 1: IA identifica cômodos com posições (x,y %) na imagem
+  async function startRooms(imgUrl){
+    setLoading(true)
+    const prompt = `Você é um projetista da RARO Home. Analise esta planta baixa e identifique TODOS os ambientes/cômodos visíveis.
+
+Retorne SOMENTE um JSON válido, sem nenhum texto antes ou depois:
+{"rooms":[{"id":1,"name":"Sala de Estar","floor":"Pavimento 1","x":25,"y":35},{"id":2,"name":"Cozinha","floor":"Pavimento 1","x":60,"y":40}]}
+
+Campos:
+- id: número sequencial (1, 2, 3...)
+- name: nome do cômodo em português
+- floor: "Pavimento 1", "Pavimento 2" etc. Se for apenas um pavimento use "Único"
+- x: posição horizontal do CENTRO do cômodo na imagem (0=esquerda, 100=direita)
+- y: posição vertical do CENTRO do cômodo na imagem (0=topo, 100=fundo)
+
+Identifique TODOS os cômodos: salas, quartos, banheiros, cozinha, área de serviço, garagem, varanda, etc.`
+    try{
+      const reply = await askClaude([{role:'user',text:prompt}], imgUrl.split(',')[1], 'image/jpeg', 2000)
+      let clean = reply.trim().replace(/\`\`\`json?\n?/g,'').replace(/\`\`\`/g,'').trim()
+      const s=clean.indexOf('{'); if(s>0) clean=clean.slice(s)
+      const e=clean.lastIndexOf('}'); if(e>=0) clean=clean.slice(0,e+1)
+      const parsed = JSON.parse(clean)
+      if(Array.isArray(parsed.rooms)){
+        setRooms(parsed.rooms.map((r,i)=>({...r, id:r.id||i+1, x:Math.max(3,Math.min(97,Number(r.x)||50)), y:Math.max(3,Math.min(97,Number(r.y)||50)) })))
+      }
+    }catch(err){ console.warn('startRooms parse error:', err); setRooms([]) }
+    setLoading(false)
+  }
+
+  // ETAPA 2: IA faz perguntas sobre o projeto (após cômodos confirmados)
+  async function startChat(imgUrl, confirmedRooms){
     setLoading(true)
     const catList = (catalog||[]).slice(0,100).map(c=>`- ${c.name} (${c.category||'geral'})`).join('\n')
-    const sys = `Você é um projetista especialista da RARO Home. Analise a planta e siga EXATAMENTE este formato de resposta:
+    const roomsList = confirmedRooms.map(r=>`${r.id}. ${r.name}${r.floor?' ('+r.floor+')':''}`).join('\n')
+    const sys = `Você é um projetista especialista da RARO Home (automação residencial Zigbee/Matter).
 
-AMBIENTES_JSON:{"rooms":[{"id":1,"name":"Sala de Estar","floor":"Pavimento 1"},{"id":2,"name":"Cozinha","floor":"Pavimento 1"}]}
-
-# Análise Inicial da Planta
-
-(aqui o texto normal da análise)
+CÔMODOS CONFIRMADOS pelo cliente:
+${roomsList}
 
 CATÁLOGO RARO Home:
 ${catList}
@@ -285,25 +340,18 @@ REGRAS DO PROJETO:
 4. Wi-Fi: 1 AP por 50m², teto centro.
 5. Rack: Dream Machine SE + switch PoE+ se >6 dispositivos PoE.
 
-Na linha AMBIENTES_JSON liste TODOS os cômodos que você vê na planta (numerados, com pavimento).
-Depois, na análise, faça perguntas sobre: rack, AC por cômodo, cabeceiras, som, câmeras, cortinas.`
+Com base nos cômodos listados, faça APENAS 3 ou 4 perguntas objetivas e essenciais para o projeto. Cada pergunta em parágrafo separado. Seja direto.`
     try{
-      const reply = await askClaude(
-        [{role:'user',text:sys+'\n\nAnalise a planta e comece.'}],
-        imgUrl.split(',')[1], 'image/jpeg', 1800
-      )
-      // Extrai o JSON de cômodos da resposta
-      const jm = reply.match(/AMBIENTES_JSON:(\{[^\n]+\})/)
-      if(jm){ try{ const p=JSON.parse(jm[1]); if(Array.isArray(p.rooms)) setRooms(p.rooms.map((r,i)=>({...r,id:r.id||i+1}))) }catch(e){} }
-      const cleanReply = reply.replace(/AMBIENTES_JSON:\{[^\n]+\}\n?/,'').trim()
-      setChat([{role:'assistant',text:cleanReply}])
+      const reply = await askClaude([{role:'user',text:sys+'\n\nFaça as perguntas sobre este projeto.'}], null, 'image/jpeg', 800)
+      setChat([{role:'assistant',text:reply}])
     }catch(err){ setChat([{role:'assistant',text:'❌ Erro: '+err.message}]) }
     setLoading(false)
   }
 
-  async function sendChat(){
-    if(!chatInput.trim()||loading) return
-    const userMsg={role:'user',text:chatInput}
+  async function sendChat(directText){
+    const text = directText || chatInput
+    if(!text?.trim()||loading) return
+    const userMsg={role:'user',text:text.trim()}
     const newChat=[...chat,userMsg]
     setChat(newChat); setChatInput(''); setLoading(true)
     try{
@@ -790,9 +838,9 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         </div>
         <div style={{flex:1}}/>
         <div style={{display:'flex',gap:6,fontSize:11,color:'rgba(255,255,255,0.5)'}}>
-          {['upload','chat','editor','exec'].map((s,i)=>(
-            <span key={s} style={{padding:'3px 10px',borderRadius:12,background:step===s?'#0EA5E9':'rgba(255,255,255,0.08)',color:step===s?'#fff':'rgba(255,255,255,0.4)'}}>
-              {i+1}. {s==='upload'?'Planta':s==='chat'?'Análise':s==='editor'?'Editor':'Projeto'}
+          {['upload','rooms','chat','editor','exec'].map((s,i)=>(
+            <span key={s} style={{padding:'3px 10px',borderRadius:12,background:step===s?'#0EA5E9':'rgba(255,255,255,0.08)',color:step===s?'#fff':'rgba(255,255,255,0.4)',cursor:['chat','editor','exec'].includes(s)&&['chat','editor','exec'].includes(step)?'pointer':'default'}} onClick={()=>{ if(s==='rooms'&&['chat','editor','exec'].includes(step)) setStep('rooms') }}>
+              {i+1}. {s==='upload'?'Planta':s==='rooms'?'Cômodos':s==='chat'?'Perguntas':s==='editor'?'Editor':'Projeto'}
             </span>
           ))}
         </div>
@@ -868,6 +916,116 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
           </div>
         )}
 
+        {/* STEP ROOMS — planta + pins arrastáveis + lista editável */}
+        {step==='rooms' && (
+          <div style={{flex:1,display:'flex',minHeight:0}}>
+            {/* Planta com pins arrastáveis */}
+            <div ref={imgContainerRef} style={{flex:1,position:'relative',overflow:'hidden',background:'#111827',cursor:panning?'grabbing':'grab',userSelect:'none'}}
+              onMouseDown={e=>{if(e.target===e.currentTarget||e.target.tagName==='IMG') onImgMouseDown(e)}}
+              onMouseMove={onImgMouseMove} onMouseUp={onImgMouseUp} onMouseLeave={onImgMouseUp} onDoubleClick={onImgDblClick}>
+              {bgImage && <img src={bgImage} draggable={false} alt="planta" style={{position:'absolute',top:'50%',left:'50%',transform:`translate(calc(-50% + ${imgPan.x}px), calc(-50% + ${imgPan.y}px)) scale(${imgZoom})`,transformOrigin:'center center',maxWidth:'none',width:'90%',transition:panning?'none':'transform 0.1s ease',pointerEvents:'none'}}/>}
+              {/* Pins numerados arrastáveis */}
+              {rooms.map(r=>{
+                // Calcula posição do pin em px dentro do container usando as mesmas transformações do zoom/pan
+                const cont = imgContainerRef.current
+                const rect = cont ? cont.getBoundingClientRect() : {width:800,height:600}
+                const imgW = rect.width * 0.9 * imgZoom
+                const imgH = imgW * 0.75  // assumindo proporção 4:3 aproximada
+                const originX = rect.width/2 + imgPan.x
+                const originY = rect.height/2 + imgPan.y
+                const px = originX + (r.x/100 - 0.5)*imgW
+                const py = originY + (r.y/100 - 0.5)*imgH
+                return (
+                  <div key={r.id} style={{position:'absolute',left:px,top:py,transform:'translate(-50%,-100%)',zIndex:10,cursor:'grab',userSelect:'none'}}
+                    onMouseDown={e=>{
+                      e.stopPropagation()
+                      const startX=e.clientX, startY=e.clientY, ox=r.x, oy=r.y
+                      const cont2=imgContainerRef.current; if(!cont2) return
+                      const onMove=ev=>{
+                        const rc2=cont2.getBoundingClientRect()
+                        const iW=rc2.width*0.9*imgZoom, iH=iW*0.75
+                        const oX2=rc2.width/2+imgPan.x, oY2=rc2.height/2+imgPan.y
+                        const dx=ev.clientX-startX, dy=ev.clientY-startY
+                        const nx=ox+(dx/iW)*100, ny=oy+(dy/iH)*100
+                        setRooms(rs=>rs.map(x=>x.id===r.id?{...x,x:Math.max(1,Math.min(99,nx)),y:Math.max(1,Math.min(99,ny))}:x))
+                      }
+                      const onUp=()=>{ window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp) }
+                      window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp)
+                    }}>
+                    {/* Pin: número + nome */}
+                    <div style={{background:'#0EA5E9',color:'#fff',borderRadius:'50% 50% 50% 0',width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,border:'2px solid #fff',boxShadow:'0 2px 6px rgba(0,0,0,0.5)',transform:'rotate(-45deg)'}}>
+                      <span style={{transform:'rotate(45deg)'}}>{r.id}</span>
+                    </div>
+                    <div style={{background:'rgba(0,0,0,0.75)',color:'#fff',fontSize:9,fontWeight:600,padding:'1px 5px',borderRadius:3,whiteSpace:'nowrap',marginTop:2,maxWidth:90,overflow:'hidden',textOverflow:'ellipsis',backdropFilter:'blur(4px)'}}>{r.name}</div>
+                  </div>
+                )
+              })}
+              {/* HUD */}
+              <div style={{position:'absolute',bottom:10,left:10,right:10,display:'flex',justifyContent:'space-between',alignItems:'center',pointerEvents:'none'}}>
+                <div style={{background:'rgba(0,0,0,0.65)',color:'#fff',fontSize:11,padding:'3px 8px',borderRadius:5}}>
+                  🔍 {Math.round(imgZoom*100)}% · scroll=zoom · arrastar fundo=mover · arrastar pin=reposicionar
+                </div>
+                <div style={{display:'flex',gap:4,pointerEvents:'all'}}>
+                  <button onClick={e=>{e.stopPropagation();setImgZoom(z=>Math.min(8,z*1.4))}} style={{background:'rgba(0,0,0,0.6)',color:'#fff',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,width:28,height:28,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>+</button>
+                  <button onClick={e=>{e.stopPropagation();setImgZoom(z=>Math.max(0.3,z/1.4))}} style={{background:'rgba(0,0,0,0.6)',color:'#fff',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,width:28,height:28,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>−</button>
+                </div>
+              </div>
+              {loading && <div style={{position:'absolute',inset:0,background:'rgba(10,15,30,0.7)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12}}>
+                <i className="ti ti-loader-2" style={{fontSize:32,color:'#38BDF8',animation:'spin 1s linear infinite'}} aria-hidden/>
+                <div style={{color:'#fff',fontSize:13}}>IA identificando os cômodos…</div>
+              </div>}
+            </div>
+            {/* Painel direito: lista editável + botão confirmar */}
+            <div style={{width:260,background:'#0f1729',borderLeft:'1px solid rgba(255,255,255,0.08)',display:'flex',flexDirection:'column'}}>
+              <div style={{padding:'12px 14px',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#38BDF8',textTransform:'uppercase',letterSpacing:1,marginBottom:2}}>
+                  <i className="ti ti-map-pin" style={{marginRight:5}} aria-hidden/>Cômodos identificados
+                </div>
+                <div style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>Edite os nomes, arraste os pins na planta, adicione ou remova.</div>
+              </div>
+              <div style={{flex:1,overflowY:'auto',padding:'6px 0'}}>
+                {rooms.map(r=>(
+                  <div key={r.id} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 10px',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+                    <div style={{width:22,height:22,borderRadius:'50% 50% 50% 0',background:'#0EA5E9',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,flexShrink:0,transform:'rotate(-45deg)'}}>
+                      <span style={{transform:'rotate(45deg)'}}>{r.id}</span>
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      {editingRoom===r.id
+                        ? <input autoFocus value={r.name} onChange={e=>setRooms(rs=>rs.map(x=>x.id===r.id?{...x,name:e.target.value}:x))}
+                            onBlur={()=>setEditingRoom(null)} onKeyDown={e=>{if(e.key==='Enter'||e.key==='Escape')setEditingRoom(null)}}
+                            style={{width:'100%',background:'rgba(255,255,255,0.1)',border:'1px solid #38BDF8',borderRadius:3,color:'#fff',fontSize:11,padding:'2px 5px',outline:'none'}}/>
+                        : <div style={{fontSize:11,color:'#e2e8f0',cursor:'pointer',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} onDoubleClick={()=>setEditingRoom(r.id)} onClick={()=>setEditingRoom(r.id)} title="Clique para editar">{r.name}</div>
+                      }
+                      {r.floor && <div style={{fontSize:9,color:'rgba(255,255,255,0.3)'}}>{r.floor}</div>}
+                    </div>
+                    <button onClick={()=>setRooms(rs=>rs.filter(x=>x.id!==r.id))} title="Remover"
+                      style={{background:'none',border:'none',cursor:'pointer',color:'rgba(255,255,255,0.25)',padding:2,lineHeight:1,flexShrink:0}}
+                      onMouseEnter={e=>e.currentTarget.style.color='#F87171'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.25)'}>
+                      <i className="ti ti-trash" style={{fontSize:13}} aria-hidden/>
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {/* Adicionar cômodo manualmente */}
+              <div style={{padding:'8px 10px',borderTop:'1px solid rgba(255,255,255,0.08)',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
+                <AddRoomInline onAdd={r=>setRooms(rs=>{const maxId=rs.reduce((m,x)=>Math.max(m,x.id||0),0); return [...rs,{...r,id:maxId+1,x:50,y:50}]})}/>
+              </div>
+              {/* Botão confirmar */}
+              <div style={{padding:12}}>
+                <button disabled={rooms.length===0||loading} onClick={()=>{ setStep('chat'); startChat(bgImage, rooms) }}
+                  style={{...btnPrimary,width:'100%',justifyContent:'center',gap:8,opacity:rooms.length===0?0.4:1}}>
+                  <i className="ti ti-message-2" aria-hidden/>
+                  Confirmar e ir para as perguntas ({rooms.length} cômodo{rooms.length!==1?'s':''})
+                </button>
+                <button onClick={()=>startRooms(bgImage)} disabled={loading}
+                  style={{...btnGhost,width:'100%',justifyContent:'center',marginTop:6,fontSize:11}}>
+                  <i className="ti ti-refresh" aria-hidden/>Reanalisar planta
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* STEP CHAT */}
         {step==='chat' && (
           <div className="pe-chat-wrap" style={{flex:1,display:'flex',minHeight:0}}>
@@ -911,57 +1069,48 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                 </div>
               </div>
             </div>
-            {/* ── Painel de cômodos editável ─────────────────────── */}
-            <div style={{width:200,borderRight:'1px solid rgba(255,255,255,0.08)',background:'#0f1729',display:'flex',flexDirection:'column',overflow:'hidden'}}>
-              <div style={{padding:'10px 12px',borderBottom:'1px solid rgba(255,255,255,0.08)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                <span style={{fontSize:11,fontWeight:700,color:'#38BDF8',textTransform:'uppercase',letterSpacing:1}}>Cômodos</span>
-                <span style={{fontSize:10,color:'rgba(255,255,255,0.35)'}}>{rooms.length}</span>
-              </div>
-              <div style={{flex:1,overflowY:'auto',padding:'6px 0'}}>
-                {rooms.map((r,i)=>(
-                  <div key={r.id} style={{display:'flex',alignItems:'center',gap:4,padding:'4px 8px',borderBottom:'1px solid rgba(255,255,255,0.04)',fontSize:12}}>
-                    <div style={{width:18,height:18,borderRadius:4,background:'#1e3a5f',color:'#38BDF8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,flexShrink:0}}>{r.id}</div>
-                    {editingRoom===r.id
-                      ? <input autoFocus value={r.name} onChange={e=>setRooms(rs=>rs.map(x=>x.id===r.id?{...x,name:e.target.value}:x))}
-                          onBlur={()=>setEditingRoom(null)} onKeyDown={e=>{if(e.key==='Enter'||e.key==='Escape')setEditingRoom(null)}}
-                          style={{flex:1,background:'rgba(255,255,255,0.1)',border:'1px solid #38BDF8',borderRadius:3,color:'#fff',fontSize:11,padding:'2px 5px',outline:'none'}}/>
-                      : <span style={{flex:1,color:'#e2e8f0',lineHeight:1.3,cursor:'pointer',fontSize:11}} onDoubleClick={()=>setEditingRoom(r.id)} title="Duplo clique para editar">{r.name}{r.floor&&<span style={{display:'block',fontSize:9,color:'rgba(255,255,255,0.35)'}}>{r.floor}</span>}</span>
-                    }
-                    <button onClick={()=>setEditingRoom(editingRoom===r.id?null:r.id)} title="Editar nome"
-                      style={{background:'none',border:'none',cursor:'pointer',color:'rgba(255,255,255,0.3)',padding:2,flexShrink:0,lineHeight:1}}
-                      onMouseEnter={e=>e.currentTarget.style.color='#38BDF8'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.3)'}>
-                      <i className="ti ti-pencil" style={{fontSize:11}} aria-hidden/>
-                    </button>
-                    <button onClick={()=>setRooms(rs=>rs.filter(x=>x.id!==r.id))} title="Remover cômodo"
-                      style={{background:'none',border:'none',cursor:'pointer',color:'rgba(255,255,255,0.2)',padding:2,flexShrink:0,lineHeight:1}}
-                      onMouseEnter={e=>e.currentTarget.style.color='#F87171'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.2)'}>
-                      <i className="ti ti-x" style={{fontSize:11}} aria-hidden/>
-                    </button>
-                  </div>
-                ))}
-                {rooms.length===0 && <div style={{padding:'12px 10px',fontSize:11,color:'rgba(255,255,255,0.3)',textAlign:'center',lineHeight:1.5}}>A IA irá<br/>identificar os<br/>cômodos</div>}
-              </div>
-              {/* Adicionar cômodo */}
-              <div style={{padding:'6px 8px',borderTop:'1px solid rgba(255,255,255,0.08)'}}>
-                <button onClick={()=>{
-                  const name=window.prompt('Nome do cômodo:')
-                  if(!name?.trim()) return
-                  const floor=rooms.length?rooms[rooms.length-1].floor:''
-                  const maxId=rooms.reduce((m,r)=>Math.max(m,r.id||0),0)
-                  setRooms(rs=>[...rs,{id:maxId+1,name:name.trim(),floor}])
-                }} style={{width:'100%',background:'rgba(56,189,248,0.1)',border:'1px dashed rgba(56,189,248,0.3)',borderRadius:5,color:'#38BDF8',cursor:'pointer',padding:'5px 0',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',gap:4,fontFamily:'inherit'}}
-                  onMouseEnter={e=>e.currentTarget.style.background='rgba(56,189,248,0.2)'}
-                  onMouseLeave={e=>e.currentTarget.style.background='rgba(56,189,248,0.1)'}>
-                  <i className="ti ti-plus" style={{fontSize:12}} aria-hidden/> Adicionar
+            <div style={{flex:1,display:'flex',flexDirection:'column'}}>
+              <div style={{padding:'6px 14px',borderBottom:'1px solid rgba(255,255,255,0.06)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>
+                  <i className="ti ti-map-pin" style={{marginRight:4,color:'#38BDF8'}} aria-hidden/>{rooms.length} cômodo{rooms.length!==1?'s':''} confirmado{rooms.length!==1?'s':''}
+                  {rooms.slice(0,4).map(r=><span key={r.id} style={{marginLeft:6,background:'rgba(56,189,248,0.12)',padding:'0 5px',borderRadius:3,color:'#38BDF8',fontSize:10}}>{r.name}</span>)}
+                  {rooms.length>4&&<span style={{fontSize:10,color:'rgba(255,255,255,0.3)',marginLeft:4}}>+{rooms.length-4}</span>}
+                </div>
+                <button onClick={()=>setStep('rooms')} style={{background:'none',border:'none',cursor:'pointer',color:'rgba(255,255,255,0.4)',fontSize:11,display:'flex',alignItems:'center',gap:3}}>
+                  <i className="ti ti-edit" aria-hidden/>Editar cômodos
                 </button>
               </div>
-            </div>
-            <div style={{flex:1,display:'flex',flexDirection:'column'}}>
               <div style={{flex:1,overflowY:'auto',padding:20}}>
                 {chat.map((m,i)=>(
-                  <div key={i} style={{marginBottom:14,display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
-                    <div style={{maxWidth:'85%',padding:'10px 14px',borderRadius:10,fontSize:13,lineHeight:1.6,whiteSpace:'pre-wrap',
+                  <div key={i} style={{marginBottom:14,display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start',flexDirection:'column',alignItems:m.role==='user'?'flex-end':'flex-start'}}>
+                    <div style={{maxWidth:'88%',padding:'10px 14px',borderRadius:10,fontSize:13,lineHeight:1.6,whiteSpace:'pre-wrap',
                       background:m.role==='user'?'#0EA5E9':'rgba(255,255,255,0.08)',color:'#fff'}}>{m.text}</div>
+                    {/* Quick-reply buttons apenas na última mensagem da IA */}
+                    {m.role==='assistant' && i===chat.length-1 && !loading && (()=>{
+                      // Detecta perguntas sim/não ou listas na mensagem
+                      const isYesNo = /\b(tem|terá|haverá|existe|vai ter|deseja|quer)\b.*\?/i.test(m.text)
+                      const hasAC = /ar.condiciona|AC\b|split/i.test(m.text)
+                      const hasSom = /som.ambie|música|caixa/i.test(m.text)
+                      const hasCam = /câmera|camera/i.test(m.text)
+                      const hasRack = /rack|CPD|armário/i.test(m.text)
+                      const quickReplies = []
+                      if(hasAC) quickReplies.push('Sim, todos têm AC','Alguns ambientes têm AC','Não há AC')
+                      if(hasSom) quickReplies.push('Sim, quero som ambiente','Só na sala','Não quero som')
+                      if(hasCam) quickReplies.push('Sim, entrada e áreas externas','Entrada apenas','Não quero câmeras')
+                      if(hasRack) quickReplies.push('Rack na sala de estar','Rack no corredor','Rack no home office')
+                      if(!quickReplies.length && isYesNo) quickReplies.push('Sim','Não','Somente em alguns')
+                      if(!quickReplies.length) return null
+                      return <div style={{display:'flex',flexWrap:'wrap',gap:5,marginTop:6,maxWidth:'88%'}}>
+                        {quickReplies.map(qr=>(
+                          <button key={qr} onClick={()=>sendChat(qr)}
+                            style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:16,color:'rgba(255,255,255,0.8)',fontSize:11,padding:'4px 10px',cursor:'pointer',fontFamily:'inherit'}}
+                            onMouseEnter={e=>e.currentTarget.style.background='rgba(14,165,233,0.25)'}
+                            onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,0.07)'}>
+                            {qr}
+                          </button>
+                        ))}
+                      </div>
+                    })()}
                   </div>
                 ))}
                 {loading && <div style={{color:'rgba(255,255,255,0.4)',fontSize:12}}><i className="ti ti-loader" style={{animation:'spin 1s linear infinite'}} aria-hidden/> IA pensando...</div>}
@@ -983,7 +1132,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                     onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendChat() } }}
                     placeholder="Responda à IA... (Enter envia, Shift+Enter quebra linha)" rows={2}
                     style={{...inputStyle,resize:'none',minHeight:44,maxHeight:120,lineHeight:1.4}}/>
-                  <button onClick={sendChat} disabled={loading} style={{...btnPrimary,height:44}}><i className="ti ti-send" aria-hidden/></button>
+                  <button onClick={()=>sendChat()} disabled={loading} style={{...btnPrimary,height:44}}><i className="ti ti-send" aria-hidden/></button>
                 </div>
               </div>
             </div>
