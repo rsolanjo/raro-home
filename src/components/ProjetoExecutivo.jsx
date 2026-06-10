@@ -167,6 +167,30 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
     }
   },[])  // eslint-disable-line
 
+  // Auto-carrega a planta cadastrada no cliente (planta_medidas → planta_eletrica),
+  // quando o orçamento ainda não tem uma planta de fundo própria.
+  useEffect(()=>{
+    if(bgImage) return
+    if(fromProposal?.planta_data?.image) return
+    const cli = clients.find(c=> c.id===Number(fromProposal?.client_id) )
+      || (preClient && clients.find(c=>c.id===Number(preClient.id)))
+      || preClient || null
+    const planta = cli?.planta_medidas || cli?.planta_eletrica
+    if(!planta?.data) return
+    let cancelled=false
+    ;(async()=>{
+      try{
+        let url = planta.data
+        if((planta.type||'').includes('pdf') || /^data:application\/pdf/.test(url)){
+          url = await pdfToImg(url.split(',')[1])
+        }
+        url = await downscale(url)
+        if(!cancelled){ setBgImage(url) }
+      }catch(e){ console.warn('auto planta cliente:', e?.message) }
+    })()
+    return ()=>{ cancelled=true }
+  },[])  // eslint-disable-line
+
   async function handleFile(e){
     const f=e.target.files[0]; if(!f) return
     const reader=new FileReader()
@@ -835,16 +859,15 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
             </div>
             <div className="pe-editor-canvas" style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20,position:'relative'}}>
               <div style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content'}}>
+                <button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{height:32,borderRadius:6,border:'none',background:'#0EA5E9',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}}><i className="ti ti-upload" aria-hidden/>{bgImage?'Trocar planta':'Carregar planta'}</button>
                 <button onClick={()=>setZoom(z=>Math.max(0.5,z-0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>−</button>
                 <span style={{color:'#fff',fontSize:11,display:'flex',alignItems:'center',padding:'0 4px'}}>{Math.round(zoom*100)}%</span>
                 <button onClick={()=>setZoom(z=>Math.min(3,z+0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>+</button>
               </div>
-              <div ref={containerRef} style={{position:'relative',display:'inline-block',cursor:addMode?'crosshair':'default',width:bgImage?`${zoom*100}%`:`${Math.min(600*zoom,window.innerWidth*0.8)}px`,transformOrigin:'top center'}} onClick={onCanvasClick}>
+              <div ref={containerRef} style={{position:'relative',display:'inline-block',cursor:addMode?'crosshair':'default',width:bgImage?`${zoom*100}%`:`${Math.min(640*zoom,window.innerWidth*0.82)}px`,transformOrigin:'top center'}} onClick={onCanvasClick}>
                 {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false}/>
-                  : <div style={{width:'100%',aspectRatio:'4/3',background:'rgba(255,255,255,0.04)',border:'2px dashed rgba(255,255,255,0.2)',borderRadius:10,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,color:'rgba(255,255,255,0.5)'}}>
-                      <i className="ti ti-photo-plus" style={{fontSize:40}} aria-hidden/>
-                      <div style={{fontSize:14,textAlign:'center',padding:'0 20px'}}>Sem planta carregada.<br/><span style={{fontSize:11,opacity:0.7}}>Os pontos abaixo já estão posicionados — arraste-os, ou carregue uma planta de fundo.</span></div>
-                      <button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{...btnPrimary,background:'#0EA5E9'}}><i className="ti ti-upload" aria-hidden/> Carregar planta</button>
+                  : <div style={{width:'100%',aspectRatio:'4/3',background:'repeating-linear-gradient(0deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px),repeating-linear-gradient(90deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px)',backgroundColor:'rgba(255,255,255,0.02)',border:'2px dashed rgba(255,255,255,0.15)',borderRadius:10,position:'relative'}}>
+                      <div style={{position:'absolute',top:10,left:0,right:0,textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.45)',pointerEvents:'none'}}>Pontos posicionados por cômodo — arraste para ajustar, ou carregue a planta (botão acima).</div>
                     </div>}
                 {markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro; const sel=selected===m.uid
                   return <div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:'grab'}} onMouseDown={e=>onDown(e,m.uid)}>

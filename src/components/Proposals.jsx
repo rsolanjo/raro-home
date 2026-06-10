@@ -276,7 +276,7 @@ function EnviarDocumentoModal({ proposal, clients, currentUser, onMarkSent, onCl
 
         <div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 12px',marginBottom:14,fontSize:11,color:'var(--amber)'}}>
           <i className="ti ti-info-circle" style={{marginRight:4}} aria-hidden/>
-          O documento abre numa nova aba — use "Salvar PDF" e anexe na conversa do WhatsApp.
+          O documento é <b>baixado</b> como arquivo. Abra-o e use <b>"Salvar PDF"</b> para anexar na conversa do WhatsApp.
         </div>
 
         {/* WhatsApp — contatos do cliente */}
@@ -466,6 +466,9 @@ function Field({label, children}){ return <div><div style={{fontSize:10,color:'v
 import React, { useState, useRef } from 'react'
 import { saveProposal, deleteProposal, cancelProposal, getProposals, auditedSave, saveProject, getProjects, verifyPIN, syncProjectFromProposal } from '../db/supabase.js'
 import { extractPdf, askClaudeJSON, buildProposalFromExtract } from './importPdf.js'
+import { openProposalPDF } from './proposalPDF.js'
+import { buildContract } from './Contract.jsx'
+import { openHtmlDoc, downloadHtmlDoc, wrapExecDoc, safeFileName } from './openDoc.js'
 
 const STATUS = {
   draft:    { label:'Rascunho',   cls:'b-gray' },
@@ -725,7 +728,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
                             <button className="btn" style={btn({color:'var(--accent)',borderColor:'var(--accent)',marginLeft:8})}
                               onClick={()=>openProposalPDF(pWithPhones,false)} title="Ver proposta"><i className="ti ti-eye" aria-hidden/></button>
                             {p.exec_doc && <button className="btn" style={btn({color:'#0369A1',borderColor:'#0369A1'})}
-                              onClick={()=>{ const w=window.open('','_blank'); w.document.write(`<html><head><title>Projeto Executivo RARO Home — ${p.client_name||'Cliente'}${p.code?' — '+p.code:''}</title><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0">${p.exec_doc}<button onclick="window.print()" style="position:fixed;top:10px;right:10px;background:#0EA5E9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600">Salvar PDF</button></body></html>`); w.document.close() }}
+                              onClick={()=>openHtmlDoc(wrapExecDoc(p.exec_doc, p.client_name, p.code), `executivo-${safeFileName(p.code||p.id)}.html`)}
                               title="Ver Projeto Executivo"><i className="ti ti-file-text" aria-hidden/></button>}
                             <button className="btn" style={btn({color:'#7C3AED',borderColor:'#7C3AED'})}
                               onClick={()=>openProposalPDF(pWithPhones,true)} title="Ver versao admin (com custos)"><i className="ti ti-shield" aria-hidden/></button>
