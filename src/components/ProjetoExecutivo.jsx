@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { LOGO_EXEC } from '../logos.js'
 
 const EQUIP_STYLE = {
@@ -100,6 +100,28 @@ async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1
   return full
 }
 
+// Error boundary to show errors instead of blank page
+class ExecErrorBoundary extends React.Component {
+  constructor(props){ super(props); this.state={err:null} }
+  static getDerivedStateFromError(err){ return {err} }
+  componentDidCatch(err,info){ console.error('ProjetoExecutivo crash:', err, info) }
+  render(){
+    if(this.state.err) return (
+      <div style={{position:'fixed',inset:0,background:'#0f172a',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16,padding:32}}>
+        <div style={{color:'#F87171',fontSize:16,fontWeight:700}}>❌ Erro no Projeto Executivo</div>
+        <div style={{color:'rgba(255,255,255,0.6)',fontSize:13,fontFamily:'monospace',background:'rgba(255,255,255,0.05)',padding:12,borderRadius:6,maxWidth:600,wordBreak:'break-all'}}>
+          {this.state.err.message}
+        </div>
+        <button onClick={()=>{this.setState({err:null}); this.props.onReset?.()}}
+          style={{background:'#0EA5E9',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',cursor:'pointer',fontSize:13}}>
+          Tentar novamente
+        </button>
+      </div>
+    )
+    return this.props.children
+  }
+}
+
 // Componente inline para adicionar cômodo sem prompt()
 function AddRoomInline({ onAdd }){
   const [name, setName] = React.useState('')
@@ -127,7 +149,7 @@ function AddRoomInline({ onAdd }){
   )
 }
 
-export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fromProposal, onSaveToProposal, onClose, currentUser }) {
+function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal, onSaveToProposal, onClose, currentUser }) {
   const [step, setStep] = useState(()=> fromProposal?.planta_data?.markers?.length ? 'editor' : 'upload')
   const [bgImage, setBgImage] = useState(()=> fromProposal?.planta_data?.image || null)
   const [chat, setChat] = useState([])
@@ -146,6 +168,8 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
   const [dragging, setDragging] = useState(null)
   const [addItem, setAddItem] = useState(null)
   const [addMode, setAddMode] = useState(false)
+  const [rooms, setRooms] = useState([])          // [{id,name,floor,x,y}] — cômodos identificados pela IA
+  const [editingRoom, setEditingRoom] = useState(null)  // id sendo editado na lista
   const [imgZoom, setImgZoom]   = useState(1)
   const [imgPan,  setImgPan]    = useState({x:0, y:0})
   const [panning, setPanning]   = useState(null)   // {startX, startY, panX, panY}
@@ -287,9 +311,6 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
     }
     reader.readAsDataURL(f)
   }
-
-  const [rooms, setRooms] = useState([])       // [{id,name,floor}]
-  const [editingRoom, setEditingRoom] = useState(null)
 
   // ETAPA 1: IA identifica cômodos com posições (x,y %) na imagem
   async function startRooms(imgUrl){
@@ -1270,3 +1291,11 @@ const btnGhost={background:'rgba(255,255,255,0.1)',color:'#fff',border:'1px soli
 const inputStyle={flex:1,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:6,padding:'8px 12px',color:'#fff',fontSize:13,fontFamily:'inherit'}
 const inputDark={width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:4,padding:'5px 8px',color:'#fff',fontSize:12,fontFamily:'inherit',boxSizing:'border-box',marginBottom:8}
 const lbl={fontSize:10,color:'rgba(255,255,255,0.4)',display:'block',marginBottom:3}
+
+export default function ProjetoExecutivo(props){
+  return (
+    <ExecErrorBoundary onReset={()=>{}}>
+      <ProjetoExecutivoInner {...props}/>
+    </ExecErrorBoundary>
+  )
+}
