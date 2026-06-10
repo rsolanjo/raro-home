@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v66 — FIX CRÍTICO imports (botões PDF/ver proposta/admin voltaram); planta do cliente auto-carrega no executivo; editor sem botão sobreposto
+// v67 — logo branco em PDFs; trocar planta fix; sem botões editar no builder; duplo clique=PDF; margens contrato
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v66 · build 2026-06
+          v67 · build 2026-06
         </div>
       </div>
     </div>

@@ -120,6 +120,7 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
   const [addItem, setAddItem] = useState(null)
   const [addMode, setAddMode] = useState(false)
   const fileRef = useRef()
+  const bgOnlyRef = useRef()  // trocar só o fundo sem reiniciar análise
   const containerRef = useRef()
   const chatEndRef = useRef()
 
@@ -201,6 +202,20 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
       setBgImage(url)
       setStep('chat')
       startChat(url)
+    }
+    reader.readAsDataURL(f)
+  }
+
+  // Troca só o fundo da planta sem reiniciar a análise (usado no editor)
+  async function handleBgOnly(e){
+    const f=e.target.files[0]; if(!f) return
+    const reader=new FileReader()
+    reader.onload=async ev=>{
+      let url=ev.target.result
+      if(f.type==='application/pdf'){ try{ url=await pdfToImg(url.split(',')[1]) }catch(err){ alert('Erro PDF: '+err.message); return } }
+      url=await downscale(url)
+      setBgImage(url)
+      // mantém o step atual (editor) e os markers — não reinicia
     }
     reader.readAsDataURL(f)
   }
@@ -635,7 +650,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
   <!-- CAPA -->
   <div class="ex-cover">
     <div class="ex-cover-top">DOCUMENTO TÉCNICO · PROJETO EXECUTIVO</div>
-    <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:160px;max-width:50%;margin:0 auto 8px;display:block;border-radius:8px"/>
+    <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:160px;max-width:50%;margin:0 auto 8px;display:block"/>
     <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
     <div class="ex-cover-title">Projeto Executivo de Automação</div>
     <div class="ex-cover-sub">Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto</div>
@@ -859,7 +874,8 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
             </div>
             <div className="pe-editor-canvas" style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20,position:'relative'}}>
               <div style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content'}}>
-                <button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{height:32,borderRadius:6,border:'none',background:'#0EA5E9',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}}><i className="ti ti-upload" aria-hidden/>{bgImage?'Trocar planta':'Carregar planta'}</button>
+                <button onClick={e=>{e.stopPropagation();bgOnlyRef.current?.click()}} style={{height:32,borderRadius:6,border:'none',background:'#0EA5E9',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}}><i className="ti ti-upload" aria-hidden/>{bgImage?'Trocar planta':'Carregar planta'}</button>
+                <input ref={bgOnlyRef} type="file" accept="image/*,application/pdf,.pdf" style={{display:'none'}} onChange={handleBgOnly}/>
                 <button onClick={()=>setZoom(z=>Math.max(0.5,z-0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>−</button>
                 <span style={{color:'#fff',fontSize:11,display:'flex',alignItems:'center',padding:'0 4px'}}>{Math.round(zoom*100)}%</span>
                 <button onClick={()=>setZoom(z=>Math.min(3,z+0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>+</button>

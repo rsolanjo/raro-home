@@ -796,19 +796,9 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
             <button onClick={()=>setPdfFontSize(s=>Math.min(14,s+1))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text2)',fontSize:13,padding:'0 2px',fontWeight:700}} title="Aumentar fonte PDF">+</button>
             <span style={{fontSize:11,color:'var(--text3)',letterSpacing:0.5}}>A</span>
           </div>
-          {/* VISUALIZAR — always available */}
-          <button className="btn" onClick={()=>openPDF(false, true)}>
-            <i className="ti ti-eye" aria-hidden/>Visualizar
-          </button>
           {/* SALVAR */}
           <button className="btn" onClick={()=>{ setLaborInput(labor); setShowSaveModal(true) }}>
             <i className="ti ti-device-floppy" aria-hidden/>Salvar proposta
-          </button>
-          {/* GERAR PDF — requires saved */}
-          <button className="btn" onClick={()=>openPDF(false)} disabled={!saved}
-            title={!saved?'Salve a proposta primeiro para gerar o PDF final':''}
-            style={!saved?{opacity:0.5}:{}}>
-            <i className="ti ti-download" aria-hidden/>Gerar PDF
           </button>
           {/* ENVIAR */}
           <button className="btn primary" onClick={()=>{ setSendTargets({}); setCustomPhone(''); setSendEmail(''); setShowSendModal(true) }} disabled={!saved} title={!saved?'Salve a proposta primeiro':''}>

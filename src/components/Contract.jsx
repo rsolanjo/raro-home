@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LOGO_DARK } from '../logos.js'
+import { LOGO_DARK, LOGO_COVER } from '../logos.js'
 
 const fmt = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
 
@@ -66,7 +66,7 @@ export function buildContract(proposal, client) {
   <meta charset="UTF-8"><title>Contrato RARO Home — ${client?.name1||proposal.client_name||'Cliente'}${proposal.code?' — '+proposal.code:''}</title>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
-    @page{size:A4;margin:18mm 16mm}
+    @page{size:A4;margin:18mm 24mm}
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'DM Sans',sans-serif;font-size:10.5px;color:#1a1a1a;line-height:1.75;background:#fff}
     h1{font-family:'DM Serif Display',serif;font-size:20px;color:#060B1A;margin-bottom:2px}
@@ -110,7 +110,7 @@ export function buildContract(proposal, client) {
 
   <div class="header">
     <div>
-      <img src="${LOGO_DARK}" alt="RARO HOME" style="height:64px;width:auto;border-radius:6px;margin-bottom:10px;display:block"/>
+      <img src="${LOGO_COVER}" alt="RARO HOME" style="height:80px;width:auto;margin-bottom:10px;display:block"/>
       <div class="badge">Contrato de Prestação de Serviços</div>
       <h1>Termo de Execução de Projeto</h1>
       <div style="font-size:9px;color:#6B8CAE">Automação Residencial · Tecnologia · Lazer</div>

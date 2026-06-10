@@ -203,26 +203,25 @@ function EnviarDocumentoModal({ proposal, clients, currentUser, onMarkSent, onCl
   const baseName = `${safe(proposal.code||proposal.id)}-${safe(proposal.client_name||'cliente')}`
 
   // Gera/baixa o documento escolhido (baixa arquivo .html que vira PDF no navegador)
-  function baixarDoc(){
-    if(docType==='proposta'){
+  function baixarDoc(typeOverride){
+    const type = typeOverride || docType
+    if(type==='proposta'){
       const pWithPhones = { ...proposal, client_name: cl?`${cl.name1}${cl.name2?' & '+cl.name2:''}`:proposal.client_name,
         client_phone1: cl?.phone1||'', client_phone2: cl?.phone2||'', itemFontSize:7,
         floors, _download:true }
       openProposalPDF(pWithPhones, false)
-    } else if(docType==='executivo'){
+    } else if(type==='executivo'){
       if(!proposal.exec_doc){ alert('Este orçamento não tem Projeto Executivo gerado.'); return }
-      const title=`Projeto Executivo RARO Home — ${proposal.client_name||'Cliente'}${proposal.code?' — '+proposal.code:''}`
-      const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${title}</title><link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0">${proposal.exec_doc}<button class="no-print" onclick="window.print()" style="position:fixed;top:10px;right:10px;background:#0EA5E9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;z-index:9999">⬇ Salvar PDF</button><style>@media print{.no-print{display:none}}</style></body></html>`
-      downloadHtml(html, `executivo-${baseName}.html`)
+      openHtmlDoc(wrapExecDoc(proposal.exec_doc, proposal.client_name, proposal.code),
+        `executivo-${baseName}.html`)
     } else {
-      const html=buildContract(proposal, cl)
-      downloadHtml(html, `contrato-${baseName}.html`)
+      openHtmlDoc(buildContract(proposal, cl), `contrato-${baseName}.html`)
     }
   }
 
   function enviarWhatsApp(phone){
     const n=norm(phone); if(!n) return
-    // abre o WhatsApp PRIMEIRO (dentro do gesto, não é bloqueado), depois baixa o doc
+    // abre o WhatsApp PRIMEIRO (dentro do gesto, não é bloqueado), depois gera o doc
     window.open(`https://wa.me/${n}?text=${encodeURIComponent(msgFor[docType])}`,'_blank')
     setTimeout(baixarDoc, 400)
   }
@@ -255,15 +254,18 @@ function EnviarDocumentoModal({ proposal, clients, currentUser, onMarkSent, onCl
         <div className="flabel" style={{marginBottom:8}}><i className="ti ti-files" style={{marginRight:4}} aria-hidden/>Qual documento enviar?</div>
         <div style={{display:'flex',gap:8,marginBottom:16}}>
           {DOCS.map(d=>(
-            <button key={d.key} disabled={d.disabled} title={d.hint||''}
+            <button key={d.key} disabled={d.disabled} title={d.hint||(docType===d.key?'Duplo clique para baixar':'')}
               onClick={()=>setDocType(d.key)}
+              onDoubleClick={()=>{ if(!d.disabled){ setDocType(d.key); baixarDoc(d.key) } }}
               style={{flex:1,padding:'12px 8px',borderRadius:8,cursor:d.disabled?'not-allowed':'pointer',
                 border:'2px solid', borderColor:docType===d.key?d.color:'var(--border)',
                 background:docType===d.key?`color-mix(in srgb, ${d.color} 10%, transparent)`:'var(--bg)',
                 opacity:d.disabled?0.4:1, display:'flex',flexDirection:'column',alignItems:'center',gap:6,
-                color:docType===d.key?d.color:'var(--text2)',fontFamily:'inherit',transition:'all .15s'}}>
+                color:docType===d.key?d.color:'var(--text2)',fontFamily:'inherit',transition:'all .15s',
+                position:'relative'}}>
               <i className={`ti ${d.icon}`} style={{fontSize:22}} aria-hidden/>
               <span style={{fontSize:11,fontWeight:600,textAlign:'center',lineHeight:1.2}}>{d.label}</span>
+              {docType===d.key && !d.disabled && <span style={{fontSize:9,opacity:0.6,position:'absolute',bottom:5}}>2× clique = baixar</span>}
             </button>
           ))}
         </div>
@@ -276,7 +278,7 @@ function EnviarDocumentoModal({ proposal, clients, currentUser, onMarkSent, onCl
 
         <div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 12px',marginBottom:14,fontSize:11,color:'var(--amber)'}}>
           <i className="ti ti-info-circle" style={{marginRight:4}} aria-hidden/>
-          O documento é <b>baixado</b> como arquivo. Abra-o e use <b>"Salvar PDF"</b> para anexar na conversa do WhatsApp.
+          <b>Clique 2×</b> no documento para gerar o PDF. O browser abre o diálogo "Salvar como PDF" automaticamente.
         </div>
 
         {/* WhatsApp — contatos do cliente */}
@@ -334,10 +336,6 @@ function EnviarDocumentoModal({ proposal, clients, currentUser, onMarkSent, onCl
 
         {/* Ações finais */}
         <div style={{borderTop:'1px solid var(--border)',paddingTop:12,display:'flex',flexDirection:'column',gap:8}}>
-          <button className="btn" style={{justifyContent:'center',gap:8}}
-            onClick={()=>{ baixarDoc() }}>
-            <i className="ti ti-download" aria-hidden/>Apenas gerar / baixar o documento
-          </button>
           {onMarkSent && proposal.status!=='sent' && proposal.status!=='approved' && (
             <button className="btn" style={{justifyContent:'center',gap:8}}
               onClick={async ()=>{ await onMarkSent(proposal); onClose() }}>

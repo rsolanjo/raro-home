@@ -1,60 +1,41 @@
-// Abre um documento HTML de forma robusta, contornando bloqueadores de popup.
-// Estratégia:
-//  1) Abre uma aba em branco IMEDIATAMENTE (precisa estar no gesto do clique).
-//  2) Se conseguiu, injeta o HTML via blob URL (mais confiável que document.write para conteúdo grande).
-//  3) Se o popup foi bloqueado, baixa o arquivo .html automaticamente.
-// Retorna 'opened' | 'downloaded'.
+// Abre/imprime/baixa documentos HTML de forma robusta.
+// Estratégia: abre uma aba com o HTML + dispara window.print() automaticamente.
+// O browser mostra "Salvar como PDF" — forma mais universal de gerar PDF.
+// Fallback: se popup bloqueado, baixa o .html para abrir localmente.
 
-export function openHtmlDoc(html, filename='documento.html') {
+export function openHtmlDoc(html, filename = 'documento.html') {
+  // Injeta auto-print no HTML para ele abrir o diálogo de PDF sozinho
+  const withPrint = injectAutoPrint(html, filename)
+
   let win = null
   try { win = window.open('', '_blank') } catch (e) { win = null }
 
-  let blobUrl = null
-  try {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-    blobUrl = URL.createObjectURL(blob)
-  } catch (e) { blobUrl = null }
-
-  if (win && blobUrl) {
-    // Redireciona a aba já aberta para o blob — renderiza o HTML completo
+  if (win) {
     try {
-      win.location.href = blobUrl
-      setTimeout(() => { try { URL.revokeObjectURL(blobUrl) } catch (e) {} }, 60000)
+      const blob = new Blob([withPrint], { type: 'text/html;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      win.location.href = url
+      setTimeout(() => { try { URL.revokeObjectURL(url) } catch (_) {} }, 90000)
       return 'opened'
-    } catch (e) { /* cai pro fallback */ }
-  }
-
-  if (win && !blobUrl) {
-    // Sem blob: escreve direto
-    try { win.document.open(); win.document.write(html); win.document.close(); return 'opened' } catch (e) {}
-  }
-
-  // Popup bloqueado → baixa o arquivo
-  try {
-    if (!blobUrl) {
-      const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-      blobUrl = URL.createObjectURL(blob)
+    } catch (e) {
+      try { win.document.open(); win.document.write(withPrint); win.document.close(); return 'opened' } catch (_) {}
     }
-    const a = document.createElement('a')
-    a.href = blobUrl; a.download = filename
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    setTimeout(() => { try { URL.revokeObjectURL(blobUrl) } catch (e) {} }, 60000)
-    return 'downloaded'
-  } catch (e) {
-    alert('Não foi possível abrir nem baixar o documento: ' + e.message)
-    return 'failed'
   }
+
+  // Popup bloqueado → baixa o arquivo .html (o usuário abre e imprime)
+  return downloadHtmlDoc(withPrint, filename.replace('.html','') + '-abra-para-PDF.html')
 }
 
-// Baixa direto como arquivo (sem tentar abrir aba)
-export function downloadHtmlDoc(html, filename='documento.html') {
+// Baixa diretamente como arquivo .html (abre e Ctrl+P → Salvar como PDF)
+export function downloadHtmlDoc(html, filename = 'documento.html') {
+  const withPrint = injectAutoPrint(html, filename)
   try {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const blob = new Blob([withPrint], { type: 'text/html;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = filename
+    a.href = url; a.download = filename.endsWith('.html') ? filename : filename + '.html'
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    setTimeout(() => { try { URL.revokeObjectURL(url) } catch (e) {} }, 60000)
+    setTimeout(() => { try { URL.revokeObjectURL(url) } catch (_) {} }, 60000)
     return true
   } catch (e) {
     alert('Erro ao baixar: ' + e.message)
@@ -62,16 +43,28 @@ export function downloadHtmlDoc(html, filename='documento.html') {
   }
 }
 
-const safe = s => (s || '').toString().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '-')
+// Injeta um script que dispara window.print() assim que a página carrega
+function injectAutoPrint(html, filename) {
+  const printBtn = `<button class="no-print" onclick="window.print()" style="position:fixed;top:12px;right:12px;background:#0EA5E9;color:#fff;border:none;padding:9px 18px;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;z-index:9999;font-family:sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.18)">⬇ Salvar PDF</button>`
+  const autoScript = `<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},800)});<\/script>`
+  const printStyle = `<style>@media print{.no-print{display:none!important}@page{margin:10mm 12mm}}</style>`
 
-// Embrulha o exec_doc (HTML interno) num documento completo com fontes + botão imprimir
+  // Se já tem </body>, injeta antes dele; senão, adiciona no fim
+  const tag = '</body>'
+  const insert = `${printBtn}${autoScript}${printStyle}`
+  if (html.includes(tag)) {
+    return html.replace(tag, insert + tag)
+  }
+  return html + insert
+}
+
+// Embrulha exec_doc em documento completo para impressão/PDF
 export function wrapExecDoc(execDoc, clientName, code) {
   const title = `Projeto Executivo RARO Home — ${clientName || 'Cliente'}${code ? ' — ' + code : ''}`
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${title}</title>` +
-    `<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"></head>` +
-    `<body style="margin:0">${execDoc}` +
-    `<button class="no-print" onclick="window.print()" style="position:fixed;top:10px;right:10px;background:#0EA5E9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;z-index:9999;font-family:sans-serif">⬇ Salvar PDF</button>` +
-    `<style>@media print{.no-print{display:none}}</style></body></html>`
+    `<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">` +
+    `</head><body style="margin:0">${execDoc}</body></html>`
 }
 
-export { safe as safeFileName }
+export const safeFileName = s =>
+  (s || '').toString().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '-')

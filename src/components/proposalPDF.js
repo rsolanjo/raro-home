@@ -39,8 +39,8 @@ body{font-family:'DM Sans',sans-serif;background:#fff;-webkit-print-color-adjust
 .cov-si{font-family:'DM Serif Display',serif;font-size:10px;font-style:italic;color:rgba(240,246,255,0.6)}
 .cov-right{font-size:6px;color:rgba(56,189,248,0.3);text-align:right;line-height:1.9;font-family:'DM Sans',sans-serif}
 
-.logo-zone{background:#F5FAFF;padding:20px 28px 14px;display:flex;flex-direction:column;align-items:center;flex-shrink:0;border-bottom:0.5px solid #C8DEFF}
-.logo-zone img{height:140px;width:auto;display:block}
+.logo-zone{padding:20px 28px 14px;display:flex;flex-direction:column;align-items:center;flex-shrink:0;border-bottom:0.5px solid #C8DEFF}
+.logo-zone img{height:160px;width:auto;display:block}
 .logo-tagline{font-size:9px;letter-spacing:6px;color:#0369A1;text-transform:uppercase;font-family:'DM Sans',sans-serif;font-weight:300;margin-top:12px;margin-bottom:2px}
 .logo-orn{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:9px}
 .lo-l{width:44px;height:0.5px;background:#0EA5E9}
@@ -399,7 +399,7 @@ export async function openProposalPDF(proposal, adminMode=false) {
     }, adminMode)
 
     const fname = `proposta-${(proposal.code||proposal.id||'raro').toString().replace(/[\\/:*?"<>|]/g,'')}${adminMode?'-ADMIN':''}.html`
-    if (proposal._download) { downloadHtmlDoc(html, fname); return }
+    // _download e visualizar usam o mesmo fluxo: abre com auto-print para gerar PDF
     openHtmlDoc(html, fname)
   } catch(err) {
     console.error('openProposalPDF error:', err)
