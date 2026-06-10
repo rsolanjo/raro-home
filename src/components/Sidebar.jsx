@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v73 — pin drag livre (proporção real + sem clamp); editar+renumerar na lista
+// v75 — busca+filtro cômodos+categorias na planta; room select com confirm novo; posicionamento com coords dos cômodos
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v73 · build 2026-06
+          v75 · build 2026-06
         </div>
       </div>
     </div>

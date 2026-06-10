@@ -540,6 +540,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
   const [cf, setCf] = useState(0)
   const [cr, setCr] = useState(()=> (!editProposal && execSeed?.floors?.[0]?.rooms?.length) ? 0 : -1)
   const [catFilter, setCatFilter] = useState('all')
+  const [hiddenCateg, setHiddenCateg] = useState(new Set()) // categories hidden from proposal output
   const [catSearch, setCatSearch] = useState('')
   const [editingItemPrice, setEditingItemPrice] = useState(null)
   const [showPIN, setShowPIN]   = useState(false)
@@ -576,7 +577,12 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
     updRoom({items: newItems, price: String(newPrice)})
     if(!room?.pitch && item.pitch) updRoom({pitch:item.pitch})
   }
-  function removeItem(k){ updRoom({items:room.items.filter((_,i)=>i!==k)}) }
+  function removeItem(k){
+    const newItems = room.items.filter((_,i)=>i!==k)
+    const newPrice = newItems.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1), 0)
+    updRoom({items: newItems, price: newPrice > 0 ? String(newPrice) : room.price})
+    setSaved(false)
+  }
 
   function genPitch(){ if(!room) return; const key=Object.keys(PITCHES).find(k=>room.name.toLowerCase().includes(k)); const list=PITCHES[key||'sala']; updRoom({pitch:list[Math.floor(Math.random()*list.length)]}) }
 
@@ -687,13 +693,17 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
     try {
       const previewCode = proposalCode || 'PRÉVIA'
       const cl = clients.find(c=>c.id===Number(clientId))
+      // Filter out hidden categories from the PDF output
+      const floorsFiltered = hiddenCateg.size === 0 ? floors : floors.map(f=>({...f,
+        rooms: f.rooms.map(r=>({...r, items:(r.items||[]).filter(it=>!hiddenCateg.has(it.category||'Sem categoria'))}))
+      }))
       const html = buildPDF({
         catalog,
         client_name: cl ? `${cl.name1} & ${cl.name2}` : clientName,
         proposal_code: previewCode,
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         date_str: new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),
-        floors, labor:parse(labor), margin, itemFontSize:pdfFontSize,
+        floors: floorsFiltered, labor:parse(labor), margin, itemFontSize:pdfFontSize,
         client_phone1: cl?.phone1, client_phone2: cl?.phone2
       }, admin)
       // Try window.open with blob
@@ -903,6 +913,32 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
             })}
           </div>
         })()}
+        {/* ── OCULTAR CATEGORIAS (item 8) ── */}
+        {(()=>{
+          const allCats=[...new Set((floors||[]).flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).map(it=>it.category||'Sem categoria'))))]
+          if(!allCats.length) return null
+          return <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',background:'var(--surf)'}}>
+            <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,color:'var(--text3)',marginBottom:5}}>
+              <i className="ti ti-eye-off" style={{marginRight:3}} aria-hidden/>Ocultar na proposta
+            </div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
+              {allCats.map(cat=>{
+                const hidden=hiddenCateg.has(cat)
+                return <button key={cat} onClick={()=>{const s=new Set(hiddenCateg); if(hidden)s.delete(cat); else s.add(cat); setHiddenCateg(s); setSaved(false)}}
+                  style={{fontSize:9,padding:'2px 7px',borderRadius:10,border:'1px solid',cursor:'pointer',fontFamily:'inherit',
+                    borderColor:hidden?'#DC2626':'var(--border)',background:hidden?'rgba(220,38,38,0.08)':'var(--bg)',
+                    color:hidden?'#DC2626':'var(--text3)',textDecoration:hidden?'line-through':'none'}}
+                  title={hidden?'Mostrar na proposta':'Ocultar da proposta'}>
+                  {cat}
+                </button>
+              })}
+            </div>
+            {hiddenCateg.size>0&&<div style={{fontSize:9,color:'var(--amber)',marginTop:4}}>
+              <i className="ti ti-alert-triangle" style={{marginRight:3}} aria-hidden/>
+              {hiddenCateg.size} categoria{hiddenCateg.size>1?'s':''} oculta{hiddenCateg.size>1?'s':''} da proposta
+            </div>}
+          </div>
+        })()}
         {/* ── LEFT PANEL ── */}
         <div className="b-left">
           <div className="b-left-top">
@@ -959,9 +995,44 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
             <input value={floor?.name||''} onChange={e=>{updFloor(cf,{name:e.target.value});setSaved(false)}} style={{fontSize:12}} placeholder="Nome do pavimento"/>
           </div>
           <div className="room-list">
-            {(floor?.rooms||[]).map((r,i)=><div key={r.id} className={`room-entry${cr===i?' active':''}`} onClick={()=>{setCr(i);setMobilePanel('edit')}}>
+            {(floor?.rooms||[]).map((r,i)=><div key={r.id} className={`room-entry${cr===i?' active':''}`} onClick={()=>{setCr(i);setMobilePanel('edit')}}
+              style={{position:'relative'}} title={r.name}>
               <div className="room-entry-name">{r.icon} {r.name||`Cômodo ${i+1}`}</div>
               <div className="room-entry-price">{r.price?fmt(parse(r.price)):'–'}</div>
+              {/* Ações do cômodo: mover + fundir */}
+              <div style={{position:'absolute',right:3,top:'50%',transform:'translateY(-50%)',display:'none',gap:3}}
+                className="room-actions">
+                {floors.length>1&&<select title="Mover para pavimento"
+                  style={{fontSize:9,padding:'1px 2px',borderRadius:3,background:'var(--surf)',color:'var(--text2)',border:'1px solid var(--border)',cursor:'pointer',maxWidth:60}}
+                  onChange={e=>{
+                    const toFi=parseInt(e.target.value); if(isNaN(toFi)||toFi===cf) return
+                    const roomToMove={...r, items:[...(r.items||[])]}
+                    setFloors(fs=>fs.map((f,fi)=>{
+                      if(fi===cf) return {...f,rooms:f.rooms.filter((_,ri)=>ri!==i)}
+                      if(fi===toFi) return {...f,rooms:[...f.rooms,roomToMove]}
+                      return f
+                    })); setCr(-1); setSaved(false)
+                  }}>
+                  <option value="">↑ Mover</option>
+                  {floors.map((f,fi)=>fi!==cf&&<option key={fi} value={fi}>{f.name}</option>)}
+                </select>}
+                <select title="Fundir com cômodo"
+                  style={{fontSize:9,padding:'1px 2px',borderRadius:3,background:'var(--surf)',color:'var(--text2)',border:'1px solid var(--border)',cursor:'pointer',maxWidth:70}}
+                  onChange={e=>{
+                    const ti=parseInt(e.target.value); if(isNaN(ti)||ti===i) return
+                    setFloors(fs=>fs.map((f,fi)=>{
+                      if(fi!==cf) return f
+                      const src=f.rooms[i], tgt=f.rooms[ti]
+                      const merged={...tgt, items:[...(tgt.items||[]),...(src.items||[])],
+                        price:String(parse(tgt.price)+parse(src.price))}
+                      const newRooms=f.rooms.map((rx,ri)=>ri===ti?merged:rx).filter((_,ri)=>ri!==i)
+                      return {...f, rooms:newRooms}
+                    })); setCr(i>0?i-1:0); setSaved(false)
+                  }}>
+                  <option value="">⊕ Fundir</option>
+                  {(floor?.rooms||[]).map((rx,ri)=>ri!==i&&<option key={ri} value={ri}>{rx.name}</option>)}
+                </select>
+              </div>
             </div>)}
             {(!floor?.rooms||floor.rooms.length===0)&&<div className="empty-state" style={{padding:18}}><i className="ti ti-home" style={{fontSize:20}} aria-hidden/><p>Nenhum cômodo</p></div>}
           </div>

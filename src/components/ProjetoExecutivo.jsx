@@ -156,11 +156,18 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [chatInput, setChatInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [markers, setMarkers] = useState(()=> fromProposal?.planta_data?.markers || [])
-  const [projectInfo, setProjectInfo] = useState({client: preClient?`${preClient.name1||''}${preClient.name2?' & '+preClient.name2:''}`:'', notes:''})
+  const [projectInfo, setProjectInfo] = useState({
+    client: preClient?`${preClient.name1||''}${preClient.name2?' & '+preClient.name2:''}`
+          : fromProposal?.client_name || '',
+    notes:''
+  })
   const [selClient, setSelClient] = useState('')
   const [clientSearch, setClientSearch] = useState('')
   const [catSearch, setCatSearch] = useState('')
   const [catFilter, setCatFilter] = useState('')
+  const [editorSearch, setEditorSearch] = useState('')         // busca nos markers na planta
+  const [filterRooms, setFilterRooms] = useState(new Set())   // cômodos selecionados (vazio = todos)
+  const [filterCateg, setFilterCateg] = useState(new Set())   // categorias selecionadas (vazio = todas)
   const [execDoc, setExecDoc] = useState(null)
   const [execProgress, setExecProgress] = useState('')
   const [zoom, setZoom] = useState(1)
@@ -355,13 +362,18 @@ CATÁLOGO RARO Home:
 ${catList}
 
 REGRAS DO PROJETO:
-1. CABECEIRA DE CAMA: combo por lado — keypad 1 botão + tomada USB + tomada comum.
+1. CABECEIRA DE CAMA: combo por lado — keypad 1 botão (H=0,70m) + tomada USB (H=0,90m) + tomada comum (H=0,30m).
 2. Banheiros/entrada: sensor mmWave no teto.
 3. Ambientes com AC e/ou TV: Hub IR.
 4. Wi-Fi: 1 AP por 50m², teto centro.
 5. Rack: Dream Machine SE + switch PoE+ se >6 dispositivos PoE.
 
-Com base nos cômodos listados, faça APENAS 3 ou 4 perguntas objetivas e essenciais para o projeto. Cada pergunta em parágrafo separado. Seja direto.`
+Com base nos cômodos listados, faça APENAS 4 ou 5 perguntas objetivas essenciais. Inclua OBRIGATORIAMENTE:
+- Pergunta sobre KEYPADS por cômodo (quantas teclas em cada ambiente — 1, 2, 3, 4 ou 6 botões)
+- Pergunta sobre TOMADAS por cômodo (quantidade e posições desejadas além das cabeceiras)
+- Pergunta sobre ar-condicionado e TV (ambientes com Hub IR)
+- Pergunta sobre câmeras e som ambiente
+Cada pergunta em parágrafo separado. Seja direto e objetivo.`
     try{
       const reply = await askClaude([{role:'user',text:sys+'\n\nFaça as perguntas sobre este projeto.'}], null, 'image/jpeg', 800)
       setChat([{role:'assistant',text:reply}])
@@ -387,7 +399,7 @@ Com base nos cômodos listados, faça APENAS 3 ou 4 perguntas objetivas e essenc
     const catSummary = catalog.slice(0,80).map(c=>`${c.code}: ${c.name} (${c.category})`).join('\n')
     const conversation = chat.map(m=>`${m.role==='user'?'Cliente':'Projetista'}: ${m.text}`).join('\n')
     const roomsConfirmed = rooms.length
-      ? `\nCÔMODOS CONFIRMADOS (use exatamente estes nomes no campo "room"):\n${rooms.map(r=>`${r.id}. ${r.name}${r.floor?' ('+r.floor+')':''}`).join('\n')}\n`
+      ? `\nCÔMODOS CONFIRMADOS com posições na planta (use x,y como REFERÊNCIA CENTRAL de cada cômodo):\n${rooms.map(r=>`${r.id}. ${r.name}${r.floor?' ('+r.floor+')':''} — centro aproximado: x=${Math.round(r.x||50)}, y=${Math.round(r.y||50)}`).join('\n')}\n\nPOSICIONAMENTO: distribua os equipamentos DENTRO do cômodo correspondente, próximo ao x,y indicado (variação ±10% para não sobrepor). NUNCA empilhe itens.\n`
       : ''
     const prompt = `Você é um projetista de automação RARO Home. Posicione os equipamentos na planta.
 ${roomsConfirmed}
@@ -399,8 +411,10 @@ ${catSummary}
 
 REGRAS DE POSICIONAMENTO:
 - Identifique visualmente cada AMBIENTE na planta.
-- Keypad entrada: ao lado da porta, lado maçaneta, H=1,10m.
-- CABECEIRA DE CAMA (OBRIGATÓRIO em todo quarto/suíte): posicione combo em CADA lado da cama: 1x keypad 1 botão (H=0,70m) + 1x tomada USB + 1x tomada comum. Isso vale para suíte master, suíte 2, quarto, etc.
+- Keypad entrada: ao lado da porta, lado maçaneta, H=1,10m. Quantidade de botões conforme premissas da conversa (1, 2, 3, 4 ou 6 botões).
+- CABECEIRA DE CAMA (OBRIGATÓRIO em todo quarto/suíte): combo em CADA lado: 1x keypad 1 botão (H=0,70m) + 1x tomada USB (H=0,90m) + 1x tomada comum (H=0,30m).
+- TOMADAS POR CÔMODO: adicione tomadas conforme premissas da conversa — H=0,30m padrão, H=0,90m altura de mesa/bancada.
+- SALA DE ESTAR (sempre que houver TV): posicione 5 caixas de som embutidas no teto (5.1) — frontal L/R, central, surround L/R — + subwoofer no chão próximo ao rack.
 - Câmera: canto alto do ambiente, H=2,50m.
 - Hub IR: só em ambientes com AR-CONDICIONADO E/OU TV, visão do aparelho.
 - Sensor mmWave: entrada principal + todos os banheiros, no teto H=2,70m.
@@ -509,7 +523,14 @@ Responda APENAS JSON válido:
 `Projetista RARO Home. Responda APENAS JSON válido (sem markdown). ${conv}\n\n${ctx}\n\nINFO RACK: ${rackNote}\n\n{
  "premissas":["..."],
  "rack_config":{"dream_machine_portas":8,"aps":${aps},"cameras":${cams},"precisa_switch":${precisaSwitch},"switch_portas":${precisaSwitch?16:0},"observacao":"..."},
- "rack_items":[{"u":"U1","equip":"Dream Machine SE","funcao":"Roteador principal / gateway Zigbee / 8 portas PoE","watts":"25W"},{"u":"U2","equip":"Switch PoE+ 16p","funcao":"só se precisa_switch=true","watts":"..."}],
+ "rack_items":[
+  {"u":"U1","equip":"Dream Machine SE","funcao":"Roteador principal, controller UniFi, gateway Zigbee integrado, 8 portas PoE","watts":"25W"},
+  {"u":"U2","equip":"Switch PoE+ 16p","funcao":"Alimentação adicional APs/câmeras PoE (somente se precisa_switch=true)","watts":"120W"},
+  {"u":"U3","equip":"Amplificador multicanal 8 zonas","funcao":"Som ambiente — conecta caixas por zona","watts":"200W"},
+  {"u":"U4-U5","equip":"Patch Panel 24 portas CAT6","funcao":"Organização de todos os cabos estruturados","watts":"—"},
+  {"u":"U6","equip":"Organizador horizontal 1U","funcao":"Gestão de cabos patch cord — 1 por Patch Panel","watts":"—"},
+  {"u":"U7","equip":"Régua 8 tomadas filtrada","funcao":"Alimentação filtrada dos equipamentos","watts":"—"}
+],
  "rack_detalhe":["Rack embutido no armário...","Tomada 110V dedicada 20A...","Ventilação forçada...","..."],
  "pontos":[{"ambiente":"Estar (8,00×6,20m)","linhas":[{"ponto":"K1","equip":"Keypad 6 botões","parede":"entrada","dist":"0,15m","alt":"1,10m","caixa":"4×4 + NEUTRO","cabo":"2,5mm² ~8m"}]}],
  "modulos_teto":[{"ambiente":"Estar","itens":["5x spot LED M1","Módulo cortina M2 (forro, 2,55m)","Caixa som S1-S5 (teto, 2,70m)","Sensor mmWave P1 (teto centro)"]}],
@@ -521,7 +542,8 @@ Responda APENAS JSON válido:
       setExecProgress('Cabos detalhados e checklists... (2/2)')
       const d2=await askJSON(
 `Projetista RARO Home. Responda APENAS JSON válido (sem markdown). ${conv}\n\n${ctx}\n\n{
- "cabos_rede":[{"id":"CAT-01","origem":"DM SE porta 1","destino":"AP #1 Sala","tipo":"CAT6 U/UTP","bitola":"24AWG","metros":"12","cor_etiqueta":"Azul","porta_patch":"P01","etiqueta":"AP-SALA"}],
+ "rack_cable_table":[{"porta_patch":"P01","device_origem":"Dream Machine SE","porta_origem":"LAN 1","destino":"AP Sala de Estar","device_nome":"ap-sala","tipo":"CAT6 PoE","metros":"12","etiqueta":"AP-SALA","cor":"Azul"},{"porta_patch":"P02","device_origem":"Dream Machine SE","porta_origem":"UPLINK","destino":"Switch PoE+ porta 1 (uplink)","device_nome":"switch-poe","tipo":"CAT6","metros":"0.5","etiqueta":"UPLINK","cor":"Cinza"}],
+ ""cabos_rede":[{"id":"CAT-01","origem":"DM SE porta 1","destino":"AP #1 Sala","tipo":"CAT6 U/UTP","bitola":"24AWG","metros":"12","cor_etiqueta":"Azul","porta_patch":"P01","etiqueta":"AP-SALA"}],
  "cabos_som":[{"id":"SOM-01","origem":"Amplificador rack saída 1","destino":"Caixa S1 Sala","tipo":"2×1,5mm²","metros":"5","etiqueta":"SOM-S1"}],
  "cabos_eletricos_por_comodo":[{"comodo":"Sala","itens":[{"id":"ELT-01","equip":"Keypad K1 entrada","tipo":"fase+neutro+terra","fios":"3x2,5mm²","origem":"Quadro QDL disj.C1","destino":"caixa 4x4 parede, H=1,10m","metros":"8","obs":"NEUTRO obrigatório"},{"id":"ELT-02","equip":"Módulo Cortina M2","tipo":"fase+neutro","fios":"2x2,5mm²","origem":"Quadro QDL disj.C2","destino":"forro 2,55m","metros":"10","obs":""}]}],
  "alim_keypads":[{"id":"KEY-01","origem":"Quadro luz disj.K1","destino":"Keypad K1 entrada Sala","cota":"1,10m","comodo":"Sala","metros":"8","fios":"2x2,5mm² F+N"}],
@@ -642,6 +664,11 @@ Responda APENAS JSON válido:
       ? modulosTeto.map(mt=>`<h3 class="ex-amb">${esc(mt.ambiente)}</h3>${T((mt.itens||[]).map(it=>`<tr><td>${esc(it)}</td></tr>`).join(''),['Itens de teto / forro'])}`).join('')
       : (d.modulos||[]).length ? T(d.modulos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.funcao)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.carga)}</td><td>${esc(r.posicao)}</td></tr>`).join(''),['ID','Função','Ambiente','Carga','Posição']) : ''
 
+    // Tabela de portas/cabos do rack (item 3: ports, device names, uplinks, labels)
+    const rackCableTableHtml = (d.rack_cable_table||[]).length
+      ? T(d.rack_cable_table.map((r,i)=>`<tr><td><b style="font-family:monospace;background:#0D1420;color:#38BDF8;padding:2px 6px;border-radius:3px">${esc(r.porta_patch||'P'+(i+1))}</b></td><td>${esc(r.device_origem)}</td><td style="font-family:monospace;font-size:10px;color:#0369A1">${esc(r.porta_origem)}</td><td>${esc(r.destino)}</td><td style="font-family:monospace;font-size:10px;color:#059669">${esc(r.device_nome||'-')}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-weight:700;color:#0D1420;font-size:10px;background:#FFF7ED;padding:2px 6px;border-radius:3px">${esc(r.etiqueta)}</td><td><span style="background:${r.cor==='Azul'?'#0EA5E9':r.cor==='Cinza'?'#6B7280':r.cor==='Verde'?'#16A34A':r.cor==='Amarelo'?'#D97706':r.cor==='Vermelho'?'#DC2626':'#374151'};color:#fff;padding:1px 6px;border-radius:8px;font-size:9px">${esc(r.cor||'-')}</span></td></tr>`).join(''),['Porta PP','Device Origem','Porta Origem','Destino','Nome no Sistema','Tipo','m','Etiqueta','Cor'])
+      : ''
+
     // Tópico 5 — Pontos de parede
     const pontosHtml=(d.pontos||[]).map(a=>`<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T((a.linhas||[]).map(l=>`<tr><td><b>${esc(l.ponto)}</b></td><td>${esc(l.equip)}</td><td>${esc(l.parede)}</td><td>${esc(l.dist)}</td><td>${esc(l.alt)}</td><td>${esc(l.caixa)}</td><td>${esc(l.cabo)}</td></tr>`).join(''),['Ponto','Equip.','Parede ref.','Dist.','Alt.','Caixa','Cabo'])}`).join('')
 
@@ -680,17 +707,33 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
       if(!geral[key]) geral[key]={qty:0,cat:inCat}
       geral[key].qty++
     })
+    // Categorias para item 7
+    const CATS_MAP = {
+      'Rede':    n=> /access point|ap |wi-fi|wifi|keystone|switch|patch|roteador|router/i.test(n),
+      'Som':     n=> /caixa|amplif|subwoofer|receiver|áudio|audio|som/i.test(n),
+      'Segurança': n=> /câmera|camera|dome|bullet|sensor mmwave|mmwave|sensor prese/i.test(n),
+      'Automação': n=> /keypad|hub ir|módulo|modulo|cortina|dimmer|tomada|interruptor|gateway|zigbee/i.test(n),
+    }
+    const getCateg = nm=>{for(const[c,fn]of Object.entries(CATS_MAP))if(fn(nm))return c; return 'Outros'}
+
     let itensComodoHtml=''
     Object.entries(byRoom).forEach(([room,items])=>{
       const total=Object.values(items).reduce((s,i)=>s+i.qty,0)
-      itensComodoHtml+=`<h3 class="ex-amb">${esc(room)} — ${total} item(ns)</h3>`+T(
-        Object.entries(items).map(([nm,i])=>`<tr><td>${esc(nm)}</td><td>${i.cat?'<span style="color:#16A34A;font-weight:600">Catálogo</span>':'<span style="color:#D97706">Avulso</span>'}</td><td><b>${i.qty}</b></td></tr>`).join(''),
-        ['Item','Origem','Qtd'])
+      // Group by category
+      const byCateg={}
+      Object.entries(items).forEach(([nm,i])=>{const c=getCateg(nm); if(!byCateg[c])byCateg[c]=[]; byCateg[c].push({nm,i})})
+      const catColors={'Rede':'#0EA5E9','Som':'#BE185D','Segurança':'#DC2626','Automação':'#059669','Outros':'#6B7280'}
+      const catHtml=Object.entries(byCateg).map(([cat,rows])=>`
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;font-weight:700;color:${catColors[cat]||'#374151'};text-transform:uppercase;letter-spacing:0.5px;padding:3px 0;border-bottom:1px solid ${catColors[cat]||'#374151'}22;margin-bottom:3px">${cat}</div>
+          ${T(rows.map(({nm,i})=>`<tr><td>${esc(nm)}</td><td>${i.cat?'<span style="color:#16A34A;font-size:10px">Catálogo</span>':'<span style="color:#D97706;font-size:10px">Avulso</span>'}</td><td><b>${i.qty}</b></td></tr>`).join(''),['Item','','Qtd'])}
+        </div>`).join('')
+      itensComodoHtml+=`<h3 class="ex-amb">${esc(room)} — ${total} item(ns)</h3><div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:10px 12px;margin-bottom:12px">${catHtml}</div>`
     })
     const totalGeralHtml=Object.keys(geral).length?T(
-      Object.entries(geral).sort((a,b)=>b[1].qty-a[1].qty).map(([nm,i])=>`<tr><td>${esc(nm)}</td><td>${i.cat?'Catálogo':'Avulso'}</td><td><b>${i.qty}</b></td></tr>`).join('')
-       +`<tr style="background:#060B1A"><td style="color:#fff;font-weight:700">TOTAL GERAL</td><td></td><td style="color:#fff;font-weight:700">${Object.values(geral).reduce((s,i)=>s+i.qty,0)}</td></tr>`,
-      ['Item','Origem','Qtd total'])
+      Object.entries(geral).sort((a,b)=>b[1].qty-a[1].qty).map(([nm,i])=>`<tr><td>${esc(nm)}</td><td style="color:${{'Rede':'#0EA5E9','Som':'#BE185D','Segurança':'#DC2626','Automação':'#059669','Outros':'#6B7280'}[getCateg(nm)]||'#374151'};font-size:10px;font-weight:600">${getCateg(nm)}</td><td>${i.cat?'Catálogo':'Avulso'}</td><td><b>${i.qty}</b></td></tr>`).join('')
+       +`<tr style="background:#060B1A"><td style="color:#fff;font-weight:700" colspan="2">TOTAL GERAL</td><td></td><td style="color:#fff;font-weight:700">${Object.values(geral).reduce((s,i)=>s+i.qty,0)}</td></tr>`,
+      ['Item','Categoria','Origem','Qtd total'])
       :''
 
     // Tópico 20 — 4 gráficos + timeline
@@ -776,7 +819,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     const fotosTxt='<p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>'
     return [
     secN(`Premissas Confirmadas`, list(d.premissas)),
-    secN(`Detalhe do RACK / CPD`, (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual):''),
+    secN(`Detalhe do RACK / CPD`, (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas e Cabos do Rack</h3>${rackCableTableHtml}`:'')):''),
     secN(`Módulos e Caixas de Teto — por Cômodo`, modulosTetoHtml),
     secN(`Keypads, Câmeras e Pontos de Parede`, pontosHtml),
     secN(`Cabos de Rede — Patch Panel e Etiquetas`, cabosRedeHtml),
@@ -1189,31 +1232,80 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         {/* STEP EDITOR */}
         {step==='editor' && (
           <div className="pe-editor-wrap" style={{flex:1,display:'flex',minHeight:0}}>
-            <div className="pe-editor-cat" style={{width:230,background:'#0f172a',borderRight:'1px solid rgba(255,255,255,0.08)',overflowY:'auto'}}>
-              <div style={{padding:12,borderBottom:'1px solid rgba(255,255,255,0.08)',fontSize:11,color:'#38BDF8',fontWeight:600,textTransform:'uppercase'}}>Adicionar do catálogo</div>
-              {addMode&&addItem&&<div style={{padding:'6px 12px',background:'rgba(14,165,233,0.15)',fontSize:11,color:'#38BDF8'}}>Clique na planta: {addItem.name}<br/><span onClick={()=>{setAddMode(false);setAddItem(null)}} style={{cursor:'pointer',textDecoration:'underline'}}>cancelar</span></div>}
-              <div style={{padding:'10px 12px',position:'sticky',top:0,background:'#0f172a',zIndex:2,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-                <input value={catSearch} onChange={e=>setCatSearch(e.target.value)} placeholder="Buscar item..."
-                  style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:6,padding:'8px 10px',color:'#fff',fontSize:13,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
-                <select value={catFilter} onChange={e=>setCatFilter(e.target.value)}
-                  style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:6,padding:'8px 10px',color:'#fff',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}>
-                  <option value="">Todas as categorias</option>
-                  {Object.keys(catGroups).map(g=><option key={g} value={g}>{g}</option>)}
-                </select>
+            {/* ── Sidebar esquerda: filtros + catálogo ── */}
+            <div className="pe-editor-cat" style={{width:230,background:'#0f172a',borderRight:'1px solid rgba(255,255,255,0.08)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+              {/* Busca na planta */}
+              <div style={{padding:'8px 10px 6px',borderBottom:'1px solid rgba(255,255,255,0.06)',background:'#0a1020'}}>
+                <div style={{fontSize:9,fontWeight:700,color:'#38BDF8',textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>🔍 Buscar na planta</div>
+                <input value={editorSearch} onChange={e=>setEditorSearch(e.target.value)}
+                  placeholder="Nome, código ou cômodo..."
+                  style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(56,189,248,0.3)',borderRadius:5,padding:'6px 9px',color:'#fff',fontSize:11,fontFamily:'inherit',boxSizing:'border-box'}}/>
+                {editorSearch&&<div style={{fontSize:9,color:'rgba(255,255,255,0.35)',marginTop:3}}>
+                  {markers.filter(m=>m.name?.toLowerCase().includes(editorSearch.toLowerCase())||m.code?.toLowerCase().includes(editorSearch.toLowerCase())||m.room?.toLowerCase().includes(editorSearch.toLowerCase())).length} resultado(s)
+                </div>}
               </div>
-              {Object.entries(catGroups).filter(([g])=>!catFilter||g===catFilter).map(([g,items])=>{
-                const fil=items.filter(it=>!catSearch||(it.name||'').toLowerCase().includes(catSearch.toLowerCase())||(it.code||'').toLowerCase().includes(catSearch.toLowerCase()))
-                if(!fil.length) return null
-                return <div key={g}>
-                  <div style={{padding:'6px 12px 2px',fontSize:9,color:'rgba(255,255,255,0.3)',textTransform:'uppercase'}}>{g}</div>
-                  {fil.map((it,i)=>{const st=EQUIP_STYLE[equipType(it.name)]||EQUIP_STYLE.Outro
-                    return <div key={i} onClick={()=>{setAddItem(it);setAddMode(true)}} style={{padding:'9px 12px',cursor:'pointer',display:'flex',gap:8,alignItems:'center',minHeight:38}}
-                      onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.05)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      <span style={{width:20,height:20,borderRadius:'50%',background:st.c,color:'#fff',fontSize:9,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{st.s}</span>
-                      <span style={{fontSize:11,color:'rgba(255,255,255,0.85)',lineHeight:1.3}}>{it.name}{isRackItem(it.name,it.code)?<span style={{color:'#A78BFA',fontSize:9}}> · rack</span>:''}</span>
-                    </div>})}
-                </div>})}
+              {/* Filtro cômodos */}
+              <div style={{padding:'7px 10px 6px',borderBottom:'1px solid rgba(255,255,255,0.06)',background:'#0a1020'}}>
+                <div style={{fontSize:9,fontWeight:700,color:'#38BDF8',textTransform:'uppercase',letterSpacing:1,marginBottom:4,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span>🏠 Cômodos</span>
+                  {filterRooms.size>0&&<button onClick={()=>setFilterRooms(new Set())} style={{fontSize:8,color:'rgba(255,255,255,0.4)',background:'none',border:'none',cursor:'pointer',padding:0}}>limpar</button>}
+                </div>
+                <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
+                  {[...new Set(markers.map(m=>m.room||'Sem cômodo'))].sort().map(r=>{
+                    const sel=filterRooms.has(r)
+                    return <button key={r} onClick={()=>setFilterRooms(prev=>{const s=new Set(prev);if(s.has(r))s.delete(r);else s.add(r);return s})}
+                      style={{fontSize:9,padding:'2px 6px',borderRadius:8,border:'1px solid',cursor:'pointer',fontFamily:'inherit',
+                        borderColor:sel?'#38BDF8':'rgba(255,255,255,0.15)',background:sel?'rgba(56,189,248,0.15)':'rgba(255,255,255,0.03)',
+                        color:sel?'#38BDF8':'rgba(255,255,255,0.5)'}}>
+                      {r}
+                    </button>})}
+                </div>
+              </div>
+              {/* Filtro categorias */}
+              <div style={{padding:'7px 10px 6px',borderBottom:'1px solid rgba(255,255,255,0.06)',background:'#0a1020'}}>
+                <div style={{fontSize:9,fontWeight:700,color:'#38BDF8',textTransform:'uppercase',letterSpacing:1,marginBottom:4,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span>🏷 Categorias</span>
+                  {filterCateg.size>0&&<button onClick={()=>setFilterCateg(new Set())} style={{fontSize:8,color:'rgba(255,255,255,0.4)',background:'none',border:'none',cursor:'pointer',padding:0}}>limpar</button>}
+                </div>
+                <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
+                  {[...new Set(markers.map(m=>equipType(m.name)))].sort().map(t=>{
+                    const st=EQUIP_STYLE[t]||EQUIP_STYLE.Outro; const sel=filterCateg.has(t)
+                    return <button key={t} onClick={()=>setFilterCateg(prev=>{const s=new Set(prev);if(s.has(t))s.delete(t);else s.add(t);return s})}
+                      style={{fontSize:9,padding:'2px 6px',borderRadius:8,border:'1px solid',cursor:'pointer',fontFamily:'inherit',
+                        borderColor:sel?st.c:'rgba(255,255,255,0.15)',background:sel?st.c+'30':'rgba(255,255,255,0.03)',
+                        color:sel?st.c:'rgba(255,255,255,0.5)'}}>
+                      {st.s} {t}
+                    </button>})}
+                </div>
+              </div>
+              {/* Catálogo */}
+              <div style={{flex:1,overflowY:'auto'}}>
+                <div style={{padding:'7px 10px 2px',fontSize:9,fontWeight:700,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:1}}>Adicionar do catálogo</div>
+                {addMode&&addItem&&<div style={{padding:'6px 12px',background:'rgba(14,165,233,0.15)',fontSize:11,color:'#38BDF8'}}>Clique na planta: {addItem.name}<br/><span onClick={()=>{setAddMode(false);setAddItem(null)}} style={{cursor:'pointer',textDecoration:'underline'}}>cancelar</span></div>}
+                <div style={{padding:'6px 10px',position:'sticky',top:0,background:'#0f172a',zIndex:2,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+                  <input value={catSearch} onChange={e=>setCatSearch(e.target.value)} placeholder="Buscar item..."
+                    style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:6,padding:'7px 10px',color:'#fff',fontSize:12,fontFamily:'inherit',boxSizing:'border-box',marginBottom:5}}/>
+                  <select value={catFilter} onChange={e=>setCatFilter(e.target.value)}
+                    style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:6,padding:'7px 10px',color:'#fff',fontSize:12,fontFamily:'inherit',boxSizing:'border-box'}}>
+                    <option value="">Todas as categorias</option>
+                    {Object.keys(catGroups).map(g=><option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                {Object.entries(catGroups).filter(([g])=>!catFilter||g===catFilter).map(([g,items])=>{
+                  const fil=items.filter(it=>!catSearch||(it.name||'').toLowerCase().includes(catSearch.toLowerCase())||(it.code||'').toLowerCase().includes(catSearch.toLowerCase()))
+                  if(!fil.length) return null
+                  return <div key={g}>
+                    <div style={{padding:'5px 12px 2px',fontSize:9,color:'rgba(255,255,255,0.3)',textTransform:'uppercase'}}>{g}</div>
+                    {fil.map((it,i)=>{const st=EQUIP_STYLE[equipType(it.name)]||EQUIP_STYLE.Outro
+                      return <div key={i} onClick={()=>{setAddItem(it);setAddMode(true)}} style={{padding:'9px 12px',cursor:'pointer',display:'flex',gap:8,alignItems:'center',minHeight:38}}
+                        onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.05)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                        <span style={{width:20,height:20,borderRadius:'50%',background:st.c,color:'#fff',fontSize:9,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{st.s}</span>
+                        <span style={{fontSize:11,color:'rgba(255,255,255,0.85)',lineHeight:1.3}}>{it.name}{isRackItem(it.name,it.code)?<span style={{color:'#A78BFA',fontSize:9}}> · rack</span>:''}</span>
+                      </div>})}
+                  </div>})}
+              </div>
             </div>
+            {/* ── Canvas ── */}
             <div className="pe-editor-canvas" style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20,position:'relative'}}>
               <div style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content'}}>
                 <button onClick={e=>{e.stopPropagation();bgOnlyRef.current?.click()}} style={{height:32,borderRadius:6,border:'none',background:'#0EA5E9',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}}><i className="ti ti-upload" aria-hidden/>{bgImage?'Trocar planta':'Carregar planta'}</button>
@@ -1225,24 +1317,49 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
               <div ref={containerRef} style={{position:'relative',display:'inline-block',cursor:addMode?'crosshair':'default',width:bgImage?`${zoom*100}%`:`${Math.min(640*zoom,window.innerWidth*0.82)}px`,transformOrigin:'top center'}} onClick={onCanvasClick}>
                 {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false}/>
                   : <div style={{width:'100%',aspectRatio:'4/3',background:'repeating-linear-gradient(0deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px),repeating-linear-gradient(90deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px)',backgroundColor:'rgba(255,255,255,0.02)',border:'2px dashed rgba(255,255,255,0.15)',borderRadius:10,position:'relative'}}>
-                      <div style={{position:'absolute',top:10,left:0,right:0,textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.45)',pointerEvents:'none'}}>Pontos posicionados por cômodo — arraste para ajustar, ou carregue a planta (botão acima).</div>
+                      <div style={{position:'absolute',top:10,left:0,right:0,textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.45)',pointerEvents:'none'}}>Pontos posicionados — arraste para ajustar, ou carregue a planta.</div>
                     </div>}
-                {markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro; const sel=selected===m.uid
-                  return <div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:'grab'}} onMouseDown={e=>onDown(e,m.uid)}>
+                {markers.map(m=>{
+                  const srch=editorSearch.toLowerCase()
+                  const matchS=!editorSearch||m.name?.toLowerCase().includes(srch)||m.code?.toLowerCase().includes(srch)||m.room?.toLowerCase().includes(srch)
+                  const matchR=filterRooms.size===0||filterRooms.has(m.room||'Sem cômodo')
+                  const matchC=filterCateg.size===0||filterCateg.has(equipType(m.name))
+                  const visible=matchS&&matchR&&matchC
+                  const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro; const sel=selected===m.uid
+                  return <div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:'grab',opacity:visible?1:0.07,pointerEvents:visible?'auto':'none',transition:'opacity 0.15s'}} onMouseDown={e=>onDown(e,m.uid)}>
                     <div style={{width:sel?28:24,height:sel?28:24,borderRadius:'50%',background:st.c,color:'#fff',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #fff',boxShadow:sel?`0 0 0 3px ${st.c}`:'0 1px 4px rgba(0,0,0,0.5)'}}>{m.n}</div>
                     <div style={{position:'absolute',left:'50%',top:-9,transform:'translateX(-50%)',background:st.c,color:'#fff',borderRadius:'50%',width:13,height:13,fontSize:7,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'1px solid #fff',pointerEvents:'none'}}>{st.s}</div>
                     <div style={{position:'absolute',left:'50%',top:sel?30:26,transform:'translateX(-50%)',background:'rgba(0,0,0,0.75)',color:'#fff',borderRadius:3,padding:'1px 4px',fontSize:7.5,whiteSpace:'nowrap',fontFamily:'monospace',fontWeight:600,pointerEvents:'none'}}>{m.code}</div>
                   </div>})}
               </div>
             </div>
+            {/* ── Painel direito ── */}
             <div className="pe-editor-side" style={{width:220,background:'#0f172a',borderLeft:'1px solid rgba(255,255,255,0.08)',overflowY:'auto'}}>
               {selected ? (()=>{const m=markers.find(x=>x.uid===selected); if(!m)return null
+                const rNames=rooms.map(r=>r.name)
                 return <div style={{padding:14}}>
                   <div style={{fontSize:11,color:'#38BDF8',fontWeight:600,marginBottom:10,textTransform:'uppercase'}}>Item {m.id}</div>
                   <div style={{fontSize:13,fontWeight:600,color:'#fff'}}>{m.name}</div>
                   <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',fontFamily:'monospace',marginBottom:10}}>{m.code}</div>
                   <label style={lbl}>Ambiente</label>
-                  <input value={m.room} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,room:e.target.value}:x))} style={inputDark}/>
+                  <select value={rNames.includes(m.room)?m.room:(m.room?'__custom__':'')} onChange={e=>{
+                    const val=e.target.value
+                    if(val==='__new__'){
+                      const nome=window.prompt('Nome do novo cômodo:')
+                      if(!nome?.trim())return
+                      if(!window.confirm(`Confirmar: adicionar "${nome.trim()}" à lista de cômodos?`))return
+                      const maxId=rooms.reduce((mx,r)=>Math.max(mx,r.id||0),0)
+                      setRooms(rs=>[...rs,{id:maxId+1,name:nome.trim(),floor:'',x:50,y:50}])
+                      setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,room:nome.trim()}:x))
+                    } else {
+                      setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,room:val}:x))
+                    }
+                  }} style={{...inputDark,marginBottom:8}}>
+                    <option value="">— selecionar —</option>
+                    {rNames.map(r=><option key={r} value={r}>{r}</option>)}
+                    {m.room&&!rNames.includes(m.room)&&<option value="__custom__">{m.room}</option>}
+                    <option value="__new__">+ Novo cômodo…</option>
+                  </select>
                   <label style={lbl}>ID único</label>
                   <input value={m.id} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,id:e.target.value}:x))} style={inputDark}/>
                   <label style={lbl}>Nota (posição/altura)</label>
@@ -1252,14 +1369,16 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                 <div style={{padding:14}}>
                   <div style={{fontSize:11,color:'#38BDF8',fontWeight:600,marginBottom:10,textTransform:'uppercase'}}>Resumo</div>
                   <div style={{fontSize:12,color:'rgba(255,255,255,0.7)',lineHeight:1.8}}>{markers.length} equipamentos posicionados</div>
+                  {(filterRooms.size>0||filterCateg.size>0||editorSearch)&&<div style={{marginTop:8,fontSize:11,color:'#38BDF8',background:'rgba(56,189,248,0.1)',padding:'6px 8px',borderRadius:5}}>
+                    Visíveis: {markers.filter(m=>{const s=editorSearch.toLowerCase();return(!editorSearch||m.name?.toLowerCase().includes(s)||m.code?.toLowerCase().includes(s)||m.room?.toLowerCase().includes(s))&&(filterRooms.size===0||filterRooms.has(m.room||'Sem cômodo'))&&(filterCateg.size===0||filterCateg.has(equipType(m.name)))}).length} / {markers.length}
+                  </div>}
                   <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginTop:10,lineHeight:1.6}}>Clique num marcador para editar.<br/>Arraste para mover.<br/>Use o painel esquerdo para adicionar.</div>
-                </div>
-              )}
+              </div>
+            )}
             </div>
           </div>
         )}
 
-        {/* STEP EXEC */}
         {step==='exec' && (
           <div style={{flex:1,overflowY:'auto',background:'#e8eaed',padding:'20px 0'}}>
             <style>{EXEC_CSS}</style>
