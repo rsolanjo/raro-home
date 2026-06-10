@@ -417,47 +417,78 @@ Responda APENAS JSON válido:
     const sec=(title,inner)=>inner?`<div class="ex-sec"><h2>${title}</h2>${inner}</div>`:''
     const list=arr=>arr&&arr.length?`<ul class="ex-ul">${arr.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''
 
-    // Tópico 3 — Rack com visual gráfico
+    // Tópico 3 — Rack com visual REALISTA (equipamentos vistos de frente)
     const rackCfg = d.rack_config || {}
     const rackItems = d.rack_items || d.rack || []
     const aps = rackCfg.aps||0, cams = rackCfg.cameras||0
     const totalPoe = aps+cams
     const precisaSwitch = rackCfg.precisa_switch || totalPoe > 6
-    const RACK_COLORS = ['#0EA5E9','#16A34A','#7C3AED','#D97706','#DC2626','#0891B2','#DB2777','#374151','#059669','#475569','#0E7490','#BE185D']
+
+    // Desenha a "face" de cada tipo de equipamento de forma realista
+    const faceFor = (equip)=>{
+      const e=(equip||'').toLowerCase()
+      // helper: linha de portas RJ45/PoE
+      const ports=(n,col='#1f2937')=>`<div style="display:flex;gap:2px;align-items:center">${Array.from({length:n}).map(()=>`<div style="width:7px;height:9px;background:${col};border:1px solid #475569;border-radius:1px"></div>`).join('')}</div>`
+      const led=(c)=>`<div style="width:5px;height:5px;border-radius:50%;background:${c};box-shadow:0 0 3px ${c}"></div>`
+      if(e.includes('dream machine')||e.includes('dm se')||e.includes('udm')||e.includes('gateway')||e.includes('roteador'))
+        return `<div style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:0 12px">
+          <div style="display:flex;align-items:center;gap:8px"><div style="width:34px;height:18px;background:#0b1220;border:1px solid #2dd4bf;border-radius:3px;display:flex;align-items:center;justify-content:center;color:#2dd4bf;font-size:7px;font-family:monospace">LCD</div><span style="color:#94a3b8;font-size:8px;font-family:monospace">UniFi</span></div>
+          <div style="display:flex;gap:8px;align-items:center">${ports(8,'#0f766e')}<div style="display:flex;gap:3px">${led('#22c55e')}${led('#22c55e')}${led('#3b82f6')}</div></div></div>`
+      if(e.includes('switch'))
+        return `<div style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:0 12px">
+          <span style="color:#94a3b8;font-size:8px;font-family:monospace">PoE+ 16</span>
+          <div style="display:flex;gap:6px">${ports(8)}${ports(8)}</div><div style="display:flex;gap:3px">${led('#22c55e')}${led('#f59e0b')}</div></div>`
+      if(e.includes('patch'))
+        return `<div style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:0 12px">
+          <span style="color:#64748b;font-size:8px;font-family:monospace">PATCH 24</span>
+          <div style="display:flex;gap:5px">${ports(12,'#334155')}${ports(12,'#334155')}</div></div>`
+      if(e.includes('amplificad')||e.includes('receiver')||e.includes('áudio')||e.includes('audio')||e.includes('som'))
+        return `<div style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:0 12px">
+          <div style="display:flex;align-items:center;gap:8px"><div style="width:14px;height:14px;border-radius:50%;border:2px solid #64748b"></div><div style="width:14px;height:14px;border-radius:50%;border:2px solid #64748b"></div></div>
+          <span style="color:#94a3b8;font-size:8px;font-family:monospace">AMP 8 ZONAS</span>
+          <div style="display:flex;gap:3px">${led('#22c55e')}${led('#ef4444')}</div></div>`
+      if(e.includes('régua')||e.includes('regua')||e.includes('energia')||e.includes('tomada')||e.includes('pdu'))
+        return `<div style="flex:1;display:flex;align-items:center;gap:6px;padding:0 12px;justify-content:center">${Array.from({length:8}).map(()=>`<div style="width:11px;height:11px;background:#1f2937;border:1px solid #475569;border-radius:2px;position:relative"><div style="position:absolute;top:3px;left:3px;width:5px;height:1.5px;background:#64748b"></div></div>`).join('')}<div style="margin-left:6px">${led('#ef4444')}</div></div>`
+      if(e.includes('organizador')||e.includes('passa'))
+        return `<div style="flex:1;display:flex;align-items:center;gap:10px;padding:0 14px;justify-content:center">${Array.from({length:5}).map(()=>`<div style="width:10px;height:14px;border:2px solid #475569;border-radius:0 0 6px 6px;border-top:none"></div>`).join('')}</div>`
+      // genérico
+      return `<div style="flex:1;display:flex;align-items:center;justify-content:flex-end;padding:0 12px;gap:4px">${led('#22c55e')}${led('#3b82f6')}</div>`
+    }
+    const uHeight = (u)=>{ const m=(''+(u||'')).match(/U(\d+)\s*[-–]\s*U(\d+)/i); if(m) return (parseInt(m[2])-parseInt(m[1])+1); return 1 }
 
     const rackVisual = `
-<div style="margin:12px 0 20px;border:2px solid #1e293b;border-radius:8px;overflow:hidden;max-width:560px">
-  <div style="background:#0D1420;color:#38BDF8;font-size:11px;font-weight:700;padding:8px 14px;letter-spacing:1px;display:flex;justify-content:space-between;align-items:center">
-    <span>🖥 RACK 12U — CPD</span>
-    <span style="color:rgba(255,255,255,0.5);font-size:9px;font-weight:400">${rackCfg.dream_machine_portas||8} portas DM SE · ${totalPoe} dispositivos PoE · ${precisaSwitch?'Switch adicional necessário':'DM SE comporta tudo'}</span>
+<div style="margin:14px 0 22px;max-width:520px">
+  <div style="background:#0D1420;color:#38BDF8;font-size:11px;font-weight:700;padding:8px 14px;letter-spacing:1px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
+    <span>RACK 12U — CPD (vista frontal)</span>
+    <span style="color:rgba(255,255,255,0.5);font-size:9px;font-weight:400">${totalPoe} disp. PoE · ${precisaSwitch?'+ Switch':'DM SE'}</span>
   </div>
-  ${rackItems.map((r,i)=>`
-  <div style="display:flex;align-items:stretch;border-bottom:1px solid #e2e8f0;min-height:32px">
-    <div style="background:${RACK_COLORS[i%RACK_COLORS.length]};color:#fff;font-size:10px;font-weight:700;width:46px;display:flex;align-items:center;justify-content:center;flex-shrink:0;writing-mode:horizontal-tb;padding:4px">${esc(r.u)}</div>
-    <div style="flex:1;background:${i%2===0?'#f8fafc':'#fff'};padding:6px 12px;display:flex;align-items:center;gap:12px">
-      <div style="font-size:11px;font-weight:600;color:#0D1420;min-width:180px">${esc(r.equip)}</div>
-      <div style="font-size:10px;color:#64748b;flex:1">${esc(r.funcao)}</div>
-      ${r.watts?`<div style="font-size:9px;color:#94a3b8;background:#f1f5f9;padding:2px 6px;border-radius:4px;white-space:nowrap">${esc(r.watts)}</div>`:''}
-    </div>
-  </div>`).join('')}
-  <div style="background:#f1f5f9;padding:8px 14px;display:flex;gap:20px;flex-wrap:wrap">
-    <div style="display:flex;align-items:center;gap:6px"><div style="width:10px;height:10px;border-radius:50%;background:#16A34A"></div><span style="font-size:10px;color:#374151">APs: <b>${aps}</b></span></div>
-    <div style="display:flex;align-items:center;gap:6px"><div style="width:10px;height:10px;border-radius:50%;background:#DC2626"></div><span style="font-size:10px;color:#374151">Câmeras: <b>${cams}</b></span></div>
-    <div style="display:flex;align-items:center;gap:6px"><div style="width:10px;height:10px;border-radius:50%;background:#0EA5E9"></div><span style="font-size:10px;color:#374151">Total PoE: <b>${totalPoe}/${rackCfg.dream_machine_portas||8}</b></span></div>
-    ${precisaSwitch?`<div style="display:flex;align-items:center;gap:6px;background:#FEF3C7;padding:3px 8px;border-radius:4px"><span style="font-size:10px;color:#92400E">⚠ Switch PoE+ ${rackCfg.switch_portas||16}p adicionado</span></div>`:'<div style="display:flex;align-items:center;gap:6px;background:#D1FAE5;padding:3px 8px;border-radius:4px"><span style="font-size:10px;color:#065F46">✓ Dream Machine SE suficiente</span></div>'}
+  <div style="background:linear-gradient(180deg,#1e293b,#0f172a);padding:10px;border:3px solid #334155;border-top:none;border-radius:0 0 8px 8px;box-shadow:inset 0 2px 12px rgba(0,0,0,0.6)">
+    ${rackItems.map((r,i)=>{const h=uHeight(r.u); return `
+    <div style="display:flex;align-items:stretch;margin-bottom:5px;height:${22*h}px">
+      <div style="width:20px;background:#0b1220;color:#475569;font-size:7px;font-family:monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:2px 0 0 2px;flex-shrink:0;letter-spacing:-1px">${esc((''+(r.u||'')).replace(/[^\dU\-–]/g,''))}</div>
+      <div style="flex:1;background:linear-gradient(180deg,#27272a,#18181b);border:1px solid #3f3f46;border-left:none;border-radius:0 3px 3px 0;display:flex;align-items:center;position:relative;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#52525b,#27272a)"></div>
+        <div style="position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:8.5px;font-weight:700;color:#e4e4e7;font-family:'DM Sans',sans-serif;text-shadow:0 1px 1px #000;max-width:38%;line-height:1.1;z-index:2">${esc(r.equip)}</div>
+        <div style="position:absolute;right:0;top:0;bottom:0;left:42%;display:flex;align-items:center">${faceFor(r.equip)}</div>
+        <div style="position:absolute;right:4px;top:3px;width:3px;height:3px;border-radius:50%;background:#52525b"></div>
+        <div style="position:absolute;right:4px;bottom:3px;width:3px;height:3px;border-radius:50%;background:#52525b"></div>
+        <div style="position:absolute;left:4px;top:3px;width:3px;height:3px;border-radius:50%;background:#52525b"></div>
+        <div style="position:absolute;left:4px;bottom:3px;width:3px;height:3px;border-radius:50%;background:#52525b"></div>
+      </div>
+    </div>`}).join('')}
+  </div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;padding:0 4px">
+    <span style="font-size:10px;color:#374151"><b style="color:#16A34A">●</b> APs: <b>${aps}</b></span>
+    <span style="font-size:10px;color:#374151"><b style="color:#DC2626">●</b> Câmeras: <b>${cams}</b></span>
+    <span style="font-size:10px;color:#374151"><b style="color:#0EA5E9">●</b> PoE: <b>${totalPoe}/${rackCfg.dream_machine_portas||8}</b></span>
+    ${precisaSwitch?`<span style="font-size:10px;color:#92400E;background:#FEF3C7;padding:2px 8px;border-radius:4px">⚠ Switch PoE+ ${rackCfg.switch_portas||16}p</span>`:`<span style="font-size:10px;color:#065F46;background:#D1FAE5;padding:2px 8px;border-radius:4px">✓ Dream Machine SE suficiente</span>`}
   </div>
 </div>`
 
-    // Tópico 4 — Módulos e caixas de teto por cômodo
+    // Tópico 4 — Módulos e caixas de teto por cômodo (formato tabela, igual ao resto)
     const modulosTeto = d.modulos_teto || []
     const modulosTetoHtml = modulosTeto.length
-      ? modulosTeto.map(mt=>`
-<div style="margin-bottom:12px;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
-  <div style="background:#0369A1;color:#fff;padding:6px 12px;font-size:12px;font-weight:700">${esc(mt.ambiente)}</div>
-  <div style="padding:8px 12px;background:#fff">
-    ${(mt.itens||[]).map(it=>`<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid #f1f5f9;font-size:11px;color:#374151"><span style="color:#0EA5E9">▸</span>${esc(it)}</div>`).join('')}
-  </div>
-</div>`).join('')
+      ? modulosTeto.map(mt=>`<h3 class="ex-amb">${esc(mt.ambiente)}</h3>${T((mt.itens||[]).map(it=>`<tr><td>${esc(it)}</td></tr>`).join(''),['Itens de teto / forro'])}`).join('')
       : (d.modulos||[]).length ? T(d.modulos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.funcao)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.carga)}</td><td>${esc(r.posicao)}</td></tr>`).join(''),['ID','Função','Ambiente','Carga','Posição']) : ''
 
     // Tópico 5 — Pontos de parede
@@ -580,7 +611,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
   <!-- CAPA -->
   <div class="ex-cover">
     <div class="ex-cover-top">DOCUMENTO TÉCNICO · PROJETO EXECUTIVO</div>
-    <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:160px;max-width:50%;margin:0 auto 8px;display:block;border-radius:8px;background:#101828;padding:8px"/>
+    <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:160px;max-width:50%;margin:0 auto 8px;display:block;border-radius:8px"/>
     <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
     <div class="ex-cover-title">Projeto Executivo de Automação</div>
     <div class="ex-cover-sub">Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto</div>
@@ -589,24 +620,29 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
   </div>
 
   ${planta}
-  ${sec('1. Premissas Confirmadas', list(d.premissas))}
-  ${sec('3. Detalhe do RACK / CPD', list(d.rack_detalhe)+rackVisual)}
-  ${sec('4. Módulos e Caixas de Teto — por Cômodo', modulosTetoHtml)}
-  ${sec('5. Keypads, Câmeras e Pontos de Parede', pontosHtml)}
-  ${sec('6. Cabos de Rede — Patch Panel e Etiquetas', cabosRedeHtml)}
-  ${sec('7. Cabos de Som — Amplificador no RACK', (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-size:10px">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['ID','Origem','Destino','Tipo','Metros','Etiqueta']):'')}}
-  ${sec('8. Cabos Elétricos — por Cômodo', cabosEletHtml)}
-  ${sec('9. Alimentação dos Keypads (Fase + Neutro)', (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x2,5mm²')}</td></tr>`).join(''),['ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m','Fios']):'')}}
-  ${sec('10. Módulos e Cargas (iluminação + cortinas)', modulosCargas)}
-  ${sec('11. Banheiros, Circulação e Sensores', banhHtml)}
-  ${sec('12. Resumo Geral de Cabeamento', (d.resumo_cabos||[]).length?T(d.resumo_cabos.map(r=>`<tr><td><b>${esc(r.tipo)}</b></td><td>${esc(r.metros_total)}m</td></tr>`).join(''),['Tipo de cabo','Metragem total']):'')}}
-  ${sec('14. Lista Completa de Peças', (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td>${esc(r.qtd)}</td></tr>`).join(''),['Item','Qtd']):'')}}
-  ${sec('15. Checklist de Obra — para o Arquiteto / Eletricista', list(d.checklist_obra))}
-  ${sec('16. Checklist de Instalação — Equipe RARO Home', list(d.checklist_raro))}
-  ${sec('17. Pontos de Atenção e Riscos', list(d.riscos))}
-  ${sec('18. Fotos no Diário de Obra', '<p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>')}
-  ${sec('19. Itens por Cômodo e Total Geral', itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml)}
-  ${sec('20. Gráficos e Linha do Tempo do Projeto', grafico1 + grafico2 + grafico3 + grafico4)}
+  ${(()=>{ let _n=0
+    const secN=(title,inner)=> inner ? `<div class="ex-sec"><h2>${++_n}. ${title}</h2>${inner}</div>` : ''
+    const fotosTxt='<p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>'
+    return [
+    secN(`Premissas Confirmadas`, list(d.premissas)),
+    secN(`Detalhe do RACK / CPD`, (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual):''),
+    secN(`Módulos e Caixas de Teto — por Cômodo`, modulosTetoHtml),
+    secN(`Keypads, Câmeras e Pontos de Parede`, pontosHtml),
+    secN(`Cabos de Rede — Patch Panel e Etiquetas`, cabosRedeHtml),
+    secN(`Cabos de Som — Amplificador no RACK`, (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-size:10px">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['ID','Origem','Destino','Tipo','Metros','Etiqueta']):''),
+    secN(`Cabos Elétricos — por Cômodo`, cabosEletHtml),
+    secN(`Alimentação dos Keypads (Fase + Neutro)`, (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x2,5mm²')}</td></tr>`).join(''),['ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m','Fios']):''),
+    secN(`Módulos e Cargas (iluminação + cortinas)`, modulosCargas),
+    secN(`Banheiros, Circulação e Sensores`, banhHtml),
+    secN(`Resumo Geral de Cabeamento`, (d.resumo_cabos||[]).length?T(d.resumo_cabos.map(r=>`<tr><td><b>${esc(r.tipo)}</b></td><td>${esc(r.metros_total)}m</td></tr>`).join(''),['Tipo de cabo','Metragem total']):''),
+    secN(`Lista Completa de Peças`, (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td>${esc(r.qtd)}</td></tr>`).join(''),['Item','Qtd']):''),
+    secN(`Checklist de Obra — para o Arquiteto / Eletricista`, list(d.checklist_obra)),
+    secN(`Checklist de Instalação — Equipe RARO Home`, list(d.checklist_raro)),
+    secN(`Pontos de Atenção e Riscos`, list(d.riscos)),
+    secN(`Fotos no Diário de Obra`, fotosTxt),
+    secN(`Itens por Cômodo e Total Geral`, itensComodoHtml ? (itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml) : ''),
+    secN(`Gráficos e Linha do Tempo do Projeto`, (grafico1 + grafico2 + grafico3 + grafico4)),
+  ].join('\n') })()}
 </div>`
   }
 

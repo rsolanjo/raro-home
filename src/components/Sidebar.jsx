@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v64 — import PDF (proposta/executivo) + logo navy em todos os documentos
+// v65 — exec: numeração sequencial + rack realista + tópico 4 padronizado; logo idêntico em todos os docs; fix download/ver proposta
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v64 · build 2026-06
+          v65 · build 2026-06
         </div>
       </div>
     </div>

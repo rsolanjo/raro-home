@@ -187,7 +187,22 @@ function EnviarDocumentoModal({ proposal, clients, currentUser, onMarkSent, onCl
     contrato:  `Contrato RARO Home — ${proposal.code||''}`,
   }
 
-  // Gera/baixa o documento escolhido
+  // Baixa um HTML como arquivo
+  function downloadHtml(html, filename){
+    try{
+      const blob=new Blob([html],{type:'text/html;charset=utf-8'})
+      const url=URL.createObjectURL(blob)
+      const a=document.createElement('a')
+      a.href=url; a.download=filename
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      setTimeout(()=>URL.revokeObjectURL(url),5000)
+    }catch(e){ console.error('download:',e); alert('Erro ao baixar: '+e.message) }
+  }
+
+  const safe = s => (s||'').replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,'-')
+  const baseName = `${safe(proposal.code||proposal.id)}-${safe(proposal.client_name||'cliente')}`
+
+  // Gera/baixa o documento escolhido (baixa arquivo .html que vira PDF no navegador)
   function baixarDoc(){
     if(docType==='proposta'){
       const pWithPhones = { ...proposal, client_name: cl?`${cl.name1}${cl.name2?' & '+cl.name2:''}`:proposal.client_name,
@@ -195,19 +210,21 @@ function EnviarDocumentoModal({ proposal, clients, currentUser, onMarkSent, onCl
         floors, _download:true }
       openProposalPDF(pWithPhones, false)
     } else if(docType==='executivo'){
+      if(!proposal.exec_doc){ alert('Este orçamento não tem Projeto Executivo gerado.'); return }
       const title=`Projeto Executivo RARO Home — ${proposal.client_name||'Cliente'}${proposal.code?' — '+proposal.code:''}`
-      const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${title}</title><link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0">${proposal.exec_doc}<button onclick="window.print()" style="position:fixed;top:10px;right:10px;background:#0EA5E9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;z-index:9999">⬇ Salvar PDF</button></body></html>`
-      const w=window.open('','_blank'); if(w){ w.document.open(); w.document.write(html); w.document.close() }
+      const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${title}</title><link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0">${proposal.exec_doc}<button class="no-print" onclick="window.print()" style="position:fixed;top:10px;right:10px;background:#0EA5E9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;z-index:9999">⬇ Salvar PDF</button><style>@media print{.no-print{display:none}}</style></body></html>`
+      downloadHtml(html, `executivo-${baseName}.html`)
     } else {
       const html=buildContract(proposal, cl)
-      const w=window.open('','_blank'); if(w){ w.document.open(); w.document.write(html); w.document.close() }
+      downloadHtml(html, `contrato-${baseName}.html`)
     }
   }
 
   function enviarWhatsApp(phone){
     const n=norm(phone); if(!n) return
-    baixarDoc()
-    setTimeout(()=>window.open(`https://wa.me/${n}?text=${encodeURIComponent(msgFor[docType])}`,'_blank'), 1200)
+    // abre o WhatsApp PRIMEIRO (dentro do gesto, não é bloqueado), depois baixa o doc
+    window.open(`https://wa.me/${n}?text=${encodeURIComponent(msgFor[docType])}`,'_blank')
+    setTimeout(baixarDoc, 400)
   }
 
   const phoneOptions = [

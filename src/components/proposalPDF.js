@@ -376,6 +376,13 @@ ${cover}${roomPagesHtml.join('\n')}${totalPage}
 
 
 export async function openProposalPDF(proposal, adminMode=false) {
+  // Abre a janela IMEDIATAMENTE (dentro do gesto do usuário) para não ser bloqueada
+  // pelo navegador. Só não abrimos no modo download.
+  let win = null
+  if (!proposal._download) {
+    win = window.open('', '_blank')
+    if (win) { try { win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gerando…</title></head><body style="font-family:system-ui;background:#0D1420;color:#9FB6CC;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div>Gerando documento…</div></body></html>'); win.document.close() } catch(e){} }
+  }
   try {
     const catalog = await getCatalog()
     const floors = (() => {
@@ -397,35 +404,39 @@ export async function openProposalPDF(proposal, adminMode=false) {
       client_phone2: proposal.client_phone2 || '',
     }, adminMode)
 
-    // Try blob URL first
-    try {
-      const blob = new Blob([html], {type:'text/html;charset=utf-8'})
-      const url  = URL.createObjectURL(blob)
-      if (proposal._download) {
+    // Modo download: gera arquivo .html
+    if (proposal._download) {
+      try {
+        const blob = new Blob([html], {type:'text/html;charset=utf-8'})
+        const url  = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url; a.download = `proposta-${proposal.code||proposal.id}.html`
         document.body.appendChild(a); a.click(); document.body.removeChild(a)
-        setTimeout(() => URL.revokeObjectURL(url), 5000); return
-      }
-      const w = window.open(url, '_blank')
-      if (w) { setTimeout(() => URL.revokeObjectURL(url), 10000); return }
-      URL.revokeObjectURL(url)
-    } catch(e) {}
+        setTimeout(() => URL.revokeObjectURL(url), 5000)
+      } catch(e) { console.error('download err:', e); alert('Erro ao baixar: '+e.message) }
+      return
+    }
 
-    // Fallback: write to new window
-    const w = window.open('', '_blank')
-    if (w) { w.document.open(); w.document.write(html); w.document.close(); return }
-
-    // Last resort: download
-    const blob = new Blob([html], {type:'text/html;charset=utf-8'})
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href = url; a.download = `proposta-${proposal.code||proposal.id}.html`
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 5000)
+    // Escreve o HTML na janela já aberta
+    if (win) {
+      try { win.document.open(); win.document.write(html); win.document.close(); return }
+      catch(e) { /* cai pro fallback abaixo */ }
+    }
+    // Fallback se o popup foi bloqueado: tenta blob URL, senão baixa
+    try {
+      const blob = new Blob([html], {type:'text/html;charset=utf-8'})
+      const url  = URL.createObjectURL(blob)
+      const w2 = window.open(url, '_blank')
+      if (w2) { setTimeout(() => URL.revokeObjectURL(url), 10000); return }
+      const a = document.createElement('a')
+      a.href = url; a.download = `proposta-${proposal.code||proposal.id}.html`
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+    } catch(e) { console.error(e) }
 
   } catch(err) {
     console.error('openProposalPDF error:', err)
+    if (win) { try { win.close() } catch(e){} }
     alert('Erro ao gerar PDF: ' + err.message)
   }
 }
