@@ -944,14 +944,20 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
             <div ref={imgContainerRef} style={{flex:1,position:'relative',overflow:'hidden',background:'#111827',cursor:panning?'grabbing':'grab',userSelect:'none'}}
               onMouseDown={e=>{if(e.target===e.currentTarget||e.target.tagName==='IMG') onImgMouseDown(e)}}
               onMouseMove={onImgMouseMove} onMouseUp={onImgMouseUp} onMouseLeave={onImgMouseUp} onDoubleClick={onImgDblClick}>
-              {bgImage && <img src={bgImage} draggable={false} alt="planta" style={{position:'absolute',top:'50%',left:'50%',transform:`translate(calc(-50% + ${imgPan.x}px), calc(-50% + ${imgPan.y}px)) scale(${imgZoom})`,transformOrigin:'center center',maxWidth:'none',width:'90%',transition:panning?'none':'transform 0.1s ease',pointerEvents:'none'}}/>}
+              {bgImage && <img src={bgImage} draggable={false} alt="planta" id="rooms-planta-img"
+                style={{position:'absolute',top:'50%',left:'50%',transform:`translate(calc(-50% + ${imgPan.x}px), calc(-50% + ${imgPan.y}px)) scale(${imgZoom})`,transformOrigin:'center center',maxWidth:'none',width:'90%',transition:panning?'none':'transform 0.1s ease',pointerEvents:'none'}}/>}
               {/* Pins numerados arrastáveis */}
               {rooms.map(r=>{
-                // Calcula posição do pin em px dentro do container usando as mesmas transformações do zoom/pan
+                // Calcula posição do pin usando a imagem real (não proporção hardcoded)
                 const cont = imgContainerRef.current
                 const rect = cont ? cont.getBoundingClientRect() : {width:800,height:600}
+                // Usa a imagem DOM para pegar a proporção real
+                const imgEl = cont ? cont.querySelector('#rooms-planta-img') : null
+                const natRatio = (imgEl && imgEl.naturalWidth && imgEl.naturalHeight)
+                  ? imgEl.naturalHeight / imgEl.naturalWidth
+                  : 0.75
                 const imgW = rect.width * 0.9 * imgZoom
-                const imgH = imgW * 0.75  // assumindo proporção 4:3 aproximada
+                const imgH = imgW * natRatio
                 const originX = rect.width/2 + imgPan.x
                 const originY = rect.height/2 + imgPan.y
                 const px = originX + (r.x/100 - 0.5)*imgW
@@ -964,11 +970,13 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                       const cont2=imgContainerRef.current; if(!cont2) return
                       const onMove=ev=>{
                         const rc2=cont2.getBoundingClientRect()
-                        const iW=rc2.width*0.9*imgZoom, iH=iW*0.75
-                        const oX2=rc2.width/2+imgPan.x, oY2=rc2.height/2+imgPan.y
+                        const imgEl2=cont2.querySelector('#rooms-planta-img')
+                        const natR=(imgEl2&&imgEl2.naturalWidth&&imgEl2.naturalHeight)?imgEl2.naturalHeight/imgEl2.naturalWidth:0.75
+                        const iW=rc2.width*0.9*imgZoom, iH=iW*natR
                         const dx=ev.clientX-startX, dy=ev.clientY-startY
                         const nx=ox+(dx/iW)*100, ny=oy+(dy/iH)*100
-                        setRooms(rs=>rs.map(x=>x.id===r.id?{...x,x:Math.max(1,Math.min(99,nx)),y:Math.max(1,Math.min(99,ny))}:x))
+                        // sem clamp — o usuário move livremente, pode colocar no canto
+                        setRooms(rs=>rs.map(x=>x.id===r.id?{...x,x:nx,y:ny}:x))
                       }
                       const onUp=()=>{ window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp) }
                       window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp)
@@ -1005,24 +1013,42 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                 <div style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>Edite os nomes, arraste os pins na planta, adicione ou remova.</div>
               </div>
               <div style={{flex:1,overflowY:'auto',padding:'6px 0'}}>
-                {rooms.map(r=>(
-                  <div key={r.id} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 10px',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+                {rooms.map((r,idx)=>(
+                  <div key={r.id} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 8px',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+                    {/* Número do pin */}
                     <div style={{width:22,height:22,borderRadius:'50% 50% 50% 0',background:'#0EA5E9',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,flexShrink:0,transform:'rotate(-45deg)'}}>
                       <span style={{transform:'rotate(45deg)'}}>{r.id}</span>
                     </div>
+                    {/* Nome editável */}
                     <div style={{flex:1,minWidth:0}}>
                       {editingRoom===r.id
                         ? <input autoFocus value={r.name} onChange={e=>setRooms(rs=>rs.map(x=>x.id===r.id?{...x,name:e.target.value}:x))}
                             onBlur={()=>setEditingRoom(null)} onKeyDown={e=>{if(e.key==='Enter'||e.key==='Escape')setEditingRoom(null)}}
                             style={{width:'100%',background:'rgba(255,255,255,0.1)',border:'1px solid #38BDF8',borderRadius:3,color:'#fff',fontSize:11,padding:'2px 5px',outline:'none'}}/>
-                        : <div style={{fontSize:11,color:'#e2e8f0',cursor:'pointer',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} onDoubleClick={()=>setEditingRoom(r.id)} onClick={()=>setEditingRoom(r.id)} title="Clique para editar">{r.name}</div>
+                        : <div style={{fontSize:11,color:'#e2e8f0',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.3}}
+                            title={r.name}>{r.name}
+                            {r.floor && <div style={{fontSize:9,color:'rgba(255,255,255,0.3)'}}>{r.floor}</div>}
+                          </div>
                       }
-                      {r.floor && <div style={{fontSize:9,color:'rgba(255,255,255,0.3)'}}>{r.floor}</div>}
                     </div>
-                    <button onClick={()=>setRooms(rs=>rs.filter(x=>x.id!==r.id))} title="Remover"
-                      style={{background:'none',border:'none',cursor:'pointer',color:'rgba(255,255,255,0.25)',padding:2,lineHeight:1,flexShrink:0}}
-                      onMouseEnter={e=>e.currentTarget.style.color='#F87171'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.25)'}>
-                      <i className="ti ti-trash" style={{fontSize:13}} aria-hidden/>
+                    {/* Botão editar */}
+                    <button onClick={()=>setEditingRoom(editingRoom===r.id?null:r.id)} title="Editar nome"
+                      style={{background:'none',border:'none',cursor:'pointer',padding:3,lineHeight:1,flexShrink:0,
+                        color:editingRoom===r.id?'#38BDF8':'rgba(255,255,255,0.3)',borderRadius:3}}
+                      onMouseEnter={e=>e.currentTarget.style.color='#38BDF8'}
+                      onMouseLeave={e=>e.currentTarget.style.color=editingRoom===r.id?'#38BDF8':'rgba(255,255,255,0.3)'}>
+                      <i className="ti ti-pencil" style={{fontSize:12}} aria-hidden/>
+                    </button>
+                    {/* Botão deletar — renumera sequencialmente após remover */}
+                    <button onClick={()=>setRooms(rs=>{
+                      const filtered = rs.filter(x=>x.id!==r.id)
+                      // renumera: mantém x,y,name,floor mas reescreve id sequencialmente
+                      return filtered.map((x,i)=>({...x, id:i+1}))
+                    })} title="Remover cômodo"
+                      style={{background:'none',border:'none',cursor:'pointer',padding:3,lineHeight:1,flexShrink:0,color:'rgba(255,255,255,0.25)',borderRadius:3}}
+                      onMouseEnter={e=>e.currentTarget.style.color='#F87171'}
+                      onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.25)'}>
+                      <i className="ti ti-trash" style={{fontSize:12}} aria-hidden/>
                     </button>
                   </div>
                 ))}
