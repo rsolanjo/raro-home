@@ -3,7 +3,7 @@ import { LOGO_DARK } from '../logos.js'
 
 const fmt = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
 
-function buildContract(proposal, client) {
+export function buildContract(proposal, client) {
   const floors = Array.isArray(proposal.floors) ? proposal.floors
     : (typeof proposal.floors==='string' ? JSON.parse(proposal.floors||'[]') : proposal.floors||[])
   const equipTotal = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)
@@ -110,6 +110,7 @@ function buildContract(proposal, client) {
 
   <div class="header">
     <div>
+      <img src="${LOGO_DARK}" alt="RARO HOME" style="height:64px;width:auto;border-radius:6px;margin-bottom:10px;display:block"/>
       <div class="badge">Contrato de Prestação de Serviços</div>
       <h1>Termo de Execução de Projeto</h1>
       <div style="font-size:9px;color:#6B8CAE">Automação Residencial · Tecnologia · Lazer</div>

@@ -148,10 +148,307 @@ function ContractSendModal({ proposal, clients, onClose }) {
   )
 }
 
-import { openProposalPDF } from './proposalPDF.js'
-import React, { useState } from 'react'
+// ── Modal unificado: enviar Proposta / Projeto Executivo / Contrato ──────────
+function EnviarDocumentoModal({ proposal, clients, currentUser, onMarkSent, onClose }) {
+  const [docType, setDocType] = useState('proposta')   // proposta | executivo | contrato
+  const [custom, setCustom]   = useState('')
+  const [useCustom, setUseCustom] = useState(false)
+  const [email, setEmail]     = useState('')
+  const cl = clients?.find(x=>x.id===Number(proposal?.client_id))
+  if(!proposal) return null
+
+  const floors = (() => {
+    const f = proposal?.floors
+    if(!f) return []
+    if(typeof f==='string'){try{return JSON.parse(f)}catch{return []}}
+    return Array.isArray(f)?f:[]
+  })()
+  const total = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)+(Number(proposal?.labor)||0)
+  const totalFmt = total>0?`R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`:'a confirmar'
+  const norm = p => (p||'').replace(/\D/g,'').replace(/^0055|^55/,'').replace(/^(?!55)/,'55')
+  const nome = cl?.name1 || proposal?.client_name || 'Cliente'
+
+  const hasExec = !!proposal?.exec_doc
+  const DOCS = [
+    {key:'proposta',  label:'Proposta',          icon:'ti-file-invoice',  color:'var(--accent)', disabled:false },
+    {key:'executivo', label:'Projeto Executivo', icon:'ti-file-text',     color:'#0369A1',       disabled:!hasExec, hint:hasExec?'':'Gere o executivo primeiro (ícone do cérebro)' },
+    {key:'contrato',  label:'Termo de Contrato', icon:'ti-license',       color:'#059669',       disabled:false },
+  ]
+
+  // Mensagens de WhatsApp por tipo de documento
+  const msgFor = {
+    proposta:  `Ola ${nome}! Segue sua proposta RARO Home: ${proposal.code||'#'+proposal.id} - ${totalFmt}. O PDF foi enviado em anexo. Qualquer duvida estou a disposicao! - Rogerio | RARO Home (21) 98170-9009`,
+    executivo: `Ola ${nome}! Segue o Projeto Executivo de Automacao RARO Home: ${proposal.code||'#'+proposal.id}. O documento tecnico (planta de pontos, cabeamento e lista de pecas) foi enviado em anexo. - Rogerio | RARO Home (21) 98170-9009`,
+    contrato:  `Ola ${nome}! Segue o contrato do seu projeto RARO Home: ${proposal.code||'#'+proposal.id} - ${totalFmt}. O PDF esta em anexo para assinatura. Qualquer duvida estou a disposicao! - Rogerio | RARO Home (21) 98170-9009`,
+  }
+  const subjectFor = {
+    proposta:  `Proposta RARO Home — ${proposal.code||''}`,
+    executivo: `Projeto Executivo RARO Home — ${proposal.code||''}`,
+    contrato:  `Contrato RARO Home — ${proposal.code||''}`,
+  }
+
+  // Gera/baixa o documento escolhido
+  function baixarDoc(){
+    if(docType==='proposta'){
+      const pWithPhones = { ...proposal, client_name: cl?`${cl.name1}${cl.name2?' & '+cl.name2:''}`:proposal.client_name,
+        client_phone1: cl?.phone1||'', client_phone2: cl?.phone2||'', itemFontSize:7,
+        floors, _download:true }
+      openProposalPDF(pWithPhones, false)
+    } else if(docType==='executivo'){
+      const title=`Projeto Executivo RARO Home — ${proposal.client_name||'Cliente'}${proposal.code?' — '+proposal.code:''}`
+      const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${title}</title><link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0">${proposal.exec_doc}<button onclick="window.print()" style="position:fixed;top:10px;right:10px;background:#0EA5E9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;z-index:9999">⬇ Salvar PDF</button></body></html>`
+      const w=window.open('','_blank'); if(w){ w.document.open(); w.document.write(html); w.document.close() }
+    } else {
+      const html=buildContract(proposal, cl)
+      const w=window.open('','_blank'); if(w){ w.document.open(); w.document.write(html); w.document.close() }
+    }
+  }
+
+  function enviarWhatsApp(phone){
+    const n=norm(phone); if(!n) return
+    baixarDoc()
+    setTimeout(()=>window.open(`https://wa.me/${n}?text=${encodeURIComponent(msgFor[docType])}`,'_blank'), 1200)
+  }
+
+  const phoneOptions = [
+    cl?.phone1 && {key:'p1', label:cl.name1||'Cliente 1', phone:cl.phone1},
+    cl?.phone2 && {key:'p2', label:cl.name2||'Cliente 2', phone:cl.phone2},
+  ].filter(Boolean)
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{width:520}} onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title">
+            <i className="ti ti-brand-whatsapp" style={{marginRight:6,color:'#16A34A'}} aria-hidden/>
+            Enviar documento
+          </div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+
+        {/* Info da proposta */}
+        <div style={{marginBottom:14,padding:'10px 12px',background:'var(--surf)',borderRadius:6,fontSize:12,color:'var(--text2)',lineHeight:1.8}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>Proposta <b style={{color:'var(--accent)',fontFamily:'monospace'}}>{proposal.code||'#'+proposal.id}</b>{' · '}<b>{proposal.client_name}</b></div>
+            <b style={{color:'var(--accent)'}}>{totalFmt}</b>
+          </div>
+        </div>
+
+        {/* Seletor de documento */}
+        <div className="flabel" style={{marginBottom:8}}><i className="ti ti-files" style={{marginRight:4}} aria-hidden/>Qual documento enviar?</div>
+        <div style={{display:'flex',gap:8,marginBottom:16}}>
+          {DOCS.map(d=>(
+            <button key={d.key} disabled={d.disabled} title={d.hint||''}
+              onClick={()=>setDocType(d.key)}
+              style={{flex:1,padding:'12px 8px',borderRadius:8,cursor:d.disabled?'not-allowed':'pointer',
+                border:'2px solid', borderColor:docType===d.key?d.color:'var(--border)',
+                background:docType===d.key?`color-mix(in srgb, ${d.color} 10%, transparent)`:'var(--bg)',
+                opacity:d.disabled?0.4:1, display:'flex',flexDirection:'column',alignItems:'center',gap:6,
+                color:docType===d.key?d.color:'var(--text2)',fontFamily:'inherit',transition:'all .15s'}}>
+              <i className={`ti ${d.icon}`} style={{fontSize:22}} aria-hidden/>
+              <span style={{fontSize:11,fontWeight:600,textAlign:'center',lineHeight:1.2}}>{d.label}</span>
+            </button>
+          ))}
+        </div>
+        {docType==='executivo' && !hasExec && (
+          <div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 12px',marginBottom:14,fontSize:11,color:'var(--amber)'}}>
+            <i className="ti ti-info-circle" style={{marginRight:4}} aria-hidden/>
+            Este orçamento ainda não tem Projeto Executivo. Gere primeiro no ícone do cérebro.
+          </div>
+        )}
+
+        <div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 12px',marginBottom:14,fontSize:11,color:'var(--amber)'}}>
+          <i className="ti ti-info-circle" style={{marginRight:4}} aria-hidden/>
+          O documento abre numa nova aba — use "Salvar PDF" e anexe na conversa do WhatsApp.
+        </div>
+
+        {/* WhatsApp — contatos do cliente */}
+        <div className="flabel" style={{marginBottom:8}}>
+          <i className="ti ti-brand-whatsapp" style={{color:'#16A34A',marginRight:4}} aria-hidden/>
+          WhatsApp — selecione para quem enviar:
+        </div>
+        {phoneOptions.length===0 && (
+          <div style={{fontSize:12,color:'var(--text3)',marginBottom:10,padding:'8px 12px',background:'var(--surf)',borderRadius:6}}>
+            <i className="ti ti-alert-circle" style={{marginRight:4,color:'var(--amber)'}} aria-hidden/>
+            Nenhum telefone cadastrado para este cliente.
+          </div>
+        )}
+        {phoneOptions.map(({key,label,phone})=>(
+          <button key={key} onClick={()=>enviarWhatsApp(phone)}
+            style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
+              border:'1px solid var(--border)',borderRadius:6,cursor:'pointer',marginBottom:8,
+              background:'var(--bg)',color:'var(--text)',fontFamily:'inherit',textAlign:'left'}}
+            onMouseEnter={e=>e.currentTarget.style.background='rgba(22,163,74,0.06)'}
+            onMouseLeave={e=>e.currentTarget.style.background='var(--bg)'}>
+            <i className="ti ti-brand-whatsapp" style={{fontSize:18,color:'#16A34A',flexShrink:0}} aria-hidden/>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:500,fontSize:13}}>{label}</div>
+              <div style={{fontSize:11,color:'var(--text3)'}}>{phone}</div>
+            </div>
+            <i className="ti ti-send" style={{color:'#16A34A'}} aria-hidden/>
+          </button>
+        ))}
+
+        {/* Outro número */}
+        <div className="flabel" style={{margin:'4px 0 6px'}}>Outro número de WhatsApp:</div>
+        <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:14}}>
+          <input value={custom} onChange={e=>setCustom(e.target.value)} placeholder="(21) 99999-9999"
+            style={{flex:1,fontSize:13}}/>
+          <button className="btn" disabled={!custom} style={{fontSize:12,color:'#16A34A',borderColor:'#16A34A',flexShrink:0,opacity:custom?1:0.4}}
+            onClick={()=>custom&&enviarWhatsApp(custom)}>
+            <i className="ti ti-send" aria-hidden/>Enviar
+          </button>
+        </div>
+
+        {/* E-mail */}
+        <div className="flabel" style={{marginBottom:6}}><i className="ti ti-mail" style={{marginRight:4}} aria-hidden/>E-mail:</div>
+        <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:16}}>
+          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder={cl?.email||'email@exemplo.com'} type="email" style={{flex:1,fontSize:13}}/>
+          <button className="btn" disabled={!(email||cl?.email)} style={{fontSize:12,color:'var(--accent)',borderColor:'var(--accent)',flexShrink:0,opacity:(email||cl?.email)?1:0.4}}
+            onClick={()=>{
+              baixarDoc()
+              const addr=email||cl?.email
+              const body=`Olá ${nome}!\n\nSegue o documento do seu projeto RARO Home (${proposal.code||''}).\nO PDF está em anexo.\nDúvidas: (21) 98170-9009\n— Rogério | RARO Home`
+              window.open(`mailto:${addr}?subject=${encodeURIComponent(subjectFor[docType])}&body=${encodeURIComponent(body)}`)
+            }}>
+            <i className="ti ti-mail" aria-hidden/>Abrir e-mail
+          </button>
+        </div>
+
+        {/* Ações finais */}
+        <div style={{borderTop:'1px solid var(--border)',paddingTop:12,display:'flex',flexDirection:'column',gap:8}}>
+          <button className="btn" style={{justifyContent:'center',gap:8}}
+            onClick={()=>{ baixarDoc() }}>
+            <i className="ti ti-download" aria-hidden/>Apenas gerar / baixar o documento
+          </button>
+          {onMarkSent && proposal.status!=='sent' && proposal.status!=='approved' && (
+            <button className="btn" style={{justifyContent:'center',gap:8}}
+              onClick={async ()=>{ await onMarkSent(proposal); onClose() }}>
+              <i className="ti ti-check" aria-hidden/>Marcar como enviado (sem abrir WA)
+            </button>
+          )}
+          <button className="btn" style={{justifyContent:'center'}} onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Modal: importar Proposta / Projeto Executivo a partir de um PDF ──────────
+function ImportarPdfModal({ catalog, currentUser, onDone, onClose }) {
+  const [stage, setStage] = useState('pick')  // pick | working | review | error
+  const [fileName, setFileName] = useState('')
+  const [progress, setProgress] = useState('')
+  const [extracted, setExtracted] = useState(null)  // proposta montada
+  const [errMsg, setErrMsg] = useState('')
+  const fileRef = useRef()
+
+  async function handleFile(e){
+    const f=e.target.files?.[0]; if(!f) return
+    if(f.type!=='application/pdf'){ setErrMsg('Envie um arquivo PDF.'); setStage('error'); return }
+    setFileName(f.name); setStage('working'); setErrMsg('')
+    try{
+      setProgress('Lendo o PDF…')
+      const b64 = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',').pop()); r.onerror=rej; r.readAsDataURL(f) })
+      const { text, firstImg, numPages } = await extractPdf(b64)
+      setProgress(`Analisando ${numPages} página(s) com a IA…`)
+      const data = await askClaudeJSON(text, firstImg)
+      setProgress('Montando o orçamento…')
+      const prop = buildProposalFromExtract(data, catalog)
+      setExtracted(prop)
+      setStage('review')
+    }catch(err){
+      console.error('import pdf:', err)
+      setErrMsg(err.message||'Falha ao importar.'); setStage('error')
+    }
+  }
+
+  async function confirmImport(){
+    setStage('working'); setProgress('Salvando…')
+    try{
+      const saved = await saveProposal({ ...extracted })
+      if(!saved) throw new Error('Supabase não retornou o registro salvo')
+      try{ await auditedSave('orçamentos','pdf_import',saved,currentUser?.name,null) }catch(e){}
+      onDone()
+    }catch(err){ console.error(err); setErrMsg(err.message); setStage('error') }
+  }
+
+  const totalItems = extracted ? extracted.floors[0].rooms.reduce((s,r)=>s+r.items.length,0) : 0
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{width:520}} onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title"><i className="ti ti-file-import" style={{marginRight:6,color:'var(--accent)'}} aria-hidden/>Importar de PDF</div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+
+        {stage==='pick' && <>
+          <div style={{fontSize:13,color:'var(--text2)',lineHeight:1.6,marginBottom:14}}>
+            Envie um <b>Projeto Executivo</b> ou uma <b>Proposta</b> em PDF. A IA lê o documento, identifica o cliente e os equipamentos por cômodo, e cria um novo orçamento (como rascunho) que você pode editar depois.
+          </div>
+          <input ref={fileRef} type="file" accept="application/pdf" style={{display:'none'}} onChange={handleFile}/>
+          <button className="btn primary" style={{width:'100%',justifyContent:'center',gap:8,padding:'14px'}} onClick={()=>fileRef.current?.click()}>
+            <i className="ti ti-upload" aria-hidden/>Escolher PDF…
+          </button>
+          <div style={{fontSize:11,color:'var(--text3)',marginTop:10,textAlign:'center'}}>
+            A extração usa IA e pode levar alguns segundos. Confira os dados antes de salvar.
+          </div>
+        </>}
+
+        {stage==='working' && (
+          <div style={{padding:'30px 10px',textAlign:'center'}}>
+            <i className="ti ti-loader-2" style={{fontSize:32,color:'var(--accent)',animation:'spin 1s linear infinite'}} aria-hidden/>
+            <div style={{marginTop:14,fontSize:13,color:'var(--text2)'}}>{progress}</div>
+            {fileName && <div style={{marginTop:6,fontSize:11,color:'var(--text3)'}}>{fileName}</div>}
+            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          </div>
+        )}
+
+        {stage==='review' && extracted && <>
+          <div style={{background:'rgba(22,163,74,0.08)',border:'1px solid #16A34A',borderRadius:6,padding:'8px 12px',marginBottom:14,fontSize:12,color:'#16A34A'}}>
+            <i className="ti ti-circle-check" style={{marginRight:4}} aria-hidden/>Dados extraídos — confira abaixo.
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+            <Field label="Cliente"><input value={extracted.client_name} onChange={e=>setExtracted(x=>({...x,client_name:e.target.value}))} style={{width:'100%',fontSize:13}}/></Field>
+            <Field label="Código"><input value={extracted.code} onChange={e=>setExtracted(x=>({...x,code:e.target.value}))} placeholder="opcional" style={{width:'100%',fontSize:13}}/></Field>
+            <Field label="Bairro / Cidade"><input value={extracted.neighborhood} onChange={e=>setExtracted(x=>({...x,neighborhood:e.target.value}))} style={{width:'100%',fontSize:13}}/></Field>
+            <Field label="Descrição"><input value={extracted.description} onChange={e=>setExtracted(x=>({...x,description:e.target.value}))} style={{width:'100%',fontSize:13}}/></Field>
+          </div>
+          <div style={{fontSize:12,color:'var(--text2)',marginBottom:8}}>
+            <b>{extracted.floors[0].rooms.length}</b> cômodo(s) · <b>{totalItems}</b> item(ns) detectado(s):
+          </div>
+          <div style={{maxHeight:180,overflowY:'auto',border:'1px solid var(--border)',borderRadius:6,padding:'8px 10px',marginBottom:14}}>
+            {extracted.floors[0].rooms.map((r,i)=>(
+              <div key={i} style={{marginBottom:8}}>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--accent)'}}>{r.name} <span style={{color:'var(--text3)',fontWeight:400}}>({r.items.length})</span></div>
+                <div style={{fontSize:11,color:'var(--text2)',paddingLeft:8}}>{r.items.map(it=>`${it.name}${(parseInt(it.qty)||1)>1?' ×'+it.qty:''}`).join(' · ')}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn" style={{flex:1,justifyContent:'center'}} onClick={()=>setStage('pick')}>Trocar PDF</button>
+            <button className="btn primary" style={{flex:2,justifyContent:'center',gap:8}} onClick={confirmImport}>
+              <i className="ti ti-check" aria-hidden/>Criar orçamento
+            </button>
+          </div>
+        </>}
+
+        {stage==='error' && <>
+          <div style={{background:'rgba(220,38,38,0.08)',border:'1px solid #DC2626',borderRadius:6,padding:'10px 12px',marginBottom:14,fontSize:12,color:'#DC2626'}}>
+            <i className="ti ti-alert-circle" style={{marginRight:4}} aria-hidden/>{errMsg}
+          </div>
+          <button className="btn primary" style={{width:'100%',justifyContent:'center'}} onClick={()=>setStage('pick')}>Tentar outro PDF</button>
+        </>}
+      </div>
+    </div>
+  )
+}
+function Field({label, children}){ return <div><div style={{fontSize:10,color:'var(--text3)',textTransform:'uppercase',marginBottom:3}}>{label}</div>{children}</div> }
+
+import React, { useState, useRef } from 'react'
 import { saveProposal, deleteProposal, cancelProposal, getProposals, auditedSave, saveProject, getProjects, verifyPIN, syncProjectFromProposal } from '../db/supabase.js'
-import { SEED_PROPOSAL } from '../data/seedEduardoRegina.js'
+import { extractPdf, askClaudeJSON, buildProposalFromExtract } from './importPdf.js'
 
 const STATUS = {
   draft:    { label:'Rascunho',   cls:'b-gray' },
@@ -167,7 +464,7 @@ const STATUS_NOTE = {
   draft:    '🔓 Reservas serão liberadas',
 }
 
-export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewExec, onGenerateExec, currentUser, onViewPDF, clients=[] }) {
+export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewExec, onGenerateExec, currentUser, onViewPDF, clients=[], catalog=[] }) {
   const [hideCancelled, setHideCancelled] = useState(true)
 
   const cancelledCount = proposals.filter(p=>p.status==='cancelled').length
@@ -191,6 +488,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
   const [changeReq, setChangeReq] = useState(null)
   const [contractProposal, setContractProposal] = useState(null)
   const [sendContractProposal, setSendContractProposal] = useState(null)
+  const [enviarDoc, setEnviarDoc] = useState(null)
   const [contractsGenerated, setContractsGenerated] = useState(() => {
     try { return JSON.parse(localStorage.getItem('raro_contracts_generated')||'{}') } catch { return {} }
   })
@@ -202,28 +500,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
   const [sortCol,  setSortCol]  = useState('id')
   const [sortDir,  setSortDir]  = useState('desc')
   const [showComp, setShowComp] = useState(false)
-  const [importing, setImporting] = useState(false)
-
-  // ── Importar projeto Eduardo & Regina (seed) ──────────────
-  async function importEduardoRegina() {
-    if (importing) return
-    const exists = proposals.some(p => (p.code||'')==='ER-2026' || (p.client_name||'').toLowerCase().includes('eduardo & regina'))
-    if (exists && !window.confirm('Já existe um orçamento Eduardo & Regina. Criar outra cópia mesmo assim?')) return
-    if (!window.confirm('Importar o orçamento "Eduardo & Regina" (Copacabana/RJ) com o Projeto Executivo completo (53 pontos)?\n\nEle entra como RASCUNHO e você pode editar depois.')) return
-    setImporting(true)
-    try {
-      const saved = await saveProposal({ ...SEED_PROPOSAL })
-      if (!saved) throw new Error('Supabase não retornou o registro salvo')
-      try { await auditedSave('orçamentos','seed_import',saved,currentUser?.name,null) } catch(e){ console.warn('audit:', e) }
-      onRefresh()
-      alert('✅ Orçamento Eduardo & Regina importado! Abra para ver a planta de pontos e o Projeto Executivo.')
-    } catch(err) {
-      console.error('Erro ao importar Eduardo & Regina:', err)
-      alert('Erro ao importar: ' + err.message)
-    } finally {
-      setImporting(false)
-    }
-  }
+  const [showImport, setShowImport] = useState(false)
 
   // ── Sort ──────────────────────────────────────────────────
   function toggleSort(col) {
@@ -341,8 +618,8 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
           <button className="btn" onClick={()=>setShowComp(true)}>
             <i className="ti ti-chart-bar" aria-hidden/>Comparativo
           </button>
-          <button className="btn" onClick={importEduardoRegina} disabled={importing} title="Importar o projeto executivo Eduardo & Regina (Copacabana/RJ)">
-            <i className={`ti ${importing?'ti-loader-2':'ti-download'}`} aria-hidden/>{importing?'Importando…':'Importar Eduardo & Regina'}
+          <button className="btn" onClick={()=>setShowImport(true)} title="Importar um projeto executivo ou proposta a partir de um PDF">
+            <i className="ti ti-file-import" aria-hidden/>Importar
           </button>
           <button className="btn primary" onClick={onNew}>
             <i className="ti ti-plus" aria-hidden/>Novo
@@ -437,8 +714,8 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
                               onClick={()=>openProposalPDF(pWithPhones,true)} title="Ver versao admin (com custos)"><i className="ti ti-shield" aria-hidden/></button>
                             {p.status!=='cancelled' && <button className="btn" style={btn({borderColor:'#059669',color:'#059669'})}
                               onClick={()=>setContractProposal(p)} title="Abrir contrato"><i className="ti ti-license" aria-hidden/></button>}
-                            {phone1 && <button className="btn" style={btn({color:'#16A34A',borderColor:'#16A34A'})} title="Enviar proposta por WhatsApp"
-                              onClick={async ()=>{ await openProposalPDF({...pWithPhones,_download:true},false); setTimeout(()=>window.open(`https://wa.me/${phone1}?text=${msg}`,'_blank'),1200) }}>
+                            {p.status!=='cancelled' && <button className="btn" style={btn({color:'#16A34A',borderColor:'#16A34A'})} title="Enviar proposta, projeto executivo ou contrato"
+                              onClick={()=>setEnviarDoc(p)}>
                               <i className="ti ti-send" aria-hidden/></button>}
                             <button className="btn danger" style={btn()} onClick={()=>setChangeReq({proposal:p,newStatus:'__delete__'})} title="Cancelar/Excluir"><i className="ti ti-trash" aria-hidden/></button>
                           </>
@@ -648,6 +925,27 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
           </div>
         </div>
       )}
+      {showImport && <ImportarPdfModal
+        catalog={catalog}
+        currentUser={currentUser}
+        onDone={()=>{ setShowImport(false); onRefresh() }}
+        onClose={()=>setShowImport(false)}
+      />}
+      {enviarDoc && <EnviarDocumentoModal
+        proposal={enviarDoc}
+        clients={clients}
+        currentUser={currentUser}
+        onMarkSent={async (p)=>{
+          try {
+            const before = proposals.find(x=>x.id===p.id)
+            const updated = { ...p, status:'sent' }
+            const saved = await saveProposal(updated)
+            if(saved){ try{ await auditedSave('orçamentos','status_change',saved,currentUser?.name,before) }catch(e){} try{ await syncProjectFromProposal(saved) }catch(e){} }
+            onRefresh()
+          } catch(err){ console.error('marcar enviado:', err); alert('Erro: '+err.message) }
+        }}
+        onClose={()=>setEnviarDoc(null)}
+      />}
       {sendContractProposal && <ContractSendModal
         proposal={sendContractProposal}
         clients={clients}

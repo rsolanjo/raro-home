@@ -128,18 +128,41 @@ export default function ProjetoExecutivo({ catalog=[], clients=[], preClient, fr
   useEffect(()=>{
     if(fromProposal && !fromProposal?.planta_data?.markers?.length && !markers.length){
       const floors = typeof fromProposal.floors==='string' ? (()=>{try{return JSON.parse(fromProposal.floors)}catch{return[]}})() : (fromProposal.floors||[])
-      const mk=[]; let n=1
-      floors.forEach(fl=>(fl.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{
-        if(!it.name && !it.code) return
-        const cat=catalog.find(c=>c.code===it.code)
-        const qty=parseInt(it.qty)||1
-        for(let i=0;i<qty;i++){
-          if(isRackItem(it.name||cat?.name||'', it.code||'')) continue
-          mk.push({uid:Date.now()+Math.random(), n:n++, id:'', code:it.code||cat?.code||'', name:it.name||cat?.name||'Item',
-            room:r.name||'', x:48+(Math.random()*8-4), y:48+(Math.random()*8-4), note:'',
-            cost:it.cost_price||cat?.cost_price||0, sale:it.sale_price||cat?.sale_price||0, category:it.category||cat?.category||''})
-        }
-      })))
+      // 1) agrupa os itens por cômodo (ignora itens de rack)
+      const rooms=[]; let n=1
+      floors.forEach(fl=>(fl.rooms||[]).forEach(r=>{
+        const items=[]
+        ;(r.items||[]).forEach(it=>{
+          if(!it.name && !it.code) return
+          const cat=catalog.find(c=>c.code===it.code)
+          const qty=parseInt(it.qty)||1
+          for(let i=0;i<qty;i++){
+            if(isRackItem(it.name||cat?.name||'', it.code||'')) continue
+            items.push({code:it.code||cat?.code||'', name:it.name||cat?.name||'Item', room:r.name||'',
+              cost:it.cost_price||cat?.cost_price||0, sale:it.sale_price||cat?.sale_price||0, category:it.category||cat?.category||''})
+          }
+        })
+        if(items.length) rooms.push({name:r.name||'', items})
+      }))
+      // 2) distribui os cômodos numa grade e, dentro de cada cômodo, espalha os pontos
+      const mk=[]
+      const cols=Math.ceil(Math.sqrt(rooms.length))||1
+      const rows=Math.ceil(rooms.length/cols)||1
+      rooms.forEach((room,ri)=>{
+        const cx=ri%cols, cy=Math.floor(ri/cols)
+        const cellW=92/cols, cellH=88/rows
+        const baseX=4+cellW*cx, baseY=6+cellH*cy
+        const per=room.items.length
+        const icols=Math.ceil(Math.sqrt(per))||1
+        room.items.forEach((it,ii)=>{
+          const ix=ii%icols, iy=Math.floor(ii/icols)
+          const stepX=(cellW-6)/Math.max(1,icols-0), stepY=(cellH-10)/Math.max(1,Math.ceil(per/icols))
+          mk.push({uid:Date.now()+Math.random(), n:n++, id:'', code:it.code, name:it.name, room:it.room, note:'',
+            x:Math.min(96,Math.max(3, baseX+3+ix*stepX)),
+            y:Math.min(94,Math.max(5, baseY+6+iy*stepY)),
+            cost:it.cost, sale:it.sale, category:it.category})
+        })
+      })
       if(mk.length){ setMarkers(mk); if(!fromProposal?.planta_data?.image) setStep('editor') }
     }
   },[])  // eslint-disable-line
@@ -780,11 +803,11 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                 <span style={{color:'#fff',fontSize:11,display:'flex',alignItems:'center',padding:'0 4px'}}>{Math.round(zoom*100)}%</span>
                 <button onClick={()=>setZoom(z=>Math.min(3,z+0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>+</button>
               </div>
-              <div ref={containerRef} style={{position:'relative',display:'inline-block',cursor:addMode?'crosshair':'default',width:`${zoom*100}%`,transformOrigin:'top center'}} onClick={onCanvasClick}>
+              <div ref={containerRef} style={{position:'relative',display:'inline-block',cursor:addMode?'crosshair':'default',width:bgImage?`${zoom*100}%`:`${Math.min(600*zoom,window.innerWidth*0.8)}px`,transformOrigin:'top center'}} onClick={onCanvasClick}>
                 {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false}/>
-                  : <div style={{width:600,maxWidth:'80vw',aspectRatio:'4/3',background:'rgba(255,255,255,0.04)',border:'2px dashed rgba(255,255,255,0.2)',borderRadius:10,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,color:'rgba(255,255,255,0.5)'}}>
+                  : <div style={{width:'100%',aspectRatio:'4/3',background:'rgba(255,255,255,0.04)',border:'2px dashed rgba(255,255,255,0.2)',borderRadius:10,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,color:'rgba(255,255,255,0.5)'}}>
                       <i className="ti ti-photo-plus" style={{fontSize:40}} aria-hidden/>
-                      <div style={{fontSize:14,textAlign:'center',padding:'0 20px'}}>Sem planta carregada.</div>
+                      <div style={{fontSize:14,textAlign:'center',padding:'0 20px'}}>Sem planta carregada.<br/><span style={{fontSize:11,opacity:0.7}}>Os pontos abaixo já estão posicionados — arraste-os, ou carregue uma planta de fundo.</span></div>
                       <button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{...btnPrimary,background:'#0EA5E9'}}><i className="ti ti-upload" aria-hidden/> Carregar planta</button>
                     </div>}
                 {markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro; const sel=selected===m.uid
