@@ -861,7 +861,9 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
         </div>
         {/* ── STICKY MARGIN PANEL (right side) ── */}
         {(()=>{
-          const allItems=floors.flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).map(it=>({...it,roomName:r.name,floorName:f.name,qty:parseInt(it.qty)||1}))))
+          const allItems=floors.flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[])
+            .filter(it=>hiddenCateg.size===0||!hiddenCateg.has(it.category||'Sem categoria'))
+            .map(it=>({...it,roomName:r.name,floorName:f.name,qty:parseInt(it.qty)||1}))))
           const projCost=allItems.reduce((s,it)=>s+(it.cost_price||0)*it.qty,0)
           const projSale=allItems.reduce((s,it)=>s+(it.sale_price||0)*it.qty,0)
           const projLucro=projSale-projCost
@@ -1273,14 +1275,23 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
                   </div>
                 })}
 
-                {/* Room margin summary — editável */}
+                {/* Room margin summary — respeita categorias ocultas */}
                 {(()=>{
-                  const roomCost=(room.items||[]).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
-                  const roomSale=parse(room.price)||((room.items||[]).reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0))
+                  const visItems = hiddenCateg.size===0
+                    ? (room.items||[])
+                    : (room.items||[]).filter(it=>!hiddenCateg.has(it.category||'Sem categoria'))
+                  const roomCost=visItems.reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
+                  const roomSale=hiddenCateg.size===0
+                    ? (parse(room.price)||visItems.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0))
+                    : visItems.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
                   const roomLucro=roomSale-roomCost
                   const roomPct=roomCost>0?Math.round(roomLucro/roomCost*100):0
+                  const hiddenCount=(room.items||[]).length-visItems.length
                   return <div style={{marginTop:8,padding:'8px 10px',background:'rgba(14,165,233,0.07)',borderRadius:5,border:'1px solid rgba(14,165,233,0.25)'}}>
-                    <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:6}}>Resumo do cômodo</div>
+                    <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span>Resumo do cômodo{hiddenCount>0?' (visível)':''}</span>
+                      {hiddenCount>0&&<span style={{fontSize:8,color:'#DC2626',background:'rgba(220,38,38,0.08)',padding:'1px 5px',borderRadius:4}}><i className="ti ti-eye-off" style={{fontSize:8,marginRight:2}} aria-hidden/>{hiddenCount} item{hiddenCount>1?'s':''} oculto{hiddenCount>1?'s':''}</span>}
+                    </div>
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 80px',gap:6,alignItems:'end'}}>
                       <div><div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Custo</div><div style={{fontSize:12,fontWeight:600,color:'var(--text2)'}}>R$ {roomCost.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>
                       <div><div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Venda</div><div style={{fontSize:12,fontWeight:600,color:'var(--accent)'}}>R$ {roomSale.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>

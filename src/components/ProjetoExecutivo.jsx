@@ -252,6 +252,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [clientSearch, setClientSearch] = useState('')
   const [catSearch, setCatSearch] = useState('')
   const [catFilter, setCatFilter] = useState('')
+  const [subcatFilter, setSubcatFilter] = useState('')
   const [editorSearch, setEditorSearch] = useState('')         // busca nos markers na planta
   const [filterRooms, setFilterRooms] = useState(new Set())   // cômodos selecionados (vazio = todos)
   const [filterCateg, setFilterCateg] = useState(new Set())   // categorias selecionadas (vazio = todas)
@@ -1246,7 +1247,10 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                 <div style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>Edite os nomes, arraste os pins na planta, adicione ou remova.</div>
               </div>
               <div style={{flex:1,overflowY:'auto',padding:'6px 0'}}>
-                {rooms.map((r,idx)=>(
+                {[...rooms].sort((a,b)=>{
+                  const fA=(a.floor||'').localeCompare(b.floor||'','pt-BR')
+                  return fA!==0 ? fA : (a.name||'').localeCompare(b.name||'','pt-BR')
+                }).map((r,idx)=>(
                   <div key={r.id} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 8px',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
                     {/* Número do pin */}
                     <div style={{width:22,height:22,borderRadius:'50% 50% 50% 0',background:'#0EA5E9',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,flexShrink:0,transform:'rotate(-45deg)'}}>
@@ -1475,23 +1479,54 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                 <div style={{padding:'6px 10px',position:'sticky',top:0,background:'#0f172a',zIndex:2,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
                   <input value={catSearch} onChange={e=>setCatSearch(e.target.value)} placeholder="Buscar item..."
                     style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:6,padding:'7px 10px',color:'#fff',fontSize:12,fontFamily:'inherit',boxSizing:'border-box',marginBottom:5}}/>
-                  <select value={catFilter} onChange={e=>setCatFilter(e.target.value)}
-                    style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:6,padding:'7px 10px',color:'#fff',fontSize:12,fontFamily:'inherit',boxSizing:'border-box'}}>
+                  <select value={catFilter} onChange={e=>{setCatFilter(e.target.value);setSubcatFilter('')}}
+                    style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:6,padding:'7px 10px',color:'#fff',fontSize:12,fontFamily:'inherit',boxSizing:'border-box',marginBottom:4}}>
                     <option value="">Todas as categorias</option>
                     {Object.keys(catGroups).map(g=><option key={g} value={g}>{g}</option>)}
                   </select>
+                  {/* Subcategory filter — shows when category is selected */}
+                  {catFilter && TAXONOMY[catFilter]?.length>0 && (
+                    <select value={subcatFilter} onChange={e=>setSubcatFilter(e.target.value)}
+                      style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,padding:'5px 10px',color:'rgba(255,255,255,0.7)',fontSize:11,fontFamily:'inherit',boxSizing:'border-box'}}>
+                      <option value="">Todas as subcategorias</option>
+                      {TAXONOMY[catFilter].map(s=><option key={s} value={s}>{s}</option>)}
+                    </select>
+                  )}
                 </div>
                 {Object.entries(catGroups).filter(([g])=>!catFilter||g===catFilter).map(([g,items])=>{
-                  const fil=items.filter(it=>!catSearch||(it.name||'').toLowerCase().includes(catSearch.toLowerCase())||(it.code||'').toLowerCase().includes(catSearch.toLowerCase()))
-                  if(!fil.length) return null
+                  // Group by subcategory within category
+                  const subGroups = {}
+                  items.forEach(it=>{
+                    const sub = it.subcategory || inferCategory(it.name, g).sub || g
+                    if(!subGroups[sub]) subGroups[sub]=[]
+                    subGroups[sub].push(it)
+                  })
+                  const hasSearch = !!catSearch || !!subcatFilter
+                  const allFil = items.filter(it=>{
+                    const matchSearch = !catSearch||(it.name||'').toLowerCase().includes(catSearch.toLowerCase())||(it.code||'').toLowerCase().includes(catSearch.toLowerCase())
+                    const matchSub = !subcatFilter||(it.subcategory||inferCategory(it.name,g).sub||g)===subcatFilter
+                    return matchSearch && matchSub
+                  })
+                  if(!allFil.length) return null
                   return <div key={g}>
-                    <div style={{padding:'5px 12px 2px',fontSize:9,color:'rgba(255,255,255,0.3)',textTransform:'uppercase'}}>{g}</div>
-                    {fil.map((it,i)=>{const st=EQUIP_STYLE[equipType(it.name)]||EQUIP_STYLE.Outro
-                      return <div key={i} onClick={()=>{setAddItem(it);setAddMode(true)}} style={{padding:'9px 12px',cursor:'pointer',display:'flex',gap:8,alignItems:'center',minHeight:38}}
-                        onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.05)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                        <span style={{width:20,height:20,borderRadius:'50%',background:st.c,color:'#fff',fontSize:9,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{st.s}</span>
-                        <span style={{fontSize:11,color:'rgba(255,255,255,0.85)',lineHeight:1.3}}>{it.name}{isRackItem(it.name,it.code)?<span style={{color:'#A78BFA',fontSize:9}}> · rack</span>:''}</span>
-                      </div>})}
+                    <div style={{padding:'6px 12px 2px',fontSize:9,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:.5,fontWeight:700,background:'rgba(255,255,255,0.03)'}}>{g}</div>
+                    {Object.entries(subGroups).map(([sub, sitems])=>{
+                      const sfil = sitems.filter(it=>{
+                        const mS = !catSearch||(it.name||'').toLowerCase().includes(catSearch.toLowerCase())||(it.code||'').toLowerCase().includes(catSearch.toLowerCase())
+                        const mSub = !subcatFilter||sub===subcatFilter
+                        return mS && mSub
+                      })
+                      if(!sfil.length) return null
+                      return <div key={sub}>
+                        <div style={{padding:'3px 12px 1px',fontSize:8,color:'rgba(255,255,255,0.25)',textTransform:'uppercase',letterSpacing:.3}}>↳ {sub}</div>
+                        {sfil.map((it,i)=>{const st=EQUIP_STYLE[equipType(it.name)]||EQUIP_STYLE.Outro
+                          return <div key={i} onClick={()=>{setAddItem(it);setAddMode(true)}} style={{padding:'7px 12px 7px 20px',cursor:'pointer',display:'flex',gap:8,alignItems:'center',minHeight:34}}
+                            onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.05)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                            <span style={{width:18,height:18,borderRadius:'50%',background:st.c,color:'#fff',fontSize:8,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{st.s}</span>
+                            <span style={{fontSize:11,color:'rgba(255,255,255,0.85)',lineHeight:1.3}}>{it.name}{isRackItem(it.name,it.code)?<span style={{color:'#A78BFA',fontSize:9}}> · rack</span>:''}</span>
+                          </div>})}
+                      </div>
+                    })}
                   </div>})}
               </div>
             </div>
@@ -1615,8 +1650,23 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
 
       {/* Footer actions */}
       {step==='editor' && (
-        <div style={{background:'#060B1A',padding:'12px 16px',display:'flex',gap:10,justifyContent:'flex-end',flexShrink:0}}>
+        <div style={{background:'#060B1A',padding:'12px 16px',display:'flex',gap:10,justifyContent:'flex-end',flexShrink:0,alignItems:'center'}}>
           <button onClick={()=>setStep('chat')} style={btnGhost}><i className="ti ti-arrow-left" aria-hidden/> Voltar à análise</button>
+          <div style={{flex:1}}/>
+          {/* Item 3: Salvar Projeto — salva posição dos marcadores sem gerar documento */}
+          <button onClick={async ()=>{
+            if(!fromProposal?.id){ alert('Abra o executivo a partir de um orçamento para poder salvar.'); return }
+            try{
+              const { saveProposal, addAuditLog } = await import('../db/supabase.js')
+              const updated = { ...fromProposal, planta_data:{image:bgImage, markers} }
+              await saveProposal(updated)
+              await addAuditLog({ type:'exec_save_markers', user_name:currentUser?.name||'—',
+                after:JSON.stringify({markers:markers.length, rooms:rooms.length, proposal_id:fromProposal.id}) })
+              alert(`✅ Projeto salvo! ${markers.length} marcadores gravados.`)
+            } catch(e){ alert('Erro ao salvar: '+e.message) }
+          }} disabled={loading} style={{...btnGhost,borderColor:'rgba(56,189,248,0.4)',color:'#38BDF8',gap:6}}>
+            <i className="ti ti-device-floppy" aria-hidden/> Salvar projeto
+          </button>
           <button onClick={generateExec} disabled={loading} style={{...btnPrimary,background:'#7C3AED'}}>
             <i className="ti ti-file-text" aria-hidden/> {loading?(execProgress||'Gerando...'):'Gerar Projeto Executivo'}
           </button>
