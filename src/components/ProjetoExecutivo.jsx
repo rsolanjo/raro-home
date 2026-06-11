@@ -101,6 +101,24 @@ async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1
   return full
 }
 
+// Seção colapsável para filtros na sidebar do editor
+function FilterSection({ title, badge, onClear, defaultOpen=false, children }){
+  const [open, setOpen] = React.useState(defaultOpen)
+  return (
+    <div style={{borderTop:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
+      <button onClick={()=>setOpen(o=>!o)}
+        style={{width:'100%',background:'rgba(255,255,255,0.02)',border:'none',cursor:'pointer',padding:'7px 10px',
+          display:'flex',alignItems:'center',gap:6,color:'rgba(255,255,255,0.5)',fontFamily:'inherit',fontSize:10}}>
+        <i className={`ti ${open?'ti-chevron-down':'ti-chevron-right'}`} style={{fontSize:10,flexShrink:0}} aria-hidden/>
+        <span style={{flex:1,textAlign:'left',fontWeight:600,textTransform:'uppercase',letterSpacing:.5}}>{title}</span>
+        {badge>0&&<span style={{background:'#38BDF8',color:'#000',borderRadius:8,padding:'0 5px',fontSize:8,fontWeight:700}}>{badge}</span>}
+        {onClear&&badge>0&&<span onClick={e=>{e.stopPropagation();onClear()}} style={{fontSize:8,color:'rgba(255,255,255,0.35)',cursor:'pointer',padding:'1px 4px',borderRadius:3,background:'rgba(255,255,255,0.06)'}}>limpar</span>}
+      </button>
+      {open&&<div style={{padding:'6px 10px 8px',background:'#0a1020'}}>{children}</div>}
+    </div>
+  )
+}
+
 // ── Rack Modal: seleciona equipamentos dentro do rack ─────────────────────────
 function RackModal({ catalog, rackEquip, onChange, markers, onClose, onApply }){
   const [equip, setEquip] = React.useState(rackEquip.length ? rackEquip : [
@@ -1426,109 +1444,105 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         {/* STEP EDITOR */}
         {step==='editor' && (
           <div className="pe-editor-wrap" style={{flex:1,display:'flex',minHeight:0}}>
-            {/* ── Sidebar esquerda: filtros + catálogo ── */}
-            <div className="pe-editor-cat" style={{width:230,background:'#0f172a',borderRight:'1px solid rgba(255,255,255,0.08)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
-              {/* Busca na planta */}
-              <div style={{padding:'8px 10px 6px',borderBottom:'1px solid rgba(255,255,255,0.06)',background:'#0a1020'}}>
-                <div style={{fontSize:9,fontWeight:700,color:'#38BDF8',textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>🔍 Buscar na planta</div>
-                <input value={editorSearch} onChange={e=>setEditorSearch(e.target.value)}
-                  placeholder="Nome, código ou cômodo..."
-                  style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(56,189,248,0.3)',borderRadius:5,padding:'6px 9px',color:'#fff',fontSize:11,fontFamily:'inherit',boxSizing:'border-box'}}/>
-                {editorSearch&&<div style={{fontSize:9,color:'rgba(255,255,255,0.35)',marginTop:3}}>
-                  {markers.filter(m=>m.name?.toLowerCase().includes(editorSearch.toLowerCase())||m.code?.toLowerCase().includes(editorSearch.toLowerCase())||m.room?.toLowerCase().includes(editorSearch.toLowerCase())).length} resultado(s)
-                </div>}
-              </div>
-              {/* Filtro cômodos */}
-              <div style={{padding:'7px 10px 6px',borderBottom:'1px solid rgba(255,255,255,0.06)',background:'#0a1020'}}>
-                <div style={{fontSize:9,fontWeight:700,color:'#38BDF8',textTransform:'uppercase',letterSpacing:1,marginBottom:4,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <span>🏠 Cômodos</span>
-                  {filterRooms.size>0&&<button onClick={()=>setFilterRooms(new Set())} style={{fontSize:8,color:'rgba(255,255,255,0.4)',background:'none',border:'none',cursor:'pointer',padding:0}}>limpar</button>}
-                </div>
-                <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
-                  {[...new Set(markers.map(m=>m.room||'Sem cômodo'))].sort().map(r=>{
-                    const sel=filterRooms.has(r)
-                    return <button key={r} onClick={()=>setFilterRooms(prev=>{const s=new Set(prev);if(s.has(r))s.delete(r);else s.add(r);return s})}
-                      style={{fontSize:9,padding:'2px 6px',borderRadius:8,border:'1px solid',cursor:'pointer',fontFamily:'inherit',
-                        borderColor:sel?'#38BDF8':'rgba(255,255,255,0.15)',background:sel?'rgba(56,189,248,0.15)':'rgba(255,255,255,0.03)',
-                        color:sel?'#38BDF8':'rgba(255,255,255,0.5)'}}>
-                      {r}
-                    </button>})}
-                </div>
-              </div>
-              {/* Filtro categorias */}
-              <div style={{padding:'7px 10px 6px',borderBottom:'1px solid rgba(255,255,255,0.06)',background:'#0a1020'}}>
-                <div style={{fontSize:9,fontWeight:700,color:'#38BDF8',textTransform:'uppercase',letterSpacing:1,marginBottom:4,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <span>🏷 Categorias</span>
-                  {filterCateg.size>0&&<button onClick={()=>setFilterCateg(new Set())} style={{fontSize:8,color:'rgba(255,255,255,0.4)',background:'none',border:'none',cursor:'pointer',padding:0}}>limpar</button>}
-                </div>
-                <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
-                  {[...new Set(markers.map(m=>equipType(m.name)))].sort().map(t=>{
-                    const st=EQUIP_STYLE[t]||EQUIP_STYLE.Outro; const sel=filterCateg.has(t)
-                    return <button key={t} onClick={()=>setFilterCateg(prev=>{const s=new Set(prev);if(s.has(t))s.delete(t);else s.add(t);return s})}
-                      style={{fontSize:9,padding:'2px 6px',borderRadius:8,border:'1px solid',cursor:'pointer',fontFamily:'inherit',
-                        borderColor:sel?st.c:'rgba(255,255,255,0.15)',background:sel?st.c+'30':'rgba(255,255,255,0.03)',
-                        color:sel?st.c:'rgba(255,255,255,0.5)'}}>
-                      {st.s} {t}
-                    </button>})}
-                </div>
-              </div>
-              {/* Catálogo */}
-              <div style={{flex:1,overflowY:'auto'}}>
-                <div style={{padding:'7px 10px 2px',fontSize:9,fontWeight:700,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:1}}>Adicionar do catálogo</div>
-                {addMode&&addItem&&<div style={{padding:'6px 12px',background:'rgba(14,165,233,0.15)',fontSize:11,color:'#38BDF8'}}>Clique na planta: {addItem.name}<br/><span onClick={()=>{setAddMode(false);setAddItem(null)}} style={{cursor:'pointer',textDecoration:'underline'}}>cancelar</span></div>}
-                <div style={{padding:'6px 10px',position:'sticky',top:0,background:'#0f172a',zIndex:2,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-                  <input value={catSearch} onChange={e=>setCatSearch(e.target.value)} placeholder="Buscar item..."
-                    style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:6,padding:'7px 10px',color:'#fff',fontSize:12,fontFamily:'inherit',boxSizing:'border-box',marginBottom:5}}/>
-                  <select value={catFilter} onChange={e=>{setCatFilter(e.target.value);setSubcatFilter('')}}
-                    style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:6,padding:'7px 10px',color:'#fff',fontSize:12,fontFamily:'inherit',boxSizing:'border-box',marginBottom:4}}>
-                    <option value="">Todas as categorias</option>
-                    {Object.keys(catGroups).map(g=><option key={g} value={g}>{g}</option>)}
-                  </select>
-                  {/* Subcategory filter — shows when category is selected */}
+            {/* ── Sidebar esquerda: catálogo principal + filtros colapsáveis ── */}
+            <div className="pe-editor-cat" style={{width:260,background:'#0f172a',borderRight:'1px solid rgba(255,255,255,0.08)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+
+              {/* ── CATÁLOGO (sempre visível, rolável) ── */}
+              <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+                {/* Busca + filtros de categoria — sticky */}
+                <div style={{padding:'8px 10px',background:'#0a1020',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
+                  <input value={catSearch} onChange={e=>setCatSearch(e.target.value)} placeholder="Buscar no catálogo..."
+                    style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:6,padding:'7px 10px',color:'#fff',fontSize:12,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
+                  <div style={{display:'flex',gap:4,marginBottom: catFilter ? 5 : 0}}>
+                    <select value={catFilter} onChange={e=>{setCatFilter(e.target.value);setSubcatFilter('')}}
+                      style={{flex:1,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:5,padding:'5px 8px',color:'#fff',fontSize:11,fontFamily:'inherit'}}>
+                      <option value="">Todas as categorias</option>
+                      {Object.keys(catGroups).map(g=><option key={g} value={g}>{g}</option>)}
+                    </select>
+                    {catFilter&&<button onClick={()=>{setCatFilter('');setSubcatFilter('')}} style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:5,color:'rgba(255,255,255,0.5)',cursor:'pointer',padding:'0 8px',fontSize:12,flexShrink:0}}>×</button>}
+                  </div>
                   {catFilter && TAXONOMY[catFilter]?.length>0 && (
                     <select value={subcatFilter} onChange={e=>setSubcatFilter(e.target.value)}
-                      style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,padding:'5px 10px',color:'rgba(255,255,255,0.7)',fontSize:11,fontFamily:'inherit',boxSizing:'border-box'}}>
+                      style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:5,padding:'5px 8px',color:'rgba(255,255,255,0.6)',fontSize:11,fontFamily:'inherit',boxSizing:'border-box'}}>
                       <option value="">Todas as subcategorias</option>
                       {TAXONOMY[catFilter].map(s=><option key={s} value={s}>{s}</option>)}
                     </select>
                   )}
                 </div>
-                {Object.entries(catGroups).filter(([g])=>!catFilter||g===catFilter).map(([g,items])=>{
-                  // Group by subcategory within category
-                  const subGroups = {}
-                  items.forEach(it=>{
-                    const sub = it.subcategory || inferCategory(it.name, g).sub || g
-                    if(!subGroups[sub]) subGroups[sub]=[]
-                    subGroups[sub].push(it)
-                  })
-                  const hasSearch = !!catSearch || !!subcatFilter
-                  const allFil = items.filter(it=>{
-                    const matchSearch = !catSearch||(it.name||'').toLowerCase().includes(catSearch.toLowerCase())||(it.code||'').toLowerCase().includes(catSearch.toLowerCase())
-                    const matchSub = !subcatFilter||(it.subcategory||inferCategory(it.name,g).sub||g)===subcatFilter
-                    return matchSearch && matchSub
-                  })
-                  if(!allFil.length) return null
-                  return <div key={g}>
-                    <div style={{padding:'6px 12px 2px',fontSize:9,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:.5,fontWeight:700,background:'rgba(255,255,255,0.03)'}}>{g}</div>
-                    {Object.entries(subGroups).map(([sub, sitems])=>{
-                      const sfil = sitems.filter(it=>{
-                        const mS = !catSearch||(it.name||'').toLowerCase().includes(catSearch.toLowerCase())||(it.code||'').toLowerCase().includes(catSearch.toLowerCase())
-                        const mSub = !subcatFilter||sub===subcatFilter
-                        return mS && mSub
-                      })
-                      if(!sfil.length) return null
-                      return <div key={sub}>
-                        <div style={{padding:'3px 12px 1px',fontSize:8,color:'rgba(255,255,255,0.25)',textTransform:'uppercase',letterSpacing:.3}}>↳ {sub}</div>
-                        {sfil.map((it,i)=>{const st=EQUIP_STYLE[equipType(it.name)]||EQUIP_STYLE.Outro
-                          return <div key={i} onClick={()=>{setAddItem(it);setAddMode(true)}} style={{padding:'7px 12px 7px 20px',cursor:'pointer',display:'flex',gap:8,alignItems:'center',minHeight:34}}
-                            onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.05)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                            <span style={{width:18,height:18,borderRadius:'50%',background:st.c,color:'#fff',fontSize:8,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{st.s}</span>
-                            <span style={{fontSize:11,color:'rgba(255,255,255,0.85)',lineHeight:1.3}}>{it.name}{isRackItem(it.name,it.code)?<span style={{color:'#A78BFA',fontSize:9}}> · rack</span>:''}</span>
-                          </div>})}
-                      </div>
-                    })}
-                  </div>})}
+                {addMode&&addItem&&<div style={{padding:'6px 12px',background:'rgba(14,165,233,0.15)',fontSize:11,color:'#38BDF8',flexShrink:0}}>
+                  📍 Clique na planta: <b>{addItem.name}</b><br/>
+                  <span onClick={()=>{setAddMode(false);setAddItem(null)}} style={{cursor:'pointer',textDecoration:'underline',fontSize:10}}>cancelar</span>
+                </div>}
+                {/* Lista do catálogo — rolável */}
+                <div style={{flex:1,overflowY:'auto'}}>
+                  {Object.entries(catGroups).filter(([g])=>!catFilter||g===catFilter).map(([g,items])=>{
+                    const subGroups={}
+                    items.forEach(it=>{const sub=it.subcategory||inferCategory(it.name,g).sub||g;(subGroups[sub]=subGroups[sub]||[]).push(it)})
+                    const allFil=items.filter(it=>{
+                      const mS=!catSearch||(it.name||'').toLowerCase().includes(catSearch.toLowerCase())||(it.code||'').toLowerCase().includes(catSearch.toLowerCase())
+                      const mSub=!subcatFilter||(it.subcategory||inferCategory(it.name,g).sub||g)===subcatFilter
+                      return mS&&mSub
+                    })
+                    if(!allFil.length) return null
+                    return <div key={g}>
+                      <div style={{padding:'6px 10px 3px',fontSize:9,color:'rgba(255,255,255,0.55)',textTransform:'uppercase',letterSpacing:.5,fontWeight:700,background:'rgba(255,255,255,0.03)',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>{g}</div>
+                      {Object.entries(subGroups).map(([sub,sitems])=>{
+                        const sfil=sitems.filter(it=>{
+                          const mS=!catSearch||(it.name||'').toLowerCase().includes(catSearch.toLowerCase())||(it.code||'').toLowerCase().includes(catSearch.toLowerCase())
+                          return mS&&(!subcatFilter||sub===subcatFilter)
+                        })
+                        if(!sfil.length) return null
+                        return <div key={sub}>
+                          <div style={{padding:'3px 12px 2px',fontSize:8,color:'rgba(255,255,255,0.28)',letterSpacing:.3}}>↳ {sub}</div>
+                          {sfil.map((it,i)=>{const st=EQUIP_STYLE[equipType(it.name)]||EQUIP_STYLE.Outro
+                            return <div key={i} onClick={()=>{setAddItem(it);setAddMode(true)}}
+                              style={{padding:'7px 12px 7px 18px',cursor:'pointer',display:'flex',gap:8,alignItems:'center',minHeight:32}}
+                              onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+                              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                              <span style={{width:16,height:16,borderRadius:'50%',background:st.c,color:'#fff',fontSize:7,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{st.s}</span>
+                              <span style={{fontSize:11,color:'rgba(255,255,255,0.85)',lineHeight:1.3,flex:1}}>{it.name}</span>
+                            </div>})}
+                        </div>})}
+                    </div>})}
+                </div>
               </div>
+
+              {/* ── FILTROS COLAPSÁVEIS (fundo da sidebar) ── */}
+              <FilterSection title="🔍 Buscar na planta" defaultOpen={false}>
+                <input value={editorSearch} onChange={e=>setEditorSearch(e.target.value)}
+                  placeholder="Nome, código ou cômodo..."
+                  style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(56,189,248,0.3)',borderRadius:5,padding:'5px 8px',color:'#fff',fontSize:11,fontFamily:'inherit',boxSizing:'border-box'}}/>
+                {editorSearch&&<div style={{fontSize:9,color:'rgba(255,255,255,0.35)',marginTop:3}}>
+                  {markers.filter(m=>m.name?.toLowerCase().includes(editorSearch.toLowerCase())||m.code?.toLowerCase().includes(editorSearch.toLowerCase())||m.room?.toLowerCase().includes(editorSearch.toLowerCase())).length} resultado(s)
+                </div>}
+              </FilterSection>
+
+              <FilterSection title="🏠 Filtrar cômodos" badge={filterRooms.size||null} onClear={filterRooms.size?()=>setFilterRooms(new Set()):null} defaultOpen={false}>
+                <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
+                  {[...new Set(markers.map(m=>m.room||'Sem cômodo'))].sort().map(r=>{
+                    const sel=filterRooms.has(r)
+                    return <button key={r} onClick={()=>setFilterRooms(prev=>{const s=new Set(prev);if(s.has(r))s.delete(r);else s.add(r);return s})}
+                      style={{fontSize:9,padding:'2px 6px',borderRadius:6,border:'1px solid',cursor:'pointer',fontFamily:'inherit',
+                        borderColor:sel?'#38BDF8':'rgba(255,255,255,0.15)',background:sel?'rgba(56,189,248,0.18)':'rgba(255,255,255,0.03)',
+                        color:sel?'#38BDF8':'rgba(255,255,255,0.5)'}}>
+                      {r}
+                    </button>})}
+                </div>
+              </FilterSection>
+
+              <FilterSection title="🏷 Filtrar categorias" badge={filterCateg.size||null} onClear={filterCateg.size?()=>setFilterCateg(new Set()):null} defaultOpen={false}>
+                <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
+                  {[...new Set(markers.map(m=>equipType(m.name)))].sort().map(t=>{
+                    const st=EQUIP_STYLE[t]||EQUIP_STYLE.Outro; const sel=filterCateg.has(t)
+                    return <button key={t} onClick={()=>setFilterCateg(prev=>{const s=new Set(prev);if(s.has(t))s.delete(t);else s.add(t);return s})}
+                      style={{fontSize:9,padding:'2px 6px',borderRadius:6,border:'1px solid',cursor:'pointer',fontFamily:'inherit',
+                        borderColor:sel?st.c:'rgba(255,255,255,0.15)',background:sel?st.c+'28':'rgba(255,255,255,0.03)',
+                        color:sel?st.c:'rgba(255,255,255,0.5)'}}>
+                      {st.s} {t}
+                    </button>})}
+                </div>
+              </FilterSection>
+
             </div>
             {/* ── Canvas ── */}
             <div className="pe-editor-canvas" style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20,position:'relative'}}>

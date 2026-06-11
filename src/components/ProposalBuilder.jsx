@@ -898,7 +898,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
             {floors.filter(f=>(f.rooms||[]).some(r=>parse(r.price)>0)).length>1&&<>
               <div style={lbl}>Por pavimento</div>
               {floors.filter(f=>(f.rooms||[]).some(r=>parse(r.price)>0)).map((f,fi)=>{
-                const fC=(f.rooms||[]).flatMap(r=>r.items||[]).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
+                const fC=(f.rooms||[]).flatMap(r=>(r.items||[]).filter(it=>hiddenCateg.size===0||!hiddenCateg.has(it.category||'Sem categoria'))).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
                 const fS=(f.rooms||[]).reduce((s,r)=>s+parse(r.price),0)
                 const fP=fC>0?Math.round((fS-fC)/fC*100):0
                 return <div key={fi} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',borderBottom:'1px solid var(--border)'}}>
@@ -911,7 +911,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
             {/* POR CÔMODO */}
             <div style={lbl}>Por cômodo</div>
             {floors.flatMap((f,fi)=>(f.rooms||[]).filter(r=>parse(r.price)>0).map((r,ri)=>{
-              const rC=(r.items||[]).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
+              const rC=(r.items||[]).filter(it=>hiddenCateg.size===0||!hiddenCateg.has(it.category||'Sem categoria')).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
               const rS=parse(r.price)
               const rP=rC>0?Math.round((rS-rC)/rC*100):0
               return <div key={`${fi}-${ri}`} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'3px 0',borderBottom:'1px solid var(--border)'}}>
@@ -979,7 +979,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
                 <span style={{fontSize:12}}>%</span>
 
               </div>
-              <div style={{fontSize:10,color:'var(--amber)',marginTop:4}}>Lucro estimado: {fmt(equipTotal-floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>(rs+(r.items||[]).reduce((is,it)=>(is+(it.cost_price||0)*(parseInt(it.qty)||1)),0)),s),0))}</div>
+              <div style={{fontSize:10,color:'var(--amber)',marginTop:4}}>Lucro estimado: {fmt(equipTotal-floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>(rs+(r.items||[]).filter(it=>hiddenCateg.size===0||!hiddenCateg.has(it.category||'Sem categoria')).reduce((is,it)=>(is+(it.cost_price||0)*(parseInt(it.qty)||1)),0)),s),0))}</div>
             </div>}
 
             {/* WA buttons */}
@@ -1343,7 +1343,9 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
 
             {/* Project profit — editável por margem global */}
             {(()=>{
-              const projCost=floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(r.items||[]).reduce((is,it)=>is+(it.cost_price||0)*(parseInt(it.qty)||1),0),s),0)
+              const projCost=floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(r.items||[])
+                .filter(it=>hiddenCateg.size===0||!hiddenCateg.has(it.category||'Sem categoria'))
+                .reduce((is,it)=>is+(it.cost_price||0)*(parseInt(it.qty)||1),0),s),0)
               const projSale=equipTotal
               const projLucro=projSale-projCost
               const projPct=projCost>0?Math.round(projLucro/projCost*100):0

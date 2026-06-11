@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v78b — tirar campo Valor do ambiente
+// v79b — fix: custo/lucro excluem categorias ocultas em todos os painéis (centro + margens + pavimento + cômodo)
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v78b · build 2026-06
+          v79b · build 2026-06
         </div>
       </div>
     </div>
