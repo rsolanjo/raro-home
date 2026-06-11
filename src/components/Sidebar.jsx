@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v80 — exec: tabelas automação/seg/som/teto com #planta; CSS page-break; gráficos limpos; seções breakable
+// v81 — exec: gestão+imagens, cabos elet consolidado, resumo cabos posicionado, fibra premissa, sem dias fases
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v80 · build 2026-06
+          v81 · build 2026-06
         </div>
       </div>
     </div>

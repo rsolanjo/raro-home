@@ -631,7 +631,7 @@ Responda APENAS JSON válido:
       setExecProgress('Rack, premissas e pontos... (1/2)')
       const d1=await askJSON(
 `Projetista RARO Home. Responda APENAS JSON válido (sem markdown). ${conv}\n\n${ctx}\n\nINFO RACK: ${rackNote}\n\n{
- "premissas":["..."],
+ "premissas":["FIBRA do provedor chega diretamente no RACK/CPD — sem roteador intermediário do provedor (Dream Machine SE É o roteador)","Rack centraliza TODOS os equipamentos ativos: DM SE, switch PoE+, amplificador de som, patch panel","Todo cabeamento estruturado CAT6 sai do rack até cada ponto","Keypads SEMPRE fase+neutro+terra do quadro (neutro obrigatório)","..."],
  "rack_config":{"dream_machine_portas":8,"aps":${aps},"cameras":${cams},"precisa_switch":${precisaSwitch},"switch_portas":${precisaSwitch?16:0},"observacao":"..."},
  "rack_items":[
   {"u":"U1","equip":"Dream Machine SE","funcao":"Roteador principal, controller UniFi, gateway Zigbee integrado, 8 portas PoE","watts":"25W"},
@@ -934,7 +934,6 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         <div style="width:32px;height:32px;border-radius:50%;background:${faseColors[i]};color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 6px;border:3px solid #fff;box-shadow:0 0 0 2px ${faseColors[i]}40">${i+1}</div>
         <div style="font-size:10px;font-weight:700;color:#0D1420;margin-bottom:3px">${f}</div>
         <div style="font-size:8.5px;color:#6B7280;line-height:1.4;margin-bottom:4px">${fasesDesc[i]}</div>
-        <div style="display:inline-block;background:${faseColors[i]}18;color:${faseColors[i]};font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px">${faseDuration[i]}</div>
       </div>
     </div>`).join('')}
   </div>
@@ -1085,6 +1084,145 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         ? (d.modulos_teto||[]).map(mt=>`<h3 class="ex-amb">${esc(mt.ambiente)}</h3>${T((mt.itens||[]).map(it=>`<tr><td>${esc(it)}</td></tr>`).join(''),['Itens de teto / forro'])}`).join('')
         : ''
 
+    // ── Tópico Gestão e Controle ─────────────────────────────────────────────
+    const gestaoTxt=`
+<p class="ex-p">A RARO Home entrega uma solução completa de gestão inteligente. Abaixo, as principais interfaces de controle disponíveis após a instalação.</p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0">
+
+  <div style="border:1px solid #CBD5E1;border-radius:10px;overflow:hidden">
+    <div style="background:#0D1420;padding:8px 12px;display:flex;align-items:center;gap:8px">
+      <div style="width:22px;height:22px;border-radius:4px;background:#0EA5E9;display:flex;align-items:center;justify-content:center;font-size:12px">📶</div>
+      <span style="color:#fff;font-size:11px;font-weight:700">Rede Wi-Fi e APs — App UniFi</span>
+    </div>
+    <div style="background:#EBF4FF;height:100px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+      <svg viewBox="0 0 260 100" xmlns="http://www.w3.org/2000/svg" width="260" height="100">
+        <rect width="260" height="100" fill="#EBF4FF"/>
+        <rect x="6" y="6" width="76" height="88" rx="5" fill="#fff" stroke="#CBD5E1" stroke-width=".8"/>
+        <rect x="6" y="6" width="76" height="16" rx="5" fill="#0D1420"/>
+        <text x="44" y="17" font-size="6" fill="#94A3B8" text-anchor="middle" font-family="sans-serif">UniFi Network</text>
+        <circle cx="30" cy="52" r="14" fill="#0EA5E920"/><circle cx="30" cy="52" r="7" fill="#0EA5E9"/><text x="30" y="74" font-size="5.5" fill="#0369A1" text-anchor="middle" font-family="sans-serif">AP-Sala</text>
+        <circle cx="66" cy="52" r="14" fill="#16A34A20"/><circle cx="66" cy="52" r="7" fill="#16A34A"/><text x="66" y="74" font-size="5.5" fill="#166534" text-anchor="middle" font-family="sans-serif">AP-Quarto</text>
+        <rect x="90" y="6" width="164" height="88" rx="5" fill="#fff" stroke="#CBD5E1" stroke-width=".8"/>
+        <rect x="90" y="6" width="164" height="16" rx="5" fill="#0D1420"/>
+        <text x="172" y="17" font-size="6" fill="#94A3B8" text-anchor="middle" font-family="sans-serif">Velocidade · Clientes · Status</text>
+        <rect x="98" y="28" width="148" height="9" rx="2" fill="#EEF2F7"/><rect x="98" y="28" width="110" height="9" rx="2" fill="#0EA5E9"/><text x="250" y="35.5" font-size="5" fill="#0369A1" font-family="sans-serif">AP-Sala</text>
+        <rect x="98" y="42" width="148" height="9" rx="2" fill="#EEF2F7"/><rect x="98" y="42" width="95" height="9" rx="2" fill="#16A34A"/><text x="197" y="49.5" font-size="5" fill="#166534" font-family="sans-serif">AP-Quarto</text>
+        <rect x="98" y="56" width="148" height="9" rx="2" fill="#EEF2F7"/><rect x="98" y="56" width="130" height="9" rx="2" fill="#7C3AED"/><text x="232" y="63.5" font-size="5" fill="#4C1D95" font-family="sans-serif">AP-Ext</text>
+        <rect x="98" y="72" width="148" height="14" rx="3" fill="#F1F5F9"/>
+        <text x="172" y="82" font-size="6" fill="#374151" text-anchor="middle" font-family="sans-serif">3 APs · 28 clientes conectados · 500Mbps</text>
+      </svg>
+    </div>
+    <div style="padding:8px 10px;background:#F8FAFC">
+      <div style="font-size:9.5px;font-weight:700;color:#0F172A">Gestão completa da rede</div>
+      <div style="font-size:8.5px;color:#64748B;margin-top:1px">Status APs · Cobertura por cômodo · Velocidade · App iOS e Android</div>
+    </div>
+  </div>
+
+  <div style="border:1px solid #CBD5E1;border-radius:10px;overflow:hidden">
+    <div style="background:#0D1420;padding:8px 12px;display:flex;align-items:center;gap:8px">
+      <div style="width:22px;height:22px;border-radius:4px;background:#7C3AED;display:flex;align-items:center;justify-content:center;font-size:12px">📱</div>
+      <span style="color:#fff;font-size:11px;font-weight:700">Automação — App RARO Home</span>
+    </div>
+    <div style="background:#F5F0FF;height:100px;display:flex;align-items:center;justify-content:center">
+      <svg viewBox="0 0 260 100" xmlns="http://www.w3.org/2000/svg" width="260" height="100">
+        <rect width="260" height="100" fill="#F5F0FF"/>
+        <rect x="6" y="6" width="58" height="88" rx="8" fill="#0D1420" stroke="#1E293B" stroke-width=".8"/>
+        <rect x="9" y="16" width="52" height="70" rx="2" fill="#1E293B"/>
+        <rect x="9" y="16" width="52" height="11" fill="#2D1B69"/>
+        <text x="35" y="24.5" font-size="5.5" fill="#C4B5FD" text-anchor="middle" font-family="sans-serif">RARO Home</text>
+        <rect x="12" y="30" width="21" height="15" rx="2" fill="#05966950"/><text x="22.5" y="40.5" font-size="5" fill="#A7F3D0" text-anchor="middle" font-family="sans-serif">Sala ON</text>
+        <rect x="37" y="30" width="21" height="15" rx="2" fill="#37415150"/><text x="47.5" y="40.5" font-size="5" fill="#6B7280" text-anchor="middle" font-family="sans-serif">Qt OFF</text>
+        <rect x="12" y="49" width="46" height="10" rx="2" fill="#1D4ED850"/><text x="35" y="57" font-size="5" fill="#BFDBFE" text-anchor="middle" font-family="sans-serif">▶ Modo Cinema</text>
+        <rect x="12" y="63" width="21" height="16" rx="2" fill="#D9780650"/><text x="22.5" y="73.5" font-size="5" fill="#FDE68A" text-anchor="middle" font-family="sans-serif">Cort 75%</text>
+        <rect x="37" y="63" width="21" height="16" rx="2" fill="#0891B250"/><text x="47.5" y="73.5" font-size="5" fill="#BAE6FD" text-anchor="middle" font-family="sans-serif">AC 22°</text>
+        <rect x="76" y="6" width="178" height="88" rx="5" fill="#fff" stroke="#DDD6FE" stroke-width=".8"/>
+        <rect x="76" y="6" width="178" height="14" rx="5" fill="#4C1D95"/>
+        <text x="165" y="16" font-size="6" fill="#C4B5FD" text-anchor="middle" font-family="sans-serif">Cenas · Horários · Automações</text>
+        <rect x="84" y="24" width="40" height="18" rx="3" fill="#FEF3C7" stroke="#E2E8F0" stroke-width=".5"/><text x="104" y="35.5" font-size="6.5" fill="#92400E" text-anchor="middle" font-family="sans-serif">Bom dia ☀</text>
+        <rect x="130" y="24" width="40" height="18" rx="3" fill="#1E1B4B" stroke="#E2E8F0" stroke-width=".5"/><text x="150" y="35.5" font-size="6.5" fill="#C4B5FD" text-anchor="middle" font-family="sans-serif">Cinema 🎬</text>
+        <rect x="176" y="24" width="40" height="18" rx="3" fill="#FFF7ED" stroke="#E2E8F0" stroke-width=".5"/><text x="196" y="35.5" font-size="6.5" fill="#9A3412" text-anchor="middle" font-family="sans-serif">Jantar 🍷</text>
+        <rect x="84" y="48" width="132" height="18" rx="3" fill="#F0FDF4" stroke="#BBF7D0" stroke-width=".5"/>
+        <text x="150" y="57" font-size="5.5" fill="#374151" text-anchor="middle" font-family="sans-serif">Automação ativa: presença detectada → luz liga</text>
+        <text x="150" y="64" font-size="5" fill="#64748B" text-anchor="middle" font-family="sans-serif">Sensor mmWave · Banheiro Master · Online</text>
+        <rect x="84" y="72" width="132" height="14" rx="3" fill="#EFF6FF" stroke="#BFDBFE" stroke-width=".5"/>
+        <text x="150" y="81" font-size="5.5" fill="#1D4ED8" text-anchor="middle" font-family="sans-serif">⚡ 24 dispositivos pareados · Todos online</text>
+      </svg>
+    </div>
+    <div style="padding:8px 10px;background:#F8FAFC">
+      <div style="font-size:9.5px;font-weight:700;color:#0F172A">Controle total no smartphone</div>
+      <div style="font-size:8.5px;color:#64748B;margin-top:1px">Cenas · Automações · Cortinas · AC · Keypads · iOS e Android</div>
+    </div>
+  </div>
+
+  <div style="border:1px solid #CBD5E1;border-radius:10px;overflow:hidden">
+    <div style="background:#0D1420;padding:8px 12px;display:flex;align-items:center;gap:8px">
+      <div style="width:22px;height:22px;border-radius:4px;background:#DC2626;display:flex;align-items:center;justify-content:center;font-size:12px">📷</div>
+      <span style="color:#fff;font-size:11px;font-weight:700">Câmeras — UniFi Protect</span>
+    </div>
+    <div style="background:#1C1917;height:100px;display:flex;align-items:center;justify-content:center">
+      <svg viewBox="0 0 260 100" xmlns="http://www.w3.org/2000/svg" width="260" height="100">
+        <rect width="260" height="100" fill="#1C1917"/>
+        <rect x="6" y="6" width="56" height="42" rx="3" fill="#292524"/><rect x="8" y="8" width="52" height="30" fill="#111"/><text x="34" y="26" font-size="6" fill="#6B7280" text-anchor="middle" font-family="sans-serif">Entrada</text><rect x="8" y="8" width="16" height="6" rx="1" fill="#DC2626"/><text x="16" y="12.5" font-size="4" fill="#fff" text-anchor="middle" font-family="sans-serif">AO VIVO</text>
+        <rect x="6" y="52" width="56" height="42" rx="3" fill="#292524"/><text x="34" y="76" font-size="6" fill="#6B7280" text-anchor="middle" font-family="sans-serif">Garagem</text>
+        <rect x="68" y="6" width="56" height="42" rx="3" fill="#292524"/><rect x="70" y="8" width="52" height="30" fill="#0A0A0A"/><circle cx="96" cy="23" r="7" fill="#37415130"/><text x="96" y="26.5" font-size="6.5" fill="#9CA3AF" text-anchor="middle" font-family="sans-serif">🌙</text><text x="96" y="40" font-size="6" fill="#6B7280" text-anchor="middle" font-family="sans-serif">Gourmet</text>
+        <rect x="68" y="52" width="56" height="42" rx="3" fill="#292524"/><text x="96" y="76" font-size="6" fill="#6B7280" text-anchor="middle" font-family="sans-serif">Piscina</text>
+        <rect x="134" y="6" width="120" height="88" rx="4" fill="#0D1117"/>
+        <text x="194" y="18" font-size="6" fill="#94A3B8" text-anchor="middle" font-family="sans-serif">Linha do Tempo</text>
+        <rect x="140" y="22" width="108" height="10" rx="2" fill="#1E293B"/><rect x="140" y="22" width="55" height="10" rx="2" fill="#DC262630"/><text x="144" y="30" font-size="5.5" fill="#94A3B8" font-family="sans-serif">Entrada 07:14</text>
+        <rect x="140" y="36" width="108" height="10" rx="2" fill="#1E293B"/><rect x="140" y="36" width="82" height="10" rx="2" fill="#DC262630"/><text x="144" y="44" font-size="5.5" fill="#94A3B8" font-family="sans-serif">Garagem 07:32</text>
+        <rect x="140" y="50" width="108" height="10" rx="2" fill="#1E293B"/><rect x="140" y="50" width="38" height="10" rx="2" fill="#DC262630"/><text x="144" y="58" font-size="5.5" fill="#94A3B8" font-family="sans-serif">Gourmet 18:45</text>
+        <rect x="140" y="64" width="108" height="10" rx="2" fill="#1E293B"/><rect x="140" y="64" width="70" height="10" rx="2" fill="#DC262630"/><text x="144" y="72" font-size="5.5" fill="#94A3B8" font-family="sans-serif">Entrada 23:02</text>
+        <rect x="140" y="78" width="108" height="10" rx="2" fill="#0D1117" stroke="#374151" stroke-width=".5"/>
+        <text x="194" y="86" font-size="5.5" fill="#64748B" text-anchor="middle" font-family="sans-serif">Gravação contínua 24h · 30 dias</text>
+      </svg>
+    </div>
+    <div style="padding:8px 10px;background:#F8FAFC">
+      <div style="font-size:9.5px;font-weight:700;color:#0F172A">Monitoramento via Dream Machine SE</div>
+      <div style="font-size:8.5px;color:#64748B;margin-top:1px">Ao vivo · Gravação 24h · Linha do tempo · UniFi Protect</div>
+    </div>
+  </div>
+
+  <div style="border:1px solid #CBD5E1;border-radius:10px;overflow:hidden">
+    <div style="background:#0D1420;padding:8px 12px;display:flex;align-items:center;gap:8px">
+      <div style="width:22px;height:22px;border-radius:4px;background:#059669;display:flex;align-items:center;justify-content:center;font-size:12px">⚡</div>
+      <span style="color:#fff;font-size:11px;font-weight:700">Automação Zigbee — Ecossistema</span>
+    </div>
+    <div style="background:#F0FDF4;height:100px;display:flex;align-items:center;justify-content:center">
+      <svg viewBox="0 0 260 100" xmlns="http://www.w3.org/2000/svg" width="260" height="100">
+        <rect width="260" height="100" fill="#F0FDF4"/>
+        <rect x="100" y="36" width="60" height="28" rx="5" fill="#059669"/>
+        <text x="130" y="48" font-size="6.5" fill="#fff" text-anchor="middle" font-family="sans-serif" font-weight="bold">Gateway</text>
+        <text x="130" y="57" font-size="5.5" fill="#A7F3D0" text-anchor="middle" font-family="sans-serif">Zigbee 3.0</text>
+        <line x1="22" y1="22" x2="100" y2="50" stroke="#0EA5E9" stroke-width="1" stroke-dasharray="3,2" opacity=".5"/><rect x="6" y="14" width="36" height="16" rx="3" fill="#0EA5E920" stroke="#0EA5E9" stroke-width=".8"/><text x="24" y="24.5" font-size="5.5" fill="#0EA5E9" text-anchor="middle" font-family="sans-serif">Keypad</text>
+        <line x1="218" y1="22" x2="160" y2="50" stroke="#0EA5E9" stroke-width="1" stroke-dasharray="3,2" opacity=".5"/><rect x="218" y="14" width="36" height="16" rx="3" fill="#0EA5E920" stroke="#0EA5E9" stroke-width=".8"/><text x="236" y="24.5" font-size="5.5" fill="#0EA5E9" text-anchor="middle" font-family="sans-serif">Keypad</text>
+        <line x1="14" y1="72" x2="100" y2="60" stroke="#16A34A" stroke-width="1" stroke-dasharray="3,2" opacity=".5"/><rect x="6" y="68" width="36" height="16" rx="3" fill="#16A34A20" stroke="#16A34A" stroke-width=".8"/><text x="24" y="78.5" font-size="5.5" fill="#16A34A" text-anchor="middle" font-family="sans-serif">Sensor</text>
+        <line x1="240" y1="72" x2="160" y2="60" stroke="#7C3AED" stroke-width="1" stroke-dasharray="3,2" opacity=".5"/><rect x="218" y="68" width="36" height="16" rx="3" fill="#7C3AED20" stroke="#7C3AED" stroke-width=".8"/><text x="236" y="78.5" font-size="5.5" fill="#7C3AED" text-anchor="middle" font-family="sans-serif">Módulo</text>
+        <line x1="95" y1="88" x2="115" y2="64" stroke="#D97706" stroke-width="1" stroke-dasharray="3,2" opacity=".5"/><rect x="76" y="82" width="36" height="14" rx="3" fill="#D9780620" stroke="#D97706" stroke-width=".8"/><text x="94" y="91.5" font-size="5.5" fill="#D97706" text-anchor="middle" font-family="sans-serif">Hub IR</text>
+        <line x1="168" y1="88" x2="148" y2="64" stroke="#0891B2" stroke-width="1" stroke-dasharray="3,2" opacity=".5"/><rect x="150" y="82" width="36" height="14" rx="3" fill="#0891B220" stroke="#0891B2" stroke-width=".8"/><text x="168" y="91.5" font-size="5.5" fill="#0891B2" text-anchor="middle" font-family="sans-serif">Tomada</text>
+        <rect x="6" y="4" width="248" height="8" rx="2" fill="#DCFCE7"/>
+        <text x="130" y="10.5" font-size="5.5" fill="#166534" text-anchor="middle" font-family="sans-serif">Todos os dispositivos online · Latência &lt;20ms · Matter-ready</text>
+      </svg>
+    </div>
+    <div style="padding:8px 10px;background:#F8FAFC">
+      <div style="font-size:9.5px;font-weight:700;color:#0F172A">Ecossistema Zigbee centralizado</div>
+      <div style="font-size:8.5px;color:#64748B;margin-top:1px">Keypads · Sensores · Módulos · Hub IR · Tomadas · Matter-ready</div>
+    </div>
+  </div>
+
+</div>
+<p class="ex-p" style="font-size:9px;color:#64748B;font-style:italic">Todos os sistemas são gerenciados remotamente pelo smartphone. A RARO Home realiza configuração completa e treinamento na entrega.</p>
+`
+
+    // ── Cabos elétricos consolidado por marcador ──────────────────────────────
+    const allEletMarkers = markers.filter(m=>{
+      const n=(m.name||'').toLowerCase()
+      return n.includes('keypad')||n.includes('interruptor')||n.includes('módulo')||n.includes('tomada')||n.includes('cortina')||n.includes('hub ir')
+    })
+    const cabosEletConsolidado = allEletMarkers.length
+      ? T(allEletMarkers.map(m=>`<tr><td>${pin(m.n)}</td><td style="font-family:monospace;font-size:10px;font-weight:700">${esc(m.id||m.code||'—')}</td><td>${esc(m.name)}</td><td>${esc(m.room||'—')}</td><td style="font-size:10px">${(m.name||'').toLowerCase().includes('keypad')||(m.name||'').toLowerCase().includes('interruptor')?'Fase + Neutro + Terra':'Fase + Neutro'}</td><td style="font-family:monospace;font-size:10px">2,5mm²</td><td style="font-size:10px">${(m.name||'').toLowerCase().includes('keypad')||(m.name||'').toLowerCase().includes('interruptor')?'QDL — disj. dedicado':'Ponto mais próximo'}</td><td style="font-size:9.5px;color:#D97706">${esc(m.note||'')}</td></tr>`).join(''),
+        ['#','ID','Equipamento','Ambiente','Alimentação','Bitola','Origem','Obs'])
+      : ''
+
     return [
     secN(`Premissas Confirmadas`, list(d.premissas)),
     secN(`Detalhe do RACK / CPD`, (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Origem / Destino / Etiqueta</h3>${rackCableTableHtml}`:'')):'', true),
@@ -1098,6 +1236,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     secN(`Cabos de Rede — Patch Panel e Etiquetas`, cabosRedeHtml, true),
     secN(`Cabos de Som — Amplificador no RACK`, (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-size:10px">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['ID','Origem','Destino','Tipo','Metros','Etiqueta']):'', true),
     secN(`Cabos Elétricos — por Cômodo`, cabosEletHtml, true),
+    secN(`Cabos Elétricos — Todos os Pontos (consolidado)`, cabosEletConsolidado, true),
     secN(`Alimentação dos Keypads (Fase + Neutro)`, (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x2,5mm²')}</td></tr>`).join(''),['ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m','Fios']):'', true),
     secN(`Resumo Geral de Cabeamento`, (d.resumo_cabos||[]).length?T(d.resumo_cabos.map(r=>`<tr><td><b>${esc(r.tipo)}</b></td><td>${esc(r.metros_total)}m</td></tr>`).join(''),['Tipo de cabo','Metragem total']):''),
     secN(`Lista Completa de Peças`, (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td style="text-align:center"><b>${esc(r.qtd)}</b></td></tr>`).join(''),['Item','Qtd']):'', true),
@@ -1106,6 +1245,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     secN(`Pontos de Atenção e Riscos`, list(d.riscos)),
     secN(`Fotos no Diário de Obra`, fotosTxt),
     secN(`Itens por Cômodo e Total Geral`, itensComodoHtml ? (itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml) : '', true),
+    secN(`Gestão e Controle do Projeto`, gestaoTxt),
     secN(`Gráficos e Linha do Tempo do Projeto`, (grafico1 + grafico2 + grafico3 + grafico4)),
   ].join('\n') })()}
 </div>`
