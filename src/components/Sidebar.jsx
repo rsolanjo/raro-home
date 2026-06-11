@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v76 — taxonomia categorias/subcategorias; ID auto por cômodo+subcateg; rack modal; ocultar sutil c/ preço; logo #F5FAFF confirmado
+// v77b — exec: 3 quadrinhos diário de obra; tirar Origem do tópico 4
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v76 · build 2026-06
+          v77b · build 2026-06
         </div>
       </div>
     </div>

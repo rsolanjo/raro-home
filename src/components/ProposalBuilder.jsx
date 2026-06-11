@@ -2,7 +2,7 @@ import { openProposalPDF } from './proposalPDF.js'
 import { LOGO_COVER, LOGO_DARK } from '../logos.js'
 import { useState, useEffect } from 'react'
 import { saveProposal, getCatalog, getStockWithReservations, getCatalogCategories,
-         generateProposalCode, auditedSave, checkProposalStock, checkPINSession, setPINSession, verifyPIN } from '../db/supabase.js'
+         generateProposalCode, auditedSave, checkProposalStock, checkPINSession, setPINSession, verifyPIN, addAuditLog } from '../db/supabase.js'
 import PINModal from './PINModal.jsx'
 import PlantaIA from './PlantaIA.jsx'
 import PlantaEditor from './PlantaEditor.jsx'
@@ -755,7 +755,32 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
       {execSeed?.floors?.length && !editProposal && (
         <div style={{background:'rgba(124,58,237,0.12)',borderBottom:'1px solid #7C3AED',padding:'10px 16px',display:'flex',alignItems:'center',gap:10,fontSize:13,color:'var(--text1)'}}>
           <i className="ti ti-brain" style={{color:'#7C3AED',fontSize:18}} aria-hidden/>
-          <span>Itens importados do <b>Projeto Executivo</b>. Revise os preços e clique em <b>"Salvar proposta"</b> para gravar — sem salvar, nada aparece na lista de orçamentos.</span>
+          <div style={{flex:1}}>
+            <div>Itens importados do <b>Projeto Executivo</b>. Revise os preços e clique em <b>"Salvar proposta"</b> para gravar.</div>
+            {/* ITEM 5: Import verification */}
+            {(()=>{
+              const execItems = execSeed?.markers?.length || 0
+              const proposalItems = floors.flatMap(f=>(f.rooms||[]).flatMap(r=>r.items||[])).length
+              const execRooms = [...new Set((execSeed?.markers||[]).map(m=>m.room).filter(Boolean))].length
+              const proposalRooms = floors.flatMap(f=>f.rooms||[]).length
+              const execFloors = execSeed?.floors?.length || 0
+              const proposalFloors = floors.length
+              const ok = proposalItems===execItems && proposalRooms===execRooms
+              if(!execItems) return null
+              return <div style={{marginTop:4,display:'flex',gap:8,flexWrap:'wrap'}}>
+                <span style={{fontSize:10,background:proposalItems===execItems?'rgba(22,163,74,0.12)':'rgba(220,38,38,0.12)',color:proposalItems===execItems?'#16A34A':'#DC2626',padding:'1px 6px',borderRadius:4,display:'flex',alignItems:'center',gap:3}}>
+                  {proposalItems===execItems?'✓':'⚠'} Itens: {proposalItems}/{execItems}
+                </span>
+                <span style={{fontSize:10,background:proposalRooms>=execRooms?'rgba(22,163,74,0.12)':'rgba(220,38,38,0.12)',color:proposalRooms>=execRooms?'#16A34A':'#DC2626',padding:'1px 6px',borderRadius:4,display:'flex',alignItems:'center',gap:3}}>
+                  {proposalRooms>=execRooms?'✓':'⚠'} Cômodos: {proposalRooms}/{execRooms}
+                </span>
+                <span style={{fontSize:10,background:proposalFloors>=execFloors?'rgba(22,163,74,0.12)':'rgba(220,38,38,0.12)',color:proposalFloors>=execFloors?'#16A34A':'#DC2626',padding:'1px 6px',borderRadius:4,display:'flex',alignItems:'center',gap:3}}>
+                  {proposalFloors>=execFloors?'✓':'⚠'} Pavimentos: {proposalFloors}/{execFloors}
+                </span>
+                {!ok&&<span style={{fontSize:10,color:'var(--amber)'}}>Verifique se todos os itens foram importados corretamente.</span>}
+              </div>
+            })()}
+          </div>
         </div>
       )}
       <div className="topbar">
@@ -1019,13 +1044,21 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
                 </select>}
                 <select title="Fundir com cômodo"
                   style={{fontSize:9,padding:'1px 2px',borderRadius:3,background:'var(--surf)',color:'var(--text2)',border:'1px solid var(--border)',cursor:'pointer',maxWidth:70}}
-                  onChange={e=>{
+                  onChange={async e=>{
                     const ti=parseInt(e.target.value); if(isNaN(ti)||ti===i) return
+                    const src2=floor.rooms[i], tgt2=floor.rooms[ti]
+                    const msg=`Fundir "${src2.name}" (${(src2.items||[]).length} itens) EM "${tgt2.name}" (${(tgt2.items||[]).length} itens)?\n\nTotal após fusão: ${(src2.items||[]).length+(tgt2.items||[]).length} itens no cômodo "${tgt2.name}".\n\nEssa ação não pode ser desfeita.`
+                    if(!window.confirm(msg)) return
+                    // Audit log
+                    try { await addAuditLog({type:'merge_rooms',user_name:currentUser?.name||'—',
+                      before:JSON.stringify({room_src:src2.name,items_src:(src2.items||[]).map(it=>it.name+'×'+(it.qty||1)).join(', '),room_tgt:tgt2.name,items_tgt:(tgt2.items||[]).map(it=>it.name+'×'+(it.qty||1)).join(', ')}),
+                      after:JSON.stringify({room_result:tgt2.name,total_items:(src2.items||[]).length+(tgt2.items||[]).length})
+                    }) } catch(e){ console.warn('audit merge:',e) }
                     setFloors(fs=>fs.map((f,fi)=>{
                       if(fi!==cf) return f
-                      const src=f.rooms[i], tgt=f.rooms[ti]
-                      const merged={...tgt, items:[...(tgt.items||[]),...(src.items||[])],
-                        price:String(parse(tgt.price)+parse(src.price))}
+                      const srcR=f.rooms[i], tgtR=f.rooms[ti]
+                      const merged={...tgtR, items:[...(tgtR.items||[]),...(srcR.items||[])],
+                        price:String(parse(tgtR.price)+parse(srcR.price))}
                       const newRooms=f.rooms.map((rx,ri)=>ri===ti?merged:rx).filter((_,ri)=>ri!==i)
                       return {...f, rooms:newRooms}
                     })); setCr(i>0?i-1:0); setSaved(false)
@@ -1033,6 +1066,30 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
                   <option value="">⊕ Fundir</option>
                   {(floor?.rooms||[]).map((rx,ri)=>ri!==i&&<option key={ri} value={ri}>{rx.name}</option>)}
                 </select>
+                {/* ITEM 4: Separar cômodo — divide os itens em dois cômodos */}
+                {(floor?.rooms?.[i]?.items?.length||0) > 1 && <button
+                  title="Separar cômodo em dois"
+                  onClick={async()=>{
+                    const room2=floor.rooms[i]
+                    const half=Math.ceil((room2.items||[]).length/2)
+                    const nome=window.prompt(`Separar "${room2.name}" em dois.\nNome do NOVO cômodo (vai receber a segunda metade dos ${(room2.items||[]).length} itens):`, room2.name+' 2')
+                    if(!nome?.trim()) return
+                    const items1=(room2.items||[]).slice(0,half)
+                    const items2=(room2.items||[]).slice(half)
+                    const price1=items1.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
+                    const price2=items2.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
+                    const newRoom={...mkRoom(),name:nome.trim(),items:items2,price:String(price2)}
+                    setFloors(fs=>fs.map((f,fi)=>fi!==cf?f:{...f,
+                      rooms:[...f.rooms.slice(0,i),{...room2,items:items1,price:String(price1)},...f.rooms.slice(i+1),newRoom]
+                    })); setSaved(false)
+                    try { await addAuditLog({type:'split_room',user_name:currentUser?.name||'—',
+                      before:JSON.stringify({room:room2.name,items:(room2.items||[]).length}),
+                      after:JSON.stringify({room1:room2.name,items1:items1.length,room2:nome.trim(),items2:items2.length})
+                    }) } catch(e){ console.warn('audit split:',e) }
+                  }}
+                  style={{background:'none',border:'1px solid rgba(14,165,233,0.3)',borderRadius:3,cursor:'pointer',color:'rgba(14,165,233,0.8)',padding:'1px 4px',fontSize:9,flexShrink:0}}>
+                  ⊣ Split
+                </button>}
               </div>
             </div>)}
             {(!floor?.rooms||floor.rooms.length===0)&&<div className="empty-state" style={{padding:18}}><i className="ti ti-home" style={{fontSize:20}} aria-hidden/><p>Nenhum cômodo</p></div>}
@@ -1107,8 +1164,21 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
               <div style={{marginBottom:6}}>
                 <div className="flabel">Itens adicionados</div>
               </div>
+              {hiddenCateg.size>0 && (()=>{
+                const hiddenItems=(room.items||[]).filter(it=>hiddenCateg.has(it.category||'Sem categoria'))
+                if(!hiddenItems.length) return null
+                return <div style={{fontSize:10,color:'#DC2626',background:'rgba(220,38,38,0.06)',border:'1px solid rgba(220,38,38,0.2)',borderRadius:4,padding:'3px 8px',marginBottom:6,display:'flex',alignItems:'center',gap:4}}>
+                  <i className="ti ti-eye-off" style={{fontSize:11}} aria-hidden/>
+                  {hiddenItems.length} item{hiddenItems.length>1?'s':''} oculto{hiddenItems.length>1?'s':''} neste cômodo
+                  <span style={{marginLeft:'auto',color:'rgba(220,38,38,0.6)'}}>
+                    {[...new Set(hiddenItems.map(it=>it.category))].join(', ')}
+                  </span>
+                </div>
+              })()}
               <div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:6,padding:8}}>
                 {room.items.map((it,k)=>{
+                  // Visually dim (but still show) items from hidden categories
+                  const isHidden=hiddenCateg.has(it.category||'Sem categoria')
                   const st=stockStatus(it.code,it.qty)
                   const qty=parseInt(it.qty)||1
                   const costUnit=it.cost_price||0
@@ -1120,7 +1190,8 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
                   const isEditingThis=editingItemPrice===k
                   const liveMargin=isEditingThis&&editingItemPrice===k
 
-                  return <div key={k} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid var(--border)'}}>
+                  return <div key={k} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid var(--border)',opacity:isHidden?0.35:1,position:'relative'}}>
+                    {isHidden&&<div style={{position:'absolute',top:0,right:0,fontSize:8,background:'#DC2626',color:'#fff',borderRadius:3,padding:'1px 4px',display:'flex',alignItems:'center',gap:2}}><i className="ti ti-eye-off" style={{fontSize:8}} aria-hidden/> oculto</div>}
                     {/* Row: name / code / qty / remove */}
                     <div style={{display:'grid',gridTemplateColumns:'1fr 72px 44px 24px',gap:5,marginBottom:6,alignItems:'center'}}>
                       <div style={{fontSize:14,fontWeight:500,lineHeight:1.3}}>{it.name}</div>

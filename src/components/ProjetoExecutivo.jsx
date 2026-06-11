@@ -109,16 +109,19 @@ function RackModal({ catalog, rackEquip, onChange, markers, onClose, onApply }){
     {code:'ORG-1U',name:'Organizador horizontal 1U',qty:2,u:'U5,U6',funcao:'Gestão de cabos'},
     {code:'PDU-8',name:'Régua 8 tomadas filtrada',qty:1,u:'U7',funcao:'Alimentação'},
   ])
-  const rackItems = (catalog||[]).filter(c=>isRackItem(c.name,c.code))
-  function isRackItem(name='',code=''){
-    const n=(name||'').toLowerCase()
-    return n.includes('rack')||n.includes('patch panel')||n.includes('organizador')||n.includes('régua')||
-      n.includes('switch poe')||n.includes('dream machine')||n.includes('amplificador')||n.includes('udm')||
-      (code||'').startsWith('RACK')||(code||'').startsWith('PP-')||(code||'').startsWith('ORG')
+  const [catFilter, setCatFilter] = React.useState('Todos')
+  function isRackCandidate(c){
+    const n=(c.name||'').toLowerCase(), sub=(c.subcategory||'').toLowerCase(), cat=(c.category||'').toLowerCase()
+    return n.includes('rack')||n.includes('patch panel')||n.includes('patch cord')||n.includes('organizador')||n.includes('régua')||
+      n.includes('switch')||n.includes('dream machine')||n.includes('amplificador')||n.includes('receiver')||n.includes('udm')||
+      sub==='rack'||sub==='switch'||sub==='patch panel'||sub==='patch cord'||sub==='amplificador'||sub==='receiver'||
+      cat==='redes'||cat==='sonorização'
   }
+  const allCats = ['Todos', ...new Set((catalog||[]).filter(isRackCandidate).map(c=>c.category||'Outros'))]
+  const rackItems = (catalog||[]).filter(c=>isRackCandidate(c) && (catFilter==='Todos'||c.category===catFilter))
   return (
     <div className="modal-overlay">
-      <div className="modal" style={{width:560,maxHeight:'80vh',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
+      <div className="modal" style={{width:580,maxHeight:'85vh',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-title"><i className="ti ti-server" style={{marginRight:6,color:'#7C3AED'}} aria-hidden/>Rack / CPD — Equipamentos</div>
           <button className="modal-close" onClick={onClose}>×</button>
@@ -127,35 +130,55 @@ function RackModal({ catalog, rackEquip, onChange, markers, onClose, onApply }){
           <div style={{fontSize:11,color:'var(--text2)',marginBottom:12}}>Configure os equipamentos dentro do rack. O rack aparece como um único pin na planta.</div>
           {/* Equipment list */}
           {equip.map((it,i)=>(
-            <div key={i} style={{display:'flex',gap:8,alignItems:'center',padding:'6px 0',borderBottom:'1px solid var(--border)'}}>
+            <div key={i} style={{display:'flex',gap:6,alignItems:'center',padding:'5px 0',borderBottom:'1px solid var(--border)'}}>
               <input value={it.u} onChange={e=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,u:e.target.value}:x))}
-                style={{width:60,fontSize:11}} placeholder="U1-U2"/>
+                style={{width:54,fontSize:11}} placeholder="U1-U2" title="Posição U"/>
               <input value={it.name} onChange={e=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,name:e.target.value}:x))}
                 style={{flex:1,fontSize:11}} placeholder="Equipamento"/>
-              <input value={it.funcao} onChange={e=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,funcao:e.target.value}:x))}
+              <input value={it.funcao||''} onChange={e=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,funcao:e.target.value}:x))}
                 style={{flex:1,fontSize:11}} placeholder="Função"/>
               <input value={it.qty} type="number" min="1" onChange={e=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,qty:parseInt(e.target.value)||1}:x))}
-                style={{width:40,fontSize:11}}/>
-              <button onClick={()=>setEquip(eq=>eq.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:14}}>✕</button>
+                style={{width:38,fontSize:11}} title="Qtd"/>
+              <button onClick={()=>setEquip(eq=>eq.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:14,flexShrink:0}}>✕</button>
             </div>
           ))}
-          {/* Add from catalog */}
-          {rackItems.length>0&&<div style={{marginTop:8}}>
-            <select onChange={e=>{
-              const c=JSON.parse(e.target.value||'null'); if(!c)return
-              setEquip(eq=>[...eq,{code:c.code,name:c.name,qty:1,u:`U${eq.length+1}`,funcao:''}])
-              e.target.value=''
-            }} style={{width:'100%',fontSize:11,padding:'6px 8px',marginBottom:6}}>
-              <option value="">+ Adicionar do catálogo (itens de rack)…</option>
-              {rackItems.map(c=><option key={c.code} value={JSON.stringify({code:c.code,name:c.name})}>{c.name}</option>)}
-            </select>
-          </div>}
+          {/* Add from catalog — filtrado por categoria */}
+          <div style={{marginTop:12,background:'var(--surf)',borderRadius:6,padding:10,border:'1px solid var(--border)'}}>
+            <div style={{fontSize:10,fontWeight:600,color:'var(--accent)',textTransform:'uppercase',marginBottom:8}}>Adicionar do catálogo</div>
+            <div style={{display:'flex',gap:6,marginBottom:6,flexWrap:'wrap'}}>
+              {allCats.map(c=>(
+                <button key={c} onClick={()=>setCatFilter(c)}
+                  style={{fontSize:9,padding:'2px 8px',borderRadius:8,border:'1px solid',cursor:'pointer',fontFamily:'inherit',
+                    borderColor:catFilter===c?'var(--accent)':'var(--border)',
+                    background:catFilter===c?'var(--accent-lt)':'transparent',
+                    color:catFilter===c?'var(--accent)':'var(--text3)'}}>
+                  {c}
+                </button>
+              ))}
+            </div>
+            <div style={{maxHeight:180,overflowY:'auto',display:'flex',flexDirection:'column',gap:3}}>
+              {rackItems.length===0
+                ? <div style={{fontSize:11,color:'var(--text3)',padding:'8px 0'}}>Nenhum item no catálogo para esta categoria.</div>
+                : rackItems.map(c=>(
+                  <button key={c.code} onClick={()=>setEquip(eq=>[...eq,{code:c.code,name:c.name,qty:1,u:`U${eq.length+1}`,funcao:c.subcategory||''}])}
+                    style={{background:'none',border:'1px solid var(--border)',borderRadius:4,padding:'5px 10px',cursor:'pointer',fontSize:11,textAlign:'left',fontFamily:'inherit',display:'flex',alignItems:'center',gap:8}}
+                    onMouseEnter={e=>e.currentTarget.style.background='var(--surf2)'}
+                    onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                    <span style={{fontWeight:600,fontFamily:'monospace',fontSize:10,color:'var(--accent)',minWidth:60}}>{c.code}</span>
+                    <span style={{flex:1}}>{c.name}</span>
+                    <span style={{fontSize:9,color:'var(--text3)'}}>{c.subcategory||c.category}</span>
+                    <span style={{fontSize:10,color:'var(--accent)',fontWeight:700}}>+</span>
+                  </button>
+                ))}
+            </div>
+          </div>
           <button onClick={()=>setEquip(eq=>[...eq,{code:'',name:'',qty:1,u:`U${eq.length+1}`,funcao:''}])}
-            style={{marginTop:8,background:'none',border:'1px dashed var(--border)',borderRadius:4,padding:'5px 12px',cursor:'pointer',fontSize:11,color:'var(--accent)',width:'100%'}}>
+            style={{marginTop:8,background:'none',border:'1px dashed var(--border)',borderRadius:4,padding:'5px 12px',cursor:'pointer',fontSize:11,color:'var(--text3)',width:'100%'}}>
             + Adicionar equipamento manual
           </button>
         </div>
-        <div style={{padding:'10px 16px',borderTop:'1px solid var(--border)',display:'flex',gap:8,justifyContent:'flex-end'}}>
+        <div style={{padding:'10px 16px',borderTop:'1px solid var(--border)',display:'flex',gap:8,justifyContent:'flex-end',alignItems:'center'}}>
+          <span style={{fontSize:10,color:'var(--text3)',flex:1}}>{equip.length} equipamento{equip.length!==1?'s':''} no rack</span>
           <button className="btn" onClick={onClose}>Cancelar</button>
           <button className="btn primary" onClick={()=>onApply(equip)}>Salvar e colocar na planta</button>
         </div>
@@ -794,14 +817,14 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
       const catHtml=Object.entries(byCateg).map(([cat,rows])=>`
         <div style="margin-bottom:8px">
           <div style="font-size:10px;font-weight:700;color:${catColors[cat]||'#374151'};text-transform:uppercase;letter-spacing:0.5px;padding:3px 0;border-bottom:1px solid ${catColors[cat]||'#374151'}22;margin-bottom:3px">${cat}</div>
-          ${T(rows.map(({nm,i})=>`<tr><td>${esc(nm)}</td><td>${i.cat?'<span style="color:#16A34A;font-size:10px">Catálogo</span>':'<span style="color:#D97706;font-size:10px">Avulso</span>'}</td><td><b>${i.qty}</b></td></tr>`).join(''),['Item','','Qtd'])}
+          ${T(rows.map(({nm,i})=>`<tr><td>${esc(nm)}</td><td><b>${i.qty}</b></td></tr>`).join(''),['Item','Qtd'])}
         </div>`).join('')
       itensComodoHtml+=`<h3 class="ex-amb">${esc(room)} — ${total} item(ns)</h3><div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:10px 12px;margin-bottom:12px">${catHtml}</div>`
     })
     const totalGeralHtml=Object.keys(geral).length?T(
-      Object.entries(geral).sort((a,b)=>b[1].qty-a[1].qty).map(([nm,i])=>`<tr><td>${esc(nm)}</td><td style="color:${{'Rede':'#0EA5E9','Som':'#BE185D','Segurança':'#DC2626','Automação':'#059669','Outros':'#6B7280'}[getCateg(nm)]||'#374151'};font-size:10px;font-weight:600">${getCateg(nm)}</td><td>${i.cat?'Catálogo':'Avulso'}</td><td><b>${i.qty}</b></td></tr>`).join('')
-       +`<tr style="background:#060B1A"><td style="color:#fff;font-weight:700" colspan="2">TOTAL GERAL</td><td></td><td style="color:#fff;font-weight:700">${Object.values(geral).reduce((s,i)=>s+i.qty,0)}</td></tr>`,
-      ['Item','Categoria','Origem','Qtd total'])
+      Object.entries(geral).sort((a,b)=>b[1].qty-a[1].qty).map(([nm,i])=>`<tr><td>${esc(nm)}</td><td style="color:${{'Rede':'#0EA5E9','Som':'#BE185D','Segurança':'#DC2626','Automação':'#059669','Outros':'#6B7280'}[getCateg(nm)]||'#374151'};font-size:10px;font-weight:600">${getCateg(nm)}</td><td><b>${i.qty}</b></td></tr>`).join('')
+       +`<tr style="background:#060B1A"><td style="color:#fff;font-weight:700">TOTAL GERAL</td><td></td><td style="color:#fff;font-weight:700">${Object.values(geral).reduce((s,i)=>s+i.qty,0)}</td></tr>`,
+      ['Item','Categoria','Qtd total'])
       :''
 
     // Tópico 20 — 4 gráficos + timeline
@@ -884,7 +907,104 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
   ${planta}
   ${(()=>{ let _n=0
     const secN=(title,inner)=> inner ? `<div class="ex-sec"><h2>${++_n}. ${title}</h2>${inner}</div>` : ''
-    const fotosTxt='<p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>'
+    const fotosTxt=`
+<p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>
+<div style="display:flex;gap:16px;margin:20px 0;flex-wrap:wrap">
+
+  <!-- Card 1: Foto da caixa elétrica com número -->
+  <div style="flex:1;min-width:180px;max-width:220px;border:1px solid #CBD5E1;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+    <div style="background:#1E293B;padding:8px 12px;display:flex;align-items:center;gap:8px">
+      <div style="width:22px;height:22px;border-radius:50%;background:#0EA5E9;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center">K1</div>
+      <span style="color:#94A3B8;font-size:10px;font-family:'DM Sans',sans-serif">Keypad Entrada</span>
+    </div>
+    <div style="background:#E2E8F0;height:110px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
+      <svg viewBox="0 0 160 110" xmlns="http://www.w3.org/2000/svg" width="160" height="110">
+        <rect width="160" height="110" fill="#D1D5DB"/>
+        <!-- parede com caixa 4x4 -->
+        <rect x="55" y="25" width="50" height="60" rx="3" fill="#9CA3AF"/>
+        <rect x="60" y="30" width="40" height="50" rx="2" fill="#6B7280" stroke="#4B5563" stroke-width="1"/>
+        <!-- fios saindo -->
+        <line x1="80" y1="80" x2="80" y2="100" stroke="#FBBF24" stroke-width="2"/>
+        <line x1="85" y1="80" x2="85" y2="100" stroke="#1D4ED8" stroke-width="2"/>
+        <!-- etiqueta K1 -->
+        <rect x="62" y="40" width="36" height="18" rx="2" fill="#0EA5E9"/>
+        <text x="80" y="53" font-size="12" fill="#fff" text-anchor="middle" font-weight="800" font-family="monospace">K1</text>
+        <!-- câmera foto -->
+        <circle cx="140" cy="15" r="8" fill="#1F2937" opacity="0.85"/>
+        <circle cx="140" cy="15" r="4" fill="#374151"/>
+        <circle cx="140" cy="15" r="2" fill="#60A5FA"/>
+      </svg>
+    </div>
+    <div style="padding:8px 10px;background:#F8FAFC">
+      <div style="font-size:9px;font-weight:700;color:#0F172A;font-family:'DM Sans',sans-serif">Caixa 4×4 antes de fechar</div>
+      <div style="font-size:8px;color:#64748B;margin-top:2px;font-family:'DM Sans',sans-serif">Neutro + fase identificados · H=1,10m</div>
+    </div>
+  </div>
+
+  <!-- Card 2: Planta com pin marcado -->
+  <div style="flex:1;min-width:180px;max-width:220px;border:1px solid #CBD5E1;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+    <div style="background:#1E293B;padding:8px 12px;display:flex;align-items:center;gap:8px">
+      <div style="width:22px;height:22px;border-radius:50%;background:#059669;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center">AP</div>
+      <span style="color:#94A3B8;font-size:10px;font-family:'DM Sans',sans-serif">Access Point Sala</span>
+    </div>
+    <div style="background:#E2E8F0;height:110px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+      <svg viewBox="0 0 160 110" xmlns="http://www.w3.org/2000/svg" width="160" height="110">
+        <rect width="160" height="110" fill="#F1F5F9"/>
+        <!-- planta simplificada -->
+        <rect x="10" y="10" width="140" height="90" rx="2" fill="none" stroke="#94A3B8" stroke-width="1.5"/>
+        <line x1="80" y1="10" x2="80" y2="100" stroke="#94A3B8" stroke-width="1" stroke-dasharray="3,3"/>
+        <line x1="10" y1="55" x2="150" y2="55" stroke="#94A3B8" stroke-width="1" stroke-dasharray="3,3"/>
+        <!-- porta -->
+        <line x1="10" y1="55" x2="10" y2="75" stroke="#475569" stroke-width="2"/>
+        <!-- pin AP -->
+        <circle cx="80" cy="32" r="10" fill="#059669" stroke="#fff" stroke-width="2"/>
+        <text x="80" y="36" font-size="9" fill="#fff" text-anchor="middle" font-weight="800" font-family="monospace">AP</text>
+        <line x1="80" y1="42" x2="80" y2="50" stroke="#059669" stroke-width="1.5" stroke-dasharray="2,2"/>
+        <!-- sinal wifi -->
+        <path d="M74 25 Q80 19 86 25" fill="none" stroke="#A7F3D0" stroke-width="1.5"/>
+        <path d="M71 22 Q80 14 89 22" fill="none" stroke="#6EE7B7" stroke-width="1"/>
+      </svg>
+    </div>
+    <div style="padding:8px 10px;background:#F8FAFC">
+      <div style="font-size:9px;font-weight:700;color:#0F172A;font-family:'DM Sans',sans-serif">Posição exata na planta</div>
+      <div style="font-size:8px;color:#64748B;margin-top:2px;font-family:'DM Sans',sans-serif">Teto centro sala · CAT6 confirmado</div>
+    </div>
+  </div>
+
+  <!-- Card 3: Relatório diário resumido -->
+  <div style="flex:1;min-width:180px;max-width:220px;border:1px solid #CBD5E1;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+    <div style="background:#1E293B;padding:8px 12px;display:flex;align-items:center;gap:8px">
+      <div style="width:22px;height:22px;border-radius:4px;background:#7C3AED;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center">📋</div>
+      <span style="color:#94A3B8;font-size:10px;font-family:'DM Sans',sans-serif">Relatório do Dia</span>
+    </div>
+    <div style="background:#F8FAFC;padding:10px;height:110px;overflow:hidden">
+      <div style="font-size:8px;color:#475569;font-family:'DM Sans',sans-serif;line-height:1.7">
+        <div style="display:flex;justify-content:space-between;border-bottom:1px solid #E2E8F0;padding-bottom:3px;margin-bottom:3px">
+          <b style="color:#0F172A">Data:</b> <span>14/06/2026</span>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;margin-bottom:2px">
+          <span style="color:#16A34A;font-size:9px">✓</span><span>K1 — Keypad entrada (foto OK)</span>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;margin-bottom:2px">
+          <span style="color:#16A34A;font-size:9px">✓</span><span>AP1 — Teto sala (foto OK)</span>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;margin-bottom:2px">
+          <span style="color:#D97706;font-size:9px">⏳</span><span>CAM1 — Aguardando eletroduto</span>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center">
+          <span style="color:#DC2626;font-size:9px">⚠</span><span>K3 — Neutro ausente (verificar)</span>
+        </div>
+      </div>
+    </div>
+    <div style="padding:8px 10px;background:#F8FAFC;border-top:1px solid #E2E8F0">
+      <div style="font-size:9px;font-weight:700;color:#0F172A;font-family:'DM Sans',sans-serif">Acompanhamento em tempo real</div>
+      <div style="font-size:8px;color:#64748B;margin-top:2px;font-family:'DM Sans',sans-serif">Pendências sinalizadas · app RARO Home</div>
+    </div>
+  </div>
+
+</div>
+<p class="ex-p" style="font-size:10px;color:#64748B;font-style:italic">Cada foto é vinculada ao ponto pelo número (ex: K1, AP1, CAM2). O relatório diário mostra o status de cada ponto — concluído ✓, pendente ⏳ ou com problema ⚠.</p>
+`
     return [
     secN(`Premissas Confirmadas`, list(d.premissas)),
     secN(`Detalhe do RACK / CPD`, (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas e Cabos do Rack</h3>${rackCableTableHtml}`:'')):''),
