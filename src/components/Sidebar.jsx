@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v79b — fix: custo/lucro excluem categorias ocultas em todos os painéis (centro + margens + pavimento + cômodo)
+// v80 — exec: tabelas automação/seg/som/teto com #planta; CSS page-break; gráficos limpos; seções breakable
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v79b · build 2026-06
+          v80 · build 2026-06
         </div>
       </div>
     </div>

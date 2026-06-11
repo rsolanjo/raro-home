@@ -645,7 +645,11 @@ Responda APENAS JSON válido:
  "pontos":[{"ambiente":"Estar (8,00×6,20m)","linhas":[{"ponto":"K1","equip":"Keypad 6 botões","parede":"entrada","dist":"0,15m","alt":"1,10m","caixa":"4×4 + NEUTRO","cabo":"2,5mm² ~8m"}]}],
  "modulos_teto":[{"ambiente":"Estar","itens":["5x spot LED M1","Módulo cortina M2 (forro, 2,55m)","Caixa som S1-S5 (teto, 2,70m)","Sensor mmWave P1 (teto centro)"]}],
  "modulos":[{"id":"M1","funcao":"Iluminação","ambiente":"Sala","carga":"5 spots LED","posicao":"forro gesso"}],
- "banheiros_sensores":[{"ambiente":"Banheiro Master","ponto":"Sensor mmWave teto","obs":"luz automática, umidade"}]
+ "banheiros_sensores":[{"ambiente":"Banheiro Master","ponto":"Sensor mmWave teto","obs":"luz automática, umidade"}],
+ "tabela_automacao":[{"num_planta":1,"id":"K1","equip":"Keypad 3 botões","ambiente":"Sala","funcao":"Liga/Desliga iluminação","protocolo":"Zigbee","posicao":"parede entrada H=1,10m","obs":"neutro obrigatório"}],
+ "tabela_seguranca":[{"num_planta":2,"id":"CAM1","equip":"Câmera Dome 5MP","ambiente":"Entrada","resolucao":"5MP","tipo":"PoE CAT6","posicao":"teto H=2,80m","angulo":"120°","obs":""}],
+ "tabela_som":[{"num_planta":3,"id":"S1","equip":"Caixa JBL 260","ambiente":"Sala","zona":"Zona 1","tipo":"embutida teto","saida_amplif":"Canal 1","cabo":"2×1,5mm² ~8m","obs":""}],
+ "tabela_teto":[{"num_planta":4,"id":"AP1","equip":"Access Point U6+","ambiente":"Sala","tipo":"Wi-Fi 6","instalacao":"teto centro","origem":"Rack PP porta 1","cabo":"CAT6 PoE","metros":"12","obs":""}]
 }`, 6000)
 
       // BLOCO 2 — cabos detalhados (por cômodo), alimentação, resumo, peças, checklists, riscos
@@ -846,69 +850,95 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
       ['Item','Categoria','Qtd total'])
       :''
 
-    // Tópico 20 — 4 gráficos + timeline
+    // ── Gráficos melhorados ─────────────────────────────────────────────────
     const totalPontos=markers.length
     const roomCounts=Object.entries(byRoom).map(([r,items])=>({room:r,qty:Object.values(items).reduce((s,i)=>s+i.qty,0)})).sort((a,b)=>b.qty-a.qty)
     const maxRoom=Math.max(1,...roomCounts.map(r=>r.qty))
-    const barColors=['#0EA5E9','#7C3AED','#16A34A','#D97706','#DC2626','#0891B2','#DB2777','#65A30D']
+    const CAT_COLORS={'Segurança':'#DC2626','Redes':'#0EA5E9','Sonorização':'#BE185D','Automação':'#059669','Gourmet':'#D97706','Outro':'#6B7280'}
+    const catColors=['#0EA5E9','#059669','#DC2626','#BE185D','#D97706','#7C3AED','#0891B2','#65A30D']
+    const barColors=['#1E3A5F','#0EA5E9','#059669','#DC2626','#7C3AED','#D97706','#0891B2','#BE185D']
 
-    // Gráfico 1 — Barras por ambiente
-    const grafico1=`<div style="margin:8px 0 24px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
-      <div style="font-size:12px;font-weight:700;margin-bottom:12px;color:#0D1420">📊 Distribuição de Pontos por Ambiente (${totalPontos} total)</div>
-      ${roomCounts.map((r,i)=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
-        <div style="width:130px;font-size:11px;text-align:right;color:#456;flex-shrink:0">${esc(r.room)}</div>
-        <div style="flex:1;background:#eef2f7;border-radius:4px;height:22px;position:relative">
-          <div style="width:${Math.round(r.qty/maxRoom*100)}%;background:${barColors[i%barColors.length]};height:100%;border-radius:4px;min-width:24px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:#fff;font-size:10px;font-weight:700">${r.qty}</div>
-        </div></div>`).join('')}
-    </div>`
+    // Contagem por categoria
+    const byCategCount={}
+    markers.forEach(m=>{const c=m.category||'Outro'; byCategCount[c]=(byCategCount[c]||0)+1})
+    const categEntries=Object.entries(byCategCount).sort((a,b)=>b[1]-a[1])
+    const totalCateg=categEntries.reduce((s,[,v])=>s+v,0)
 
-    // Gráfico 2 — Pizza de tipos de equipamento
-    const tiposCounts={}
-    markers.forEach(m=>{const t=equipType(m.name); tiposCounts[t]=(tiposCounts[t]||0)+1})
-    const tiposEntries=Object.entries(tiposCounts).sort((a,b)=>b[1]-a[1])
-    const tiposColors={'Gateway':'#0EA5E9','NVR':'#7C3AED','Câmera':'#DC2626','Keypad':'#059669','Hub IR':'#D97706','Módulo':'#6366F1','Som':'#BE185D','Wi-Fi':'#0E7490','Sensor':'#16A34A','Tomada':'#475569','Outro':'#374151'}
-    const grafico2=`<div style="margin:8px 0 24px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
-      <div style="font-size:12px;font-weight:700;margin-bottom:12px;color:#0D1420">🔌 Tipos de Equipamento</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px">
-        ${tiposEntries.map(([tipo,qty])=>`<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:8px 14px;min-width:140px">
-          <div style="width:32px;height:32px;border-radius:50%;background:${tiposColors[tipo]||'#374151'};color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center">${qty}</div>
-          <span style="font-size:12px;color:#374151;font-weight:500">${tipo}</span>
-        </div>`).join('')}
+    // Gráfico 1 — Barras horizontais por ambiente (limpo, com % e qtd)
+    const grafico1=`
+<div style="background:#fff;border:1px solid #D1E6F8;border-radius:8px;padding:18px 20px;margin-bottom:16px;page-break-inside:avoid">
+  <div style="font-size:13px;font-weight:700;color:#0D1420;margin-bottom:4px">Pontos por Ambiente</div>
+  <div style="font-size:10px;color:#6B7280;margin-bottom:14px">${totalPontos} pontos · ${roomCounts.length} ambientes</div>
+  ${roomCounts.map((r,i)=>`
+  <div style="display:grid;grid-template-columns:140px 1fr 30px;gap:8px;align-items:center;margin-bottom:6px">
+    <div style="font-size:10px;color:#374151;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.room)}">${esc(r.room)}</div>
+    <div style="background:#EEF4FB;border-radius:3px;height:18px;overflow:hidden">
+      <div style="width:${Math.max(4,Math.round(r.qty/maxRoom*100))}%;background:${catColors[i%catColors.length]};height:100%;display:flex;align-items:center;padding-left:6px">
+        <span style="color:#fff;font-size:9px;font-weight:700;white-space:nowrap">${r.qty}</span>
       </div>
-    </div>`
+    </div>
+    <div style="font-size:9px;color:#6B7280;text-align:right">${Math.round(r.qty/totalPontos*100)}%</div>
+  </div>`).join('')}
+</div>`
 
-    // Gráfico 3 — Distribuição de cabeamento
+    // Gráfico 2 — Contagem por categoria (cards limpos)
+    const grafico2=categEntries.length ? `
+<div style="background:#fff;border:1px solid #D1E6F8;border-radius:8px;padding:18px 20px;margin-bottom:16px;page-break-inside:avoid">
+  <div style="font-size:13px;font-weight:700;color:#0D1420;margin-bottom:4px">Equipamentos por Categoria</div>
+  <div style="font-size:10px;color:#6B7280;margin-bottom:14px">${totalCateg} equipamentos · ${categEntries.length} categorias</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+    ${categEntries.map(([cat,qty])=>{const col=CAT_COLORS[cat]||'#6B7280'; const pct=Math.round(qty/totalCateg*100); return `
+    <div style="border:1px solid ${col}40;border-radius:7px;padding:12px 14px;background:${col}08">
+      <div style="font-size:22px;font-weight:800;color:${col};line-height:1">${qty}</div>
+      <div style="font-size:11px;font-weight:600;color:#374151;margin-top:2px">${esc(cat)}</div>
+      <div style="margin-top:6px;background:#E2E8F0;border-radius:2px;height:4px">
+        <div style="width:${pct}%;background:${col};height:100%;border-radius:2px"></div>
+      </div>
+      <div style="font-size:9px;color:#6B7280;margin-top:3px">${pct}% do total</div>
+    </div>`}).join('')}
+  </div>
+</div>` : ''
+
+    // Gráfico 3 — Cabeamento (barras limpas)
     const resumoCabos = d.resumo_cabos || []
     const maxMetros = Math.max(1,...resumoCabos.map(r=>parseInt(r.metros_total)||0))
-    const cabosColors=['#0EA5E9','#16A34A','#D97706','#DC2626','#7C3AED','#0E7490']
-    const grafico3 = resumoCabos.length ? `<div style="margin:8px 0 24px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
-      <div style="font-size:12px;font-weight:700;margin-bottom:12px;color:#0D1420">📏 Metragem de Cabeamento por Tipo</div>
-      ${resumoCabos.map((r,i)=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
-        <div style="width:160px;font-size:10px;text-align:right;color:#456;flex-shrink:0">${esc(r.tipo)}</div>
-        <div style="flex:1;background:#eef2f7;border-radius:4px;height:22px">
-          <div style="width:${Math.round((parseInt(r.metros_total)||0)/maxMetros*100)}%;background:${cabosColors[i%cabosColors.length]};height:100%;border-radius:4px;min-width:30px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#fff;font-size:10px;font-weight:700">${r.metros_total}m</div>
-        </div></div>`).join('')}
-    </div>` : ''
-
-    // Gráfico 4 — Checklist de progresso visual
-    const fases=['Infraestrutura / Eletroduto','Passagem de cabos','Instalação de equipamentos','Configuração e cenas','Testes e entrega']
-    const fasesDesc=['Eletrodutos, caixas 4×4, tomadas dedicadas, nichos','CAT6, elétrico keypads, som, cabos câmeras/APs','Rack, equipamentos, keypads, câmeras, sensores','Gateway, parear dispositivos, cenas, app','Wi-Fi, som, câmeras, validação, treinamento']
-    const faseDuration=['2 sem','1 sem','2 sem','1 sem','3 dias']
-    const grafico4=`<div style="margin:8px 0 24px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
-      <div style="font-size:12px;font-weight:700;margin-bottom:14px;color:#0D1420">📅 Fases do Projeto</div>
-      <div style="position:relative">
-        ${fases.map((f,i)=>`<div style="display:flex;gap:14px;margin-bottom:0">
-          <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
-            <div style="width:32px;height:32px;border-radius:50%;background:${barColors[i%barColors.length]};color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center">${i+1}</div>
-            ${i<fases.length-1?'<div style="width:2px;flex:1;background:#dde6f0;min-height:28px"></div>':''}
-          </div>
-          <div style="padding-bottom:22px;padding-top:4px;flex:1">
-            <div style="font-size:12px;font-weight:700;color:#0D1420">${f}</div>
-            <div style="font-size:10px;color:#64748b;margin-top:2px">${fasesDesc[i]}</div>
-            <div style="display:inline-block;background:${barColors[i%barColors.length]}22;color:${barColors[i%barColors.length]};font-size:10px;font-weight:600;padding:1px 8px;border-radius:8px;margin-top:4px">${faseDuration[i]}</div>
-          </div></div>`).join('')}
+    const grafico3 = resumoCabos.length ? `
+<div style="background:#fff;border:1px solid #D1E6F8;border-radius:8px;padding:18px 20px;margin-bottom:16px;page-break-inside:avoid">
+  <div style="font-size:13px;font-weight:700;color:#0D1420;margin-bottom:4px">Metragem de Cabeamento</div>
+  <div style="font-size:10px;color:#6B7280;margin-bottom:14px">${resumoCabos.reduce((s,r)=>s+(parseInt(r.metros_total)||0),0)}m total estimado</div>
+  ${resumoCabos.map((r,i)=>`
+  <div style="display:grid;grid-template-columns:180px 1fr 50px;gap:8px;align-items:center;margin-bottom:7px">
+    <div style="font-size:10px;color:#374151;text-align:right">${esc(r.tipo)}</div>
+    <div style="background:#EEF4FB;border-radius:3px;height:20px">
+      <div style="width:${Math.max(4,Math.round((parseInt(r.metros_total)||0)/maxMetros*100))}%;background:${catColors[i%catColors.length]};height:100%;border-radius:3px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px">
+        <span style="color:#fff;font-size:9px;font-weight:700">${r.metros_total}m</span>
       </div>
-    </div>`
+    </div>
+    <div style="font-size:10px;font-weight:700;color:#0369A1;text-align:right">${r.metros_total}m</div>
+  </div>`).join('')}
+</div>` : ''
+
+    // Gráfico 4 — Fases do projeto (timeline limpa)
+    const fases=['Infraestrutura','Cabeamento','Instalação','Configuração','Testes e Entrega']
+    const fasesDesc=['Eletrodutos, caixas 4×4, nichos, tomadas dedicadas','CAT6, elétrico keypads, som, câmeras, APs','Rack, equipamentos, keypads, câmeras, sensores','Gateway Zigbee, parear dispositivos, cenas, app','Wi-Fi, som, câmeras, validação, treinamento cliente']
+    const faseDuration=['2 sem','1 sem','2 sem','1 sem','3 dias']
+    const faseColors=['#0EA5E9','#7C3AED','#059669','#D97706','#16A34A']
+    const grafico4=`
+<div style="background:#fff;border:1px solid #D1E6F8;border-radius:8px;padding:18px 20px;page-break-inside:avoid">
+  <div style="font-size:13px;font-weight:700;color:#0D1420;margin-bottom:16px">Fases do Projeto</div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0">
+    ${fases.map((f,i)=>`
+    <div style="position:relative;padding:0 4px">
+      ${i<fases.length-1?`<div style="position:absolute;top:16px;left:50%;right:-50%;height:2px;background:linear-gradient(to right,${faseColors[i]},${faseColors[i+1]});z-index:0"></div>`:''}
+      <div style="position:relative;z-index:1;text-align:center">
+        <div style="width:32px;height:32px;border-radius:50%;background:${faseColors[i]};color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 6px;border:3px solid #fff;box-shadow:0 0 0 2px ${faseColors[i]}40">${i+1}</div>
+        <div style="font-size:10px;font-weight:700;color:#0D1420;margin-bottom:3px">${f}</div>
+        <div style="font-size:8.5px;color:#6B7280;line-height:1.4;margin-bottom:4px">${fasesDesc[i]}</div>
+        <div style="display:inline-block;background:${faseColors[i]}18;color:${faseColors[i]};font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px">${faseDuration[i]}</div>
+      </div>
+    </div>`).join('')}
+  </div>
+</div>`
 
     return `<style>${EXEC_CSS}</style>
 <div class="ex-doc">
@@ -925,7 +955,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
 
   ${planta}
   ${(()=>{ let _n=0
-    const secN=(title,inner)=> inner ? `<div class="ex-sec"><h2>${++_n}. ${title}</h2>${inner}</div>` : ''
+    const secN=(title,inner,breakable=false)=> inner ? `<div class="ex-sec${breakable?' ex-breakable':''}"><h2><span class="ex-sec-num">${++_n}</span>${title}</h2>${inner}</div>` : ''
     const fotosTxt=`
 <p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>
 <div style="display:flex;gap:16px;margin:20px 0;flex-wrap:wrap">
@@ -1024,24 +1054,58 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
 </div>
 <p class="ex-p" style="font-size:10px;color:#64748B;font-style:italic">Cada foto é vinculada ao ponto pelo número (ex: K1, AP1, CAM2). O relatório diário mostra o status de cada ponto — concluído ✓, pendente ⏳ ou com problema ⚠.</p>
 `
+    // ── Helper: pin badge com número da planta ──────────────────────────────
+    const pin=(n,color='#0EA5E9')=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${color};color:#fff;font-size:9px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);vertical-align:middle;margin-right:4px">${n}</span>`
+    const CATCOLOR={'Redes':'#0EA5E9','Segurança':'#DC2626','Sonorização':'#BE185D','Automação':'#059669','Gourmet':'#D97706'}
+    const catColor=(cat)=>CATCOLOR[cat]||'#6B7280'
+
+    // ── Tabela Automação (Interruptores, Tomadas, Sensores, Hub IR, Módulos) ──
+    const tblAutomacao = (d.tabela_automacao||[]).length
+      ? T((d.tabela_automacao||[]).map(r=>`<tr><td>${pin(r.num_planta||r.id,catColor('Automação'))}</td><td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.funcao)}</td><td style="font-size:10px">${esc(r.protocolo||'Zigbee')}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+        ['#','ID','Equipamento','Ambiente','Função','Protocolo','Posição/Altura','Obs'])
+      : ''
+
+    // ── Tabela Segurança (Câmeras, Sensores de Alarme) ────────────────────────
+    const tblSeguranca = (d.tabela_seguranca||[]).length
+      ? T((d.tabela_seguranca||[]).map(r=>`<tr><td>${pin(r.num_planta||r.id,catColor('Segurança'))}</td><td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.resolucao||'—')}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px">${esc(r.angulo||'—')}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+        ['#','ID','Equipamento','Ambiente','Resolução','Tipo','Posição','Ângulo','Obs'])
+      : ''
+
+    // ── Tabela Som Ambiente ────────────────────────────────────────────────────
+    const tblSom = (d.tabela_som||[]).length
+      ? T((d.tabela_som||[]).map(r=>`<tr><td>${pin(r.num_planta||r.id,catColor('Sonorização'))}</td><td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.zona)}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.saida_amplif)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+        ['#','ID','Equipamento','Ambiente','Zona','Tipo','Saída Amplif.','Cabo','Obs'])
+      : ''
+
+    // ── Tabela Devices no Teto (APs, Câmeras, Caixas de Som, Sensores) ────────
+    const tblTeto = (d.tabela_teto||[]).length
+      ? T((d.tabela_teto||[]).map(r=>`<tr><td>${pin(r.num_planta||r.id,catColor(r.categoria||'Redes'))}</td><td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.instalacao)}</td><td style="font-family:monospace;font-size:10px">${esc(r.origem)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px">${esc(r.metros)}m</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+        ['#','ID','Equipamento','Ambiente','Posição Teto','Vem de / Origem','Cabo','m','Obs'])
+      : (d.modulos_teto||[]).length
+        ? (d.modulos_teto||[]).map(mt=>`<h3 class="ex-amb">${esc(mt.ambiente)}</h3>${T((mt.itens||[]).map(it=>`<tr><td>${esc(it)}</td></tr>`).join(''),['Itens de teto / forro'])}`).join('')
+        : ''
+
     return [
     secN(`Premissas Confirmadas`, list(d.premissas)),
-    secN(`Detalhe do RACK / CPD`, (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas e Cabos do Rack</h3>${rackCableTableHtml}`:'')):''),
-    secN(`Módulos e Caixas de Teto — por Cômodo`, modulosTetoHtml),
-    secN(`Keypads, Câmeras e Pontos de Parede`, pontosHtml),
-    secN(`Cabos de Rede — Patch Panel e Etiquetas`, cabosRedeHtml),
-    secN(`Cabos de Som — Amplificador no RACK`, (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-size:10px">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['ID','Origem','Destino','Tipo','Metros','Etiqueta']):''),
-    secN(`Cabos Elétricos — por Cômodo`, cabosEletHtml),
-    secN(`Alimentação dos Keypads (Fase + Neutro)`, (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x2,5mm²')}</td></tr>`).join(''),['ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m','Fios']):''),
-    secN(`Módulos e Cargas (iluminação + cortinas)`, modulosCargas),
-    secN(`Banheiros, Circulação e Sensores`, banhHtml),
+    secN(`Detalhe do RACK / CPD`, (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Origem / Destino / Etiqueta</h3>${rackCableTableHtml}`:'')):'', true),
+    secN(`Automação — Interruptores, Tomadas, Sensores, Hub IR, Módulos`, tblAutomacao||pontosHtml, true),
+    secN(`Segurança — Câmeras e Sensores de Alarme`, tblSeguranca, true),
+    secN(`Som Ambiente — Caixas, Amplificador e Zonas`, tblSom, true),
+    secN(`Devices no Teto — Posição, Origem e Cabeamento`, tblTeto, true),
+    secN(`Keypads e Pontos de Parede (detalhado por cômodo)`, pontosHtml, true),
+    secN(`Módulos e Cargas (iluminação + cortinas)`, modulosCargas, true),
+    secN(`Banheiros, Circulação e Sensores mmWave`, banhHtml),
+    secN(`Cabos de Rede — Patch Panel e Etiquetas`, cabosRedeHtml, true),
+    secN(`Cabos de Som — Amplificador no RACK`, (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-size:10px">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['ID','Origem','Destino','Tipo','Metros','Etiqueta']):'', true),
+    secN(`Cabos Elétricos — por Cômodo`, cabosEletHtml, true),
+    secN(`Alimentação dos Keypads (Fase + Neutro)`, (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x2,5mm²')}</td></tr>`).join(''),['ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m','Fios']):'', true),
     secN(`Resumo Geral de Cabeamento`, (d.resumo_cabos||[]).length?T(d.resumo_cabos.map(r=>`<tr><td><b>${esc(r.tipo)}</b></td><td>${esc(r.metros_total)}m</td></tr>`).join(''),['Tipo de cabo','Metragem total']):''),
-    secN(`Lista Completa de Peças`, (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td>${esc(r.qtd)}</td></tr>`).join(''),['Item','Qtd']):''),
+    secN(`Lista Completa de Peças`, (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td style="text-align:center"><b>${esc(r.qtd)}</b></td></tr>`).join(''),['Item','Qtd']):'', true),
     secN(`Checklist de Obra — para o Arquiteto / Eletricista`, list(d.checklist_obra)),
     secN(`Checklist de Instalação — Equipe RARO Home`, list(d.checklist_raro)),
     secN(`Pontos de Atenção e Riscos`, list(d.riscos)),
     secN(`Fotos no Diário de Obra`, fotosTxt),
-    secN(`Itens por Cômodo e Total Geral`, itensComodoHtml ? (itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml) : ''),
+    secN(`Itens por Cômodo e Total Geral`, itensComodoHtml ? (itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml) : '', true),
     secN(`Gráficos e Linha do Tempo do Projeto`, (grafico1 + grafico2 + grafico3 + grafico4)),
   ].join('\n') })()}
 </div>`
@@ -1698,27 +1762,66 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
 }
 
 const EXEC_CSS=`
-.ex-doc{font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;font-size:12px;line-height:1.5}
+/* ── Base ──────────────────────────────────────────────────────────────── */
+.ex-doc{font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;font-size:11.5px;line-height:1.55;background:#F5FAFF}
 .ex-doc *{box-sizing:border-box}
-.ex-cover{background:linear-gradient(160deg,#F5FAFF 0%,#E8F2FC 100%);color:#0D1420;padding:60px 40px;text-align:center;position:relative;border-bottom:3px solid #0EA5E9;page-break-after:always}
+
+/* ── Capa ───────────────────────────────────────────────────────────────── */
+.ex-cover{background:linear-gradient(160deg,#F5FAFF 0%,#E0EFFC 100%);color:#0D1420;padding:60px 40px;text-align:center;border-bottom:3px solid #0EA5E9;page-break-after:always;break-after:page}
 .ex-cover-top{font-size:10px;letter-spacing:3px;color:#6B8CAE;text-transform:uppercase;margin-bottom:30px}
 .ex-cover-tag{font-size:10px;letter-spacing:4px;color:#0EA5E9;margin:6px 0 40px}
 .ex-cover-title{font-family:'DM Serif Display',Georgia,serif;font-size:34px;line-height:1.15;margin-bottom:16px;color:#0D1420}
 .ex-cover-sub{font-size:13px;color:#456;line-height:1.7;margin-bottom:40px}
-.ex-cover-client{background:#fff;border:1px solid #cfe3f5;border-radius:10px;padding:20px;margin:0 auto;max-width:380px;box-shadow:0 2px 10px rgba(14,165,233,0.08)}
+.ex-cover-client{background:#fff;border:1px solid #cfe3f5;border-radius:10px;padding:20px;margin:0 auto;max-width:380px}
 .ex-cc-name{font-size:20px;font-weight:700;color:#0D1420}
 .ex-cc-meta{font-size:11px;color:#6B8CAE;margin-top:4px}
 .ex-cover-foot{margin-top:40px;font-size:9px;color:#8fa3b8}
-.ex-sec{padding:24px 40px;border-bottom:1px solid #eef;page-break-inside:avoid}
-.ex-sec h2{font-family:'DM Serif Display',Georgia,serif;font-size:18px;color:#060B1A;margin-bottom:14px;padding-bottom:7px;border-bottom:2px solid #0EA5E9}
-.ex-amb{font-size:13px;color:#0369A1;font-weight:700;margin:16px 0 6px;background:#EFF6FF;padding:6px 10px;border-radius:5px;page-break-after:avoid}
-.ex-tbl{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:11px}
-.ex-tbl th{background:#060B1A;color:#fff;padding:7px 9px;text-align:left;font-size:10px;font-weight:600}
-.ex-tbl td{padding:6px 9px;border-bottom:1px solid #eef2f7;vertical-align:top}
-.ex-tbl tr:nth-child(even) td{background:#f7fafc}
-.ex-ul{margin:6px 0 6px 18px}
-.ex-ul li{margin-bottom:5px}
-.ex-p{font-size:12px;line-height:1.6;color:#374151}
+
+/* ── Seções ─────────────────────────────────────────────────────────────── */
+.ex-sec{padding:20px 36px 24px;border-bottom:2px solid #E8F0F8;background:#fff;margin-bottom:0}
+.ex-sec h2{font-family:'DM Serif Display',Georgia,serif;font-size:17px;color:#060B1A;margin:0 0 12px;padding-bottom:6px;
+  border-bottom:2px solid #0EA5E9;display:flex;align-items:center;gap:8px;page-break-after:avoid;break-after:avoid}
+.ex-sec-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;min-width:24px;
+  border-radius:50%;background:#0EA5E9;color:#fff;font-size:11px;font-weight:800;font-family:'DM Sans',sans-serif}
+
+/* Ambiente sub-header dentro de seção */
+.ex-amb{font-size:12px;color:#0369A1;font-weight:700;margin:14px 0 5px;background:#EFF6FF;padding:5px 10px;
+  border-left:3px solid #0EA5E9;border-radius:0 4px 4px 0;page-break-after:avoid;break-after:avoid}
+
+/* ── Tabelas ─────────────────────────────────────────────────────────────── */
+.ex-tbl{width:100%;border-collapse:collapse;margin:6px 0 14px;font-size:10.5px;
+  page-break-inside:auto;break-inside:auto}
+.ex-tbl thead{display:table-header-group} /* repete cabeçalho em página nova */
+.ex-tbl th{background:#0D1A30;color:#fff;padding:6px 8px;text-align:left;font-size:9.5px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+.ex-tbl td{padding:5px 8px;border-bottom:1px solid #ECF2F8;vertical-align:top}
+.ex-tbl tr:nth-child(even) td{background:#F7FAFE}
+.ex-tbl tr:hover td{background:#EEF6FF}
+/* Linha de continuação quando tabela quebra de página */
+.ex-tbl tbody tr{page-break-inside:avoid;break-inside:avoid}
+
+/* Grupos de linhas que NÃO devem quebrar — use ex-tbl-group */
+.ex-tbl-group td{border-top:2px solid #D1E6F8}
+
+/* ── Listas ──────────────────────────────────────────────────────────────── */
+.ex-ul{margin:5px 0 8px 20px}
+.ex-ul li{margin-bottom:4px;line-height:1.5}
+.ex-p{font-size:11.5px;line-height:1.65;color:#374151;margin:0 0 8px}
+
+/* ── Print ───────────────────────────────────────────────────────────────── */
+@media print{
+  @page{size:A4;margin:16mm 18mm 18mm}
+  .no-print{display:none!important}
+  .ex-cover{page-break-after:always;break-after:page}
+  .ex-sec{page-break-inside:avoid;break-inside:avoid;padding:16px 28px 20px}
+  /* Seções longas PODEM quebrar — desativa avoid nelas */
+  .ex-sec.ex-breakable{page-break-inside:auto;break-inside:auto}
+  .ex-tbl thead{display:table-header-group}
+  .ex-tbl{font-size:9.5px}
+  .ex-tbl th{padding:4px 6px;font-size:8.5px}
+  .ex-tbl td{padding:4px 6px}
+  h2{font-size:15px}
+  .ex-amb{font-size:11px}
+}
 `
 
 const btnPrimary={background:'#0EA5E9',color:'#fff',border:'none',padding:'8px 16px',borderRadius:6,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:6}
