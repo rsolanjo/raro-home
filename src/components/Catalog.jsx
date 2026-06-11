@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { saveCatalogItem, deleteCatalogItem, getCatalogCategories, addCatalogCategory, deleteCatalogCategory, getProposals, checkPINSession, setPINSession, verifyPIN, addAuditLog } from '../db/supabase.js'
+import { saveCatalogItem, deleteCatalogItem, getCatalogCategories, addCatalogCategory, deleteCatalogCategory, getCatalogSubcategories, saveCatalogSubcategory, deleteCatalogSubcategory, getProposals, checkPINSession, setPINSession, verifyPIN, addAuditLog } from '../db/supabase.js'
+import { TAXONOMY, ALL_CATEGORIES, inferCategory } from '../taxonomy.js'
 import PINModal from './PINModal.jsx'
 
 const CABLE_COLORS = { 'PC-AZL':'#2563EB','PC-AMA':'#D97706','PC-BRN':'#9CA3AF','PC-VRM':'#DC2626' }
@@ -29,7 +30,7 @@ function CatalogTable({ items, onEdit, isAdmin, onDelete, onQuickPrice }) {
                 <span className="mono">{c.code}</span>
               </div>
             </td>
-            <td style={{fontWeight:500}}>{c.name}<div style={{fontSize:10,color:'var(--text3)'}}>{c.category}</div></td>
+            <td style={{fontWeight:500}}>{c.name}<div style={{fontSize:10,color:'var(--text3)'}}>{c.category}{c.subcategory&&<span style={{color:'var(--accent)',marginLeft:4}}>/ {c.subcategory}</span>}</div></td>
             {isAdmin && <>
               <td style={{color:'var(--text2)',fontSize:12}}>R$ {cp.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
               <td>
@@ -108,8 +109,11 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
     setShowPIN(true)
   }
 
+  const [subcategories, setSubcategories] = useState(TAXONOMY) // {cat:[subs]}
+
   useEffect(() => {
     getCatalogCategories().then(c => setCategories(c || []))
+    getCatalogSubcategories().then(s => { if(Object.keys(s).length) setSubcategories(s) })
     getProposals().then(ps => setProposals((ps || []).filter(p=>p.status==='approved'||p.status==='sent')))
   }, [catalog])
 
@@ -122,7 +126,7 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
   function openNew(){
     requirePIN(()=>{
       setEditing(null)
-      setForm({code:'',name:'',category:'Interruptor',cost_price:0,sale_price:0,pitch:'',buy_link:'',supplier_id:''})
+      setForm({code:'',name:'',category:'Automação',subcategory:'Keypad / Interruptor',cost_price:0,sale_price:0,pitch:'',buy_link:'',supplier_id:''})
       setShowModal(true)
     })
   }
@@ -220,8 +224,19 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
             <div className="form-row">
               <div className="fg"><div className="flabel">Código</div><input value={form.code} onChange={e=>f('code',e.target.value)} placeholder="ex: QAGPM2" autoFocus/></div>
               <div className="fg"><div className="flabel">Categoria</div>
-                <select value={form.category} onChange={e=>f('category',e.target.value)}>
-                  {categories.map(c=><option key={c} value={c}>{c}</option>)}
+                <select value={form.category} onChange={e=>{
+                  const cat=e.target.value; f('category',cat)
+                  const subs=subcategories[cat]||TAXONOMY[cat]||[]
+                  if(subs.length) f('subcategory',subs[0])
+                }}>
+                  {ALL_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+                  {categories.filter(c=>!ALL_CATEGORIES.includes(c)).map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="fg"><div className="flabel">Subcategoria</div>
+                <select value={form.subcategory||''} onChange={e=>f('subcategory',e.target.value)}>
+                  <option value="">— nenhuma —</option>
+                  {(subcategories[form.category]||TAXONOMY[form.category]||[]).map(s=><option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
             </div>

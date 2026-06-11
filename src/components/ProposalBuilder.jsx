@@ -731,7 +731,14 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
     }
   }
 
-  const equipTotal=floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
+  // equipTotal: when categories are hidden, recalculate from items excluding hidden cats
+  const equipTotal = hiddenCateg.size === 0
+    ? floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
+    : floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>{
+        const visibleItems=(r.items||[]).filter(it=>!hiddenCateg.has(it.category||'Sem categoria'))
+        const visibleTotal=visibleItems.reduce((is,it)=>is+(it.sale_price||0)*(parseInt(it.qty)||1),0)
+        return rs + (visibleItems.length ? visibleTotal : 0)
+      },s),0)
   const grandTotal=equipTotal+parse(labor)
   const selClient=clients.find(c=>c.id===Number(clientId))
   const filteredCatalog=catalog.filter(c=>{
@@ -913,30 +920,24 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
             })}
           </div>
         })()}
-        {/* ── OCULTAR CATEGORIAS (item 8) ── */}
+        {/* ── OCULTAR CATEGORIAS — sutil, compacto ── */}
         {(()=>{
           const allCats=[...new Set((floors||[]).flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).map(it=>it.category||'Sem categoria'))))]
           if(!allCats.length) return null
-          return <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',background:'var(--surf)'}}>
-            <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,color:'var(--text3)',marginBottom:5}}>
-              <i className="ti ti-eye-off" style={{marginRight:3}} aria-hidden/>Ocultar na proposta
-            </div>
-            <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
-              {allCats.map(cat=>{
-                const hidden=hiddenCateg.has(cat)
-                return <button key={cat} onClick={()=>{const s=new Set(hiddenCateg); if(hidden)s.delete(cat); else s.add(cat); setHiddenCateg(s); setSaved(false)}}
-                  style={{fontSize:9,padding:'2px 7px',borderRadius:10,border:'1px solid',cursor:'pointer',fontFamily:'inherit',
-                    borderColor:hidden?'#DC2626':'var(--border)',background:hidden?'rgba(220,38,38,0.08)':'var(--bg)',
-                    color:hidden?'#DC2626':'var(--text3)',textDecoration:hidden?'line-through':'none'}}
-                  title={hidden?'Mostrar na proposta':'Ocultar da proposta'}>
-                  {cat}
-                </button>
-              })}
-            </div>
-            {hiddenCateg.size>0&&<div style={{fontSize:9,color:'var(--amber)',marginTop:4}}>
-              <i className="ti ti-alert-triangle" style={{marginRight:3}} aria-hidden/>
-              {hiddenCateg.size} categoria{hiddenCateg.size>1?'s':''} oculta{hiddenCateg.size>1?'s':''} da proposta
-            </div>}
+          return <div style={{padding:'4px 12px',borderBottom:'1px solid var(--border)',background:'var(--surf)',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',minHeight:28}}>
+            <span style={{fontSize:9,color:'var(--text3)',flexShrink:0,whiteSpace:'nowrap'}}>
+              <i className="ti ti-eye-off" style={{marginRight:2}} aria-hidden/>
+            </span>
+            {allCats.map(cat=>{
+              const hidden=hiddenCateg.has(cat)
+              return <button key={cat} onClick={()=>{const s=new Set(hiddenCateg); if(hidden)s.delete(cat); else s.add(cat); setHiddenCateg(s); setSaved(false)}}
+                style={{fontSize:8,padding:'1px 6px',borderRadius:8,border:'1px solid',cursor:'pointer',fontFamily:'inherit',lineHeight:1.5,
+                  borderColor:hidden?'#DC2626':'rgba(0,0,0,0.08)',background:hidden?'rgba(220,38,38,0.08)':'transparent',
+                  color:hidden?'#DC2626':'var(--text3)',textDecoration:hidden?'line-through':'none'}}
+                title={hidden?'Clique para mostrar':'Clique para ocultar do orçamento'}>
+                {cat}
+              </button>
+            })}
           </div>
         })()}
         {/* ── LEFT PANEL ── */}

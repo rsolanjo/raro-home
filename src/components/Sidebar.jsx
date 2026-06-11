@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v75 — busca+filtro cômodos+categorias na planta; room select com confirm novo; posicionamento com coords dos cômodos
+// v76 — taxonomia categorias/subcategorias; ID auto por cômodo+subcateg; rack modal; ocultar sutil c/ preço; logo #F5FAFF confirmado
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v75 · build 2026-06
+          v76 · build 2026-06
         </div>
       </div>
     </div>

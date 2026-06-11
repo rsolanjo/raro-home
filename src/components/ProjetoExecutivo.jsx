@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { TAXONOMY, inferCategory, genItemId } from '../taxonomy.js'
 import { LOGO_EXEC } from '../logos.js'
 
 const EQUIP_STYLE = {
@@ -100,6 +101,69 @@ async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1
   return full
 }
 
+// ── Rack Modal: seleciona equipamentos dentro do rack ─────────────────────────
+function RackModal({ catalog, rackEquip, onChange, markers, onClose, onApply }){
+  const [equip, setEquip] = React.useState(rackEquip.length ? rackEquip : [
+    {code:'UDM-SE',name:'Dream Machine SE',qty:1,u:'U1-U2',funcao:'Roteador/Gateway'},
+    {code:'PP-24',name:'Patch Panel 24 portas CAT6',qty:1,u:'U3-U4',funcao:'Organização cabos'},
+    {code:'ORG-1U',name:'Organizador horizontal 1U',qty:2,u:'U5,U6',funcao:'Gestão de cabos'},
+    {code:'PDU-8',name:'Régua 8 tomadas filtrada',qty:1,u:'U7',funcao:'Alimentação'},
+  ])
+  const rackItems = (catalog||[]).filter(c=>isRackItem(c.name,c.code))
+  function isRackItem(name='',code=''){
+    const n=(name||'').toLowerCase()
+    return n.includes('rack')||n.includes('patch panel')||n.includes('organizador')||n.includes('régua')||
+      n.includes('switch poe')||n.includes('dream machine')||n.includes('amplificador')||n.includes('udm')||
+      (code||'').startsWith('RACK')||(code||'').startsWith('PP-')||(code||'').startsWith('ORG')
+  }
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{width:560,maxHeight:'80vh',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title"><i className="ti ti-server" style={{marginRight:6,color:'#7C3AED'}} aria-hidden/>Rack / CPD — Equipamentos</div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:16}}>
+          <div style={{fontSize:11,color:'var(--text2)',marginBottom:12}}>Configure os equipamentos dentro do rack. O rack aparece como um único pin na planta.</div>
+          {/* Equipment list */}
+          {equip.map((it,i)=>(
+            <div key={i} style={{display:'flex',gap:8,alignItems:'center',padding:'6px 0',borderBottom:'1px solid var(--border)'}}>
+              <input value={it.u} onChange={e=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,u:e.target.value}:x))}
+                style={{width:60,fontSize:11}} placeholder="U1-U2"/>
+              <input value={it.name} onChange={e=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,name:e.target.value}:x))}
+                style={{flex:1,fontSize:11}} placeholder="Equipamento"/>
+              <input value={it.funcao} onChange={e=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,funcao:e.target.value}:x))}
+                style={{flex:1,fontSize:11}} placeholder="Função"/>
+              <input value={it.qty} type="number" min="1" onChange={e=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,qty:parseInt(e.target.value)||1}:x))}
+                style={{width:40,fontSize:11}}/>
+              <button onClick={()=>setEquip(eq=>eq.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:14}}>✕</button>
+            </div>
+          ))}
+          {/* Add from catalog */}
+          {rackItems.length>0&&<div style={{marginTop:8}}>
+            <select onChange={e=>{
+              const c=JSON.parse(e.target.value||'null'); if(!c)return
+              setEquip(eq=>[...eq,{code:c.code,name:c.name,qty:1,u:`U${eq.length+1}`,funcao:''}])
+              e.target.value=''
+            }} style={{width:'100%',fontSize:11,padding:'6px 8px',marginBottom:6}}>
+              <option value="">+ Adicionar do catálogo (itens de rack)…</option>
+              {rackItems.map(c=><option key={c.code} value={JSON.stringify({code:c.code,name:c.name})}>{c.name}</option>)}
+            </select>
+          </div>}
+          <button onClick={()=>setEquip(eq=>[...eq,{code:'',name:'',qty:1,u:`U${eq.length+1}`,funcao:''}])}
+            style={{marginTop:8,background:'none',border:'1px dashed var(--border)',borderRadius:4,padding:'5px 12px',cursor:'pointer',fontSize:11,color:'var(--accent)',width:'100%'}}>
+            + Adicionar equipamento manual
+          </button>
+        </div>
+        <div style={{padding:'10px 16px',borderTop:'1px solid var(--border)',display:'flex',gap:8,justifyContent:'flex-end'}}>
+          <button className="btn" onClick={onClose}>Cancelar</button>
+          <button className="btn primary" onClick={()=>onApply(equip)}>Salvar e colocar na planta</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Error boundary to show errors instead of blank page
 class ExecErrorBoundary extends React.Component {
   constructor(props){ super(props); this.state={err:null} }
@@ -168,6 +232,8 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [editorSearch, setEditorSearch] = useState('')         // busca nos markers na planta
   const [filterRooms, setFilterRooms] = useState(new Set())   // cômodos selecionados (vazio = todos)
   const [filterCateg, setFilterCateg] = useState(new Set())   // categorias selecionadas (vazio = todas)
+  const [showRackModal, setShowRackModal] = useState(false)
+  const [rackEquip, setRackEquip] = useState([])   // [{code,name,qty,u}]
   const [execDoc, setExecDoc] = useState(null)
   const [execProgress, setExecProgress] = useState('')
   const [zoom, setZoom] = useState(1)
@@ -475,10 +541,12 @@ Responda APENAS JSON válido:
     if(!addMode||!addItem)return
     const r=containerRef.current.getBoundingClientRect()
     const x=((e.clientX-r.left)/r.width)*100, y=((e.clientY-r.top)/r.height)*100
-    const typeCount=markers.filter(m=>equipType(m.name)===equipType(addItem.name)).length+1
-    const sym=EQUIP_STYLE[equipType(addItem.name)]?.s||'?'
-    setMarkers(ms=>[...ms,{uid:Date.now(),n:ms.length+1,id:sym+typeCount,code:addItem.code,name:addItem.name,
-      room:'',x,y,note:'',cost:addItem.cost_price||0,sale:addItem.sale_price||0,category:addItem.category||''}])
+    const {cat, sub} = inferCategory(addItem.name, addItem.category||'')
+    setMarkers(ms=>{
+      const newId = genItemId('', sub, ms)
+      return [...ms,{uid:Date.now(),n:ms.length+1,id:newId,code:addItem.code,name:addItem.name,
+        room:'',x,y,note:'',cost:addItem.cost_price||0,sale:addItem.sale_price||0,category:cat,subcategory:sub||''}]
+    })
     setAddMode(false); setAddItem(null)
   }
 
@@ -880,7 +948,9 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers}, client_name:projectInfo.client||selClient, exec_doc:docToSave })
   }
 
-  const catGroups={}; (catalog||[]).forEach(c=>{const g=c.category||'Outro';(catGroups[g]=catGroups[g]||[]).push(c)})
+  const catGroups={}
+  Object.keys(TAXONOMY).forEach(cat=>{catGroups[cat]=[]})
+  ;(catalog||[]).forEach(c=>{const g=c.category||inferCategory(c.name).cat||'Automação';(catGroups[g]=catGroups[g]||[]).push(c)})
 
   return (
     <div style={{position:'fixed',inset:0,background:'#0f172a',zIndex:1000,display:'flex',flexDirection:'column'}}>
@@ -1308,6 +1378,9 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
             {/* ── Canvas ── */}
             <div className="pe-editor-canvas" style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20,position:'relative'}}>
               <div style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content'}}>
+                <button onClick={()=>setShowRackModal(true)} style={{height:32,borderRadius:6,border:'1px solid #7C3AED',background:'rgba(124,58,237,0.2)',color:'#C4B5FD',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}}>
+                  <i className="ti ti-server" aria-hidden/>Rack CPD
+                </button>
                 <button onClick={e=>{e.stopPropagation();bgOnlyRef.current?.click()}} style={{height:32,borderRadius:6,border:'none',background:'#0EA5E9',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}}><i className="ti ti-upload" aria-hidden/>{bgImage?'Trocar planta':'Carregar planta'}</button>
                 <input ref={bgOnlyRef} type="file" accept="image/*,application/pdf,.pdf" style={{display:'none'}} onChange={handleBgOnly}/>
                 <button onClick={()=>setZoom(z=>Math.max(0.5,z-0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>−</button>
@@ -1325,11 +1398,15 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                   const matchR=filterRooms.size===0||filterRooms.has(m.room||'Sem cômodo')
                   const matchC=filterCateg.size===0||filterCateg.has(equipType(m.name))
                   const visible=matchS&&matchR&&matchC
-                  const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro; const sel=selected===m.uid
+                  const isRack = isRackItem(m.name||'', m.code||'')
+                  const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
+                  const sel=selected===m.uid
                   return <div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:'grab',opacity:visible?1:0.07,pointerEvents:visible?'auto':'none',transition:'opacity 0.15s'}} onMouseDown={e=>onDown(e,m.uid)}>
-                    <div style={{width:sel?28:24,height:sel?28:24,borderRadius:'50%',background:st.c,color:'#fff',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #fff',boxShadow:sel?`0 0 0 3px ${st.c}`:'0 1px 4px rgba(0,0,0,0.5)'}}>{m.n}</div>
-                    <div style={{position:'absolute',left:'50%',top:-9,transform:'translateX(-50%)',background:st.c,color:'#fff',borderRadius:'50%',width:13,height:13,fontSize:7,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'1px solid #fff',pointerEvents:'none'}}>{st.s}</div>
-                    <div style={{position:'absolute',left:'50%',top:sel?30:26,transform:'translateX(-50%)',background:'rgba(0,0,0,0.75)',color:'#fff',borderRadius:3,padding:'1px 4px',fontSize:7.5,whiteSpace:'nowrap',fontFamily:'monospace',fontWeight:600,pointerEvents:'none'}}>{m.code}</div>
+                    {isRack
+                      ? <div style={{width:sel?36:30,height:sel?36:30,borderRadius:6,background:'#4C1D95',color:'#C4B5FD',fontSize:14,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #7C3AED',boxShadow:sel?`0 0 0 3px #7C3AED`:'0 2px 6px rgba(0,0,0,0.6)'}}><i className="ti ti-server" aria-hidden style={{fontSize:16}}/></div>
+                      : <div style={{width:sel?28:24,height:sel?28:24,borderRadius:'50%',background:st.c,color:'#fff',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #fff',boxShadow:sel?`0 0 0 3px ${st.c}`:'0 1px 4px rgba(0,0,0,0.5)'}}>{m.n}</div>}
+                    <div style={{position:'absolute',left:'50%',top:-9,transform:'translateX(-50%)',background:isRack?'#4C1D95':st.c,color:'#fff',borderRadius:'50%',width:13,height:13,fontSize:7,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'1px solid #fff',pointerEvents:'none'}}>{isRack?'R':st.s}</div>
+                    <div style={{position:'absolute',left:'50%',top:sel?34:30,transform:'translateX(-50%)',background:'rgba(0,0,0,0.75)',color:isRack?'#C4B5FD':'#fff',borderRadius:3,padding:'1px 4px',fontSize:7.5,whiteSpace:'nowrap',fontFamily:'monospace',fontWeight:600,pointerEvents:'none'}}>{isRack?'RACK CPD':m.code}</div>
                   </div>})}
               </div>
             </div>
@@ -1341,6 +1418,11 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                   <div style={{fontSize:11,color:'#38BDF8',fontWeight:600,marginBottom:10,textTransform:'uppercase'}}>Item {m.id}</div>
                   <div style={{fontSize:13,fontWeight:600,color:'#fff'}}>{m.name}</div>
                   <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',fontFamily:'monospace',marginBottom:10}}>{m.code}</div>
+                  {/* If this is a rack item, show rack config button */}
+                  {isRackItem(m.name,m.code) && <button onClick={()=>{setRackEquip(m.rackEquip||[]); setShowRackModal(true)}}
+                    style={{width:'100%',background:'rgba(124,58,237,0.2)',border:'1px solid #7C3AED',borderRadius:5,color:'#C4B5FD',cursor:'pointer',padding:'7px',fontSize:11,marginBottom:10,fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                    <i className="ti ti-server" aria-hidden/>{(m.rackEquip||[]).length} equipamentos no rack — editar
+                  </button>}
                   <label style={lbl}>Ambiente</label>
                   <select value={rNames.includes(m.room)?m.room:(m.room?'__custom__':'')} onChange={e=>{
                     const val=e.target.value
@@ -1350,9 +1432,11 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                       if(!window.confirm(`Confirmar: adicionar "${nome.trim()}" à lista de cômodos?`))return
                       const maxId=rooms.reduce((mx,r)=>Math.max(mx,r.id||0),0)
                       setRooms(rs=>[...rs,{id:maxId+1,name:nome.trim(),floor:'',x:50,y:50}])
-                      setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,room:nome.trim()}:x))
+                      const newId = genItemId(nome.trim(), m.subcategory||inferCategory(m.name).sub||'', markers)
+                      setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,room:nome.trim(),id:newId}:x))
                     } else {
-                      setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,room:val}:x))
+                      const newId = genItemId(val, m.subcategory||inferCategory(m.name).sub||'', markers.filter(x=>x.uid!==m.uid))
+                      setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,room:val,id:newId}:x))
                     }
                   }} style={{...inputDark,marginBottom:8}}>
                     <option value="">— selecionar —</option>
@@ -1386,6 +1470,28 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
           </div>
         )}
       </div>
+
+      {/* ── RACK MODAL ── */}
+      {showRackModal && <RackModal
+        catalog={catalog}
+        rackEquip={rackEquip}
+        onChange={setRackEquip}
+        markers={markers}
+        onClose={()=>setShowRackModal(false)}
+        onApply={(equip)=>{
+          // Verifica se já existe um marcador de rack
+          const existingRack = markers.find(m=>isRackItem(m.name,m.code))
+          if(existingRack){
+            // Atualiza o marcador existente com os itens do rack
+            setMarkers(ms=>ms.map(x=>x.uid===existingRack.uid ? {...x, rackEquip:equip, name:'Rack CPD', note:`${equip.length} equipamentos`} : x))
+          } else {
+            // Adiciona um marcador de rack no centro
+            setMarkers(ms=>[...ms,{uid:Date.now(),n:ms.length+1,id:'RACK-CPD',code:'RACK',name:'Rack CPD',room:'',x:50,y:50,note:`${equip.length} equipamentos`,cost:0,sale:0,category:'Redes / WiFi',subcategory:'Rack / Enclosure',rackEquip:equip}])
+          }
+          setRackEquip(equip)
+          setShowRackModal(false)
+        }}
+      />}
 
       {/* Footer actions */}
       {step==='editor' && (

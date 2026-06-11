@@ -53,6 +53,26 @@ export async function deleteCatalogCategory(name) {
   const { error } = await supabase.from('catalog_categories').delete().eq('name', name)
   if (error) throw error
 }
+export async function getCatalogSubcategories() {
+  try {
+    const { data, error } = await supabase.from('catalog_subcategories').select('category,name').order('category').order('name')
+    if (error) return {}
+    const result = {}
+    for (const row of (data||[])) {
+      if (!result[row.category]) result[row.category] = []
+      result[row.category].push(row.name)
+    }
+    return result
+  } catch { return {} }
+}
+export async function saveCatalogSubcategory(category, name) {
+  const { error } = await supabase.from('catalog_subcategories').upsert({ category, name }, { onConflict: 'category,name' })
+  if (error && !error.message.includes('unique')) throw error
+}
+export async function deleteCatalogSubcategory(category, name) {
+  const { error } = await supabase.from('catalog_subcategories').delete().eq('category', category).eq('name', name)
+  if (error) throw error
+}
 
 // ── CLIENTS ───────────────────────────────────────────────────────────────────
 export async function getClients()     { return all('clients', 'created_at') }
