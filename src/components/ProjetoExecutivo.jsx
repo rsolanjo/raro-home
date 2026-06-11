@@ -648,6 +648,7 @@ Responda APENAS JSON válido:
  "banheiros_sensores":[{"ambiente":"Banheiro Master","ponto":"Sensor mmWave teto","obs":"luz automática, umidade"}],
  "tabela_automacao":[{"num_planta":1,"id":"K1","equip":"Keypad 3 botões","ambiente":"Sala","funcao":"Liga/Desliga iluminação","protocolo":"Zigbee","posicao":"parede entrada H=1,10m","obs":"neutro obrigatório"}],
  "tabela_seguranca":[{"num_planta":2,"id":"CAM1","equip":"Câmera Dome 5MP","ambiente":"Entrada","resolucao":"5MP","tipo":"PoE CAT6","posicao":"teto H=2,80m","angulo":"120°","obs":""}],
+ "_REGRA_CAMERAS":"TODAS as câmeras (mesmo Dome com Áudio) vão SEMPRE em tabela_seguranca, NUNCA em tabela_som. tabela_som contém apenas caixas, amplificador, receiver e subwoofer.",
  "tabela_som":[{"num_planta":3,"id":"S1","equip":"Caixa JBL 260","ambiente":"Sala","zona":"Zona 1","tipo":"embutida teto","saida_amplif":"Canal 1","cabo":"2×1,5mm² ~8m","obs":""}],
  "tabela_teto":[{"num_planta":4,"id":"AP1","equip":"Access Point U6+","ambiente":"Sala","tipo":"Wi-Fi 6","instalacao":"teto centro","origem":"Rack PP porta 1","cabo":"CAT6 PoE","metros":"12","obs":""}]
 }`, 6000)
@@ -870,11 +871,11 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
       if(!geral[key]) geral[key]={qty:0,cat:inCat}
       geral[key].qty++
     })
-    // Categorias para item 7
+    // Categorias para item 7 — Segurança ANTES de Som (câmeras com "áudio" no nome são segurança)
     const CATS_MAP = {
+      'Segurança': n=> /câmera|camera|dome|bullet|cftv|sensor mmwave|mmwave|sensor prese|alarme/i.test(n),
       'Rede':    n=> /access point|ap |wi-fi|wifi|keystone|switch|patch|roteador|router/i.test(n),
-      'Som':     n=> /caixa|amplif|subwoofer|receiver|áudio|audio|som/i.test(n),
-      'Segurança': n=> /câmera|camera|dome|bullet|sensor mmwave|mmwave|sensor prese/i.test(n),
+      'Som':     n=> /caixa|amplif|subwoofer|receiver|som ambiente|sonoriz/i.test(n),
       'Automação': n=> /keypad|hub ir|módulo|modulo|cortina|dimmer|tomada|interruptor|gateway|zigbee/i.test(n),
     }
     const getCateg = nm=>{for(const[c,fn]of Object.entries(CATS_MAP))if(fn(nm))return c; return 'Outros'}
@@ -1284,25 +1285,20 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     return [
     secN(`Premissas Confirmadas`, list(d.premissas)),
     secN(`Detalhe do RACK / CPD`, (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Todos os Cabos de Rede (APs · Câmeras · Keystones · Uplinks)</h3>${rackCableTableHtml}`:'')):'', true),
-    secN(`Automação — Interruptores, Tomadas, Sensores, Hub IR, Módulos`, tblAutomacao||pontosHtml, true),
+    secN(`Cabos de Rede — Patch Panel e Etiquetas`, cabosRedeHtml, true),
     secN(`Segurança — Câmeras e Sensores de Alarme`, tblSeguranca, true),
     secN(`Som Ambiente — Caixas, Amplificador e Zonas`, tblSom, true),
     secN(`Devices no Teto — Posição, Origem e Cabeamento`, tblTeto, true),
-    secN(`Keypads e Pontos de Parede (detalhado por cômodo)`, pontosHtml, true),
-    secN(`Módulos e Cargas (iluminação + cortinas)`, modulosCargas, true),
-    secN(`Banheiros, Circulação e Sensores mmWave`, banhHtml),
-    secN(`Cabos de Rede — Patch Panel e Etiquetas`, cabosRedeHtml, true),
     secN(`Cabos de Som — Amplificador no RACK`, (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-size:10px">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['ID','Origem','Destino','Tipo','Metros','Etiqueta']):'', true),
+    secN(`Automação — Interruptores, Tomadas, Sensores, Hub IR, Módulos`, tblAutomacao||pontosHtml, true),
+    secN(`Alimentação dos Keypads (Fase + Neutro)`, (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x2,5mm²')}</td></tr>`).join(''),['ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m','Fios']):'', true),
     secN(`Cabos Elétricos — por Cômodo`, cabosEletHtml, true),
     secN(`Cabos Elétricos — Todos os Pontos (consolidado)`, cabosEletConsolidado, true),
-    secN(`Alimentação dos Keypads (Fase + Neutro)`, (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x2,5mm²')}</td></tr>`).join(''),['ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m','Fios']):'', true),
-    secN(`Resumo Geral de Cabeamento`, (d.resumo_cabos||[]).length?T(d.resumo_cabos.map(r=>`<tr><td><b>${esc(r.tipo)}</b></td><td>${esc(r.metros_total)}m</td></tr>`).join(''),['Tipo de cabo','Metragem total']):''),
+    secN(`Itens por Cômodo e Total Geral`, itensComodoHtml ? (itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml) : '', true),
     secN(`Lista Completa de Peças`, (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td style="text-align:center"><b>${esc(r.qtd)}</b></td></tr>`).join(''),['Item','Qtd']):'', true),
+    secN(`Fotos no Diário de Obra`, fotosTxt),
     secN(`Checklist de Obra — para o Arquiteto / Eletricista`, list(d.checklist_obra)),
     secN(`Checklist de Instalação — Equipe RARO Home`, list(d.checklist_raro)),
-    secN(`Pontos de Atenção e Riscos`, list(d.riscos)),
-    secN(`Fotos no Diário de Obra`, fotosTxt),
-    secN(`Itens por Cômodo e Total Geral`, itensComodoHtml ? (itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml) : '', true),
     secN(`Gestão e Controle do Projeto`, gestaoTxt),
     secN(`Gráficos e Linha do Tempo do Projeto`, (grafico1 + grafico2 + grafico3 + grafico4)),
   ].join('\n') })()}
