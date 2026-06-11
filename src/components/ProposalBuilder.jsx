@@ -693,9 +693,13 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
     try {
       const previewCode = proposalCode || 'PRÉVIA'
       const cl = clients.find(c=>c.id===Number(clientId))
-      // Filter out hidden categories from the PDF output
+      // Filter out hidden categories; recalculate r.price from visible items so totals are correct
       const floorsFiltered = hiddenCateg.size === 0 ? floors : floors.map(f=>({...f,
-        rooms: f.rooms.map(r=>({...r, items:(r.items||[]).filter(it=>!hiddenCateg.has(it.category||'Sem categoria'))}))
+        rooms: f.rooms.map(r=>{
+          const visItems=(r.items||[]).filter(it=>!hiddenCateg.has(it.category||'Sem categoria'))
+          const visPrice=visItems.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
+          return {...r, items:visItems, price:String(visPrice)}
+        })
       }))
       const html = buildPDF({
         catalog,
@@ -841,6 +845,14 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
           {/* SALVAR */}
           <button className="btn" onClick={()=>{ setLaborInput(labor); setShowSaveModal(true) }}>
             <i className="ti ti-device-floppy" aria-hidden/>Salvar proposta
+          </button>
+          {/* GERAR PROPOSTA PDF */}
+          <button className="btn" title="Gerar PDF da proposta (com preço atualizado conforme categorias ocultas)"
+            style={{gap:6, color:'#0369A1', borderColor:'#0369A1', position:'relative'}}
+            onClick={()=>openPDF(false,false)}>
+            <i className="ti ti-file-invoice" aria-hidden/>
+            Gerar Proposta
+            {hiddenCateg.size>0&&<span style={{position:'absolute',top:-5,right:-5,background:'#F59E0B',color:'#fff',borderRadius:'50%',width:16,height:16,fontSize:9,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}} title={`${hiddenCateg.size} categoria(s) oculta(s)`}>{hiddenCateg.size}</span>}
           </button>
           {/* ENVIAR */}
           <button className="btn primary" onClick={()=>{ setSendTargets({}); setCustomPhone(''); setSendEmail(''); setShowSendModal(true) }} disabled={!saved} title={!saved?'Salve a proposta primeiro':''}>
