@@ -945,26 +945,6 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
             })}
           </div>
         })()}
-        {/* ── OCULTAR CATEGORIAS — sutil, compacto ── */}
-        {(()=>{
-          const allCats=[...new Set((floors||[]).flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).map(it=>it.category||'Sem categoria'))))]
-          if(!allCats.length) return null
-          return <div style={{padding:'4px 12px',borderBottom:'1px solid var(--border)',background:'var(--surf)',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',minHeight:28}}>
-            <span style={{fontSize:9,color:'var(--text3)',flexShrink:0,whiteSpace:'nowrap'}}>
-              <i className="ti ti-eye-off" style={{marginRight:2}} aria-hidden/>
-            </span>
-            {allCats.map(cat=>{
-              const hidden=hiddenCateg.has(cat)
-              return <button key={cat} onClick={()=>{const s=new Set(hiddenCateg); if(hidden)s.delete(cat); else s.add(cat); setHiddenCateg(s); setSaved(false)}}
-                style={{fontSize:8,padding:'1px 6px',borderRadius:8,border:'1px solid',cursor:'pointer',fontFamily:'inherit',lineHeight:1.5,
-                  borderColor:hidden?'#DC2626':'rgba(0,0,0,0.08)',background:hidden?'rgba(220,38,38,0.08)':'transparent',
-                  color:hidden?'#DC2626':'var(--text3)',textDecoration:hidden?'line-through':'none'}}
-                title={hidden?'Clique para mostrar':'Clique para ocultar do orçamento'}>
-                {cat}
-              </button>
-            })}
-          </div>
-        })()}
         {/* ── LEFT PANEL ── */}
         <div className="b-left">
           <div className="b-left-top">
@@ -1020,6 +1000,28 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
           <div style={{padding:'7px 14px',borderBottom:'1px solid var(--border)',background:'var(--bg)'}}>
             <input value={floor?.name||''} onChange={e=>{updFloor(cf,{name:e.target.value});setSaved(false)}} style={{fontSize:12}} placeholder="Nome do pavimento"/>
           </div>
+          {/* Ocultar categorias — faixa minúscula de chips */}
+          {(()=>{
+            const allCats=[...new Set((floors||[]).flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).map(it=>it.category||'Outros'))))]
+            if(!allCats.length) return null
+            return <div style={{padding:'3px 8px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:4,flexWrap:'wrap'}}>
+              <i className="ti ti-eye-off" style={{fontSize:9,color:'var(--text3)',flexShrink:0}} aria-hidden title="Ocultar categoria da proposta"/>
+              {allCats.map(cat=>{
+                const hidden=hiddenCateg.has(cat)
+                return <button key={cat}
+                  onClick={()=>{const s=new Set(hiddenCateg);if(hidden)s.delete(cat);else s.add(cat);setHiddenCateg(s);setSaved(false)}}
+                  title={hidden?`Mostrar ${cat}`:`Ocultar ${cat} da proposta`}
+                  style={{fontSize:8,padding:'0px 5px',borderRadius:6,border:'1px solid',cursor:'pointer',
+                    fontFamily:'inherit',lineHeight:'16px',
+                    borderColor:hidden?'#DC2626':'rgba(0,0,0,0.1)',
+                    background:hidden?'rgba(220,38,38,0.07)':'transparent',
+                    color:hidden?'#DC2626':'var(--text3)',
+                    textDecoration:hidden?'line-through':'none'}}>
+                  {cat}
+                </button>
+              })}
+            </div>
+          })()}
           <div className="room-list">
             {(floor?.rooms||[]).map((r,i)=><div key={r.id} className={`room-entry${cr===i?' active':''}`} onClick={()=>{setCr(i);setMobilePanel('edit')}}
               style={{position:'relative'}} title={r.name}>
