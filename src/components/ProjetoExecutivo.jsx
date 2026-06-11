@@ -656,7 +656,21 @@ Responda APENAS JSON válido:
       setExecProgress('Cabos detalhados e checklists... (2/2)')
       const d2=await askJSON(
 `Projetista RARO Home. Responda APENAS JSON válido (sem markdown). ${conv}\n\n${ctx}\n\n{
- "rack_cable_table":[{"porta_patch":"P01","device_origem":"Dream Machine SE","porta_origem":"LAN 1","destino":"AP Sala de Estar","device_nome":"ap-sala","tipo":"CAT6 PoE","metros":"12","etiqueta":"AP-SALA","cor":"Azul"},{"porta_patch":"P02","device_origem":"Dream Machine SE","porta_origem":"UPLINK","destino":"Switch PoE+ porta 1 (uplink)","device_nome":"switch-poe","tipo":"CAT6","metros":"0.5","etiqueta":"UPLINK","cor":"Cinza"}],
+ "rack_cable_table":[
+  {"porta_patch":"P01","device_origem":"Dream Machine SE","porta_origem":"LAN1","destino":"Switch PoE+ (uplink)","device_nome":"switch-poe","tipo":"CAT6","metros":"0.5","etiqueta":"UPLINK-SW","cor":"Cinza"},
+  {"porta_patch":"P02","device_origem":"Switch PoE+","porta_origem":"1","destino":"AP Sala de Estar #27","device_nome":"ap-sala-estar","tipo":"CAT6 PoE","metros":"15","etiqueta":"AP-SALA-ESTAR","cor":"Azul"},
+  {"porta_patch":"P03","device_origem":"Switch PoE+","porta_origem":"2","destino":"AP Área Gourmet #28","device_nome":"ap-area-gourmet","tipo":"CAT6 PoE","metros":"18","etiqueta":"AP-GOURMET","cor":"Azul"},
+  {"porta_patch":"P04","device_origem":"Switch PoE+","porta_origem":"3","destino":"AP Garagem #29","device_nome":"ap-garagem","tipo":"CAT6 PoE","metros":"22","etiqueta":"AP-GARAGEM","cor":"Azul"},
+  {"porta_patch":"P05","device_origem":"Switch PoE+","porta_origem":"4","destino":"AP Suíte Master #30","device_nome":"ap-master","tipo":"CAT6 PoE","metros":"20","etiqueta":"AP-MASTER","cor":"Azul"},
+  {"porta_patch":"P06","device_origem":"Switch PoE+","porta_origem":"5","destino":"AP Suíte 02 #31","device_nome":"ap-suite02","tipo":"CAT6 PoE","metros":"25","etiqueta":"AP-SUITE02","cor":"Azul"},
+  {"porta_patch":"P07","device_origem":"Switch PoE+","porta_origem":"6","destino":"AP Suíte 03","device_nome":"ap-suite03","tipo":"CAT6 PoE","metros":"28","etiqueta":"AP-SUITE03","cor":"Azul"},
+  {"porta_patch":"P08","device_origem":"Switch PoE+","porta_origem":"7","destino":"AP Quarto Escritório","device_nome":"ap-escritorio","tipo":"CAT6 PoE","metros":"12","etiqueta":"AP-ESCRIT","cor":"Azul"},
+  {"porta_patch":"P09","device_origem":"Switch PoE+","porta_origem":"8","destino":"Câmera Entrada Social #14","device_nome":"cam-entrada","tipo":"CAT6 PoE","metros":"25","etiqueta":"CAM-ENTRADA","cor":"Verde"},
+  {"porta_patch":"P10","device_origem":"Switch PoE+","porta_origem":"9","destino":"Câmera Garagem #16","device_nome":"cam-garagem","tipo":"CAT6 PoE","metros":"20","etiqueta":"CAM-GARAGEM","cor":"Verde"},
+  {"porta_patch":"P11","device_origem":"Switch PoE+","porta_origem":"10","destino":"Câmera Sala Estar #19","device_nome":"cam-sala","tipo":"CAT6 PoE","metros":"14","etiqueta":"CAM-SALA","cor":"Verde"},
+  {"porta_patch":"P12","device_origem":"Dream Machine SE","porta_origem":"LAN2","destino":"Keystone Sala TV1 #45","device_nome":"ks-sala-tv1","tipo":"CAT6","metros":"15","etiqueta":"KS-SALA-TV1","cor":"Amarelo"},
+  {"porta_patch":"P13","device_origem":"Dream Machine SE","porta_origem":"LAN3","destino":"Keystone Suíte Master TV1 #47","device_nome":"ks-master-tv1","tipo":"CAT6","metros":"20","etiqueta":"KS-MASTER-TV1","cor":"Amarelo"}
+],
  ""cabos_rede":[{"id":"CAT-01","origem":"DM SE porta 1","destino":"AP #1 Sala","tipo":"CAT6 U/UTP","bitola":"24AWG","metros":"12","cor_etiqueta":"Azul","porta_patch":"P01","etiqueta":"AP-SALA"}],
  "cabos_som":[{"id":"SOM-01","origem":"Amplificador rack saída 1","destino":"Caixa S1 Sala","tipo":"2×1,5mm²","metros":"5","etiqueta":"SOM-S1"}],
  "cabos_eletricos_por_comodo":[{"comodo":"Sala","itens":[{"id":"ELT-01","equip":"Keypad K1 entrada","tipo":"fase+neutro+terra","fios":"3x2,5mm²","origem":"Quadro QDL disj.C1","destino":"caixa 4x4 parede, H=1,10m","metros":"8","obs":"NEUTRO obrigatório"},{"id":"ELT-02","equip":"Módulo Cortina M2","tipo":"fase+neutro","fios":"2x2,5mm²","origem":"Quadro QDL disj.C2","destino":"forro 2,55m","metros":"10","obs":""}]}],
@@ -778,10 +792,45 @@ Responda APENAS JSON válido:
       ? modulosTeto.map(mt=>`<h3 class="ex-amb">${esc(mt.ambiente)}</h3>${T((mt.itens||[]).map(it=>`<tr><td>${esc(it)}</td></tr>`).join(''),['Itens de teto / forro'])}`).join('')
       : (d.modulos||[]).length ? T(d.modulos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.funcao)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.carga)}</td><td>${esc(r.posicao)}</td></tr>`).join(''),['ID','Função','Ambiente','Carga','Posição']) : ''
 
-    // Tabela de portas/cabos do rack (item 3: ports, device names, uplinks, labels)
-    const rackCableTableHtml = (d.rack_cable_table||[]).length
-      ? T(d.rack_cable_table.map((r,i)=>`<tr><td><b style="font-family:monospace;background:#0D1420;color:#38BDF8;padding:2px 6px;border-radius:3px">${esc(r.porta_patch||'P'+(i+1))}</b></td><td>${esc(r.device_origem)}</td><td style="font-family:monospace;font-size:10px;color:#0369A1">${esc(r.porta_origem)}</td><td>${esc(r.destino)}</td><td style="font-family:monospace;font-size:10px;color:#059669">${esc(r.device_nome||'-')}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-weight:700;color:#0D1420;font-size:10px;background:#FFF7ED;padding:2px 6px;border-radius:3px">${esc(r.etiqueta)}</td><td><span style="background:${r.cor==='Azul'?'#0EA5E9':r.cor==='Cinza'?'#6B7280':r.cor==='Verde'?'#16A34A':r.cor==='Amarelo'?'#D97706':r.cor==='Vermelho'?'#DC2626':'#374151'};color:#fff;padding:1px 6px;border-radius:8px;font-size:9px">${esc(r.cor||'-')}</span></td></tr>`).join(''),['Porta PP','Device Origem','Porta Origem','Destino','Nome no Sistema','Tipo','m','Etiqueta','Cor'])
-      : ''
+    // Tabela de portas/cabos do rack — completa (APs, câmeras, keystones, uplinks)
+    const rackCableTableHtml = (d.rack_cable_table||[]).length ? (()=>{
+      const rows = d.rack_cable_table
+      // Color legend
+      const COR_LABEL = {'Azul':'#0EA5E9','Verde':'#16A34A','Amarelo':'#D97706','Cinza':'#6B7280','Vermelho':'#DC2626','Roxo':'#7C3AED'}
+      const corBadge = (cor) => {
+        const c = COR_LABEL[cor]||'#374151'
+        return `<span style="display:inline-block;background:${c};color:#fff;padding:1px 8px;border-radius:8px;font-size:9px;font-weight:600">${cor||'—'}</span>`
+      }
+      const renderRow = r => `<tr>
+        <td><b style="font-family:monospace;background:#0D1420;color:#38BDF8;padding:2px 6px;border-radius:3px;font-size:10px">${esc(r.porta_patch)}</b></td>
+        <td style="font-size:10px">${esc(r.device_origem)}</td>
+        <td style="font-family:monospace;font-size:10px;color:#0369A1">${esc(r.porta_origem)}</td>
+        <td>${esc(r.destino)}</td>
+        <td style="font-family:monospace;font-size:10px;color:#059669">${esc(r.device_nome||'—')}</td>
+        <td style="font-size:10px">${esc(r.tipo)}</td>
+        <td style="font-size:10px">${esc(r.metros)}m</td>
+        <td style="font-family:monospace;font-weight:700;color:#0D1420;font-size:10px;background:#FFF7ED;padding:2px 6px;border-radius:3px">${esc(r.etiqueta)}</td>
+        <td>${corBadge(r.cor)}</td>
+      </tr>`
+      const headers = ['Porta PP','Device Origem','Porta Origem','Destino','Nome no Sistema','Tipo','m','Etiqueta','Cor']
+      const cols = headers.map(h=>`<th>${h}</th>`).join('')
+      // Group by color for visual separation
+      const uplink = rows.filter(r=>r.cor==='Cinza'||r.etiqueta?.includes('UPLINK'))
+      const aps = rows.filter(r=>r.cor==='Azul'&&!r.etiqueta?.includes('UPLINK'))
+      const cams = rows.filter(r=>r.cor==='Verde')
+      const ks = rows.filter(r=>r.cor==='Amarelo')
+      const outros = rows.filter(r=>!['Cinza','Azul','Verde','Amarelo'].includes(r.cor)&&!r.etiqueta?.includes('UPLINK'))
+      const makeBlock = (label, color, rowsArr) => rowsArr.length ? `
+        <div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.5px;padding:6px 0 3px;border-bottom:2px solid ${color};margin:12px 0 6px">${label} — ${rowsArr.length} cabo${rowsArr.length!==1?'s':''}</div>
+        <table class="ex-tbl"><thead><tr>${cols}</tr></thead><tbody>${rowsArr.map(renderRow).join('')}</tbody></table>` : ''
+      return [
+        makeBlock('Uplink / Infraestrutura', '#6B7280', uplink),
+        makeBlock('Access Points (PoE)', '#0EA5E9', aps),
+        makeBlock('Câmeras de Segurança (PoE)', '#16A34A', cams),
+        makeBlock('Keystones / Pontos de Dados', '#D97706', ks),
+        makeBlock('Outros', '#7C3AED', outros),
+      ].join('')
+    })() : ''
 
     // Tópico 5 — Pontos de parede
     const pontosHtml=(d.pontos||[]).map(a=>`<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T((a.linhas||[]).map(l=>`<tr><td><b>${esc(l.ponto)}</b></td><td>${esc(l.equip)}</td><td>${esc(l.parede)}</td><td>${esc(l.dist)}</td><td>${esc(l.alt)}</td><td>${esc(l.caixa)}</td><td>${esc(l.cabo)}</td></tr>`).join(''),['Ponto','Equip.','Parede ref.','Dist.','Alt.','Caixa','Cabo'])}`).join('')
@@ -952,8 +1001,17 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     <div class="ex-cover-foot">RARO Home · contato@rarohome.com.br · (21) 98170-9009</div>
   </div>
 
-  ${planta}
   ${(()=>{ let _n=0
+    const secN2=(title,inner,breakable=false)=> inner ? `<div class="ex-sec${breakable?' ex-breakable':''}"><h2><span class="ex-sec-num">${++_n}</span>${title}</h2>${inner}</div>` : ''
+    if(bgImage){
+      const dots=markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
+        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:${st.c};color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${m.n}</div>`}).join('')
+      return secN2('Planta de Pontos', `<div style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${dots}</div>`)
+    }
+    return ''
+  })()}
+
+  ${(()=>{ let _n=bgImage ? 1 : 0
     const secN=(title,inner,breakable=false)=> inner ? `<div class="ex-sec${breakable?' ex-breakable':''}"><h2><span class="ex-sec-num">${++_n}</span>${title}</h2>${inner}</div>` : ''
     const fotosTxt=`
 <p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>
@@ -1225,7 +1283,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
 
     return [
     secN(`Premissas Confirmadas`, list(d.premissas)),
-    secN(`Detalhe do RACK / CPD`, (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Origem / Destino / Etiqueta</h3>${rackCableTableHtml}`:'')):'', true),
+    secN(`Detalhe do RACK / CPD`, (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Todos os Cabos de Rede (APs · Câmeras · Keystones · Uplinks)</h3>${rackCableTableHtml}`:'')):'', true),
     secN(`Automação — Interruptores, Tomadas, Sensores, Hub IR, Módulos`, tblAutomacao||pontosHtml, true),
     secN(`Segurança — Câmeras e Sensores de Alarme`, tblSeguranca, true),
     secN(`Som Ambiente — Caixas, Amplificador e Zonas`, tblSom, true),
@@ -1907,7 +1965,7 @@ const EXEC_CSS=`
 .ex-doc *{box-sizing:border-box}
 
 /* ── Capa ───────────────────────────────────────────────────────────────── */
-.ex-cover{background:linear-gradient(160deg,#F5FAFF 0%,#E0EFFC 100%);color:#0D1420;padding:60px 40px;text-align:center;border-bottom:3px solid #0EA5E9;page-break-after:always;break-after:page}
+.ex-cover{background:#F5FAFF;color:#0D1420;padding:60px 40px;text-align:center;border-bottom:3px solid #0EA5E9;page-break-after:always;break-after:page}
 .ex-cover-top{font-size:10px;letter-spacing:3px;color:#6B8CAE;text-transform:uppercase;margin-bottom:30px}
 .ex-cover-tag{font-size:10px;letter-spacing:4px;color:#0EA5E9;margin:6px 0 40px}
 .ex-cover-title{font-family:'DM Serif Display',Georgia,serif;font-size:34px;line-height:1.15;margin-bottom:16px;color:#0D1420}
