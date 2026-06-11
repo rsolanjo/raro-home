@@ -1323,9 +1323,6 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
               </div>
             </div>}
 
-            <div className="form-row full" style={{marginBottom:10}}>
-              <div className="fg"><div className="flabel">Valor do ambiente (R$) <span style={{fontSize:10,color:'var(--text3)',fontWeight:400}}>aceita vírgula: ex 1.540,50</span></div><input value={room.price} onChange={e=>{updRoom({price:e.target.value});setSaved(false)}} placeholder="ex: 1.540,50" style={{fontWeight:500,fontSize:14}}/></div>
-            </div>
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
               <input type="checkbox" id="hl" checked={room.highlight} onChange={e=>updRoom({highlight:e.target.checked})} style={{width:'auto',cursor:'pointer',accentColor:'var(--accent)'}}/>
               <label htmlFor="hl" style={{fontSize:12,color:'var(--text2)',cursor:'pointer'}}>Destaque — borda dourada no PDF</label>

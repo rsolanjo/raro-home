@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v78 — exec: subcategorias no catálogo + cômodos alfa/pav; proposta: preços excluem ocultos; exec: botão Salvar Projeto
+// v78b — tirar campo Valor do ambiente
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v78 · build 2026-06
+          v78b · build 2026-06
         </div>
       </div>
     </div>
