@@ -1,6 +1,6 @@
 import { openProposalPDF } from './proposalPDF.js'
 import { LOGO_COVER, LOGO_DARK } from '../logos.js'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { saveProposal, getCatalog, getStockWithReservations, getCatalogCategories,
          generateProposalCode, auditedSave, checkProposalStock, checkPINSession, setPINSession, verifyPIN, addAuditLog } from '../db/supabase.js'
 import PINModal from './PINModal.jsx'
@@ -515,6 +515,30 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
     getStockWithReservations().then(s => setStock(s || []))
     getCatalogCategories().then(c => setCats(c || []))
   }, [])
+
+  // ── Enriquecer itens sem category (propostas antigas não tinham category salva) ──
+  // Roda quando o catalog carrega E quando a proposta em edição muda.
+  // Cruza cada item pelo code e preenche category se estiver vazia/genérica.
+  const enrichFloors = useCallback((fs, cat) => {
+    if (!cat?.length) return fs
+    return fs.map(f => ({
+      ...f,
+      rooms: (f.rooms||[]).map(r => ({
+        ...r,
+        items: (r.items||[]).map(it => {
+          if (it.category && it.category !== 'Outros' && it.category !== 'Outro' && it.category !== 'Sem categoria') return it
+          const match = cat.find(c => c.code === it.code)
+          if (match?.category) return { ...it, category: match.category }
+          return it
+        })
+      }))
+    }))
+  }, [])
+
+  useEffect(() => {
+    if (!catalog.length) return
+    setFloors(fs => enrichFloors(fs, catalog))
+  }, [catalog, editProposal, enrichFloors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const init = editProposal
   // floors from Supabase may be a string or array
