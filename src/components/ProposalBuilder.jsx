@@ -821,18 +821,31 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
       const execValue = parse(raw)
       if (!(execValue > 0)) { alert('Informe um valor válido para o Projeto Executivo.'); return }
       const cl = clients.find(c=>c.id===Number(clientId))
-      const html = buildApresentacaoComercial({
+      const { html, excludedTotal, excludedNames } = buildApresentacaoComercial({
         clientName: cl ? `${cl.name1} & ${cl.name2}` : (clientName || 'Cliente'),
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         code: proposalCode || '',
         floors,
         execValue,
       })
+      // Popup informativo (NÃO vai para o documento) com o valor dos itens excluídos
+      if (excludedTotal > 0) {
+        const linhas = Object.entries(excludedNames)
+          .sort((a,b)=>b[1]-a[1])
+          .map(([n,v])=>`  • ${n}: ${fmt(v)}`).join('\n')
+        alert(
+          'ℹ Itens do rack EXCLUÍDOS da apresentação (não aparecem no documento):\n\n' +
+          linhas +
+          '\n\nTotal excluído: ' + fmt(excludedTotal) +
+          '\n\n(O documento mostra apenas o valor de venda sem esses itens.)'
+        )
+      }
+      // Abre o HTML em nova aba (lá o cliente pode imprimir/salvar como PDF)
       try {
         const blob = new Blob([html], {type:'text/html;charset=utf-8'})
         const url = URL.createObjectURL(blob)
         const w = window.open(url, '_blank')
-        if (w) { setTimeout(()=>URL.revokeObjectURL(url), 10000); return }
+        if (w) { setTimeout(()=>URL.revokeObjectURL(url), 60000); return }
         URL.revokeObjectURL(url)
       } catch(e) {}
       const w2 = window.open('', '_blank')

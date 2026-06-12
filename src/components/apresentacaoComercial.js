@@ -1,5 +1,16 @@
 import { LOGO_DARK } from '../logos.js'
 
+// Logo com o fundo trocado para combinar EXATAMENTE com o fundo do documento (#0A0F16)
+const LOGO_DOC = (()=>{
+  try {
+    const b64 = LOGO_DARK.split(',')[1]
+    const svg = (typeof atob!=='undefined' ? atob(b64) : Buffer.from(b64,'base64').toString('utf8'))
+      .replace(/fill="#101828"/i, 'fill="#0A0F16"')  // fundo do rect = fundo do doc
+    const enc = (typeof btoa!=='undefined' ? btoa(svg) : Buffer.from(svg,'utf8').toString('base64'))
+    return 'data:image/svg+xml;base64,' + enc
+  } catch(e) { return LOGO_DARK }
+})()
+
 // Categorias/itens do RACK que NÃO entram na apresentação comercial
 const RACK_EXCLUDE_CATS = new Set(['CPD', 'CPD / Rack', 'CPD/Rack', 'Rack'])
 const RACK_EXCLUDE_NAME = /(dream\s*machine|amplificad|switch|rack\b|patch\s*panel|nobreak|no-break|dio\b|nvr\b|receiver|controladora|cloud\s*key|poe)/i
@@ -33,6 +44,20 @@ export function buildApresentacaoComercial({ clientName, neighborhood, code, flo
   // ── Agregações por categoria e por cômodo (excluindo itens do rack) ──
   const catTotals = {}
   const roomRows = [] // { floor, room, qty, byCat:{cat:val} }
+  let excludedTotal = 0       // soma dos itens de rack excluídos (venda)
+  const excludedNames = {}    // { nome: valor } para detalhar no popup
+
+  ;(floors||[]).forEach(fl => {
+    ;(fl.rooms||[]).forEach(r => {
+      ;(r.items||[]).forEach(it => {
+        if (it.name && isRackItem(it)) {
+          const val = (it.sale_price||0) * (parseInt(it.qty)||1)
+          excludedTotal += val
+          excludedNames[it.name] = (excludedNames[it.name]||0) + val
+        }
+      })
+    })
+  })
 
   ;(floors||[]).forEach(fl => {
     ;(fl.rooms||[]).forEach(r => {
@@ -80,7 +105,7 @@ export function buildApresentacaoComercial({ clientName, neighborhood, code, flo
     }
     return { auto:g('Automação'), rede:g('Redes'), som:g('Sonorização'), seg:g('Segurança') }
   }
-  const cell = (v) => v>0 ? `<td style="padding:10px 12px;text-align:right;font-size:.82rem;color:#CBD5E1">${fmt(v)}</td>` : `<td style="padding:10px 12px;text-align:right;color:#475569">—</td>`
+  const cell = (v) => v>0 ? `<td style="padding:10px 12px;text-align:right;font-size:.82rem;color:#CBD5E1">${fmt(v)}</td>` : `<td style="padding:10px 12px;text-align:right;color:#475569">·</td>`
   const cat3Rows = roomRows.map(r=>{
     const t = t3(r)
     return `<tr>
@@ -94,12 +119,12 @@ export function buildApresentacaoComercial({ clientName, neighborhood, code, flo
   // total geral (todas as categorias visíveis)
   const grandTotal = catEntries.reduce((s,[,v])=>s+v,0)
 
-  return `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Apresentação Comercial — RARO Home — ${clientName}</title>
+<title>Apresentação Comercial · RARO Home · ${clientName}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -115,8 +140,8 @@ h2{font-size:2.3rem;color:var(--accent-gold);margin-bottom:.5rem;text-align:cent
 .section-sub{text-align:center;color:var(--text-muted);font-size:1.05rem;max-width:760px;margin:0 auto 3rem}
 
 /* ── Capa / Header ── */
-header{padding:70px 0 56px;border-bottom:1px solid var(--line);text-align:center;background:radial-gradient(120% 90% at 50% 0%,rgba(201,162,104,0.06),transparent 60%)}
-header .logo-img{width:130px;height:auto;margin:0 auto 6px;display:block}
+header{padding:70px 0 56px;border-bottom:1px solid var(--line);text-align:center;background:var(--bg-dark)}
+header .logo-img{width:130px;height:auto;margin:0 auto 6px;display:block;border-radius:10px}
 .brand-name{font-family:var(--font-title);font-size:2.6rem;letter-spacing:14px;color:var(--accent-gold);margin-bottom:6px}
 .brand-tag{font-size:.72rem;letter-spacing:5px;color:var(--accent-blue);text-transform:uppercase;margin-bottom:30px}
 .client-card{display:inline-block;border:1px solid var(--line);border-radius:14px;padding:20px 44px;margin-top:8px;background:rgba(19,26,38,0.5)}
@@ -197,15 +222,38 @@ footer p{color:var(--text-muted);font-size:.9rem}
   table{font-size:.82rem}
   thead th{padding:10px 8px;font-size:.62rem}
 }
-@media print{body{background:#fff}.section-padding,.invest-section,.diferencial-section{break-inside:avoid}}
+@media print{body{background:#fff}.section-padding,.invest-section,.diferencial-section{break-inside:avoid}.no-print{display:none!important}}
+.actionbar{position:fixed;top:18px;right:18px;z-index:999;display:flex;gap:10px}
+.actionbar button{display:inline-flex;align-items:center;gap:8px;background:var(--accent-gold);color:#0A0F16;border:none;border-radius:100px;padding:11px 20px;font-family:var(--font-body);font-weight:600;font-size:.85rem;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,0.4);transition:all .25s}
+.actionbar button:hover{background:var(--accent-gold-hi);transform:translateY(-1px)}
+.actionbar button i{font-size:.95rem}
 </style>
 </head>
 <body>
 
+<!-- Barra de ações (não imprime) -->
+<div class="actionbar no-print">
+  <button onclick="window.print()" title="Salvar como PDF"><i class="fa-solid fa-file-pdf"></i> Salvar PDF</button>
+  <button onclick="baixarHTML()" title="Baixar arquivo HTML"><i class="fa-solid fa-code"></i> Baixar HTML</button>
+</div>
+<script>
+function baixarHTML(){
+  var doc='<!DOCTYPE html>'+document.documentElement.outerHTML;
+  var bar=doc.match(/<div class=\"actionbar[\\s\\S]*?<\\/script>/);
+  if(bar) doc=doc.replace(bar[0],'');
+  var blob=new Blob([doc],{type:'text/html;charset=utf-8'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='apresentacao-raro-${(clientName||'cliente').replace(/[^a-zA-Z0-9]/g,'-').toLowerCase()}.html';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(a.href)},5000);
+}
+</script>
+
 <!-- ══════════ PÁGINA 1 — INSTITUCIONAL ══════════ -->
 <header>
   <div class="container">
-    <img class="logo-img" src="${LOGO_DARK}" alt="RARO Home"/>
+    <img class="logo-img" src="${LOGO_DOC}" alt="RARO Home"/>
     <div class="brand-name">RARO HOME</div>
     <div class="brand-tag">Casa · Tecnologia · Lazer</div>
     <div class="client-card">
@@ -235,7 +283,7 @@ footer p{color:var(--text-muted);font-size:.9rem}
         <div class="viz-row"><div class="ic"><i class="fa-solid fa-lightbulb"></i></div><div><b>Iluminação &amp; Cenas</b><span>Receber · Jantar · Cinema · Boa noite</span></div><span class="st"><span class="viz-led"></span></span></div>
         <div class="viz-row"><div class="ic"><i class="fa-solid fa-music"></i></div><div><b>Som Multiroom</b><span>Sala · Gourmet · Varanda</span></div><span class="st"><span class="viz-led"></span></span></div>
         <div class="viz-row"><div class="ic"><i class="fa-solid fa-video"></i></div><div><b>Câmeras 4K</b><span>Gravação contínua · acesso remoto</span></div><span class="st"><span class="viz-led"></span></span></div>
-        <div class="viz-row"><div class="ic"><i class="fa-solid fa-wifi"></i></div><div><b>Rede UniFi</b><span>Wi-Fi de alta performance em toda a casa</span></div><span class="st"><span class="viz-led"></span></span></div>
+        <div class="viz-row"><div class="ic"><i class="fa-solid fa-wifi"></i></div><div><b>Rede Wi-Fi estável</b><span>Sinal forte e estável em todo o imóvel</span></div><span class="st"><span class="viz-led"></span></span></div>
       </div>
     </div>
   </section>
@@ -276,7 +324,7 @@ footer p{color:var(--text-muted);font-size:.9rem}
     <!-- Tabela 1: Valor do Projeto Executivo -->
     <div class="t-block">
       <div class="t-head"><span class="n">1</span> Valor do Projeto</div>
-      <div class="t-desc">Preparar a sua casa para receber a automação mais moderna do mercado começa por um <strong>projeto executivo de engenharia</strong> — o documento que garante que cada ponto, cabo e medida estejam corretos antes da obra. Além do projeto, você conta com um <strong>acompanhamento adicional na sua obra</strong>, garantindo que tudo seja executado conforme o planejado.</div>
+      <div class="t-desc">Preparar a sua casa para receber a automação mais moderna do mercado começa por um <strong>projeto executivo de engenharia</strong>: o documento que garante que cada ponto, cabo e medida estejam corretos antes da obra. Além do projeto, você conta com um <strong>acompanhamento adicional na sua obra</strong>, garantindo que tudo seja executado conforme o planejado.</div>
       <div class="exec-card">
         <div class="left">
           <h3>Projeto Executivo de Automação + Acompanhamento</h3>
@@ -288,19 +336,19 @@ footer p{color:var(--text-muted);font-size:.9rem}
         </div>
       </div>
       <ul class="exec-includes">
-        <li><i class="fa-solid fa-check"></i><div><strong>Planta de pontos numerada</strong> — posição exata e altura de cada equipamento.</div></li>
-        <li><i class="fa-solid fa-check"></i><div><strong>Tabelas de cabos e metragens</strong> — rede, som e elétrica, do rack até cada ponto.</div></li>
-        <li><i class="fa-solid fa-check"></i><div><strong>Checklists de obra e instalação</strong> — para o eletricista, o arquiteto e a nossa equipe.</div></li>
-        <li><i class="fa-solid fa-check"></i><div><strong>Acompanhamento na obra</strong> — diário com foto de cada ponto antes de fechar a parede.</div></li>
-        <li><i class="fa-solid fa-check"></i><div><strong>Detalhamento do RACK / CPD</strong> — o cérebro da casa, dimensionado para o seu projeto.</div></li>
-        <li><i class="fa-solid fa-check"></i><div><strong>Cronograma por fases</strong> — do projeto à entrega, com você acompanhando cada etapa.</div></li>
+        <li><i class="fa-solid fa-check"></i><div><strong>Planta de pontos numerada</strong>: posição exata e altura de cada equipamento.</div></li>
+        <li><i class="fa-solid fa-check"></i><div><strong>Tabelas de cabos e metragens</strong>: rede, som e elétrica, do rack até cada ponto.</div></li>
+        <li><i class="fa-solid fa-check"></i><div><strong>Checklists de obra e instalação</strong>: para o eletricista, o arquiteto e a nossa equipe.</div></li>
+        <li><i class="fa-solid fa-check"></i><div><strong>Acompanhamento na obra</strong>: diário com foto de cada ponto antes de fechar a parede.</div></li>
+        <li><i class="fa-solid fa-check"></i><div><strong>Detalhamento do RACK / CPD</strong>: o cérebro da casa, dimensionado para o seu projeto.</div></li>
+        <li><i class="fa-solid fa-check"></i><div><strong>Cronograma por fases</strong>: do projeto à entrega, com você acompanhando cada etapa.</div></li>
       </ul>
     </div>
 
     <!-- Tabela 2: compilado por categoria -->
     <div class="t-block">
       <div class="t-head"><span class="n">2</span> Estimativa de Investimento por Categoria</div>
-      <div class="t-desc">Um compilado de valores aproximados por categoria, para você dimensionar o investimento de cada frente da sua casa inteligente. Valores referenciais, sem os equipamentos centrais do rack.</div>
+      <div class="t-desc">Um compilado de valores aproximados por categoria, para você dimensionar o investimento de cada frente da sua casa inteligente.</div>
       <table>
         <thead><tr><th>Categoria</th><th style="text-align:right">Valor aproximado</th></tr></thead>
         <tbody>${cat2Rows || '<tr><td colspan="2" style="padding:16px;text-align:center;color:#475569">Sem itens para exibir</td></tr>'}</tbody>
@@ -320,7 +368,6 @@ footer p{color:var(--text-muted);font-size:.9rem}
         <tbody>${cat3Rows || '<tr><td colspan="7" style="padding:16px;text-align:center;color:#475569">Sem itens para exibir</td></tr>'}</tbody>
       </table>
       <div class="grand"><span class="l">Total aproximado em equipamentos</span><span class="v">${fmt(grandTotal)}</span></div>
-      <div class="note">* Valores aproximados e referenciais por categoria. Não incluem os equipamentos centrais do rack (Dream Machine, switches, amplificador). O valor final é detalhado na proposta técnica completa.</div>
     </div>
   </section>
 </main>
@@ -335,4 +382,6 @@ footer p{color:var(--text-muted);font-size:.9rem}
 
 </body>
 </html>`
+
+  return { html, excludedTotal, excludedNames, grandTotal }
 }
