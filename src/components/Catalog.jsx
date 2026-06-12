@@ -95,7 +95,12 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
   }
   const [editing, setEditing] = useState(null)
   const [showCatModal, setShowCatModal] = useState(false)
+  const [catModalTab, setCatModalTab] = useState('cat') // 'cat' | 'sub'
   const [newCat, setNewCat] = useState('')
+  const [newSubCat, setNewSubCat] = useState('')
+  const [newSubForCat, setNewSubForCat] = useState('')
+  const [showInlineNewSub, setShowInlineNewSub] = useState(false)
+  const [inlineNewSubVal, setInlineNewSubVal] = useState('')
   const [form, setForm] = useState({code:'',name:'',category:'Interruptor',cost_price:0,sale_price:0,pitch:'',buy_link:'',supplier_id:''})
   const [categories, setCategories] = useState([])
   const [proposals, setProposals] = useState([])
@@ -154,6 +159,25 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
   }
   function handleAddCat(){
     if(newCat.trim()) { addCatalogCategory(newCat.trim()); setNewCat(''); onRefresh() }
+  }
+  async function handleAddSubCat(cat, name){
+    if(!cat||!name.trim()) return
+    try {
+      await saveCatalogSubcategory(cat, name.trim())
+      setSubcategories(prev=>({...prev,[cat]:[...(prev[cat]||[]),name.trim()]}))
+      setNewSubCat(''); setNewSubForCat('')
+    } catch(e){ alert('Erro ao salvar subcategoria: '+e.message) }
+  }
+  async function handleDeleteSubCat(cat, name){
+    try {
+      await deleteCatalogSubcategory(cat, name)
+      setSubcategories(prev=>({...prev,[cat]:(prev[cat]||[]).filter(s=>s!==name)}))
+    } catch(e){ alert('Erro ao excluir: '+e.message) }
+  }
+  function genCode(){
+    const prefix=(form.category||'X').slice(0,2).toUpperCase()
+    const rand=Math.random().toString(36).slice(2,6).toUpperCase()
+    f('code',prefix+'-'+rand)
   }
 
   // Group by category for display
@@ -222,7 +246,12 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
               <button className="modal-close" onClick={()=>setShowModal(false)}>×</button>
             </div>
             <div className="form-row">
-              <div className="fg"><div className="flabel">Código</div><input value={form.code} onChange={e=>f('code',e.target.value)} placeholder="ex: QAGPM2" autoFocus/></div>
+              <div className="fg"><div className="flabel">Código</div>
+              <div style={{display:'flex',gap:4}}>
+                <input value={form.code} onChange={e=>f('code',e.target.value)} placeholder="ex: AT-K4X2" autoFocus style={{flex:1}}/>
+                <button className="btn" type="button" title="Gerar código automático" style={{flexShrink:0,fontSize:11,padding:'4px 9px'}} onClick={genCode}><i className="ti ti-refresh" aria-hidden/>Auto</button>
+              </div>
+            </div>
               <div className="fg"><div className="flabel">Categoria</div>
                 <select value={form.category} onChange={e=>{
                   const cat=e.target.value; f('category',cat)
@@ -233,7 +262,22 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
                   {categories.filter(c=>!ALL_CATEGORIES.includes(c)).map(c=><option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div className="fg"><div className="flabel">Subcategoria</div>
+              <div className="fg"><div className="flabel" style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <span>Subcategoria</span>
+                  <button type="button" className="btn" style={{fontSize:10,padding:'1px 7px',height:20}} onClick={()=>{setShowInlineNewSub(v=>!v);setInlineNewSubVal('')}}>
+                    <i className="ti ti-plus" aria-hidden/> Nova
+                  </button>
+                </div>
+                {showInlineNewSub && (
+                  <div style={{display:'flex',gap:4,marginBottom:5}}>
+                    <input value={inlineNewSubVal} onChange={e=>setInlineNewSubVal(e.target.value)}
+                      placeholder={`Nova subcategoria em ${form.category}...`}
+                      style={{flex:1,fontSize:12,padding:'4px 8px'}}
+                      onKeyDown={async e=>{if(e.key==='Enter'&&inlineNewSubVal.trim()){await handleAddSubCat(form.category,inlineNewSubVal);f('subcategory',inlineNewSubVal.trim());setShowInlineNewSub(false)}}}
+                      autoFocus/>
+                    <button className="btn primary" type="button" style={{fontSize:11,padding:'3px 8px'}} onClick={async()=>{if(inlineNewSubVal.trim()){await handleAddSubCat(form.category,inlineNewSubVal);f('subcategory',inlineNewSubVal.trim());setShowInlineNewSub(false)}}}>OK</button>
+                  </div>
+                )}
                 <select value={form.subcategory||''} onChange={e=>f('subcategory',e.target.value)}>
                   <option value="">— nenhuma —</option>
                   {(subcategories[form.category]||TAXONOMY[form.category]||[]).map(s=><option key={s} value={s}>{s}</option>)}
@@ -286,27 +330,91 @@ export default function Catalog({ catalog, suppliers, onRefresh, isAdmin, curren
         </div>
       )}
 
-      {/* Categories modal */}
+      {/* Categories + Subcategories modal */}
       {showCatModal && (
         <div className="modal-overlay">
-          <div className="modal" style={{width:400}} onClick={e=>e.stopPropagation()}>
+          <div className="modal" style={{width:500}} onClick={e=>e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title">Gerenciar Categorias</div>
+              <div className="modal-title"><i className="ti ti-tags" aria-hidden/> Categorias &amp; Subcategorias</div>
               <button className="modal-close" onClick={()=>setShowCatModal(false)}>×</button>
             </div>
-            <div style={{display:'flex',gap:6,marginBottom:12}}>
-              <input value={newCat} onChange={e=>setNewCat(e.target.value)} placeholder="Nova categoria..." style={{flex:1}} onKeyDown={e=>e.key==='Enter'&&handleAddCat()}/>
-              <button className="btn primary" onClick={handleAddCat}><i className="ti ti-plus" aria-hidden/>Adicionar</button>
-            </div>
-            <div style={{maxHeight:300,overflowY:'auto'}}>
-              {categories.map(c=>(
-                <div key={c} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',borderBottom:'0.5px solid var(--border)',fontSize:12}}>
-                  <span><i className="ti ti-tag" style={{marginRight:6,color:'var(--text3)',fontSize:12}} aria-hidden/>{c}</span>
-                  <button className="btn danger" style={{fontSize:10,padding:'2px 7px'}} onClick={()=>{deleteCatalogCategory(c);onRefresh()}}>✕</button>
-                </div>
+            {/* Tabs */}
+            <div style={{display:'flex',gap:0,borderBottom:'1px solid var(--border)',marginBottom:14}}>
+              {[['cat','Categorias','ti-tag'],['sub','Subcategorias','ti-tags']].map(([id,label,icon])=>(
+                <button key={id} onClick={()=>setCatModalTab(id)}
+                  style={{flex:1,padding:'9px 0',fontSize:12,fontWeight:catModalTab===id?700:400,
+                    border:'none',background:'none',cursor:'pointer',
+                    color:catModalTab===id?'var(--accent)':'var(--text2)',
+                    borderBottom:catModalTab===id?'2px solid var(--accent)':'2px solid transparent',
+                    display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
+                  <i className={`ti ${icon}`} aria-hidden/>{label}
+                </button>
               ))}
             </div>
-            <div style={{display:'flex',justifyContent:'flex-end',marginTop:12}}>
+
+            {/* Aba Categorias */}
+            {catModalTab==='cat' && <>
+              <div style={{display:'flex',gap:6,marginBottom:12}}>
+                <input value={newCat} onChange={e=>setNewCat(e.target.value)} placeholder="Nova categoria principal..." style={{flex:1}}
+                  onKeyDown={e=>e.key==='Enter'&&handleAddCat()}/>
+                <button className="btn primary" onClick={handleAddCat}><i className="ti ti-plus" aria-hidden/>Adicionar</button>
+              </div>
+              <div style={{maxHeight:300,overflowY:'auto'}}>
+                {categories.map(c=>(
+                  <div key={c} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',borderBottom:'0.5px solid var(--border)',fontSize:12}}>
+                    <span style={{display:'flex',alignItems:'center',gap:7}}>
+                      <i className="ti ti-tag" style={{color:'var(--text3)',fontSize:12}} aria-hidden/>{c}
+                      <span style={{fontSize:10,color:'var(--text3)'}}>({(subcategories[c]||[]).length} sub)</span>
+                    </span>
+                    <button className="btn danger" style={{fontSize:10,padding:'2px 7px'}} onClick={()=>{deleteCatalogCategory(c);onRefresh()}}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </>}
+
+            {/* Aba Subcategorias */}
+            {catModalTab==='sub' && <>
+              <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
+                <select value={newSubForCat} onChange={e=>setNewSubForCat(e.target.value)}
+                  style={{flex:'0 0 180px',padding:'6px 8px',fontSize:12,border:'1px solid var(--border)',borderRadius:6}}>
+                  <option value="">Escolha a categoria...</option>
+                  {categories.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+                <input value={newSubCat} onChange={e=>setNewSubCat(e.target.value)} placeholder="Nome da subcategoria..." style={{flex:1,minWidth:140}}
+                  onKeyDown={e=>{ if(e.key==='Enter'&&newSubForCat&&newSubCat.trim()){ handleAddSubCat(newSubForCat,newSubCat); setNewSubCat('') } }}/>
+                <button className="btn primary" onClick={()=>{if(newSubForCat&&newSubCat.trim()){handleAddSubCat(newSubForCat,newSubCat);setNewSubCat('')}}}>
+                  <i className="ti ti-plus" aria-hidden/>Adicionar
+                </button>
+              </div>
+              <div style={{maxHeight:340,overflowY:'auto'}}>
+                {categories.map(cat=>{
+                  const subs=[...new Set([...(TAXONOMY[cat]||[]),...(subcategories[cat]||[])])]
+                  if(!subs.length) return null
+                  return (
+                    <div key={cat} style={{marginBottom:12}}>
+                      <div style={{fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:'var(--accent)',padding:'4px 10px',background:'var(--surf)',borderRadius:4,marginBottom:4}}>
+                        <i className="ti ti-tag" aria-hidden/> {cat}
+                      </div>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:5,padding:'0 4px'}}>
+                        {subs.map(sub=>(
+                          <span key={sub} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11,background:'var(--surf2,var(--surf))',
+                            border:'1px solid var(--border)',borderRadius:12,padding:'3px 10px'}}>
+                            {sub}
+                            {!(TAXONOMY[cat]||[]).includes(sub)&&(
+                              <button onClick={()=>handleDeleteSubCat(cat,sub)}
+                                style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:12,lineHeight:1,padding:0}}
+                                title="Remover">×</button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>}
+
+            <div style={{display:'flex',justifyContent:'flex-end',marginTop:14}}>
               <button className="btn" onClick={()=>setShowCatModal(false)}>Fechar</button>
             </div>
           </div>
