@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v89 — Mão de obra por categoria: campos por categoria no modal Salvar, total = soma; ao ocultar categoria a MO dela sai do PDF e do total
+// v90 — Apresentação Comercial: botão na proposta pergunta valor do Projeto Executivo, gera doc institucional (pág1) + investimento por categoria (pág2), exclui itens do rack
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v89 · build 2026-06
+          v90 · build 2026-06
         </div>
       </div>
     </div>

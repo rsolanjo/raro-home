@@ -1,5 +1,6 @@
 import { openProposalPDF } from './proposalPDF.js'
 import { LOGO_COVER, LOGO_DARK } from '../logos.js'
+import { buildApresentacaoComercial } from './apresentacaoComercial.js'
 import { useState, useEffect, useCallback } from 'react'
 import { saveProposal, getCatalog, getStockWithReservations, getCatalogCategories,
          generateProposalCode, auditedSave, checkProposalStock, checkPINSession, setPINSession, verifyPIN, addAuditLog } from '../db/supabase.js'
@@ -812,6 +813,36 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
     }
   }
 
+  // Gera a Apresentação Comercial (pág 1 institucional + pág 2 investimento)
+  function gerarApresentacao(){
+    try {
+      const raw = prompt('Valor do Projeto Executivo (R$):', '3000')
+      if (raw === null) return // cancelou
+      const execValue = parse(raw)
+      if (!(execValue > 0)) { alert('Informe um valor válido para o Projeto Executivo.'); return }
+      const cl = clients.find(c=>c.id===Number(clientId))
+      const html = buildApresentacaoComercial({
+        clientName: cl ? `${cl.name1} & ${cl.name2}` : (clientName || 'Cliente'),
+        neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
+        code: proposalCode || '',
+        floors,
+        execValue,
+      })
+      try {
+        const blob = new Blob([html], {type:'text/html;charset=utf-8'})
+        const url = URL.createObjectURL(blob)
+        const w = window.open(url, '_blank')
+        if (w) { setTimeout(()=>URL.revokeObjectURL(url), 10000); return }
+        URL.revokeObjectURL(url)
+      } catch(e) {}
+      const w2 = window.open('', '_blank')
+      if (w2) { w2.document.open(); w2.document.write(html); w2.document.close() }
+    } catch(err) {
+      console.error('gerarApresentacao error:', err)
+      alert('Erro ao gerar apresentação: ' + err.message)
+    }
+  }
+
   // equipTotal: when categories are hidden, recalculate from items excluding hidden cats
   const equipTotal = hiddenCateg.size === 0
     ? floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
@@ -930,6 +961,13 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
             <i className="ti ti-file-invoice" aria-hidden/>
             Gerar Proposta
             {hiddenCateg.size>0&&<span style={{position:'absolute',top:-5,right:-5,background:'#F59E0B',color:'#fff',borderRadius:'50%',width:16,height:16,fontSize:9,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}} title={`${hiddenCateg.size} categoria(s) oculta(s)`}>{hiddenCateg.size}</span>}
+          </button>
+          {/* GERAR APRESENTAÇÃO COMERCIAL */}
+          <button className="btn" title="Gerar apresentação comercial (institucional + investimento por categoria)"
+            style={{gap:6, color:'#9E7B45', borderColor:'#C9A268'}}
+            onClick={()=>gerarApresentacao()}>
+            <i className="ti ti-presentation" aria-hidden/>
+            Apresentação
           </button>
           {/* ENVIAR */}
           <button className="btn primary" onClick={()=>{ setSendTargets({}); setCustomPhone(''); setSendEmail(''); setShowSendModal(true) }} disabled={!saved} title={!saved?'Salve a proposta primeiro':''}>
