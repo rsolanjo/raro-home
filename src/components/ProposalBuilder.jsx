@@ -589,6 +589,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
   const [clientName,  setClientName]  = useState(init?.client_name || execSeed?.client_name || '')
   const [description, setDescription] = useState(init?.description||'')
   const [labor,       setLabor]       = useState(String(init?.labor??''))
+  const [laborByCat,  setLaborByCat]  = useState(()=> (init?.labor_by_cat && typeof init.labor_by_cat==='object') ? {...init.labor_by_cat} : {})
   const [proposalCode,setProposalCode]= useState(init?.code||'')
   const [margin,      setMargin]      = useState(100)
   const [floors,      setFloors]      = useState(()=>
@@ -618,6 +619,21 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
   const [savedProposal,  setSavedProposal]  = useState(init||null)
 
   const floor = floors[cf]
+
+  const CAT_COLOR={'Segurança':'#DC2626','Sonorização':'#BE185D','Som':'#BE185D','Redes':'#0EA5E9','Rede':'#0EA5E9','Automação':'#059669','Gourmet':'#D97706','Elétrica':'#F59E0B','CPD':'#7C3AED','Outros':'#6B7280'}
+
+  // ── Mão de obra por categoria ──────────────────────────────────
+  // Categorias presentes na proposta (ordenadas), para gerar os campos de mão de obra
+  const proposalCategories = (()=>{
+    const set=new Set()
+    floors.forEach(f=>(f.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{ if(it.name) set.add(it.category||'Outros') })))
+    return [...set].sort()
+  })()
+  // Total da mão de obra = soma de todas as categorias (independe de ocultas)
+  const laborTotal = proposalCategories.reduce((s,c)=>s+parse(laborByCat[c]),0)
+  // Total da mão de obra para o PDF = soma só das categorias NÃO ocultas
+  const laborVisible = proposalCategories.reduce((s,c)=>hiddenCateg.has(c)?s:s+parse(laborByCat[c]),0)
+  function setLaborCat(cat,val){ setLaborByCat(prev=>({...prev,[cat]:val})); setSaved(false) }
   const room  = floor?.rooms[cr]
 
   // Auto-check stock whenever floors change
@@ -688,7 +704,8 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
       code,
       description,
       status,
-      labor:parse(laborValue||labor),
+      labor:parse(laborValue!=null?laborValue:laborTotal),
+      labor_by_cat:{...laborByCat},
       floors:floors.map(f=>({name:f.name,rooms:f.rooms.map(r=>({name:r.name,icon:r.icon,highlight:r.highlight,pitch:r.pitch,price:parse(r.price),items:(r.items||[]).filter(it=>it.name)}))})),
       valid_days:30,
       planta_data: plantaData,
@@ -713,14 +730,14 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
     if (isSaving) return
     setIsSaving(true)
     try {
-      const p = buildProposalObject('draft', laborInput)
+      const p = buildProposalObject('draft', laborTotal)
       if (!p.code) p.code = generateProposalCode({name1:p.client_name?.[0]||'X', name2:'X'})
       const before = savedProposal ? {...savedProposal} : null
       const saved2 = await saveProposal(p)
       if (!saved2) throw new Error('Supabase retornou vazio — verifique a conexão')
       setSavedProposal(saved2)
       setProposalCode(saved2.code||p.code)
-      setLabor(laborInput)
+      setLabor(String(laborTotal))
       setSaved(true)
       try { await auditedSave('orçamentos', before ? 'update' : 'create', saved2, currentUser?.name, before) } catch(e){}
       setShowSaveModal(false)
@@ -767,7 +784,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
         proposal_code: previewCode,
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         date_str: new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),
-        floors: floorsFiltered, labor:parse(labor), margin, itemFontSize:pdfFontSize,
+        floors: floorsFiltered, labor:laborVisible, margin, itemFontSize:pdfFontSize,
         client_phone1: cl?.phone1, client_phone2: cl?.phone2
       }, admin)
       // Try window.open with blob
@@ -803,7 +820,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
         const visibleTotal=visibleItems.reduce((is,it)=>is+(it.sale_price||0)*(parseInt(it.qty)||1),0)
         return rs + (visibleItems.length ? visibleTotal : 0)
       },s),0)
-  const grandTotal=equipTotal+parse(labor)
+  const grandTotal=equipTotal+laborTotal
   const selClient=clients.find(c=>c.id===Number(clientId))
   const filteredCatalog=catalog.filter(c=>{
     const matchCat=catFilter==='all'||c.category===catFilter
@@ -903,7 +920,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
             <span style={{fontSize:11,color:'var(--text3)',letterSpacing:0.5}}>A</span>
           </div>
           {/* SALVAR */}
-          <button className="btn" onClick={()=>{ setLaborInput(labor); setShowSaveModal(true) }}>
+          <button className="btn" onClick={()=>setShowSaveModal(true)}>
             <i className="ti ti-device-floppy" aria-hidden/>Salvar proposta
           </button>
           {/* GERAR PROPOSTA PDF */}
@@ -1408,8 +1425,8 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
             <div className="flabel" style={{marginBottom:8}}>Resumo</div>
             {floors.map((f,fi)=>{ const sub=(f.rooms||[]).reduce((s,r)=>s+parse(r.price),0); return sub>0?<div key={fi} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',fontSize:12,color:'var(--text2)'}}><span>{f.name}</span><span>{fmt(sub)}</span></div>:null })}
             <div style={{display:'flex',justifyContent:'space-between',padding:'6px 0',fontSize:12,borderTop:'1px solid var(--border)',marginTop:6,alignItems:'center'}}>
-              <span style={{color:'var(--text2)'}}>Mão de obra</span>
-              <input value={labor} onChange={e=>{setLabor(e.target.value);setSaved(false)}} style={{width:140,textAlign:'right',fontSize:13,padding:'4px 8px',fontWeight:500}} placeholder="Preenchido ao salvar"/>
+              <span style={{color:'var(--text2)'}}>Mão de obra <span style={{fontSize:10,color:'var(--text3)'}}>(por categoria, em "Salvar")</span></span>
+              <span style={{fontWeight:600,fontSize:13}}>{laborTotal>0?fmt(laborTotal):'—'}</span>
             </div>
             <div className="total-bar"><div className="total-label">Total</div><div className="total-value">{fmt(grandTotal)}</div></div>
 
@@ -1513,10 +1530,29 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
           <button className="modal-close" onClick={()=>setShowSaveModal(false)}>×</button>
         </div>
 
-        {/* Mão de obra */}
+        {/* Mão de obra por categoria */}
         <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
-          <div className="flabel" style={{marginBottom:6}}>Mão de obra — Instalação e Programação (R$)</div>
-          <input type="number" value={laborInput} onChange={e=>setLaborInput(e.target.value)} placeholder="ex: 8000" autoFocus style={{fontSize:16,fontWeight:600,textAlign:'center'}}/>
+          <div className="flabel" style={{marginBottom:8}}>Mão de obra — Instalação e Programação (R$)</div>
+          {proposalCategories.length===0
+            ? <div style={{fontSize:12,color:'var(--text3)'}}>Adicione itens à proposta para lançar a mão de obra por categoria.</div>
+            : <>
+              {proposalCategories.map(cat=>{
+                const c=CAT_COLOR[cat]||'#6B7280'
+                return <div key={cat} style={{display:'flex',alignItems:'center',gap:10,padding:'5px 0',borderBottom:'0.5px solid var(--border)'}}>
+                  <span style={{flex:1,fontSize:12.5,color:'var(--text)',display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{width:9,height:9,borderRadius:'50%',background:c,flexShrink:0}}/>{cat}
+                  </span>
+                  <span style={{fontSize:11,color:'var(--text3)'}}>R$</span>
+                  <input type="number" min="0" value={laborByCat[cat]??''} onChange={e=>setLaborCat(cat,e.target.value)}
+                    placeholder="0" style={{width:110,textAlign:'right',fontSize:14,fontWeight:600,padding:'4px 8px'}}/>
+                </div>
+              })}
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:9,paddingTop:9,borderTop:'2px solid var(--border)'}}>
+                <span style={{fontSize:12.5,fontWeight:700,color:'var(--text)'}}>Total mão de obra</span>
+                <span style={{fontSize:16,fontWeight:700,color:'var(--accent)'}}>{fmt(laborTotal)}</span>
+              </div>
+              <div style={{fontSize:10,color:'var(--text3)',marginTop:5}}>O total é a soma das categorias. Ao ocultar uma categoria na proposta, a mão de obra dela sai do PDF.</div>
+            </>}
         </div>
 
         {/* Margem global — só aplica com PIN explícito */}
@@ -1590,10 +1626,10 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
               <span>{fmt(projSale)} · <span style={{color:projPct>=50?'var(--green)':projPct>=20?'var(--amber)':'var(--red)'}}>{projPct}% margem</span></span>
             </div>
             <div style={{display:'flex',justifyContent:'space-between',marginTop:4,color:'var(--text2)'}}>
-              <span>+ Mão de obra</span><span>{laborInput?fmt(parse(laborInput)):'—'}</span>
+              <span>+ Mão de obra</span><span>{laborTotal?fmt(laborTotal):'—'}</span>
             </div>
             <div style={{display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:14,marginTop:4,color:'var(--accent)',borderTop:'1px solid var(--border)',paddingTop:6}}>
-              <span>Total geral</span><span>{fmt(projSale+parse(laborInput))}</span>
+              <span>Total geral</span><span>{fmt(projSale+laborTotal)}</span>
             </div>
           </div>
         })()}
@@ -1609,7 +1645,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
         <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
           <button className="btn" onClick={()=>setShowSaveModal(false)}>Cancelar</button>
           <button className="btn primary" onClick={handleSaveConfirm}
-            disabled={isSaving||laborInput===''||laborInput===null||laborInput===undefined}
+            disabled={isSaving||laborTotal<=0}
             style={{minWidth:130}}>
             {isSaving
               ? <><i className="ti ti-loader" style={{animation:'spin 1s linear infinite'}} aria-hidden/>Salvando...</>
@@ -1624,7 +1660,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
           <div className="modal-title"><i className="ti ti-brand-whatsapp" style={{marginRight:6,color:'#16A34A'}} aria-hidden/>Enviar proposta</div>
           <button className="modal-close" onClick={()=>setShowSendModal(false)}>×</button>
         </div>
-        {!parse(labor)&&<div style={{background:'var(--red-lt)',border:'1px solid var(--red)',borderRadius:6,padding:'8px 12px',marginBottom:12,fontSize:12,color:'var(--red)'}}>
+        {laborTotal<=0&&<div style={{background:'var(--red-lt)',border:'1px solid var(--red)',borderRadius:6,padding:'8px 12px',marginBottom:12,fontSize:12,color:'var(--red)'}}>
           <i className="ti ti-alert-circle" aria-hidden/> Mão de obra não preenchida. Salve novamente com o valor.
         </div>}
         <div style={{marginBottom:14,padding:'8px 10px',background:'var(--surf)',borderRadius:6,fontSize:12,color:'var(--text2)',lineHeight:1.7}}>
@@ -1704,7 +1740,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
         <div style={{borderTop:'1px solid var(--border)',paddingTop:12,display:'flex',flexDirection:'column',gap:8}}>
           {/* Send to selected WhatsApps */}
           <button className="btn primary" style={{background:'#16A34A',borderColor:'#16A34A',gap:8}}
-            disabled={!Object.values(sendTargets).some(Boolean)||!parse(labor)}
+            disabled={!Object.values(sendTargets).some(Boolean)||laborTotal<=0}
             onClick={async ()=>{
               const cl=clients.find(c=>c.id===Number(clientId))
               const totalVal=(floors||[]).reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(r.price||0),s),0)+parse(labor)

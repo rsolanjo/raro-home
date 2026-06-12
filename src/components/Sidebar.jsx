@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v88 — Proposta (buildPDF interno corrigido): tabela cômodos em 2 colunas sem colisão, tabela por categoria, cômodos zerados sempre removidos
+// v89 — Mão de obra por categoria: campos por categoria no modal Salvar, total = soma; ao ocultar categoria a MO dela sai do PDF e do total
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v88 · build 2026-06
+          v89 · build 2026-06
         </div>
       </div>
     </div>

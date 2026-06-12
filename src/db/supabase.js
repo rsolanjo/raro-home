@@ -82,7 +82,17 @@ export async function deleteClient(id){ return del('clients', id) }
 // ── PROPOSALS ─────────────────────────────────────────────────────────────────
 export async function getProposals()   { return all('proposals', 'created_at') }
 export async function saveProposal(p) {
-  const saved = await upsert('proposals', { ...p, updated_at: new Date().toISOString() })
+  let saved
+  try {
+    saved = await upsert('proposals', { ...p, updated_at: new Date().toISOString() })
+  } catch (e) {
+    // Se a coluna labor_by_cat ainda não existe no banco, salva sem ela
+    // (rode SUPABASE_LABOR_BY_CAT_v89.sql para habilitar o detalhamento)
+    if (String(e?.message||'').includes('labor_by_cat') || e?.code === 'PGRST204') {
+      const { labor_by_cat, ...rest } = p
+      saved = await upsert('proposals', { ...rest, updated_at: new Date().toISOString() })
+    } else throw e
+  }
   const items = (p.floors||[]).flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]).filter(i=>i.code).map(i=>({code:i.code,qty:parseInt(i.qty)||1}))))
   // rascunho, enviado e aguardando → RESERVA o estoque
   if (['draft','sent'].includes(p.status)) await reserveStock(saved.id, items, saved.code||`#${saved.id}`, saved.client_name)
