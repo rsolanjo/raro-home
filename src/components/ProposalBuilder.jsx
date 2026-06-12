@@ -448,10 +448,44 @@ function buildPDF(data, adminMode=false){
   const adminSummary=adminMode?(`<div style="background:#3D1A6E;padding:10px 14px;border-radius:4px;margin-bottom:12px"><div style="font-size:8px;letter-spacing:2px;color:#C084FC;text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:6px">Resumo Financeiro (Admin)</div><div style="display:flex;gap:20px;flex-wrap:wrap">`+(floors||[]).map(fl=>{const cT=(fl.rooms||[]).flatMap(r=>r.items||[]).reduce((s,i)=>s+(i.cost_price||0)*(parseInt(i.qty)||1),0),sT=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0),mg=cT>0?Math.round((sT-cT)/cT*100):0;return `<div style="font-size:10px;color:#E9D5FF;font-family:'DM Sans',sans-serif">${fl.name.replace(' Pavimento','')}: <b>${fmt(cT)}</b> custo · <b style="color:#C084FC">${fmt(sT)}</b> venda · <b style="color:#86EFAC">${mg}%</b></div>`}).join('')+'</div></div>'):'';
 
   // ── totals page ───────────────────────────────────────────────
+  // Tabela de cômodos: 2 colunas fixas (nome | valor), sem colisão
+  const roomsTable=(rooms)=>{
+    const rows=rooms.map(r=>(
+      `<tr style="border-bottom:0.5px solid #E8F4FF">`+
+      `<td style="font-size:9px;color:#1E3A5F;padding:5px 10px 5px 0">${r.name}</td>`+
+      `<td style="font-size:12px;color:#060B1A;text-align:right;padding:5px 0;white-space:nowrap;font-family:'DM Serif Display',serif">${fmt(parse(r.price))}</td>`+
+      `</tr>`
+    )).join('')
+    return `<table style="width:100%;border-collapse:collapse;margin:2px 0 4px;table-layout:fixed">${rows}</table>`
+  }
   const isSingle=(floors||[]).length===1
   const pavBlocks=isSingle
-    ?(()=>{const fl=(floors||[])[0],sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return `<div class="pb pb-full"><div class="pb-title">${fl.name}</div><div class="pr-grid-full">${(fl.rooms||[]).map(r=>`<div class="pr"><span class="prn">${r.name}</span><span class="prv">${fmt(parse(r.price))}</span></div>`).join('')}</div><div class="psub"><span class="psl">Subtotal</span><span class="psv">${fmt(sub)}</span></div></div>`})()
-    :(floors||[]).map(fl=>{const sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return `<div class="pb"><div class="pb-title">${fl.name}</div>${(fl.rooms||[]).map(r=>`<div class="pr"><span class="prn">${r.name}</span><span class="prv">${fmt(parse(r.price))}</span></div>`).join('')}<div class="psub"><span class="psl">Subtotal</span><span class="psv">${fmt(sub)}</span></div></div>`}).join('')
+    ?(()=>{const fl=(floors||[])[0],sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return `<div class="pb pb-full"><div class="pb-title">${fl.name}</div>${roomsTable(fl.rooms||[])}<div class="psub"><span class="psl">Subtotal</span><span class="psv">${fmt(sub)}</span></div></div>`})()
+    :(floors||[]).map(fl=>{const sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return `<div class="pb"><div class="pb-title">${fl.name}</div>${roomsTable(fl.rooms||[])}<div class="psub"><span class="psl">Subtotal</span><span class="psv">${fmt(sub)}</span></div></div>`}).join('')
+
+  // ── tabela por categoria ──────────────────────────────────────
+  const catTotals={}
+  ;(floors||[]).forEach(fl=>(fl.rooms||[]).forEach(r=>(r.items||[]).forEach(i=>{
+    const cat=i.category||'Outros'
+    catTotals[cat]=(catTotals[cat]||0)+(i.sale_price||0)*(parseInt(i.qty)||1)
+  })))
+  const catEntries=Object.entries(catTotals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])
+  const CAT_COLORS={'Segurança':'#DC2626','Sonorização':'#BE185D','Som':'#BE185D','Redes':'#0EA5E9','Rede':'#0EA5E9','Automação':'#059669','Gourmet':'#D97706','Elétrica':'#F59E0B','CPD':'#7C3AED','Outros':'#6B7280'}
+  const catBlock=(()=>{
+    if(!catEntries.length) return ''
+    const fsans='DM Sans,sans-serif', fserif='DM Serif Display,serif'
+    const cards=catEntries.map(([cat,val])=>{
+      const c=CAT_COLORS[cat]||'#6B7280'
+      return `<div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:0.5px solid #C8DEFF;border-radius:4px;padding:8px 12px;border-left:3px solid ${c}">`+
+        `<span style="font-size:7.5px;letter-spacing:1.5px;color:${c};text-transform:uppercase;font-family:${fsans};font-weight:500">${cat}</span>`+
+        `<span style="font-family:${fserif};font-size:13px;color:#060B1A">${fmt(val)}</span>`+
+        `</div>`
+    }).join('')
+    return `<div style="margin:4px 0 10px">`+
+      `<div style="font-size:7px;letter-spacing:3px;color:#0369A1;text-transform:uppercase;font-family:${fsans};font-weight:500;padding:10px 0 7px;margin-top:4px;border-top:0.5px solid #C8DEFF">P O R&nbsp;&nbsp;C A T E G O R I A</div>`+
+      `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">${cards}</div>`+
+      `</div>`
+  })()
 
   const totalPage=`<div class="page page-last">
     ${pageHeader()}${clientMini()}
@@ -459,6 +493,7 @@ function buildPDF(data, adminMode=false){
       <div class="tot-ey">R E S U M O D O I N V E S T I M E N T O</div>
       ${adminSummary}
       <div class="pav-grid">${pavBlocks}</div>
+      ${catBlock}
       <div class="tr"><span class="tl">Equipamentos — ${(floors||[]).length} Pavimento${(floors||[]).length>1?'s':''}</span><span class="tv">${fmt(equipTotal)}</span></div>
       <div class="tr"><span class="tl">Mão de Obra — Instalação e Programação</span><span class="tv">${fmt(laborVal)}</span></div>
       <div class="tr main"><span class="tl main">I N V E S T I M E N T O T O T A L D O P R O J E T O</span><span class="tv main">${fmt(grandTotal)}</span></div>
@@ -717,9 +752,9 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
     try {
       const previewCode = proposalCode || 'PRÉVIA'
       const cl = clients.find(c=>c.id===Number(clientId))
-      // Filter out hidden categories; recalculate r.price from visible items so totals are correct
-      // Drop rooms where visible price = 0 (sem itens ou itens sem preço) — ponto 3
-      const floorsFiltered = hiddenCateg.size === 0 ? floors : floors.map(f=>({...f,
+      // Recalcula r.price dos itens visíveis (excluindo categorias ocultas) e
+      // SEMPRE remove cômodos com valor zero — independente de haver ocultos ou não.
+      const floorsFiltered = floors.map(f=>({...f,
         rooms: f.rooms.map(r=>{
           const visItems=(r.items||[]).filter(it=>!hiddenCateg.has(it.category||'Sem categoria'))
           const visPrice=visItems.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)

@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v88 — Proposta: tabela cômodos sem colisão + tabela por categoria funcional + cômodos zerados somem
+// v88 — Proposta (buildPDF interno corrigido): tabela cômodos em 2 colunas sem colisão, tabela por categoria, cômodos zerados sempre removidos
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
