@@ -152,15 +152,13 @@ body{font-family:'DM Sans',sans-serif;background:#fff;-webkit-print-color-adjust
 .tot-body{padding:16px 24px 0;flex-shrink:0}
 .tot-ey{font-size:7px;letter-spacing:4px;color:#0369A1;text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:10px}
 
-.pav-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#C8DEFF;margin-bottom:10px}.pb-full{grid-column:1/-1}.pr-grid-full{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0}
+.pav-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#C8DEFF;margin-bottom:10px}
+.pb-full{grid-column:1/-1}
 .pb{background:#E8F4FF;padding:10px 12px}
-.pb-title{font-size:6.5px;letter-spacing:2px;color:#0369A1;text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:6px;padding-bottom:4px;border-bottom:0.5px solid #C8DEFF}
-.pr{display:flex;justify-content:space-between;align-items:baseline;padding:2px 0}
-.prn{font-size:8.5px;color:#3D5A80;font-weight:300;font-family:'DM Sans',sans-serif}
-.prv{font-family:'DM Serif Display',serif;font-size:13px;color:#060B1A}
-.psub{display:flex;justify-content:space-between;margin-top:5px;padding-top:5px;border-top:0.5px solid #0EA5E9}
-.psl{font-size:6px;letter-spacing:1.5px;color:#0369A1;text-transform:uppercase;font-family:'DM Sans',sans-serif}
-.psv{font-family:'DM Serif Display',serif;font-size:12px;color:#060B1A;font-weight:400}
+.pb-title{font-size:7px;letter-spacing:2px;color:#0369A1;text-transform:uppercase;font-family:'DM Sans',sans-serif;font-weight:600;margin-bottom:4px;padding-bottom:5px;border-bottom:0.5px solid #C8DEFF}
+.psub{display:flex;justify-content:space-between;margin-top:5px;padding-top:5px;border-top:1px solid #0EA5E9}
+.psl{font-size:6px;letter-spacing:1.5px;color:#0369A1;text-transform:uppercase;font-family:'DM Sans',sans-serif;font-weight:600}
+.psv{font-family:'DM Serif Display',serif;font-size:13px;color:#060B1A;font-weight:400}
 
 .tr{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#E8F4FF;border-left:2.5px solid #C8DEFF}
 .tr+.tr{border-top:0.5px solid #C8DEFF}
@@ -217,12 +215,12 @@ function buildPDF(data, adminMode=false){
     </div>
     <div class="hero">
       <div class="hero-ey">P R O P O S T A T É C N I C A E X C L U S I V A</div>
-      <div class="hero-h">O espaço que você merece.<br/><em>Criado com exclusividade</em> para você.</div>
-      <div class="hero-lead">Da automação ao gourmet de luxo — entregamos projetos completos com qualidade, exclusividade e atenção a cada detalhe da sua vida.</div>
+      <div class="hero-h"><em>${client_name}</em></div>
+      <div class="hero-lead" style="margin-top:4px">Projeto exclusivo de automação residencial de alto padrão — criado especialmente para você.</div>
     </div>
     <div class="client-banner">
-      <div><div class="cb-name">${client_name}</div><div class="cb-id">${proposal_code}</div></div>
-      <div class="cb-right"><div class="cb-bairro">${neighborhood}</div><div class="cb-date">${date_str}</div></div>
+      <div><div class="cb-name" style="font-size:13px;letter-spacing:1px">${neighborhood}</div><div class="cb-id">${proposal_code}</div></div>
+      <div class="cb-right"><div class="cb-bairro">${date_str}</div></div>
     </div>
     <div class="quem">
       <div class="qc lft"><span class="qi">◈</span><div class="qt">Quem Somos</div><div class="qb">Criamos experiências únicas para quem vive com estilo. Cada projeto é exclusivo, desenvolvido com atenção obsessiva aos detalhes e ao que há de melhor no mercado.</div></div>
@@ -320,10 +318,44 @@ function buildPDF(data, adminMode=false){
   const adminSummary=adminMode?(`<div style="background:#3D1A6E;padding:10px 14px;border-radius:4px;margin-bottom:12px"><div style="font-size:8px;letter-spacing:2px;color:#C084FC;text-transform:uppercase;font-family:'DM Sans',sans-serif;margin-bottom:6px">Resumo Financeiro (Admin)</div><div style="display:flex;gap:20px;flex-wrap:wrap">`+(floors||[]).map(fl=>{const cT=(fl.rooms||[]).flatMap(r=>r.items||[]).reduce((s,i)=>s+(i.cost_price||0)*(parseInt(i.qty)||1),0),sT=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0),mg=cT>0?Math.round((sT-cT)/cT*100):0;return `<div style="font-size:10px;color:#E9D5FF;font-family:'DM Sans',sans-serif">${fl.name.replace(' Pavimento','')}: <b>${fmt(cT)}</b> custo · <b style="color:#C084FC">${fmt(sT)}</b> venda · <b style="color:#86EFAC">${mg}%</b></div>`}).join('')+'</div></div>'):'';
 
   // ── totals page ───────────────────────────────────────────────
+  // Helper: tabela de cômodos com 2 colunas por bloco, colunas limpas
+  const roomsTable=(rooms)=>{
+    const rows=rooms.map(r=>(
+      `<tr style="border-bottom:0.5px solid #E8F4FF">`+
+      `<td style="font-size:9px;color:#1E3A5F;padding:5px 8px 5px 0;width:60%">${r.name}</td>`+
+      `<td style="font-size:12px;color:#060B1A;text-align:right;padding:5px 0;white-space:nowrap;font-weight:600">${fmt(parse(r.price))}</td>`+
+      `</tr>`
+    )).join('')
+    return `<table style="width:100%;border-collapse:collapse;margin:4px 0">${rows}</table>`
+  }
   const isSingle=(floors||[]).length===1
   const pavBlocks=isSingle
-    ?(()=>{const fl=(floors||[])[0],sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return `<div class="pb pb-full"><div class="pb-title">${fl.name}</div><div class="pr-grid-full">${(fl.rooms||[]).map(r=>`<div class="pr"><span class="prn">${r.name}</span><span class="prv">${fmt(parse(r.price))}</span></div>`).join('')}</div><div class="psub"><span class="psl">Subtotal</span><span class="psv">${fmt(sub)}</span></div></div>`})()
-    :(floors||[]).map(fl=>{const sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return `<div class="pb"><div class="pb-title">${fl.name}</div>${(fl.rooms||[]).map(r=>`<div class="pr"><span class="prn">${r.name}</span><span class="prv">${fmt(parse(r.price))}</span></div>`).join('')}<div class="psub"><span class="psl">Subtotal</span><span class="psv">${fmt(sub)}</span></div></div>`}).join('')
+    ?(()=>{const fl=(floors||[])[0],sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return `<div class="pb pb-full"><div class="pb-title">${fl.name}</div>${roomsTable(fl.rooms||[])}<div class="psub"><span class="psl">Subtotal</span><span class="psv">${fmt(sub)}</span></div></div>`})()
+    :(floors||[]).map(fl=>{const sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0);return `<div class="pb"><div class="pb-title">${fl.name}</div>${roomsTable(fl.rooms||[])}<div class="psub"><span class="psl">Subtotal</span><span class="psv">${fmt(sub)}</span></div></div>`}).join('')
+
+  // ── por categoria ─────────────────────────────────────────────
+  const catTotals={}
+  ;(floors||[]).forEach(fl=>(fl.rooms||[]).forEach(r=>(r.items||[]).forEach(i=>{
+    const cat=i.category||'Outros'
+    catTotals[cat]=(catTotals[cat]||0)+(i.sale_price||0)*(parseInt(i.qty)||1)
+  })))
+  const catEntries=Object.entries(catTotals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])
+  const CAT_COLORS={'Segurança':'#DC2626','Sonorização':'#BE185D','Som':'#BE185D','Redes':'#0EA5E9','Rede':'#0EA5E9','Automação':'#059669','Gourmet':'#D97706','Elétrica':'#F59E0B','CPD':'#7C3AED','Outros':'#6B7280'}
+  const catBlock=(()=>{
+    if(!catEntries.length) return ''
+    const fsans='DM Sans,sans-serif', fserif='DM Serif Display,serif'
+    const cards=catEntries.map(([cat,val])=>{
+      const c=CAT_COLORS[cat]||'#6B7280'
+      return `<div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:0.5px solid #C8DEFF;border-radius:4px;padding:8px 11px;border-left:3px solid ${c}">` +
+        `<div style="font-size:7px;letter-spacing:1.5px;color:${c};text-transform:uppercase;font-family:${fsans};font-weight:500">${cat}</div>` +
+        `<div style="font-family:${fserif};font-size:13px;color:#060B1A">${fmt(val)}</div>` +
+        `</div>`
+    }).join('')
+    return `<div style="margin:8px 0 10px">` +
+      `<div style="font-size:7px;letter-spacing:3px;color:#0369A1;text-transform:uppercase;font-family:${fsans};font-weight:500;padding:8px 0 6px;border-top:0.5px solid #C8DEFF">P O R &nbsp; C A T E G O R I A</div>` +
+      `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">${cards}</div>` +
+      `</div>`
+  })()
 
   const totalPage=`<div class="page page-last">
     ${pageHeader()}${clientMini()}
@@ -331,6 +363,7 @@ function buildPDF(data, adminMode=false){
       <div class="tot-ey">R E S U M O D O I N V E S T I M E N T O</div>
       ${adminSummary}
       <div class="pav-grid">${pavBlocks}</div>
+      ${catBlock}
       <div class="tr"><span class="tl">Equipamentos — ${(floors||[]).length} Pavimento${(floors||[]).length>1?'s':''}</span><span class="tv">${fmt(equipTotal)}</span></div>
       <div class="tr"><span class="tl">Mão de Obra — Instalação e Programação</span><span class="tv">${fmt(laborVal)}</span></div>
       <div class="tr main"><span class="tl main">I N V E S T I M E N T O T O T A L D O P R O J E T O</span><span class="tv main">${fmt(grandTotal)}</span></div>

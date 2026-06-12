@@ -718,13 +718,14 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
       const previewCode = proposalCode || 'PRÉVIA'
       const cl = clients.find(c=>c.id===Number(clientId))
       // Filter out hidden categories; recalculate r.price from visible items so totals are correct
+      // Drop rooms where visible price = 0 (sem itens ou itens sem preço) — ponto 3
       const floorsFiltered = hiddenCateg.size === 0 ? floors : floors.map(f=>({...f,
         rooms: f.rooms.map(r=>{
           const visItems=(r.items||[]).filter(it=>!hiddenCateg.has(it.category||'Sem categoria'))
           const visPrice=visItems.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
           return {...r, items:visItems, price:String(visPrice)}
-        })
-      }))
+        }).filter(r=>parse(r.price)>0)      // remove cômodos zerados/vazios
+      })).filter(f=>(f.rooms||[]).length>0) // remove pavimentos que ficaram sem cômodos
       const html = buildPDF({
         catalog,
         client_name: cl ? `${cl.name1} & ${cl.name2}` : clientName,

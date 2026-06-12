@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v86 — fix: enrichFloors enriquece category de itens antigos ao carregar catalog; ocultar categorias funciona em propostas existentes
+// v88 — Proposta: tabela cômodos sem colisão + tabela por categoria funcional + cômodos zerados somem
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v86 · build 2026-06
+          v88 · build 2026-06
         </div>
       </div>
     </div>
