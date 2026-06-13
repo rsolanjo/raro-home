@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { inferCategory } from '../taxonomy.js'
 import { saveProposal } from '../db/supabase.js'
 
-// Cor por categoria (mesma paleta do app)
+// ── Identidade visual por categoria (símbolo + cor) ──
 const CAT_STYLE = {
   'Segurança':   { color:'#DC2626', symbol:'S' },
   'Sonorização': { color:'#BE185D', symbol:'♪' },
@@ -13,7 +13,24 @@ const CAT_STYLE = {
   'Gourmet':     { color:'#D97706', symbol:'G' },
   'Elétrica':    { color:'#F59E0B', symbol:'E' },
   'CPD':         { color:'#7C3AED', symbol:'C' },
-  'Outros':      { color:'#6B7280', symbol:'?' },
+  'Outros':      { color:'#6B7280', symbol:'•' },
+}
+// símbolo mais específico por tipo de equipamento (sobrepõe o da categoria)
+function symbolForName(name=''){
+  const n=name.toLowerCase()
+  if(/c[âa]mera|dome|bullet|cftv/.test(n)) return '◉'
+  if(/nvr|gravador|dvr/.test(n)) return 'N'
+  if(/access point|ap u6|unifi|wi-?fi|roteador/.test(n)) return 'W'
+  if(/switch/.test(n)) return '⇄'
+  if(/dream machine|controladora|udm|cloud key/.test(n)) return '◆'
+  if(/keypad|bot[ãa]o|tecla/.test(n)) return 'K'
+  if(/caixa|speaker|alto-falante|som|jbl/.test(n)) return '♪'
+  if(/amplificad|receiver/.test(n)) return '≣'
+  if(/sensor/.test(n)) return '◌'
+  if(/m[óo]dulo|rel[ée]/.test(n)) return 'M'
+  if(/tomada|interruptor/.test(n)) return 'T'
+  if(/coifa|cooktop|churrasq/.test(n)) return 'G'
+  return null
 }
 function catOf(it){
   if(it.category) return it.category
@@ -21,152 +38,205 @@ function catOf(it){
   return r?.cat || 'Outros'
 }
 function styleOf(cat){ return CAT_STYLE[cat] || CAT_STYLE['Outros'] }
+function markerSymbol(m){
+  const s=symbolForName(m.itemName||m.name||'')
+  return s || styleOf(catOf(m)).symbol
+}
 const fmt = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
 
+// PDF → imagem (planta carregada)
+async function pdfToImage(base64Pdf){
+  return new Promise((resolve,reject)=>{
+    function render(){
+      const lib=window.pdfjsLib
+      lib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+      const bytes=Uint8Array.from(atob(base64Pdf),c=>c.charCodeAt(0))
+      lib.getDocument({data:bytes}).promise.then(pdf=>pdf.getPage(1)).then(page=>{
+        const vp=page.getViewport({scale:2})
+        const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height
+        page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise.then(()=>resolve(cv.toDataURL('image/jpeg',0.92))).catch(reject)
+      }).catch(reject)
+    }
+    if(window.pdfjsLib){render()}else{
+      const s=document.createElement('script')
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+      s.onload=render; s.onerror=()=>reject(new Error('pdf.js load failed'))
+      document.head.appendChild(s)
+    }
+  })
+}
+
+let MID = 1
 export default function AreaClientes({ clients=[], proposals=[], catalog=[], onRefresh, onClose }) {
-  const [selProposal, setSelProposal] = useState(null)   // proposta escolhida
+  const [selProposal, setSelProposal] = useState(null)
   const [markers, setMarkers]   = useState([])
   const [bgImage, setBgImage]   = useState(null)
   const [zoom, setZoom]         = useState(1)
   const [pan, setPan]           = useState({x:0,y:0})
-  const [showValues, setShowValues] = useState(false)    // valor de venda começa OCULTO
+  const [showValues, setShowValues] = useState(false)
   const [hiddenCats, setHiddenCats] = useState(new Set())
   const [selMarker, setSelMarker]   = useState(null)
   const [dirty, setDirty]       = useState(false)
   const [saving, setSaving]     = useState(false)
   const [dragMarker, setDragMarker] = useState(null)
   const [panning, setPanning]   = useState(null)
+  const [showEditor, setShowEditor] = useState(false)  // painel de adicionar itens (item 7)
+  const [catSearch, setCatSearch]   = useState('')
+  const [tapCount, setTapCount]     = useState(0)      // gesto discreto p/ revelar valor (item 4)
   const stageRef = useRef(null)
+  const fileRef  = useRef(null)
 
-  // Propostas que têm planta com markers (executivo montado)
   const withPlanta = proposals.filter(p=>{
-    const pd = typeof p.planta_data==='string' ? (()=>{try{return JSON.parse(p.planta_data)}catch{return null}})() : p.planta_data
-    return pd && Array.isArray(pd.markers) && pd.markers.length>0
+    const pc = parseJSON(p.planta_cliente); const pd = parseJSON(p.planta_data)
+    return (pc && pc.markers?.length) || (pd && pd.markers?.length)
   })
+  function parseJSON(v){ if(!v) return null; if(typeof v==='object') return v; try{return JSON.parse(v)}catch{return null} }
 
-  function openProposal(p){
-    // prioriza a planta salva na Área de Clientes; senão usa a do Projeto Executivo
-    const pc = typeof p.planta_cliente==='string' ? (()=>{try{return JSON.parse(p.planta_cliente)}catch{return null}})() : p.planta_cliente
-    const pdExec = typeof p.planta_data==='string' ? JSON.parse(p.planta_data) : p.planta_data
-    const pd = (pc && Array.isArray(pc.markers) && pc.markers.length) ? pc : pdExec
-    // monta markers enriquecidos com categoria e preço de venda (do catálogo)
-    const enriched = (pd.markers||[]).map(m=>{
+  function enrich(mk){
+    return (mk||[]).map(m=>{
       const cat = m.category || inferCategory(m.itemName||'').cat || 'Outros'
       const cat0 = catalog.find(c=>c.code===m.itemCode)
       const sale = m.sale_price ?? cat0?.sale_price ?? 0
-      return { ...m, category:cat, sale_price:sale }
+      return { ...m, id:m.id??MID++, category:cat, sale_price:sale }
     })
-    setSelProposal(p); setBgImage(pd.image||null); setMarkers(enriched)
-    setZoom(1); setPan({x:0,y:0}); setShowValues(false); setHiddenCats(new Set()); setSelMarker(null); setDirty(false)
+  }
+  function openProposal(p){
+    const pc = parseJSON(p.planta_cliente), pdExec = parseJSON(p.planta_data)
+    const pd = (pc && pc.markers?.length) ? pc : (pdExec||{})
+    setSelProposal(p); setBgImage(pd.image||null); setMarkers(enrich(pd.markers))
+    setZoom(1); setPan({x:0,y:0}); setShowValues(false); setHiddenCats(new Set())
+    setSelMarker(null); setDirty(false); setShowEditor(false); setTapCount(0)
   }
 
-  // ── Zoom com a roda do mouse ──
-  function onWheel(e){
-    if(!bgImage) return
-    e.preventDefault()
-    const delta = e.deltaY<0 ? 0.12 : -0.12
-    setZoom(z=>Math.min(4, Math.max(0.4, +(z+delta).toFixed(2))))
-  }
-
-  // ── Pan (arrastar a planta) ──
-  function onStageMouseDown(e){
-    if(e.target.closest('.mk')) return // clicou num marker
-    setPanning({sx:e.clientX, sy:e.clientY, ox:pan.x, oy:pan.y})
-  }
+  function onWheel(e){ if(!bgImage) return; e.preventDefault(); const d=e.deltaY<0?0.12:-0.12; setZoom(z=>Math.min(4,Math.max(0.4,+(z+d).toFixed(2)))) }
+  function onStageMouseDown(e){ if(e.target.closest('.mk')) return; setPanning({sx:e.clientX,sy:e.clientY,ox:pan.x,oy:pan.y}) }
   const onMouseMove = useCallback((e)=>{
     if(dragMarker){
-      const rect = stageRef.current.getBoundingClientRect()
-      const x = ((e.clientX - rect.left - pan.x)/(rect.width*zoom))*100
-      const y = ((e.clientY - rect.top - pan.y)/(rect.height*zoom))*100
-      setMarkers(ms=>ms.map(m=>m.id===dragMarker?{...m,x:Math.max(0,Math.min(100,x)),y:Math.max(0,Math.min(100,y))}:m))
-      setDirty(true)
-    } else if(panning){
-      setPan({x:panning.ox+(e.clientX-panning.sx), y:panning.oy+(e.clientY-panning.sy)})
-    }
-  },[dragMarker, panning, pan, zoom])
+      const rect=stageRef.current.getBoundingClientRect()
+      const x=((e.clientX-rect.left-pan.x)/(rect.width*zoom))*100
+      const y=((e.clientY-rect.top-pan.y)/(rect.height*zoom))*100
+      setMarkers(ms=>ms.map(m=>m.id===dragMarker?{...m,x:Math.max(0,Math.min(100,x)),y:Math.max(0,Math.min(100,y))}:m)); setDirty(true)
+    } else if(panning){ setPan({x:panning.ox+(e.clientX-panning.sx),y:panning.oy+(e.clientY-panning.sy)}) }
+  },[dragMarker,panning,pan,zoom])
   const onMouseUp = useCallback(()=>{ setDragMarker(null); setPanning(null) },[])
   useEffect(()=>{
     if(dragMarker||panning){
-      window.addEventListener('mousemove', onMouseMove)
-      window.addEventListener('mouseup', onMouseUp)
-      return ()=>{ window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp) }
+      window.addEventListener('mousemove',onMouseMove); window.addEventListener('mouseup',onMouseUp)
+      return ()=>{ window.removeEventListener('mousemove',onMouseMove); window.removeEventListener('mouseup',onMouseUp) }
     }
-  },[dragMarker, panning, onMouseMove, onMouseUp])
+  },[dragMarker,panning,onMouseMove,onMouseUp])
 
-  // categorias presentes
   const cats = [...new Set(markers.map(m=>catOf(m)))].sort()
   const visMarkers = markers.filter(m=>!hiddenCats.has(catOf(m)))
   const toggleCat = c => setHiddenCats(s=>{ const n=new Set(s); n.has(c)?n.delete(c):n.add(c); return n })
-
-  // total de venda (só visíveis)
   const totalVenda = visMarkers.reduce((s,m)=>s+(m.sale_price||0)*(parseInt(m.qty)||1),0)
 
-  // ── Salvar: grava planta_data nova SEM tocar no exec_doc ──
-  async function salvar(){
-    if(!selProposal) return
-    setSaving(true)
-    try {
-      // grava numa cópia SEPARADA (planta_cliente) — não altera a planta_data do Projeto Executivo
-      const updated = { ...selProposal, planta_cliente:{ image:bgImage, markers, updatedAt:new Date().toISOString() } }
-      const saved = await saveProposal(updated)
-      setSelProposal(saved||updated); setDirty(false)
-      alert('✓ Alterações salvas na Área de Clientes.\nO Projeto Executivo NÃO foi alterado.')
-      onRefresh && onRefresh()
-    } catch(e){ alert('Erro ao salvar: '+e.message) }
-    finally{ setSaving(false) }
+  // ── Gesto discreto p/ revelar valor (item 4): 3 toques rápidos no canto inferior direito ──
+  function discreteTap(){
+    setTapCount(c=>{
+      const n=c+1
+      if(n>=3){ setShowValues(v=>!v); return 0 }
+      setTimeout(()=>setTapCount(0),1200)
+      return n
+    })
   }
 
-  // ── Importar para o Projeto Executivo: substitui o vigente ──
+  // ── Carregar planta: upload de arquivo (item 5) ──
+  function triggerUpload(){ fileRef.current?.click() }
+  function handleFile(e){
+    const file=e.target.files[0]; if(!file) return
+    const reader=new FileReader()
+    reader.onload=async ev=>{
+      const dataUrl=ev.target.result
+      if(file.type==='application/pdf'){
+        try{ setBgImage(await pdfToImage(dataUrl.split(',')[1])) }catch(err){ alert('Erro ao ler PDF: '+err.message); return }
+      } else setBgImage(dataUrl)
+      setDirty(true)
+    }
+    reader.readAsDataURL(file)
+  }
+  // ── Puxar planta do cadastro do cliente (item 5) ──
+  function plantaDoCliente(){
+    const c=clients.find(x=>x.id===Number(selProposal?.client_id))
+    const med=c?.planta_medidas?.data, ele=c?.planta_eletrica?.data
+    if(!med && !ele){ alert('Este cliente não tem plantas salvas no cadastro.'); return }
+    let escolha=null
+    if(med && ele) escolha = window.confirm('Cliente tem 2 plantas.\n\nOK = MEDIDAS\nCancelar = ELÉTRICA') ? c.planta_medidas : c.planta_eletrica
+    else escolha = med ? c.planta_medidas : c.planta_eletrica
+    if(!escolha?.data) return
+    ;(async()=>{
+      if(escolha.type==='application/pdf' || /pdf/i.test(escolha.type||'')){
+        try{ setBgImage(await pdfToImage(escolha.data.split(',')[1])); setDirty(true) }catch(err){ alert('Erro ao ler PDF: '+err.message) }
+      } else { setBgImage(escolha.data); setDirty(true) }
+    })()
+  }
+
+  // ── Adicionar item do catálogo na planta (item 7) ──
+  function addItem(cat0){
+    const inf=inferCategory(cat0.name||'')
+    setMarkers(ms=>[...ms,{ id:MID++, x:50, y:50, itemCode:cat0.code, itemName:cat0.name,
+      room:'', qty:1, note:'', category:inf?.cat||'Outros', sale_price:cat0.sale_price||0 }])
+    setDirty(true)
+  }
+  function removeMarker(id){ setMarkers(ms=>ms.filter(m=>m.id!==id)); setSelMarker(null); setDirty(true) }
+
+  // ── Salvar (não mexe no executivo) ──
+  async function salvar(){
+    if(!selProposal) return; setSaving(true)
+    try{
+      const updated={...selProposal, planta_cliente:{image:bgImage,markers,updatedAt:new Date().toISOString()}}
+      const saved=await saveProposal(updated); setSelProposal(saved||updated); setDirty(false)
+      alert('✓ Salvo na Área de Clientes.\nO Projeto Executivo NÃO foi alterado.'); onRefresh&&onRefresh()
+    }catch(e){ alert('Erro ao salvar: '+e.message) } finally{ setSaving(false) }
+  }
+  // ── Importar para o Projeto Executivo (substitui) ──
   async function importarParaExec(){
     if(!selProposal) return
-    if(!window.confirm('Isto vai SUBSTITUIR a planta do Projeto Executivo vigente desta proposta pelos itens posicionados aqui. Continuar?')) return
+    if(!window.confirm('Isto vai SUBSTITUIR a planta do Projeto Executivo vigente pelos itens posicionados aqui. Continuar?')) return
     setSaving(true)
-    try {
-      const pd = typeof selProposal.planta_data==='string' ? JSON.parse(selProposal.planta_data) : (selProposal.planta_data||{})
-      // substitui a planta do executivo (image + markers viram a planta oficial)
-      const updated = { ...selProposal, planta_data:{ ...pd, image:bgImage, markers, importedFromClientArea:new Date().toISOString() } }
-      const saved = await saveProposal(updated)
-      setSelProposal(saved||updated); setDirty(false)
-      alert('✓ Planta importada para o Projeto Executivo. O executivo agora reflete o que você posicionou aqui.')
-      onRefresh && onRefresh()
-    } catch(e){ alert('Erro ao importar: '+e.message) }
-    finally{ setSaving(false) }
+    try{
+      const pd=parseJSON(selProposal.planta_data)||{}
+      const updated={...selProposal, planta_data:{...pd,image:bgImage,markers,importedFromClientArea:new Date().toISOString()}}
+      const saved=await saveProposal(updated); setSelProposal(saved||updated); setDirty(false)
+      alert('✓ Planta importada para o Projeto Executivo.'); onRefresh&&onRefresh()
+    }catch(e){ alert('Erro ao importar: '+e.message) } finally{ setSaving(false) }
   }
 
-  const clientName = (p)=>{
-    if(p.client_name) return p.client_name
-    const c=clients.find(x=>x.id===Number(p.client_id))
-    return c?`${c.name1}${c.name2?' & '+c.name2:''}`:'Cliente'
-  }
+  const clientName = (p)=>{ if(p.client_name) return p.client_name; const c=clients.find(x=>x.id===Number(p.client_id)); return c?`${c.name1}${c.name2?' & '+c.name2:''}`:'Cliente' }
 
-  // ─────────────────────────────────────────────────────────────
-  // TELA DE SELEÇÃO (quando nenhuma proposta aberta)
-  // ─────────────────────────────────────────────────────────────
+  // catálogo agrupado por categoria (para o painel de adicionar)
+  const catalogGroups = (()=>{
+    const q=catSearch.trim().toLowerCase()
+    const g={}
+    catalog.filter(c=>!q||c.name?.toLowerCase().includes(q)).forEach(c=>{
+      const cat=inferCategory(c.name||'').cat||'Outros'
+      ;(g[cat]=g[cat]||[]).push(c)
+    })
+    return g
+  })()
+
+  // ───────── TELA DE SELEÇÃO ─────────
   if(!selProposal){
     return (
-      <div style={{position:'fixed',inset:0,zIndex:9999,background:'#0A0F16',color:'#E2E8F0',display:'flex',flexDirection:'column'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 24px',borderBottom:'1px solid rgba(148,163,184,0.15)'}}>
+      <div style={SC.full}>
+        <div style={SC.topbar}>
           <div style={{fontFamily:"'DM Serif Display',serif",fontSize:20,letterSpacing:2}}>Área de Clientes</div>
-          <button onClick={onClose} style={{background:'none',border:'1px solid rgba(148,163,184,0.3)',color:'#94A3B8',borderRadius:8,padding:'8px 16px',cursor:'pointer',fontSize:13}}>✕ Sair</button>
+          <button onClick={onClose} style={SC.ghost}>✕ Sair</button>
         </div>
         <div style={{flex:1,overflowY:'auto',padding:'28px 24px',maxWidth:760,margin:'0 auto',width:'100%'}}>
-          <div style={{fontSize:13,color:'#94A3B8',marginBottom:20}}>Selecione um cliente para abrir a planta do projeto e apresentar na tela. Mostra apenas projetos que já têm a planta montada.</div>
+          <div style={{fontSize:13,color:'#94A3B8',marginBottom:20}}>Selecione um cliente para abrir a planta e apresentar na tela.</div>
           {withPlanta.length===0
-            ? <div style={{textAlign:'center',color:'#64748B',padding:'60px 20px',fontSize:14}}>Nenhum projeto com planta montada ainda.<br/>Monte a planta no Projeto Executivo de uma proposta primeiro.</div>
+            ? <div style={{textAlign:'center',color:'#64748B',padding:'60px 20px',fontSize:14}}>Nenhum projeto com planta montada ainda.</div>
             : <div style={{display:'grid',gap:12}}>
               {withPlanta.map(p=>{
-                const pd=typeof p.planta_data==='string'?JSON.parse(p.planta_data):p.planta_data
-                const nMarkers=(pd.markers||[]).length
-                return <button key={p.id} onClick={()=>openProposal(p)}
-                  style={{display:'flex',alignItems:'center',gap:16,background:'#131A26',border:'1px solid rgba(148,163,184,0.15)',borderRadius:12,padding:'16px 20px',cursor:'pointer',textAlign:'left',color:'#E2E8F0',transition:'border-color .2s'}}
-                  onMouseEnter={e=>e.currentTarget.style.borderColor='#C9A268'}
-                  onMouseLeave={e=>e.currentTarget.style.borderColor='rgba(148,163,184,0.15)'}>
-                  <div style={{width:44,height:44,borderRadius:10,background:'rgba(201,162,104,0.12)',border:'1px solid rgba(201,162,104,0.3)',display:'flex',alignItems:'center',justifyContent:'center',color:'#E8CFA0',fontSize:18,flexShrink:0}}>
-                    <i className="ti ti-map-2" aria-hidden/>
-                  </div>
+                const pc=parseJSON(p.planta_cliente),pd=parseJSON(p.planta_data)
+                const nM=((pc&&pc.markers?.length)?pc.markers:(pd?.markers||[])).length
+                return <button key={p.id} onClick={()=>openProposal(p)} style={SC.card}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor='#C9A268'} onMouseLeave={e=>e.currentTarget.style.borderColor='rgba(148,163,184,0.15)'}>
+                  <div style={SC.cardIcon}><i className="ti ti-map-2" aria-hidden/></div>
                   <div style={{flex:1}}>
                     <div style={{fontSize:16,fontWeight:600}}>{clientName(p)}</div>
-                    <div style={{fontSize:12,color:'#94A3B8'}}>{p.code||'—'} · {p.neighborhood||''} · {nMarkers} itens na planta</div>
+                    <div style={{fontSize:12,color:'#94A3B8'}}>{p.code||'—'} · {p.neighborhood||''} · {nM} itens</div>
                   </div>
                   <i className="ti ti-chevron-right" style={{color:'#64748B'}} aria-hidden/>
                 </button>
@@ -177,44 +247,40 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
     )
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // MODO APRESENTAÇÃO (planta aberta)
-  // ─────────────────────────────────────────────────────────────
+  // ───────── MODO APRESENTAÇÃO ─────────
   return (
-    <div style={{position:'fixed',inset:0,zIndex:9999,background:'#0A0F16',color:'#E2E8F0',display:'flex',flexDirection:'column',userSelect:'none'}}>
+    <div style={{...SC.full,userSelect:'none'}}>
+      <input ref={fileRef} type="file" accept="image/*,application/pdf,.pdf" style={{display:'none'}} onChange={handleFile}/>
       {/* Topo */}
-      <div style={{display:'flex',alignItems:'center',gap:14,padding:'12px 20px',borderBottom:'1px solid rgba(148,163,184,0.15)',flexShrink:0}}>
-        <button onClick={()=>{ if(dirty&&!window.confirm('Há alterações não salvas. Sair mesmo assim?'))return; setSelProposal(null) }}
-          style={{background:'none',border:'1px solid rgba(148,163,184,0.3)',color:'#94A3B8',borderRadius:8,padding:'7px 12px',cursor:'pointer',fontSize:12}}>‹ Clientes</button>
+      <div style={{...SC.topbar,gap:14}}>
+        <button onClick={()=>{ if(dirty&&!window.confirm('Há alterações não salvas. Sair mesmo assim?'))return; setSelProposal(null) }} style={SC.ghost}>‹ Clientes</button>
         <div style={{flex:1}}>
           <div style={{fontFamily:"'DM Serif Display',serif",fontSize:18}}>{clientName(selProposal)}</div>
-          <div style={{fontSize:11,color:'#94A3B8'}}>{selProposal.code||''} · {visMarkers.length} itens visíveis</div>
+          <div style={{fontSize:11,color:'#94A3B8'}}>{selProposal.code||''} · {visMarkers.length} itens visíveis{showValues&&<span style={{color:'#E8CFA0'}}> · {fmt(totalVenda)}</span>}</div>
         </div>
-        {/* valor de venda — começa oculto */}
-        <button onClick={()=>setShowValues(v=>!v)} title={showValues?'Ocultar valor':'Revelar valor de venda'}
-          style={{display:'flex',alignItems:'center',gap:8,background:showValues?'rgba(201,162,104,0.15)':'none',border:'1px solid rgba(201,162,104,0.4)',color:'#E8CFA0',borderRadius:8,padding:'7px 14px',cursor:'pointer',fontSize:13}}>
-          <i className={showValues?'ti ti-eye':'ti ti-eye-off'} aria-hidden/>
-          {showValues ? fmt(totalVenda) : 'Ver valor'}
+        <button onClick={()=>setShowEditor(s=>!s)} title="Adicionar itens" style={{...SC.ghost,color:showEditor?'#E8CFA0':'#94A3B8',borderColor:showEditor?'rgba(201,162,104,0.5)':'rgba(148,163,184,0.3)'}}>
+          <i className="ti ti-plus" aria-hidden/> Itens
         </button>
-        <button onClick={onClose} style={{background:'none',border:'1px solid rgba(148,163,184,0.3)',color:'#94A3B8',borderRadius:8,padding:'7px 12px',cursor:'pointer',fontSize:12}}>✕ Sair</button>
+        <button onClick={triggerUpload} title="Carregar planta" style={SC.ghost}><i className="ti ti-upload" aria-hidden/> Planta</button>
+        <button onClick={plantaDoCliente} title="Puxar planta do cadastro" style={SC.ghost}><i className="ti ti-folder" aria-hidden/> Cadastro</button>
+        <button onClick={onClose} style={SC.ghost}>✕ Sair</button>
       </div>
 
       <div style={{flex:1,display:'flex',minHeight:0}}>
-        {/* Sidebar de categorias */}
+        {/* Sidebar categorias */}
         <div style={{width:210,borderRight:'1px solid rgba(148,163,184,0.15)',padding:'16px 14px',overflowY:'auto',flexShrink:0}}>
-          <div style={{fontSize:10,letterSpacing:2,textTransform:'uppercase',color:'#64748B',marginBottom:10}}>Categorias</div>
+          <div style={SC.sectLabel}>Categorias</div>
           {cats.map(c=>{
             const st=styleOf(c); const n=markers.filter(m=>catOf(m)===c).length; const off=hiddenCats.has(c)
-            return <button key={c} onClick={()=>toggleCat(c)}
-              style={{display:'flex',alignItems:'center',gap:9,width:'100%',background:'none',border:'none',padding:'7px 6px',cursor:'pointer',borderRadius:6,opacity:off?0.4:1,color:'#E2E8F0',textAlign:'left'}}>
-              <span style={{width:18,height:18,borderRadius:'50%',background:st.color,color:'#fff',fontSize:9,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{st.symbol}</span>
+            return <button key={c} onClick={()=>toggleCat(c)} style={{display:'flex',alignItems:'center',gap:9,width:'100%',background:'none',border:'none',padding:'7px 6px',cursor:'pointer',borderRadius:6,opacity:off?0.4:1,color:'#E2E8F0',textAlign:'left'}}>
+              <span style={{width:18,height:18,borderRadius:'50%',background:st.color,color:'#fff',fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{st.symbol}</span>
               <span style={{flex:1,fontSize:12.5}}>{c}</span>
               <span style={{fontSize:11,color:'#64748B'}}>{n}</span>
               <i className={off?'ti ti-eye-off':'ti ti-eye'} style={{fontSize:13,color:'#64748B'}} aria-hidden/>
             </button>
           })}
           {showValues && <div style={{marginTop:16,paddingTop:14,borderTop:'1px solid rgba(148,163,184,0.15)'}}>
-            <div style={{fontSize:10,letterSpacing:2,textTransform:'uppercase',color:'#64748B',marginBottom:8}}>Valor por categoria</div>
+            <div style={SC.sectLabel}>Valor por categoria</div>
             {cats.filter(c=>!hiddenCats.has(c)).map(c=>{
               const v=markers.filter(m=>catOf(m)===c).reduce((s,m)=>s+(m.sale_price||0)*(parseInt(m.qty)||1),0)
               return <div key={c} style={{display:'flex',justifyContent:'space-between',fontSize:11.5,padding:'2px 0',color:'#CBD5E1'}}><span>{c}</span><span>{fmt(v)}</span></div>
@@ -222,55 +288,97 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
           </div>}
         </div>
 
-        {/* Palco da planta */}
-        <div ref={stageRef} onWheel={onWheel} onMouseDown={onStageMouseDown}
-          style={{flex:1,overflow:'hidden',position:'relative',background:'#0E1622',cursor:panning?'grabbing':'grab'}}>
+        {/* Palco */}
+        <div ref={stageRef} onWheel={onWheel} onMouseDown={onStageMouseDown} style={{flex:1,overflow:'hidden',position:'relative',background:'#0E1622',cursor:panning?'grabbing':'grab'}}>
           {!bgImage
-            ? <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',color:'#64748B',fontSize:14}}>Esta proposta não tem imagem de planta.</div>
+            ? <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',gap:14,alignItems:'center',justifyContent:'center',color:'#64748B',fontSize:14}}>
+                <i className="ti ti-map-off" style={{fontSize:32}} aria-hidden/>
+                Sem planta carregada.
+                <div style={{display:'flex',gap:10}}>
+                  <button onClick={triggerUpload} style={SC.gold}><i className="ti ti-upload" aria-hidden/> Carregar planta</button>
+                  <button onClick={plantaDoCliente} style={SC.ghost}><i className="ti ti-folder" aria-hidden/> Puxar do cadastro</button>
+                </div>
+              </div>
             : <div style={{position:'absolute',left:'50%',top:'50%',transform:`translate(-50%,-50%) translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:'center center',transition:panning||dragMarker?'none':'transform .12s'}}>
               <div style={{position:'relative',display:'inline-block'}}>
                 <img src={bgImage} draggable={false} style={{display:'block',maxWidth:'min(86vw,1200px)',maxHeight:'82vh',pointerEvents:'none'}}/>
                 {visMarkers.map(m=>{
                   const st=styleOf(catOf(m)); const sel=selMarker===m.id
-                  return <div key={m.id} className="mk"
-                    onMouseDown={e=>{ e.stopPropagation(); setSelMarker(m.id); setDragMarker(m.id) }}
+                  return <div key={m.id} className="mk" onMouseDown={e=>{ e.stopPropagation(); setSelMarker(m.id); setDragMarker(m.id) }}
                     style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:10,cursor:'move'}}>
-                    <div style={{width:24,height:24,borderRadius:'50%',background:st.color,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,border:`2px solid ${sel?'#E8CFA0':'#fff'}`,boxShadow:'0 1px 5px rgba(0,0,0,0.5)'}}>{st.symbol}</div>
-                    {sel && <div style={{position:'absolute',left:28,top:-4,background:'rgba(10,15,22,0.95)',border:`1px solid ${st.color}`,borderRadius:5,padding:'4px 8px',whiteSpace:'nowrap',fontSize:11,color:'#E2E8F0',boxShadow:'0 2px 8px rgba(0,0,0,0.5)'}}>
+                    <div style={{width:26,height:26,borderRadius:'50%',background:st.color,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,border:`2px solid ${sel?'#E8CFA0':'#fff'}`,boxShadow:'0 1px 5px rgba(0,0,0,0.5)'}}>{markerSymbol(m)}</div>
+                    {sel && <div style={{position:'absolute',left:30,top:-4,background:'rgba(10,15,22,0.96)',border:`1px solid ${st.color}`,borderRadius:5,padding:'5px 9px',whiteSpace:'nowrap',fontSize:11,color:'#E2E8F0',boxShadow:'0 2px 8px rgba(0,0,0,0.5)'}}>
                       {m.qty>1?m.qty+'× ':''}{m.itemName}
                       {showValues && <span style={{color:'#E8CFA0',marginLeft:6}}>{fmt((m.sale_price||0)*(parseInt(m.qty)||1))}</span>}
                       {m.room && <div style={{fontSize:9,color:'#94A3B8'}}>{m.room}</div>}
+                      <button onClick={()=>removeMarker(m.id)} title="Remover" style={{marginTop:4,background:'none',border:'1px solid #DC2626',color:'#F87171',borderRadius:4,fontSize:9,padding:'1px 6px',cursor:'pointer'}}>remover</button>
                     </div>}
                   </div>
                 })}
               </div>
             </div>}
 
-          {/* controles de zoom */}
+          {/* zoom */}
           <div style={{position:'absolute',right:16,bottom:16,display:'flex',flexDirection:'column',gap:6}}>
-            <button onClick={()=>setZoom(z=>Math.min(4,+(z+0.2).toFixed(2)))} style={zbtn}>+</button>
+            <button onClick={()=>setZoom(z=>Math.min(4,+(z+0.2).toFixed(2)))} style={SC.zbtn}>+</button>
             <div style={{textAlign:'center',fontSize:10,color:'#94A3B8'}}>{Math.round(zoom*100)}%</div>
-            <button onClick={()=>setZoom(z=>Math.max(0.4,+(z-0.2).toFixed(2)))} style={zbtn}>−</button>
-            <button onClick={()=>{setZoom(1);setPan({x:0,y:0})}} title="Resetar" style={{...zbtn,fontSize:13}}><i className="ti ti-focus-2" aria-hidden/></button>
+            <button onClick={()=>setZoom(z=>Math.max(0.4,+(z-0.2).toFixed(2)))} style={SC.zbtn}>−</button>
+            <button onClick={()=>{setZoom(1);setPan({x:0,y:0})}} title="Resetar" style={{...SC.zbtn,fontSize:13}}><i className="ti ti-focus-2" aria-hidden/></button>
           </div>
-          <div style={{position:'absolute',left:16,bottom:16,fontSize:11,color:'#64748B'}}>Arraste a planta para mover · role para zoom · arraste os pontos para reposicionar</div>
+          <div style={{position:'absolute',left:16,bottom:16,fontSize:11,color:'#64748B'}}>Arraste a planta · role para zoom · arraste os pontos</div>
+          {/* gesto discreto p/ revelar valor (item 4): área quase invisível no canto inferior direito */}
+          <div onClick={discreteTap} title="" style={{position:'absolute',right:0,bottom:0,width:46,height:46,cursor:'default',opacity:0}}/>
         </div>
+
+        {/* Painel ADICIONAR ITENS (item 7) */}
+        {showEditor && <div style={{width:280,borderLeft:'1px solid rgba(148,163,184,0.15)',display:'flex',flexDirection:'column',flexShrink:0}}>
+          <div style={{padding:'12px 14px',borderBottom:'1px solid rgba(148,163,184,0.15)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span style={{fontSize:13,fontWeight:600}}>Adicionar itens</span>
+            <button onClick={()=>setShowEditor(false)} style={{background:'none',border:'none',color:'#64748B',cursor:'pointer',fontSize:16}}>×</button>
+          </div>
+          <div style={{padding:'10px 12px'}}>
+            <input value={catSearch} onChange={e=>setCatSearch(e.target.value)} placeholder="Buscar no catálogo..."
+              style={{width:'100%',background:'#0E1622',border:'1px solid rgba(148,163,184,0.25)',borderRadius:8,padding:'8px 10px',color:'#E2E8F0',fontSize:12.5}}/>
+          </div>
+          <div style={{flex:1,overflowY:'auto',padding:'0 8px 12px'}}>
+            {Object.keys(catalogGroups).length===0 && <div style={{color:'#64748B',fontSize:12,padding:'12px',textAlign:'center'}}>Nada encontrado.</div>}
+            {Object.entries(catalogGroups).map(([grp,items])=>{
+              const st=styleOf(grp)
+              return <div key={grp} style={{marginBottom:8}}>
+                <div style={{display:'flex',alignItems:'center',gap:7,padding:'7px 8px',fontSize:10,letterSpacing:1,textTransform:'uppercase',color:'#94A3B8'}}>
+                  <span style={{width:14,height:14,borderRadius:'50%',background:st.color,color:'#fff',fontSize:8,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center'}}>{st.symbol}</span>{grp}
+                </div>
+                {items.slice(0,40).map((it,i)=>(
+                  <button key={i} onClick={()=>addItem(it)} title="Adicionar no centro da planta"
+                    style={{display:'flex',alignItems:'center',gap:8,width:'100%',background:'none',border:'none',padding:'6px 8px',cursor:'pointer',borderRadius:6,color:'#E2E8F0',textAlign:'left',fontSize:12}}
+                    onMouseEnter={e=>e.currentTarget.style.background='rgba(148,163,184,0.08)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                    <i className="ti ti-plus" style={{fontSize:13,color:'#64748B'}} aria-hidden/>
+                    <span style={{flex:1}}>{it.name}</span>
+                  </button>
+                ))}
+              </div>
+            })}
+          </div>
+        </div>}
       </div>
 
-      {/* Rodapé com ações */}
+      {/* Rodapé */}
       <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 20px',borderTop:'1px solid rgba(148,163,184,0.15)',flexShrink:0}}>
         <div style={{flex:1,fontSize:12,color:'#94A3B8'}}>{dirty?'● Alterações não salvas':'Sem alterações pendentes'}</div>
-        <button onClick={salvar} disabled={saving||!dirty}
-          style={{background:'none',border:'1px solid rgba(148,163,184,0.4)',color:dirty?'#E2E8F0':'#64748B',borderRadius:8,padding:'9px 18px',cursor:dirty?'pointer':'default',fontSize:13,display:'flex',alignItems:'center',gap:7}}>
-          <i className="ti ti-device-floppy" aria-hidden/>Salvar
-        </button>
-        <button onClick={importarParaExec} disabled={saving}
-          style={{background:'#C9A268',border:'none',color:'#0A0F16',borderRadius:8,padding:'9px 20px',cursor:'pointer',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:7}}>
-          <i className="ti ti-file-import" aria-hidden/>Importar para Projeto Executivo
-        </button>
+        <button onClick={salvar} disabled={saving||!dirty} style={{...SC.ghost,color:dirty?'#E2E8F0':'#64748B',cursor:dirty?'pointer':'default'}}><i className="ti ti-device-floppy" aria-hidden/> Salvar</button>
+        <button onClick={importarParaExec} disabled={saving} style={SC.gold}><i className="ti ti-file-import" aria-hidden/> Importar para Projeto Executivo</button>
       </div>
     </div>
   )
 }
 
-const zbtn = { width:36,height:36,borderRadius:8,background:'rgba(19,26,38,0.9)',border:'1px solid rgba(148,163,184,0.3)',color:'#E2E8F0',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center' }
+const SC = {
+  full:{position:'fixed',inset:0,zIndex:9999,background:'#0A0F16',color:'#E2E8F0',display:'flex',flexDirection:'column'},
+  topbar:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 20px',borderBottom:'1px solid rgba(148,163,184,0.15)',flexShrink:0},
+  ghost:{background:'none',border:'1px solid rgba(148,163,184,0.3)',color:'#94A3B8',borderRadius:8,padding:'7px 12px',cursor:'pointer',fontSize:12,display:'inline-flex',alignItems:'center',gap:6},
+  gold:{background:'#C9A268',border:'none',color:'#0A0F16',borderRadius:8,padding:'9px 18px',cursor:'pointer',fontSize:13,fontWeight:600,display:'inline-flex',alignItems:'center',gap:7},
+  card:{display:'flex',alignItems:'center',gap:16,background:'#131A26',border:'1px solid rgba(148,163,184,0.15)',borderRadius:12,padding:'16px 20px',cursor:'pointer',textAlign:'left',color:'#E2E8F0',transition:'border-color .2s'},
+  cardIcon:{width:44,height:44,borderRadius:10,background:'rgba(201,162,104,0.12)',border:'1px solid rgba(201,162,104,0.3)',display:'flex',alignItems:'center',justifyContent:'center',color:'#E8CFA0',fontSize:18,flexShrink:0},
+  sectLabel:{fontSize:10,letterSpacing:2,textTransform:'uppercase',color:'#64748B',marginBottom:10},
+  zbtn:{width:36,height:36,borderRadius:8,background:'rgba(19,26,38,0.9)',border:'1px solid rgba(148,163,184,0.3)',color:'#E2E8F0',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'},
+}

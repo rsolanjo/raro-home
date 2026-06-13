@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v97 — Área de Clientes: modo apresentação em tela cheia (oculta menus), planta com markers, zoom/pan, mover itens, filtro por categoria, valor de venda oculto com botão revelar (nunca custo), Salvar (planta_cliente, não altera executivo) e Importar para Projeto Executivo
+// v98 — Resumo ao salvar com qtd E valor por cômodo/categoria (acompanha ocultas); estudo de esforço de M.O. aprofundado com i por categoria (piso+volume+espalhamento+itens complexos); Área de Clientes: ícones por categoria, ver valor discreto (3 toques no canto), importar/puxar planta do cadastro, menu editor p/ adicionar itens
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v97 · build 2026-06
+          v98 · build 2026-06
         </div>
       </div>
     </div>

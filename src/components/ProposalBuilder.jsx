@@ -651,19 +651,32 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
   // passagem de cabo, fixação em altura ou configuração de rede pesam mais.
   // Some-se um piso mínimo por categoria (deslocamento + setup).
   const LABOR_RULES = {
-    // base = R$ por item · piso = mínimo da categoria · desc = critério exibido no "i"
-    'Automação':   { base: 90,  piso: 350, desc: 'Cada ponto exige módulo, configuração de cena e integração ao hub.' },
-    'Redes':       { base: 70,  piso: 300, desc: 'Lançamento e crimpagem de cabo, configuração de APs e VLAN.' },
-    'Rede':        { base: 70,  piso: 300, desc: 'Lançamento e crimpagem de cabo, configuração de APs e VLAN.' },
-    'Sonorização': { base: 110, piso: 400, desc: 'Embutir caixas, calibrar zonas e integrar ao sistema de áudio.' },
-    'Som':         { base: 110, piso: 400, desc: 'Embutir caixas, calibrar zonas e integrar ao sistema de áudio.' },
-    'Segurança':   { base: 100, piso: 350, desc: 'Fixação de câmeras (muitas vezes em altura), foco e gravação.' },
-    'Gourmet':     { base: 130, piso: 300, desc: 'Instalação de coifa/churrasqueira e integração elétrica.' },
-    'Elétrica':    { base: 60,  piso: 250, desc: 'Pontos elétricos, quadros e proteção.' },
-    'CPD':         { base: 80,  piso: 500, desc: 'Montagem e organização do rack, energização e etiquetagem.' },
-    'Outros':      { base: 70,  piso: 200, desc: 'Instalação e configuração geral.' },
+    // base   = R$ por item (mão de obra unitária típica)
+    // piso   = mínimo da categoria (deslocamento + setup inicial)
+    // spread = R$ por cômodo adicional onde a categoria aparece (mais cabeamento/deslocamento)
+    // label  = nome curto p/ explicação
+    'Automação':   { base: 95,  piso: 350, spread: 60, label:'Automação' },
+    'Redes':       { base: 75,  piso: 300, spread: 80, label:'Redes' },
+    'Rede':        { base: 75,  piso: 300, spread: 80, label:'Redes' },
+    'Sonorização': { base: 120, piso: 400, spread: 70, label:'Sonorização' },
+    'Som':         { base: 120, piso: 400, spread: 70, label:'Sonorização' },
+    'Segurança':   { base: 105, piso: 350, spread: 65, label:'Segurança' },
+    'Gourmet':     { base: 140, piso: 300, spread: 40, label:'Gourmet' },
+    'Elétrica':    { base: 65,  piso: 250, spread: 50, label:'Elétrica' },
+    'CPD':         { base: 85,  piso: 500, spread: 0,  label:'CPD / Rack' },
+    'Outros':      { base: 70,  piso: 200, spread: 30, label:'Outros' },
   }
-  // Conta itens (somando qty) por categoria
+  // Itens "complexos" (nome casa regex) recebem um peso extra de mão de obra
+  const COMPLEX_RULES = [
+    { re:/(nvr|gravador|dvr)/i,                 add:120, why:'gravador (configuração de câmeras e gravação)' },
+    { re:/(dream\s*machine|controladora|udm|cloud\s*key)/i, add:150, why:'controladora central (configuração de rede)' },
+    { re:/(switch|patch\s*panel)/i,             add:60,  why:'switch/patch (organização e VLAN)' },
+    { re:/(amplificad|receiver|multicanal)/i,   add:130, why:'amplificador (zonas e calibração)' },
+    { re:/(c[âa]mera|dome|bullet|cftv)/i,       add:50,  why:'câmera (fixação em altura + foco)' },
+    { re:/(coifa|cooktop|churrasqueira|adega)/i,add:90,  why:'equipamento gourmet (integração elétrica)' },
+    { re:/(matriz|hdmi|video\s*wall|projetor)/i,add:110, why:'distribuição de vídeo' },
+    { re:/(rack)/i,                             add:80,  why:'montagem de rack' },
+  ]
   function itemCountByCat(cat){
     let n=0
     floors.forEach(f=>(f.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{
@@ -671,29 +684,90 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
     })))
     return n
   }
-  function suggestLaborForCat(cat){
+  // Em quantos cômodos distintos a categoria aparece (espalhamento)
+  function roomSpreadByCat(cat){
+    let n=0
+    floors.forEach(f=>(f.rooms||[]).forEach(r=>{
+      if((r.items||[]).some(it=>it.name && (it.category||'Outros')===cat)) n++
+    }))
+    return n
+  }
+  // Soma o peso extra dos itens complexos de uma categoria
+  function complexExtraByCat(cat){
+    let extra=0; const hits={}
+    floors.forEach(f=>(f.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{
+      if(it.name && (it.category||'Outros')===cat){
+        const q=parseInt(it.qty)||1
+        COMPLEX_RULES.forEach(cr=>{ if(cr.re.test(it.name)){ extra+=cr.add*q; hits[cr.why]=(hits[cr.why]||0)+q } })
+      }
+    })))
+    return { extra, hits }
+  }
+  // Fator de volume progressivo (escala por faixas — itens demais = mais ajuste fino)
+  function volumeFactor(qty){
+    if(qty<=3)  return 1.00
+    if(qty<=8)  return 1.06
+    if(qty<=15) return 1.12
+    if(qty<=25) return 1.18
+    return 1.25
+  }
+  function suggestDetail(cat){
     const rule = LABOR_RULES[cat] || LABOR_RULES['Outros']
     const qty = itemCountByCat(cat)
-    if(qty<=0) return 0
-    // esforço cresce levemente acima do linear (itens demais = mais deslocamento/ajuste)
-    const raw = rule.piso + rule.base * qty * (1 + Math.min(qty,20)*0.012)
-    // arredonda para múltiplo de 50
-    return Math.round(raw/50)*50
+    if(qty<=0) return { total:0, qty:0 }
+    const rooms = roomSpreadByCat(cat)
+    const vf = volumeFactor(qty)
+    const { extra, hits } = complexExtraByCat(cat)
+    const baseItens = rule.base * qty
+    const spread = rule.spread * Math.max(0, rooms-1)
+    const raw = (rule.piso + baseItens + spread + extra) * vf
+    const total = Math.round(raw/50)*50
+    return { total, qty, rooms, vf, piso:rule.piso, baseItens, spread, extra, hits, base:rule.base, spreadUnit:rule.spread }
   }
+  function suggestLaborForCat(cat){ return suggestDetail(cat).total }
   function aplicarSugestaoMaoDeObra(){
     const novo = {...laborByCat}
     proposalCategories.forEach(c=>{ novo[c] = String(suggestLaborForCat(c)) })
     setLaborByCat(novo); setSaved(false)
   }
-  const LABOR_CRITERIA_TEXT = 'Como sugerimos a mão de obra:\n\n'
-    + '• Cada categoria tem um valor-base por item e um piso mínimo (deslocamento + setup).\n'
-    + '• O total cresce com a quantidade de itens e a dificuldade de instalação de cada categoria:\n'
-    + '   - Sonorização e Gourmet: mais trabalhosas (embutir, calibrar, integrar).\n'
-    + '   - Segurança: fixação muitas vezes em altura.\n'
-    + '   - Automação: módulo + cena + integração por ponto.\n'
-    + '   - Redes: lançar/crimpar cabo e configurar.\n'
-    + '• Acima de muitos itens, o esforço cresce um pouco mais que proporcional.\n\n'
-    + 'É só uma sugestão — você pode ajustar cada valor manualmente.'
+  // "i" por categoria — explica o cálculo DAQUELA proposta
+  function laborCriteriaForCat(cat){
+    const d = suggestDetail(cat)
+    if(d.qty<=0) return `${cat}: nenhum item nesta proposta.`
+    const L=[]
+    L.push(`Mão de obra sugerida para ${cat}: ${fmt(d.total)}`)
+    L.push('')
+    L.push('Como chegamos nesse valor (nesta proposta):')
+    L.push(`• Piso da categoria (deslocamento + setup): ${fmt(d.piso)}`)
+    L.push(`• ${d.qty} ${d.qty===1?'item':'itens'} × ${fmt(d.base)} = ${fmt(d.baseItens)}`)
+    if(d.rooms>1) L.push(`• Espalhamento: ${d.rooms} cômodos → +${fmt(d.spread)} (mais cabeamento/deslocamento)`)
+    else L.push(`• Concentrado em 1 cômodo (sem custo extra de espalhamento)`)
+    if(d.extra>0){
+      const motivos=Object.entries(d.hits).map(([w,q])=>`${q}× ${w}`).join('; ')
+      L.push(`• Itens complexos: +${fmt(d.extra)} (${motivos})`)
+    } else {
+      L.push('• Sem itens complexos identificados')
+    }
+    const pctVol=Math.round((d.vf-1)*100)
+    L.push(`• Fator de volume: ${pctVol>0?'+'+pctVol+'% (muitos itens = mais ajuste fino)':'sem acréscimo (volume baixo)'}`)
+    L.push('')
+    L.push('Responde às suas dúvidas:')
+    L.push('• Aumentar itens muda o valor? Sim, cada item soma; e ao cruzar faixas de volume (4, 9, 16, 26 itens) entra um acréscimo progressivo.')
+    L.push('• O tamanho/espalhamento importa? Sim — quanto mais cômodos a categoria cobre, mais cabeamento e deslocamento.')
+    L.push('• Itens complexos pesam? Sim — gravador, controladora, amplificador, câmera etc. somam um extra específico.')
+    L.push('')
+    L.push('É uma sugestão. Você pode ajustar o valor manualmente.')
+    return L.join('\n')
+  }
+  const LABOR_CRITERIA_TEXT = 'Critérios da sugestão de mão de obra:\n\n'
+    + 'O valor de cada categoria considera, nesta proposta:\n'
+    + '• Piso (deslocamento + setup inicial da equipe).\n'
+    + '• Quantidade de itens × valor unitário da categoria.\n'
+    + '• Espalhamento: nº de cômodos onde a categoria aparece (mais cabeamento/deslocamento).\n'
+    + '• Itens complexos: gravador, controladora, amplificador, câmera, gourmet etc. somam um extra.\n'
+    + '• Fator de volume progressivo: ao cruzar 4, 9, 16 e 26 itens o esforço cresce mais que proporcional.\n\n'
+    + 'Toque no "i" de cada categoria para ver o cálculo detalhado dela.\n'
+    + 'Tudo é sugestão — você pode ajustar manualmente.'
   const room  = floor?.rooms[cr]
 
   // Auto-check stock whenever floors change
@@ -1599,37 +1673,50 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
           {/* Totals + Project Profit Summary */}
           <div style={{maxWidth:560,marginTop:24,borderTop:'1px solid var(--border)',paddingTop:18}}>
             <div className="flabel" style={{marginBottom:8}}>Resumo</div>
-            {floors.map((f,fi)=>{ const sub=(f.rooms||[]).reduce((s,r)=>s+parse(r.price),0); return sub>0?<div key={fi} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',fontSize:12,color:'var(--text2)'}}><span>{f.name}</span><span>{fmt(sub)}</span></div>:null })}
-            {/* Item 2: itens por cômodo */}
+            {floors.map((f,fi)=>{ const sub=(f.rooms||[]).reduce((s,r)=>s+(r.items||[]).filter(it=>it.name&&!hiddenCateg.has(it.category||'Sem categoria')).reduce((is,it)=>is+(it.sale_price||0)*(parseInt(it.qty)||1),0),0); return sub>0?<div key={fi} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',fontSize:12,color:'var(--text2)'}}><span>{f.name}</span><span>{fmt(sub)}</span></div>:null })}
+            {/* Itens por cômodo — qtd E valor (acompanha categorias ocultas) */}
             {(()=>{
               const rows=[]
               floors.forEach(f=>(f.rooms||[]).forEach(r=>{
-                const n=(r.items||[]).filter(it=>it.name).reduce((s,it)=>s+(parseInt(it.qty)||1),0)
-                if(n>0) rows.push([r.name,n])
+                const vis=(r.items||[]).filter(it=>it.name && !hiddenCateg.has(it.category||'Sem categoria'))
+                const n=vis.reduce((s,it)=>s+(parseInt(it.qty)||1),0)
+                const val=vis.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
+                if(n>0) rows.push([r.name,n,val])
               }))
               if(!rows.length) return null
               const totalItens=rows.reduce((s,[,n])=>s+n,0)
-              return <details style={{marginTop:8,borderTop:'1px solid var(--border)',paddingTop:8}}>
+              return <details style={{marginTop:8,borderTop:'1px solid var(--border)',paddingTop:8}} open>
                 <summary style={{fontSize:11,color:'var(--text2)',cursor:'pointer',display:'flex',justifyContent:'space-between'}}>
                   <span>Itens por cômodo</span><b style={{color:'var(--accent)'}}>{totalItens} itens</b>
                 </summary>
-                <div style={{marginTop:6,display:'grid',gridTemplateColumns:'1fr 1fr',gap:'2px 16px'}}>
-                  {rows.map(([nm,n],i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text3)'}}><span>{nm}</span><span>{n}</span></div>)}
+                <div style={{marginTop:6}}>
+                  {rows.map(([nm,n,val],i)=><div key={i} style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:12,alignItems:'center',fontSize:11.5,padding:'2px 0',color:'var(--text3)'}}>
+                    <span>{nm}</span>
+                    <span style={{color:'var(--text3)',minWidth:48,textAlign:'right'}}>{n} {n===1?'item':'itens'}</span>
+                    <span style={{color:'var(--text2)',minWidth:90,textAlign:'right'}}>{fmt(val)}</span>
+                  </div>)}
                 </div>
               </details>
             })()}
-            {/* Item 2: itens por categoria */}
-            {proposalCategories.length>0&&<div style={{marginTop:8,borderTop:'1px solid var(--border)',paddingTop:8}}>
-              <div style={{fontSize:11,color:'var(--text2)',marginBottom:5}}>Itens por categoria</div>
-              <div style={{display:'flex',flexWrap:'wrap',gap:'5px 8px'}}>
-                {proposalCategories.map(cat=>{
-                  const c=CAT_COLOR[cat]||'#6B7280'; const n=itemCountByCat(cat)
-                  return <span key={cat} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:10.5,background:'var(--surf)',border:'1px solid var(--border)',borderRadius:12,padding:'3px 9px'}}>
-                    <span style={{width:8,height:8,borderRadius:'50%',background:c}}/>{cat}<b style={{color:'var(--text2)'}}>{n}</b>
-                  </span>
+            {/* Itens por categoria — qtd E valor (acompanha categorias ocultas) */}
+            {(()=>{
+              const cats=proposalCategories.filter(c=>!hiddenCateg.has(c))
+              if(!cats.length) return null
+              return <div style={{marginTop:8,borderTop:'1px solid var(--border)',paddingTop:8}}>
+                <div style={{fontSize:11,color:'var(--text2)',marginBottom:5}}>Itens por categoria</div>
+                {cats.map(cat=>{
+                  const c=CAT_COLOR[cat]||'#6B7280'
+                  const n=itemCountByCat(cat)
+                  let val=0
+                  floors.forEach(f=>(f.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{ if(it.name&&(it.category||'Outros')===cat) val+=(it.sale_price||0)*(parseInt(it.qty)||1) })))
+                  return <div key={cat} style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:12,alignItems:'center',fontSize:11.5,padding:'2px 0',color:'var(--text3)'}}>
+                    <span style={{display:'inline-flex',alignItems:'center',gap:6}}><span style={{width:8,height:8,borderRadius:'50%',background:c}}/>{cat}</span>
+                    <span style={{color:'var(--text3)',minWidth:48,textAlign:'right'}}>{n} {n===1?'item':'itens'}</span>
+                    <span style={{color:'var(--text2)',minWidth:90,textAlign:'right'}}>{fmt(val)}</span>
+                  </div>
                 })}
               </div>
-            </div>}
+            })()}
             <div style={{display:'flex',justifyContent:'space-between',padding:'6px 0',fontSize:12,borderTop:'1px solid var(--border)',marginTop:8,alignItems:'center'}}>
               <span style={{color:'var(--text2)'}}>Mão de obra <span style={{fontSize:10,color:'var(--text3)'}}>(por categoria, em "Salvar")</span></span>
               <span style={{fontWeight:600,fontSize:13}}>{laborTotal>0?fmt(laborTotal):'—'}</span>
@@ -1761,6 +1848,8 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
                     <span style={{width:9,height:9,borderRadius:'50%',background:c,flexShrink:0}}/>
                     <span>{cat}<span style={{fontSize:10,color:'var(--text3)',marginLeft:6}}>{qtd} {qtd===1?'item':'itens'}</span></span>
                   </span>
+                  <button type="button" title="Ver como esse valor foi calculado" onClick={()=>alert(laborCriteriaForCat(cat))}
+                    style={{width:15,height:15,borderRadius:'50%',border:'1px solid var(--text3)',background:'none',color:'var(--text3)',fontSize:9,fontWeight:700,cursor:'pointer',lineHeight:1,padding:0,display:'inline-flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>i</button>
                   <button type="button" title={`Sugerido: ${fmt(sug)}`} onClick={()=>setLaborCat(cat,String(sug))}
                     style={{fontSize:9.5,color:'var(--accent)',background:'none',border:'1px solid var(--border)',borderRadius:4,padding:'2px 6px',cursor:'pointer'}}>≈ {fmt(sug)}</button>
                   <span style={{fontSize:11,color:'var(--text3)'}}>R$</span>
