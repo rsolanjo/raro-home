@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v99 — Área de Clientes: ícones seguem código de cores por equipamento (igual executivo, com itens de rack roxos); revelar/ocultar valores com 3 cliques no nome do cliente; painel direito completo (buscar catálogo, dropdown categorias, buscar na planta, filtrar cômodos, filtrar categorias); clicar no ponto mostra o que é (nome, código, cômodo)
+// v100 — Fix Área de Clientes: valores zerados. enrich agora resolve preço de venda dos markers do executivo (campo sale), do PlantaEditor (itemCode→catálogo) e por código/nome no catálogo
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v99 · build 2026-06
+          v100 · build 2026-06
         </div>
       </div>
     </div>

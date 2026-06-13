@@ -100,10 +100,12 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
 
   function enrich(mk){
     return (mk||[]).map(m=>{
-      const cat = m.category || inferCategory(m.itemName||'').cat || 'Outros'
-      const cat0 = catalog.find(c=>c.code===m.itemCode)
-      const sale = m.sale_price ?? cat0?.sale_price ?? 0
-      return { ...m, id:m.id??MID++, category:cat, sale_price:sale }
+      const cat = m.category || inferCategory(nameOf(m)).cat || 'Outros'
+      const code = codeOf(m)
+      const cat0 = catalog.find(c=>c.code===code) || catalog.find(c=>(c.name||'').toLowerCase()===nameOf(m).toLowerCase())
+      // preço de venda: marker (sale_price OU sale do executivo) → catálogo → 0
+      const sale = (m.sale_price ?? m.sale ?? cat0?.sale_price ?? 0)
+      return { ...m, id:m.id??MID++, category:cat, sale_price:Number(sale)||0 }
     })
   }
   function openProposal(p){
