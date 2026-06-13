@@ -24,7 +24,9 @@ const fmt = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFracti
  * Gera o HTML da apresentação comercial (paleta clara/azul da proposta).
  * Retorna { html, excludedTotal, excludedNames, grandTotal }
  */
-export function buildApresentacaoComercial({ clientName, neighborhood, code, floors, execValue }) {
+export function buildApresentacaoComercial({ clientName, neighborhood, code, floors, execValue, laborByCat, laborTotal }) {
+  laborByCat = laborByCat || {}
+  laborTotal = laborTotal || 0
   const catTotals = {}
   const roomRows = []
   let excludedTotal = 0
@@ -62,13 +64,20 @@ export function buildApresentacaoComercial({ clientName, neighborhood, code, flo
   const norm = c => (c==='Rede'?'Redes': c==='Som'?'Sonorização': c)
   const catTotalsNorm = {}
   Object.entries(catTotals).forEach(([c,v])=>{ const n=norm(c); catTotalsNorm[n]=(catTotalsNorm[n]||0)+v })
+  // mão de obra por categoria, normalizada
+  const laborNorm = {}
+  Object.entries(laborByCat).forEach(([c,v])=>{ const n=norm(c); laborNorm[n]=(laborNorm[n]||0)+parseFloat(v||0) })
   const catEntries = Object.entries(catTotalsNorm).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])
 
   const cat2Rows = catEntries.map(([cat,val])=>{
     const c = CAT_COLORS[cat]||'#6B7280'
+    const mo = laborNorm[cat]||0
+    const subtotal = val + mo
     return `<tr>
-      <td style="padding:12px 18px;border-bottom:0.5px solid #E8F4FF"><span style="display:inline-flex;align-items:center;gap:10px"><span style="width:10px;height:10px;border-radius:50%;background:${c}"></span><span style="font-weight:500;color:#1E3A5F">${cat}</span></span></td>
-      <td style="padding:12px 18px;text-align:right;font-family:'DM Serif Display',serif;font-size:1.1rem;color:#060B1A;border-bottom:0.5px solid #E8F4FF">${fmt(val)}</td>
+      <td style="padding:11px 16px;border-bottom:0.5px solid #E8F4FF"><span style="display:inline-flex;align-items:center;gap:10px"><span style="width:10px;height:10px;border-radius:50%;background:${c}"></span><span style="font-weight:500;color:#1E3A5F">${cat}</span></span></td>
+      <td style="padding:11px 16px;text-align:right;color:#1E3A5F;border-bottom:0.5px solid #E8F4FF">${fmt(val)}</td>
+      <td style="padding:11px 16px;text-align:right;color:#6B8CAE;border-bottom:0.5px solid #E8F4FF">${mo>0?fmt(mo):'·'}</td>
+      <td style="padding:11px 16px;text-align:right;font-family:'DM Serif Display',serif;font-size:1.02rem;color:#060B1A;border-bottom:0.5px solid #E8F4FF">${fmt(subtotal)}</td>
     </tr>`
   }).join('')
 
@@ -90,6 +99,7 @@ export function buildApresentacaoComercial({ clientName, neighborhood, code, flo
   }).join('')
 
   const grandTotal = catEntries.reduce((s,[,v])=>s+v,0)
+  const totalProposta = grandTotal + laborTotal + parseFloat(execValue||0)
   const safeName = (clientName||'cliente').replace(/[^a-zA-Z0-9]/g,'-').toLowerCase()
 
   const html = `<!DOCTYPE html>
@@ -144,6 +154,12 @@ h2{font-size:2rem;color:var(--accentdk);text-align:center;margin-bottom:.4rem}
 .viz-led{width:7px;height:7px;border-radius:50%;background:#059669;margin-left:auto}
 
 .diferencial-intro{text-align:center;color:var(--muted);max-width:820px;margin:0 auto 2.2rem;font-size:1rem}
+
+.sol-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:1.4rem}
+.sol-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:24px 26px}
+.sol-card .sol-ic{font-size:1.5rem;margin-bottom:12px}
+.sol-card h3{font-size:1.08rem;color:var(--ink);margin-bottom:8px}
+.sol-card p{font-size:.9rem;color:var(--muted);line-height:1.65}
 .comparison-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
 .comp-card{border-radius:14px;padding:26px;border:1px solid var(--border);background:#fff}
 .comp-card.pro{background:linear-gradient(165deg,#fff,var(--bg2));border-color:var(--accent)}
@@ -191,7 +207,7 @@ footer .gold{color:var(--gold)}
 .actionbar button:hover{background:var(--accent);transform:translateY(-1px)}
 .actionbar button i{font-size:.95rem}
 
-@media(max-width:880px){.experience-grid,.comparison-grid{grid-template-columns:1fr;gap:26px}.exec-includes{grid-template-columns:1fr}.container{padding:0 22px}h2{font-size:1.6rem}table{font-size:.8rem}thead th{padding:9px 7px;font-size:.6rem}}
+@media(max-width:880px){.experience-grid,.comparison-grid,.sol-grid{grid-template-columns:1fr;gap:20px}.exec-includes{grid-template-columns:1fr}.container{padding:0 22px}h2{font-size:1.6rem}table{font-size:.8rem}thead th{padding:9px 7px;font-size:.6rem}}
 @media print{
   @page{size:A4;margin:12mm}
   body{background:#fff}
@@ -266,6 +282,33 @@ function baixarHTML(){
     </section>
 
     <section class="section">
+      <h2>Soluções <span class="highlight">Integradas</span></h2>
+      <p class="section-sub">Cada frente da sua casa conversa com as outras, em um único sistema pensado para o seu dia a dia.</p>
+      <div class="sol-grid">
+        <div class="sol-card">
+          <div class="sol-ic" style="color:#0EA5E9"><i class="fa-solid fa-wifi"></i></div>
+          <h3>Rede &amp; Wi-Fi de Alta Performance</h3>
+          <p>Wi-Fi de altíssima velocidade, totalmente gerenciável e com cobertura completa em todo o imóvel, da suíte à área externa. Rede dimensionada por mapa de calor para nunca deixar você na mão, com a mesma estabilidade de redes corporativas.</p>
+        </div>
+        <div class="sol-card">
+          <div class="sol-ic" style="color:#DC2626"><i class="fa-solid fa-video"></i></div>
+          <h3>Câmeras Integradas à Automação</h3>
+          <p>Câmeras 4K que não ficam isoladas: integram-se ao sistema de automação. Uma câmera pode acender a luz externa ao detectar movimento, disparar uma cena ou avisar você no WhatsApp. Segurança que conversa com a casa inteira.</p>
+        </div>
+        <div class="sol-card">
+          <div class="sol-ic" style="color:#BE185D"><i class="fa-solid fa-music"></i></div>
+          <h3>Som Ambiente Multiroom</h3>
+          <p>O som certo para cada momento: a trilha imersiva de um filme na sala, a música ambiente no jantar, o clima na área gourmet. Zonas independentes que tocam juntas ou separadas, integradas às cenas de iluminação com um toque.</p>
+        </div>
+        <div class="sol-card">
+          <div class="sol-ic" style="color:#059669"><i class="fa-solid fa-house-signal"></i></div>
+          <h3>Automação &amp; Cenas</h3>
+          <p>Iluminação, cortinas, climatização e ambientes que respondem a um toque, à sua voz ou ao horário. Cenas como "Cinema", "Jantar" ou "Boa noite" acionam tudo de uma vez, deixando a casa exatamente do jeito que você quer.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
       <h2>O Nosso Maior <span class="highlight">Diferencial</span></h2>
       <p class="diferencial-intro">Muitos clientes nos questionam: <em>"Por que o investimento em uma automação profissional é diferente de comprar interruptores de varejo na internet?"</em> A resposta está na segurança, na estabilidade e na durabilidade do seu patrimônio.</p>
       <div class="comparison-grid">
@@ -276,7 +319,7 @@ function baixarHTML(){
             <li><strong>Suporte de Alta Carga:</strong> módulos com relés robustos que suportam a carga real de lustres, fitas LED de potência e motores pesados sem queimar.</li>
             <li><strong>Rede Independente (Zigbee/Matter):</strong> comunicação ultrarrápida via malha própria. Se a internet cair, a sua casa continua funcionando.</li>
             <li><strong>Wi-Fi Livre e Rápido:</strong> os interruptores não usam o seu roteador. Seu Wi-Fi fica livre para TVs 4K e smartphones.</li>
-            <li><strong>Design Premium e Customizável:</strong> keypads com acabamento impecável e módulos sob medida (USB na cabeceira, cenas personalizadas).</li>
+            <li><strong>Design Premium e Customizável:</strong> keypads com acabamento sob medida, em harmonia com a arquitetura, e módulos personalizados (USB na cabeceira, cenas exclusivas).</li>
           </ul>
         </div>
         <div class="comp-card retail">
@@ -286,7 +329,7 @@ function baixarHTML(){
             <li><strong>Risco de Sobrecarga:</strong> relés baratos que frequentemente "colam" ou queimam com o pico de iluminações modernas.</li>
             <li><strong>Dependência do Wi-Fi:</strong> cada interruptor disputa espaço no roteador. Se a internet oscila, você não acende uma lâmpada pelo celular.</li>
             <li><strong>Lentidão e Travamentos:</strong> múltiplos dispositivos no Wi-Fi residencial geram atraso frustrante ao apertar um botão.</li>
-            <li><strong>Design Plástico:</strong> acabamentos comuns, incompatíveis com um projeto arquitetônico de alto padrão.</li>
+            <li><strong>Acabamento Genérico:</strong> peças de prateleira sem padronização visual, que destoam de um projeto de interiores pensado nos detalhes.</li>
           </ul>
         </div>
       </div>
@@ -318,10 +361,10 @@ function baixarHTML(){
 
       <div class="t-block">
         <div class="t-head"><span class="n">2</span> Estimativa de Investimento por Categoria</div>
-        <div class="t-desc">Um compilado de valores aproximados por categoria, para você dimensionar o investimento de cada frente da sua casa inteligente.</div>
+        <div class="t-desc">Um compilado de valores aproximados por categoria, separando os equipamentos da mão de obra de instalação e programação, para você dimensionar cada frente da sua casa inteligente.</div>
         <table>
-          <thead><tr><th>Categoria</th><th style="text-align:right">Valor aproximado</th></tr></thead>
-          <tbody>${cat2Rows || '<tr><td colspan="2" style="padding:16px;text-align:center;color:#B9CCE0">Sem itens para exibir</td></tr>'}</tbody>
+          <thead><tr><th>Categoria</th><th style="text-align:right">Equipamentos</th><th style="text-align:right">Mão de obra</th><th style="text-align:right">Subtotal</th></tr></thead>
+          <tbody>${cat2Rows || '<tr><td colspan="4" style="padding:16px;text-align:center;color:#B9CCE0">Sem itens para exibir</td></tr>'}</tbody>
         </table>
       </div>
 
@@ -337,6 +380,19 @@ function baixarHTML(){
           <tbody>${cat3Rows || '<tr><td colspan="7" style="padding:16px;text-align:center;color:#B9CCE0">Sem itens para exibir</td></tr>'}</tbody>
         </table>
         <div class="grand"><span class="l">Total aproximado em equipamentos</span><span class="v">${fmt(grandTotal)}</span></div>
+      </div>
+
+      <div class="t-block">
+        <div class="t-head"><span class="n">4</span> Resumo do Investimento Total</div>
+        <div class="t-desc">O investimento completo para preparar e equipar a sua casa inteligente, somando equipamentos, mão de obra de instalação e o projeto executivo com acompanhamento.</div>
+        <table>
+          <tbody>
+            <tr><td style="padding:12px 18px;color:#1E3A5F;border-bottom:0.5px solid #E8F4FF">Equipamentos (aproximado)</td><td style="padding:12px 18px;text-align:right;color:#060B1A;border-bottom:0.5px solid #E8F4FF">${fmt(grandTotal)}</td></tr>
+            <tr><td style="padding:12px 18px;color:#1E3A5F;border-bottom:0.5px solid #E8F4FF">Mão de obra · Instalação e Programação</td><td style="padding:12px 18px;text-align:right;color:#060B1A;border-bottom:0.5px solid #E8F4FF">${fmt(laborTotal)}</td></tr>
+            <tr><td style="padding:12px 18px;color:#1E3A5F;border-bottom:0.5px solid #E8F4FF">Projeto Executivo + Acompanhamento</td><td style="padding:12px 18px;text-align:right;color:#060B1A;border-bottom:0.5px solid #E8F4FF">${fmt(execValue)}</td></tr>
+          </tbody>
+        </table>
+        <div class="grand" style="background:var(--ink);border-color:var(--ink);margin-top:12px"><span class="l" style="color:var(--accent)">Investimento Total da Proposta</span><span class="v" style="color:#F0F6FF">${fmt(totalProposta)}</span></div>
       </div>
     </section>
 

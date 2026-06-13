@@ -816,17 +816,22 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
   // Gera a Apresentação Comercial (pág 1 institucional + pág 2 investimento)
   function gerarApresentacao(){
     try {
-      const raw = prompt('Valor do Projeto Executivo (R$):', '3000')
+      const raw = prompt('Valor da MÃO DE OBRA do Projeto Executivo (R$):', '3000')
       if (raw === null) return // cancelou
       const execValue = parse(raw)
-      if (!(execValue > 0)) { alert('Informe um valor válido para o Projeto Executivo.'); return }
+      if (!(execValue > 0)) { alert('Informe um valor válido para a mão de obra do Projeto Executivo.'); return }
       const cl = clients.find(c=>c.id===Number(clientId))
+      // Mão de obra dos equipamentos por categoria (só categorias visíveis), normalizando nomes
+      const laborByCatVisible = {}
+      proposalCategories.forEach(c=>{ if(!hiddenCateg.has(c)){ const v=parse(laborByCat[c]); if(v>0) laborByCatVisible[c]=v } })
       const { html, excludedTotal, excludedNames } = buildApresentacaoComercial({
         clientName: cl ? `${cl.name1} & ${cl.name2}` : (clientName || 'Cliente'),
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         code: proposalCode || '',
         floors,
         execValue,
+        laborByCat: laborByCatVisible,
+        laborTotal: laborVisible,
       })
       // Popup informativo (NÃO vai para o documento) com o valor dos itens excluídos
       if (excludedTotal > 0) {

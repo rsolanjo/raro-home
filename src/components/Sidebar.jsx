@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v92 — Apresentação reescrita na paleta clara/azul da proposta (F5FAFF + faixas escuras + azul), print-color-adjust:exact preserva cores no PDF, logo LOGO_COVER integrado
+// v93 — Apresentação: mão de obra por categoria (tab2) + Resumo do Investimento Total (equip+MO+projeto), pergunta MO do exec, seção Soluções Integradas (4 categorias), textos Wi-Fi/câmeras/som, remove Design Plástico
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v92 · build 2026-06
+          v93 · build 2026-06
         </div>
       </div>
     </div>
