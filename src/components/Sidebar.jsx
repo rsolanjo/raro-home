@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v94 — Logo novo (traço central + A lambda) em todos os docs e app; modal Apresentação readiciona itens do rack + pergunta MO exec; resumo com qtd itens por cômodo/categoria; sugestão de MO por esforço com critérios (i); pitch automático por itens ao salvar; salvar mantém status
+// v96 — Fix: apresentação acompanha categorias ocultas na proposta (não traz dados de categoria oculta); tabela 3 com colunas dinâmicas só das categorias presentes; modal de readicionar ignora itens de categoria oculta
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v94 · build 2026-06
+          v96 · build 2026-06
         </div>
       </div>
     </div>

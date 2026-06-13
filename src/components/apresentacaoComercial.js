@@ -28,6 +28,7 @@ export function buildApresentacaoComercial({ clientName, neighborhood, code, flo
   laborByCat = laborByCat || {}
   laborTotal = laborTotal || 0
   const catTotals = {}
+  const catCounts = {}
   const roomRows = []
   let excludedTotal = 0
   const excludedNames = {}
@@ -53,9 +54,11 @@ export function buildApresentacaoComercial({ clientName, neighborhood, code, flo
       visItems.forEach(it => {
         const cat = it.category || 'Outros'
         const val = (it.sale_price||0) * (parseInt(it.qty)||1)
-        qty += (parseInt(it.qty)||1)
+        const q = (parseInt(it.qty)||1)
+        qty += q
         byCat[cat] = (byCat[cat]||0) + val
         catTotals[cat] = (catTotals[cat]||0) + val
+        catCounts[cat] = (catCounts[cat]||0) + q
       })
       roomRows.push({ floor: fl.name, room: r.name, qty, byCat })
     })
@@ -64,6 +67,8 @@ export function buildApresentacaoComercial({ clientName, neighborhood, code, flo
   const norm = c => (c==='Rede'?'Redes': c==='Som'?'Sonorização': c)
   const catTotalsNorm = {}
   Object.entries(catTotals).forEach(([c,v])=>{ const n=norm(c); catTotalsNorm[n]=(catTotalsNorm[n]||0)+v })
+  const catCountsNorm = {}
+  Object.entries(catCounts).forEach(([c,v])=>{ const n=norm(c); catCountsNorm[n]=(catCountsNorm[n]||0)+v })
   // mão de obra por categoria, normalizada
   const laborNorm = {}
   Object.entries(laborByCat).forEach(([c,v])=>{ const n=norm(c); laborNorm[n]=(laborNorm[n]||0)+parseFloat(v||0) })
@@ -73,30 +78,34 @@ export function buildApresentacaoComercial({ clientName, neighborhood, code, flo
     const c = CAT_COLORS[cat]||'#6B7280'
     const mo = laborNorm[cat]||0
     const subtotal = val + mo
+    const q = catCountsNorm[cat]||0
     return `<tr>
       <td style="padding:11px 16px;border-bottom:0.5px solid #E8F4FF"><span style="display:inline-flex;align-items:center;gap:10px"><span style="width:10px;height:10px;border-radius:50%;background:${c}"></span><span style="font-weight:500;color:#1E3A5F">${cat}</span></span></td>
+      <td style="padding:11px 16px;text-align:center;color:#6B8CAE;border-bottom:0.5px solid #E8F4FF">${q}</td>
       <td style="padding:11px 16px;text-align:right;color:#1E3A5F;border-bottom:0.5px solid #E8F4FF">${fmt(val)}</td>
       <td style="padding:11px 16px;text-align:right;color:#6B8CAE;border-bottom:0.5px solid #E8F4FF">${mo>0?fmt(mo):'·'}</td>
       <td style="padding:11px 16px;text-align:right;font-family:'DM Serif Display',serif;font-size:1.02rem;color:#060B1A;border-bottom:0.5px solid #E8F4FF">${fmt(subtotal)}</td>
     </tr>`
   }).join('')
 
-  const t3 = (room) => {
-    const g = (k) => { let s=0; Object.entries(room.byCat).forEach(([c,v])=>{ if(norm(c)===k) s+=v }); return s }
-    return { auto:g('Automação'), rede:g('Redes'), som:g('Sonorização'), seg:g('Segurança') }
-  }
+  // Colunas dinâmicas da tabela 3: só as categorias principais que existem nos dados
+  const T3_ALL = ['Automação','Redes','Sonorização','Segurança']
+  const t3cats = T3_ALL.filter(k => (catTotalsNorm[k]||0) > 0)
+  const t3val = (room,k) => { let s=0; Object.entries(room.byCat).forEach(([c,v])=>{ if(norm(c)===k) s+=v }); return s }
   const cell = (v) => v>0
     ? `<td style="padding:9px 12px;text-align:right;font-size:.82rem;color:#1E3A5F;border-bottom:0.5px solid #E8F4FF">${fmt(v)}</td>`
     : `<td style="padding:9px 12px;text-align:right;color:#B9CCE0;border-bottom:0.5px solid #E8F4FF">·</td>`
   const cat3Rows = roomRows.map(r=>{
-    const t = t3(r)
     return `<tr>
       <td style="padding:9px 12px;font-size:.8rem;color:#6B8CAE;border-bottom:0.5px solid #E8F4FF">${r.floor}</td>
       <td style="padding:9px 12px;font-weight:500;color:#060B1A;border-bottom:0.5px solid #E8F4FF">${r.room}</td>
       <td style="padding:9px 12px;text-align:center;color:#6B8CAE;border-bottom:0.5px solid #E8F4FF">${r.qty}</td>
-      ${cell(t.auto)}${cell(t.rede)}${cell(t.som)}${cell(t.seg)}
+      ${t3cats.map(k=>cell(t3val(r,k))).join('')}
     </tr>`
   }).join('')
+  const cat3Header = `<th>Pavimento</th><th>Cômodo</th><th style="text-align:center">Qtd Itens</th>`
+    + t3cats.map(k=>`<th style="text-align:right">${k}</th>`).join('')
+  const cat3ColCount = 3 + t3cats.length
 
   const grandTotal = catEntries.reduce((s,[,v])=>s+v,0)
   const totalProposta = grandTotal + laborTotal + parseFloat(execValue||0)
@@ -363,8 +372,8 @@ function baixarHTML(){
         <div class="t-head"><span class="n">2</span> Estimativa de Investimento por Categoria</div>
         <div class="t-desc">Um compilado de valores aproximados por categoria, separando os equipamentos da mão de obra de instalação e programação, para você dimensionar cada frente da sua casa inteligente.</div>
         <table>
-          <thead><tr><th>Categoria</th><th style="text-align:right">Equipamentos</th><th style="text-align:right">Mão de obra</th><th style="text-align:right">Subtotal</th></tr></thead>
-          <tbody>${cat2Rows || '<tr><td colspan="4" style="padding:16px;text-align:center;color:#B9CCE0">Sem itens para exibir</td></tr>'}</tbody>
+          <thead><tr><th>Categoria</th><th style="text-align:center">Itens</th><th style="text-align:right">Equipamentos</th><th style="text-align:right">Mão de obra</th><th style="text-align:right">Subtotal</th></tr></thead>
+          <tbody>${cat2Rows || '<tr><td colspan="5" style="padding:16px;text-align:center;color:#B9CCE0">Sem itens para exibir</td></tr>'}</tbody>
         </table>
       </div>
 
@@ -372,12 +381,8 @@ function baixarHTML(){
         <div class="t-head"><span class="n">3</span> Detalhamento por Ambiente</div>
         <div class="t-desc">Valores aproximados distribuídos por cômodo e por categoria, para você visualizar onde está cada parte do investimento.</div>
         <table>
-          <thead><tr>
-            <th>Pavimento</th><th>Cômodo</th><th style="text-align:center">Qtd Itens</th>
-            <th style="text-align:right">Automação</th><th style="text-align:right">Redes</th>
-            <th style="text-align:right">Sonorização</th><th style="text-align:right">Segurança</th>
-          </tr></thead>
-          <tbody>${cat3Rows || '<tr><td colspan="7" style="padding:16px;text-align:center;color:#B9CCE0">Sem itens para exibir</td></tr>'}</tbody>
+          <thead><tr>${cat3Header}</tr></thead>
+          <tbody>${cat3Rows || `<tr><td colspan="${cat3ColCount}" style="padding:16px;text-align:center;color:#B9CCE0">Sem itens para exibir</td></tr>`}</tbody>
         </table>
         <div class="grand"><span class="l">Total aproximado em equipamentos</span><span class="v">${fmt(grandTotal)}</span></div>
       </div>

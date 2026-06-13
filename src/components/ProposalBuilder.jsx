@@ -451,13 +451,15 @@ function buildPDF(data, adminMode=false){
   // ── totals page ───────────────────────────────────────────────
   // Tabela de cômodos: 2 colunas fixas (nome | valor), sem colisão
   const roomsTable=(rooms)=>{
-    const rows=rooms.map(r=>(
-      `<tr style="border-bottom:0.5px solid #E8F4FF">`+
-      `<td style="font-size:9px;color:#1E3A5F;padding:5px 10px 5px 0">${r.name}</td>`+
+    const rows=rooms.map(r=>{
+      const q=(r.items||[]).filter(it=>it.name).reduce((s,it)=>s+(parseInt(it.qty)||1),0)
+      return `<tr style="border-bottom:0.5px solid #E8F4FF">`+
+      `<td style="font-size:9px;color:#1E3A5F;padding:5px 8px 5px 0">${r.name}</td>`+
+      `<td style="font-size:8px;color:#6B8CAE;text-align:center;padding:5px 6px;white-space:nowrap">${q>0?'['+q+']':''}</td>`+
       `<td style="font-size:12px;color:#060B1A;text-align:right;padding:5px 0;white-space:nowrap;font-family:'DM Serif Display',serif">${fmt(parse(r.price))}</td>`+
       `</tr>`
-    )).join('')
-    return `<table style="width:100%;border-collapse:collapse;margin:2px 0 4px;table-layout:fixed">${rows}</table>`
+    }).join('')
+    return `<table style="width:100%;border-collapse:collapse;margin:2px 0 4px"><colgroup><col style="width:62%"/><col style="width:13%"/><col style="width:25%"/></colgroup>${rows}</table>`
   }
   const isSingle=(floors||[]).length===1
   const pavBlocks=isSingle
@@ -466,9 +468,12 @@ function buildPDF(data, adminMode=false){
 
   // ── tabela por categoria ──────────────────────────────────────
   const catTotals={}
+  const catCounts={}
   ;(floors||[]).forEach(fl=>(fl.rooms||[]).forEach(r=>(r.items||[]).forEach(i=>{
+    if(!i.name) return
     const cat=i.category||'Outros'
     catTotals[cat]=(catTotals[cat]||0)+(i.sale_price||0)*(parseInt(i.qty)||1)
+    catCounts[cat]=(catCounts[cat]||0)+(parseInt(i.qty)||1)
   })))
   const catEntries=Object.entries(catTotals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])
   const CAT_COLORS={'Segurança':'#DC2626','Sonorização':'#BE185D','Som':'#BE185D','Redes':'#0EA5E9','Rede':'#0EA5E9','Automação':'#059669','Gourmet':'#D97706','Elétrica':'#F59E0B','CPD':'#7C3AED','Outros':'#6B7280'}
@@ -477,13 +482,14 @@ function buildPDF(data, adminMode=false){
     const fsans='DM Sans,sans-serif', fserif='DM Serif Display,serif'
     const cards=catEntries.map(([cat,val])=>{
       const c=CAT_COLORS[cat]||'#6B7280'
+      const q=catCounts[cat]||0
       return `<div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:0.5px solid #C8DEFF;border-radius:4px;padding:8px 12px;border-left:3px solid ${c}">`+
-        `<span style="font-size:7.5px;letter-spacing:1.5px;color:${c};text-transform:uppercase;font-family:${fsans};font-weight:500">${cat}</span>`+
+        `<span style="font-size:7.5px;letter-spacing:1.5px;color:${c};text-transform:uppercase;font-family:${fsans};font-weight:500">${cat} <span style="color:#6B8CAE">[${q}]</span></span>`+
         `<span style="font-family:${fserif};font-size:13px;color:#060B1A">${fmt(val)}</span>`+
         `</div>`
     }).join('')
     return `<div style="margin:4px 0 10px">`+
-      `<div style="font-size:7px;letter-spacing:3px;color:#0369A1;text-transform:uppercase;font-family:${fsans};font-weight:500;padding:10px 0 7px;margin-top:4px;border-top:0.5px solid #C8DEFF">P O R&nbsp;&nbsp;C A T E G O R I A</div>`+
+      `<div style="font-size:7px;letter-spacing:3px;color:#0369A1;text-transform:uppercase;font-family:${fsans};font-weight:500;padding:10px 0 7px;margin-top:4px;border-top:0.5px solid #C8DEFF">P O R&nbsp;&nbsp;C A T E G O R I A&nbsp;&nbsp;<span style="letter-spacing:0;text-transform:none;color:#6B8CAE">[qtd de itens]</span></div>`+
       `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">${cards}</div>`+
       `</div>`
   })()
@@ -922,7 +928,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
   function rackItemsList(){
     const arr=[]
     floors.forEach((f,fi)=>(f.rooms||[]).forEach((r,ri)=>(r.items||[]).forEach((it,ii)=>{
-      if(it.name && isRackItemPB(it)){
+      if(it.name && isRackItemPB(it) && !hiddenCateg.has(it.category||'Sem categoria')){
         arr.push({key:`${fi}:${ri}:${ii}`,name:it.name,cat:it.category||'Outros',val:(it.sale_price||0)*(parseInt(it.qty)||1),qty:parseInt(it.qty)||1})
       }
     })))
@@ -941,7 +947,11 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
       const floorsApres = floors.map((f,fi)=>({...f, rooms:(f.rooms||[]).map((r,ri)=>({
         ...r,
         items:(r.items||[]).filter((it,ii)=>{
-          if(it.name && isRackItemPB(it)){ return keepSet.has(`${fi}:${ri}:${ii}`) }
+          if(!it.name) return false
+          // remove categorias ocultas na proposta (acompanha o que está oculto)
+          if(hiddenCateg.has(it.category||'Sem categoria')) return false
+          // itens de rack: só entram se marcados para manter
+          if(isRackItemPB(it)){ return keepSet.has(`${fi}:${ri}:${ii}`) }
           return true
         })
       }))}))
@@ -1819,17 +1829,21 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
               const rCost=(r.items||[]).reduce((s,it)=>s+(it.cost_price||0)*(parseInt(it.qty)||1),0)
               const rSale=parse(r.price)
               const rPct=rCost>0?Math.round((rSale-rCost)/rCost*100):0
-              return <div key={`${fi}-${ri}`} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',color:'var(--text2)'}}>
+              const rQty=(r.items||[]).filter(it=>it.name).reduce((s,it)=>s+(parseInt(it.qty)||1),0)
+              return <div key={`${fi}-${ri}`} style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:10,alignItems:'center',padding:'2px 0',color:'var(--text2)'}}>
                 <span>{r.icon} {r.name||'Sem nome'}</span>
-                <span>{fmt(rSale)} · <b style={{color:rPct>=50?'var(--green)':rPct>=20?'var(--amber)':'var(--red)'}}>{rPct}%</b></span>
+                <span style={{fontSize:10,color:'var(--text3)',textAlign:'center',minWidth:54}}>{rQty} {rQty===1?'item':'itens'}</span>
+                <span style={{textAlign:'right'}}>{fmt(rSale)} · <b style={{color:rPct>=50?'var(--green)':rPct>=20?'var(--amber)':'var(--red)'}}>{rPct}%</b></span>
               </div>
             }))}
             <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,marginTop:8,marginBottom:4}}>Por categoria</div>
             {Object.entries(byCat).sort((a,b)=>b[1].sale-a[1].sale).map(([cat,v])=>{
               const pct=v.cost>0?Math.round((v.sale-v.cost)/v.cost*100):0
-              return <div key={cat} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',color:'var(--text2)'}}>
+              const cQty=itemCountByCat(cat)
+              return <div key={cat} style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:10,alignItems:'center',padding:'2px 0',color:'var(--text2)'}}>
                 <span>{cat}</span>
-                <span>{fmt(v.sale)} · <b style={{color:pct>=50?'var(--green)':pct>=20?'var(--amber)':'var(--red)'}}>{pct}%</b></span>
+                <span style={{fontSize:10,color:'var(--text3)',textAlign:'center',minWidth:54}}>{cQty} {cQty===1?'item':'itens'}</span>
+                <span style={{textAlign:'right'}}>{fmt(v.sale)} · <b style={{color:pct>=50?'var(--green)':pct>=20?'var(--amber)':'var(--red)'}}>{pct}%</b></span>
               </div>
             })}
             <div style={{display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:13,marginTop:8,paddingTop:8,borderTop:'2px solid var(--border)'}}>
