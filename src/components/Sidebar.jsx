@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v93 — Apresentação: mão de obra por categoria (tab2) + Resumo do Investimento Total (equip+MO+projeto), pergunta MO do exec, seção Soluções Integradas (4 categorias), textos Wi-Fi/câmeras/som, remove Design Plástico
+// v94 — Logo novo (traço central + A lambda) em todos os docs e app; modal Apresentação readiciona itens do rack + pergunta MO exec; resumo com qtd itens por cômodo/categoria; sugestão de MO por esforço com critérios (i); pitch automático por itens ao salvar; salvar mantém status
 
 export default function Sidebar({ active, onNav, counts, user, onLogout }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -13,7 +13,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
     <div className="sidebar">
       {/* Logo — hidden on mobile */}
       <div className="sb-logo">
-        <img src={LOGO_DARK} alt="RARO Home" style={{height:40,width:40,borderRadius:6,objectFit:'contain'}} />
+        <img src={LOGO_DARK} alt="RARO Home" style={{height:46,width:46,borderRadius:8,objectFit:'cover'}} />
         <div>
           <div className="sb-brand">RARO Home</div>
           <div className="sb-sub">Automação Residencial</div>
@@ -48,7 +48,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v93 · build 2026-06
+          v94 · build 2026-06
         </div>
       </div>
     </div>

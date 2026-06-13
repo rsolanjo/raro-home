@@ -615,6 +615,9 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
 
   // Modals
   const [showSaveModal,  setShowSaveModal]  = useState(false)
+  const [showApresModal, setShowApresModal] = useState(false)
+  const [apresKeep,      setApresKeep]      = useState({})   // {key:true} itens de rack a MANTER
+  const [apresExec,      setApresExec]      = useState('3000')
   const [showSendModal,  setShowSendModal]  = useState(false)
   const [laborInput,     setLaborInput]     = useState(String(init?.labor??''))
   const [savedProposal,  setSavedProposal]  = useState(init||null)
@@ -635,6 +638,56 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
   // Total da mão de obra para o PDF = soma só das categorias NÃO ocultas
   const laborVisible = proposalCategories.reduce((s,c)=>hiddenCateg.has(c)?s:s+parse(laborByCat[c]),0)
   function setLaborCat(cat,val){ setLaborByCat(prev=>({...prev,[cat]:val})); setSaved(false) }
+
+  // ── Estudo de esforço: sugere mão de obra por categoria ───────────
+  // Critério: cada categoria tem uma taxa-base de mão de obra por item (R$),
+  // multiplicada por um fator de complexidade de instalação. Itens que exigem
+  // passagem de cabo, fixação em altura ou configuração de rede pesam mais.
+  // Some-se um piso mínimo por categoria (deslocamento + setup).
+  const LABOR_RULES = {
+    // base = R$ por item · piso = mínimo da categoria · desc = critério exibido no "i"
+    'Automação':   { base: 90,  piso: 350, desc: 'Cada ponto exige módulo, configuração de cena e integração ao hub.' },
+    'Redes':       { base: 70,  piso: 300, desc: 'Lançamento e crimpagem de cabo, configuração de APs e VLAN.' },
+    'Rede':        { base: 70,  piso: 300, desc: 'Lançamento e crimpagem de cabo, configuração de APs e VLAN.' },
+    'Sonorização': { base: 110, piso: 400, desc: 'Embutir caixas, calibrar zonas e integrar ao sistema de áudio.' },
+    'Som':         { base: 110, piso: 400, desc: 'Embutir caixas, calibrar zonas e integrar ao sistema de áudio.' },
+    'Segurança':   { base: 100, piso: 350, desc: 'Fixação de câmeras (muitas vezes em altura), foco e gravação.' },
+    'Gourmet':     { base: 130, piso: 300, desc: 'Instalação de coifa/churrasqueira e integração elétrica.' },
+    'Elétrica':    { base: 60,  piso: 250, desc: 'Pontos elétricos, quadros e proteção.' },
+    'CPD':         { base: 80,  piso: 500, desc: 'Montagem e organização do rack, energização e etiquetagem.' },
+    'Outros':      { base: 70,  piso: 200, desc: 'Instalação e configuração geral.' },
+  }
+  // Conta itens (somando qty) por categoria
+  function itemCountByCat(cat){
+    let n=0
+    floors.forEach(f=>(f.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{
+      if(it.name && (it.category||'Outros')===cat) n+=(parseInt(it.qty)||1)
+    })))
+    return n
+  }
+  function suggestLaborForCat(cat){
+    const rule = LABOR_RULES[cat] || LABOR_RULES['Outros']
+    const qty = itemCountByCat(cat)
+    if(qty<=0) return 0
+    // esforço cresce levemente acima do linear (itens demais = mais deslocamento/ajuste)
+    const raw = rule.piso + rule.base * qty * (1 + Math.min(qty,20)*0.012)
+    // arredonda para múltiplo de 50
+    return Math.round(raw/50)*50
+  }
+  function aplicarSugestaoMaoDeObra(){
+    const novo = {...laborByCat}
+    proposalCategories.forEach(c=>{ novo[c] = String(suggestLaborForCat(c)) })
+    setLaborByCat(novo); setSaved(false)
+  }
+  const LABOR_CRITERIA_TEXT = 'Como sugerimos a mão de obra:\n\n'
+    + '• Cada categoria tem um valor-base por item e um piso mínimo (deslocamento + setup).\n'
+    + '• O total cresce com a quantidade de itens e a dificuldade de instalação de cada categoria:\n'
+    + '   - Sonorização e Gourmet: mais trabalhosas (embutir, calibrar, integrar).\n'
+    + '   - Segurança: fixação muitas vezes em altura.\n'
+    + '   - Automação: módulo + cena + integração por ponto.\n'
+    + '   - Redes: lançar/crimpar cabo e configurar.\n'
+    + '• Acima de muitos itens, o esforço cresce um pouco mais que proporcional.\n\n'
+    + 'É só uma sugestão — você pode ajustar cada valor manualmente.'
   const room  = floor?.rooms[cr]
 
   // Auto-check stock whenever floors change
@@ -660,7 +713,43 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
     setSaved(false)
   }
 
-  function genPitch(){ if(!room) return; const key=Object.keys(PITCHES).find(k=>room.name.toLowerCase().includes(k)); const list=PITCHES[key||'sala']; updRoom({pitch:list[Math.floor(Math.random()*list.length)]}) }
+  function genPitch(){ if(!room) return; updRoom({pitch:pitchForRoom(room)}) }
+
+  // Gera um pitch a partir dos ITENS do cômodo (categorias presentes + nome do cômodo)
+  function pitchForRoom(r){
+    const items=(r.items||[]).filter(it=>it.name)
+    const cats=new Set(items.map(it=>norm(it.category||'Outros')))
+    const nome=(r.name||'').toLowerCase()
+    // frase por nome de cômodo (tem prioridade se casar)
+    const key=Object.keys(PITCHES).find(k=>nome.includes(k))
+    if(items.length===0){ return key?PITCHES[key][0]:'Ambiente preparado para a automação RARO.' }
+    // monta a partir das categorias presentes
+    const has=c=>cats.has(c)
+    const frasesCat=[]
+    if(has('Automação')) frasesCat.push('iluminação e cenas a um toque')
+    if(has('Sonorização')) frasesCat.push('som ambiente integrado')
+    if(has('Segurança')) frasesCat.push('segurança com câmeras 4K')
+    if(has('Redes')) frasesCat.push('Wi-Fi forte e estável')
+    if(has('Gourmet')) frasesCat.push('espaço gourmet pronto para receber')
+    if(has('Elétrica')) frasesCat.push('infraestrutura elétrica dedicada')
+    if(frasesCat.length===0){ return key?PITCHES[key][0]:'Ambiente integrado pela automação RARO.' }
+    // capitaliza a 1a e une
+    let corpo
+    if(frasesCat.length===1) corpo=frasesCat[0]
+    else if(frasesCat.length===2) corpo=frasesCat[0]+' e '+frasesCat[1]
+    else corpo=frasesCat.slice(0,-1).join(', ')+' e '+frasesCat[frasesCat.length-1]
+    corpo=corpo.charAt(0).toUpperCase()+corpo.slice(1)
+    return corpo+'.'
+  }
+  // Gera pitch para todos os cômodos que ainda não têm um (usado ao salvar)
+  function ensurePitches(floorsArr){
+    return floorsArr.map(f=>({...f, rooms:(f.rooms||[]).map(r=>{
+      const items=(r.items||[]).filter(it=>it.name)
+      if(items.length>0 && (!r.pitch || !r.pitch.trim())) return {...r, pitch:pitchForRoom(r)}
+      return r
+    })}))
+  }
+  const norm = c => (c==='Rede'?'Redes': c==='Som'?'Sonorização': c)
 
   function loadTest(){ setFloors(generateTestHouse(catalog)); setCf(0); setCr(-1) }
 
@@ -697,6 +786,8 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
   function buildProposalObject(status, laborValue){
     const cl=clients.find(c=>c.id===Number(clientId))
     const code=proposalCode||generateProposalCode(cl||{name1:clientName?.[0]||'X',name2:clientName?.split(' ')?.[1]?.[0]||'X'})
+    // Item 6: garante pitch automático em cômodos com itens e sem pitch
+    const floorsComPitch = ensurePitches(floors)
     return{
       ...(savedProposal||{}),
       client_id:clientId?Number(clientId):null,
@@ -707,7 +798,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
       status,
       labor:parse(laborValue!=null?laborValue:laborTotal),
       labor_by_cat:{...laborByCat},
-      floors:floors.map(f=>({name:f.name,rooms:f.rooms.map(r=>({name:r.name,icon:r.icon,highlight:r.highlight,pitch:r.pitch,price:parse(r.price),items:(r.items||[]).filter(it=>it.name)}))})),
+      floors:floorsComPitch.map(f=>({name:f.name,rooms:f.rooms.map(r=>({name:r.name,icon:r.icon,highlight:r.highlight,pitch:r.pitch,price:parse(r.price),items:(r.items||[]).filter(it=>it.name)}))})),
       valid_days:30,
       planta_data: plantaData,
       exec_doc: execDocData,
@@ -731,9 +822,16 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
     if (isSaving) return
     setIsSaving(true)
     try {
-      const p = buildProposalObject('draft', laborTotal)
+      // mantém o status atual da proposta (não rebaixa enviada para rascunho)
+      const statusAtual = savedProposal?.status || 'draft'
+      const p = buildProposalObject(statusAtual, laborTotal)
       if (!p.code) p.code = generateProposalCode({name1:p.client_name?.[0]||'X', name2:'X'})
       const before = savedProposal ? {...savedProposal} : null
+      // reflete no estado os pitches gerados automaticamente, para o usuário ver/editar
+      setFloors(prev=>prev.map((f,fi)=>({...f, rooms:f.rooms.map((r,ri)=>{
+        const pr=p.floors?.[fi]?.rooms?.[ri]
+        return (pr && pr.pitch && (!r.pitch||!r.pitch.trim())) ? {...r, pitch:pr.pitch} : r
+      })})))
       const saved2 = await saveProposal(p)
       if (!saved2) throw new Error('Supabase retornou vazio — verifique a conexão')
       setSavedProposal(saved2)
@@ -814,38 +912,51 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
   }
 
   // Gera a Apresentação Comercial (pág 1 institucional + pág 2 investimento)
+  // Detecta itens de rack (espelha apresentacaoComercial.js) para o modal de exclusões
+  const RACK_CATS_PB = new Set(['CPD','CPD / Rack','CPD/Rack','Rack'])
+  const RACK_NAME_PB = /(dream\s*machine|amplificad|switch|rack\b|patch\s*panel|nobreak|no-break|dio\b|nvr\b|receiver|controladora|cloud\s*key|poe)/i
+  function isRackItemPB(it){
+    const cat=(it.category||'').trim()
+    return RACK_CATS_PB.has(cat) || RACK_NAME_PB.test(it.name||'')
+  }
+  function rackItemsList(){
+    const arr=[]
+    floors.forEach((f,fi)=>(f.rooms||[]).forEach((r,ri)=>(r.items||[]).forEach((it,ii)=>{
+      if(it.name && isRackItemPB(it)){
+        arr.push({key:`${fi}:${ri}:${ii}`,name:it.name,cat:it.category||'Outros',val:(it.sale_price||0)*(parseInt(it.qty)||1),qty:parseInt(it.qty)||1})
+      }
+    })))
+    return arr
+  }
+  function abrirModalApresentacao(){
+    setApresKeep({}); setApresExec('3000'); setShowApresModal(true)
+  }
+
   function gerarApresentacao(){
     try {
-      const raw = prompt('Valor da MÃO DE OBRA do Projeto Executivo (R$):', '3000')
-      if (raw === null) return // cancelou
-      const execValue = parse(raw)
+      const execValue = parse(apresExec)
       if (!(execValue > 0)) { alert('Informe um valor válido para a mão de obra do Projeto Executivo.'); return }
       const cl = clients.find(c=>c.id===Number(clientId))
-      // Mão de obra dos equipamentos por categoria (só categorias visíveis), normalizando nomes
+      const keepSet = new Set(Object.entries(apresKeep).filter(([,v])=>v).map(([k])=>k))
+      const floorsApres = floors.map((f,fi)=>({...f, rooms:(f.rooms||[]).map((r,ri)=>({
+        ...r,
+        items:(r.items||[]).filter((it,ii)=>{
+          if(it.name && isRackItemPB(it)){ return keepSet.has(`${fi}:${ri}:${ii}`) }
+          return true
+        })
+      }))}))
       const laborByCatVisible = {}
       proposalCategories.forEach(c=>{ if(!hiddenCateg.has(c)){ const v=parse(laborByCat[c]); if(v>0) laborByCatVisible[c]=v } })
-      const { html, excludedTotal, excludedNames } = buildApresentacaoComercial({
+      const { html } = buildApresentacaoComercial({
         clientName: cl ? `${cl.name1} & ${cl.name2}` : (clientName || 'Cliente'),
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         code: proposalCode || '',
-        floors,
+        floors: floorsApres,
         execValue,
         laborByCat: laborByCatVisible,
         laborTotal: laborVisible,
       })
-      // Popup informativo (NÃO vai para o documento) com o valor dos itens excluídos
-      if (excludedTotal > 0) {
-        const linhas = Object.entries(excludedNames)
-          .sort((a,b)=>b[1]-a[1])
-          .map(([n,v])=>`  • ${n}: ${fmt(v)}`).join('\n')
-        alert(
-          'ℹ Itens do rack EXCLUÍDOS da apresentação (não aparecem no documento):\n\n' +
-          linhas +
-          '\n\nTotal excluído: ' + fmt(excludedTotal) +
-          '\n\n(O documento mostra apenas o valor de venda sem esses itens.)'
-        )
-      }
-      // Abre o HTML em nova aba (lá o cliente pode imprimir/salvar como PDF)
+      setShowApresModal(false)
       try {
         const blob = new Blob([html], {type:'text/html;charset=utf-8'})
         const url = URL.createObjectURL(blob)
@@ -860,7 +971,6 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
       alert('Erro ao gerar apresentação: ' + err.message)
     }
   }
-
   // equipTotal: when categories are hidden, recalculate from items excluding hidden cats
   const equipTotal = hiddenCateg.size === 0
     ? floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
@@ -983,7 +1093,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
           {/* GERAR APRESENTAÇÃO COMERCIAL */}
           <button className="btn" title="Gerar apresentação comercial (institucional + investimento por categoria)"
             style={{gap:6, color:'#9E7B45', borderColor:'#C9A268'}}
-            onClick={()=>gerarApresentacao()}>
+            onClick={()=>abrirModalApresentacao()}>
             <i className="ti ti-presentation" aria-hidden/>
             Apresentação
           </button>
@@ -1480,7 +1590,37 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
           <div style={{maxWidth:560,marginTop:24,borderTop:'1px solid var(--border)',paddingTop:18}}>
             <div className="flabel" style={{marginBottom:8}}>Resumo</div>
             {floors.map((f,fi)=>{ const sub=(f.rooms||[]).reduce((s,r)=>s+parse(r.price),0); return sub>0?<div key={fi} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',fontSize:12,color:'var(--text2)'}}><span>{f.name}</span><span>{fmt(sub)}</span></div>:null })}
-            <div style={{display:'flex',justifyContent:'space-between',padding:'6px 0',fontSize:12,borderTop:'1px solid var(--border)',marginTop:6,alignItems:'center'}}>
+            {/* Item 2: itens por cômodo */}
+            {(()=>{
+              const rows=[]
+              floors.forEach(f=>(f.rooms||[]).forEach(r=>{
+                const n=(r.items||[]).filter(it=>it.name).reduce((s,it)=>s+(parseInt(it.qty)||1),0)
+                if(n>0) rows.push([r.name,n])
+              }))
+              if(!rows.length) return null
+              const totalItens=rows.reduce((s,[,n])=>s+n,0)
+              return <details style={{marginTop:8,borderTop:'1px solid var(--border)',paddingTop:8}}>
+                <summary style={{fontSize:11,color:'var(--text2)',cursor:'pointer',display:'flex',justifyContent:'space-between'}}>
+                  <span>Itens por cômodo</span><b style={{color:'var(--accent)'}}>{totalItens} itens</b>
+                </summary>
+                <div style={{marginTop:6,display:'grid',gridTemplateColumns:'1fr 1fr',gap:'2px 16px'}}>
+                  {rows.map(([nm,n],i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text3)'}}><span>{nm}</span><span>{n}</span></div>)}
+                </div>
+              </details>
+            })()}
+            {/* Item 2: itens por categoria */}
+            {proposalCategories.length>0&&<div style={{marginTop:8,borderTop:'1px solid var(--border)',paddingTop:8}}>
+              <div style={{fontSize:11,color:'var(--text2)',marginBottom:5}}>Itens por categoria</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:'5px 8px'}}>
+                {proposalCategories.map(cat=>{
+                  const c=CAT_COLOR[cat]||'#6B7280'; const n=itemCountByCat(cat)
+                  return <span key={cat} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:10.5,background:'var(--surf)',border:'1px solid var(--border)',borderRadius:12,padding:'3px 9px'}}>
+                    <span style={{width:8,height:8,borderRadius:'50%',background:c}}/>{cat}<b style={{color:'var(--text2)'}}>{n}</b>
+                  </span>
+                })}
+              </div>
+            </div>}
+            <div style={{display:'flex',justifyContent:'space-between',padding:'6px 0',fontSize:12,borderTop:'1px solid var(--border)',marginTop:8,alignItems:'center'}}>
               <span style={{color:'var(--text2)'}}>Mão de obra <span style={{fontSize:10,color:'var(--text3)'}}>(por categoria, em "Salvar")</span></span>
               <span style={{fontWeight:600,fontSize:13}}>{laborTotal>0?fmt(laborTotal):'—'}</span>
             </div>
@@ -1588,26 +1728,41 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
 
         {/* Mão de obra por categoria */}
         <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
-          <div className="flabel" style={{marginBottom:8}}>Mão de obra — Instalação e Programação (R$)</div>
+          <div className="flabel" style={{marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span style={{display:'flex',alignItems:'center',gap:6}}>
+              Mão de obra — Instalação e Programação (R$)
+              <button type="button" title="Ver critérios da sugestão"
+                onClick={()=>alert(LABOR_CRITERIA_TEXT)}
+                style={{width:16,height:16,borderRadius:'50%',border:'1px solid var(--accent)',background:'none',color:'var(--accent)',fontSize:10,fontWeight:700,cursor:'pointer',lineHeight:1,padding:0,display:'inline-flex',alignItems:'center',justifyContent:'center'}}>i</button>
+            </span>
+            {proposalCategories.length>0&&<button type="button" className="btn" style={{fontSize:10,padding:'3px 9px'}} onClick={aplicarSugestaoMaoDeObra} title="Preenche todos os campos com a sugestão baseada no volume e dificuldade">
+              <i className="ti ti-wand" aria-hidden/> Sugerir
+            </button>}
+          </div>
           {proposalCategories.length===0
             ? <div style={{fontSize:12,color:'var(--text3)'}}>Adicione itens à proposta para lançar a mão de obra por categoria.</div>
             : <>
               {proposalCategories.map(cat=>{
                 const c=CAT_COLOR[cat]||'#6B7280'
-                return <div key={cat} style={{display:'flex',alignItems:'center',gap:10,padding:'5px 0',borderBottom:'0.5px solid var(--border)'}}>
+                const qtd=itemCountByCat(cat)
+                const sug=suggestLaborForCat(cat)
+                return <div key={cat} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:'0.5px solid var(--border)'}}>
                   <span style={{flex:1,fontSize:12.5,color:'var(--text)',display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{width:9,height:9,borderRadius:'50%',background:c,flexShrink:0}}/>{cat}
+                    <span style={{width:9,height:9,borderRadius:'50%',background:c,flexShrink:0}}/>
+                    <span>{cat}<span style={{fontSize:10,color:'var(--text3)',marginLeft:6}}>{qtd} {qtd===1?'item':'itens'}</span></span>
                   </span>
+                  <button type="button" title={`Sugerido: ${fmt(sug)}`} onClick={()=>setLaborCat(cat,String(sug))}
+                    style={{fontSize:9.5,color:'var(--accent)',background:'none',border:'1px solid var(--border)',borderRadius:4,padding:'2px 6px',cursor:'pointer'}}>≈ {fmt(sug)}</button>
                   <span style={{fontSize:11,color:'var(--text3)'}}>R$</span>
                   <input type="number" min="0" value={laborByCat[cat]??''} onChange={e=>setLaborCat(cat,e.target.value)}
-                    placeholder="0" style={{width:110,textAlign:'right',fontSize:14,fontWeight:600,padding:'4px 8px'}}/>
+                    placeholder="0" style={{width:100,textAlign:'right',fontSize:14,fontWeight:600,padding:'4px 8px'}}/>
                 </div>
               })}
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:9,paddingTop:9,borderTop:'2px solid var(--border)'}}>
                 <span style={{fontSize:12.5,fontWeight:700,color:'var(--text)'}}>Total mão de obra</span>
                 <span style={{fontSize:16,fontWeight:700,color:'var(--accent)'}}>{fmt(laborTotal)}</span>
               </div>
-              <div style={{fontSize:10,color:'var(--text3)',marginTop:5}}>O total é a soma das categorias. Ao ocultar uma categoria na proposta, a mão de obra dela sai do PDF.</div>
+              <div style={{fontSize:10,color:'var(--text3)',marginTop:5}}>Clique em <b>Sugerir</b> para preencher pelo volume e dificuldade, ou no valor ≈ de cada linha. Você pode ajustar manualmente. Ao ocultar uma categoria, a M.O. dela sai do PDF.</div>
             </>}
         </div>
 
@@ -1709,6 +1864,55 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
           </button>
         </div>
       </div></div>}
+
+      {/* ── MODAL APRESENTAÇÃO COMERCIAL ── */}
+      {showApresModal&&(()=>{
+        const rackItens=rackItemsList()
+        const keepCount=Object.values(apresKeep).filter(Boolean).length
+        return <div className="modal-overlay"><div className="modal" style={{width:560,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+          <div className="modal-header">
+            <div className="modal-title"><i className="ti ti-presentation" style={{marginRight:6}} aria-hidden/>Gerar Apresentação Comercial</div>
+            <button className="modal-close" onClick={()=>setShowApresModal(false)}>×</button>
+          </div>
+
+          {/* valor mão de obra do projeto executivo */}
+          <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
+            <div className="flabel" style={{marginBottom:6}}>Mão de obra do Projeto Executivo (R$)</div>
+            <input type="number" min="0" value={apresExec} onChange={e=>setApresExec(e.target.value)}
+              placeholder="3000" style={{width:'100%',fontSize:16,fontWeight:600,textAlign:'center'}}/>
+            <div style={{fontSize:10,color:'var(--text3)',marginTop:5}}>Entra na 1ª tabela (Valor do Projeto) e no Resumo do Investimento Total.</div>
+          </div>
+
+          {/* itens de rack — readicionar */}
+          <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
+            <div className="flabel" style={{marginBottom:4}}>Itens do rack <span style={{fontSize:10,color:'var(--text3)',fontWeight:400}}>(Dream Machine, switches, amplificador...)</span></div>
+            {rackItens.length===0
+              ? <div style={{fontSize:12,color:'var(--text3)'}}>Nenhum item de rack identificado nesta proposta.</div>
+              : <>
+                <div style={{fontSize:11,color:'var(--text3)',marginBottom:8}}>Por padrão esses itens <b>não aparecem</b> na apresentação. Marque os que quiser <b>incluir</b>:</div>
+                {rackItens.map(it=>(
+                  <label key={it.key} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:'0.5px solid var(--border)',cursor:'pointer',fontSize:12.5}}>
+                    <input type="checkbox" checked={!!apresKeep[it.key]} onChange={e=>setApresKeep(p=>({...p,[it.key]:e.target.checked}))}/>
+                    <span style={{flex:1}}>{it.name}{it.qty>1?<span style={{color:'var(--text3)'}}> ×{it.qty}</span>:''}<span style={{fontSize:10,color:'var(--text3)',marginLeft:6}}>{it.cat}</span></span>
+                    <span style={{color:'var(--text2)',fontWeight:600}}>{fmt(it.val)}</span>
+                  </label>
+                ))}
+                <div style={{display:'flex',justifyContent:'space-between',marginTop:8,fontSize:11,color:'var(--text3)'}}>
+                  <span>{keepCount>0?`${keepCount} item(s) serão incluídos`:'Todos excluídos (padrão)'}</span>
+                  <div style={{display:'flex',gap:10}}>
+                    <button type="button" onClick={()=>{const all={};rackItens.forEach(it=>all[it.key]=true);setApresKeep(all)}} style={{background:'none',border:'none',color:'var(--accent)',cursor:'pointer',fontSize:11}}>Incluir todos</button>
+                    <button type="button" onClick={()=>setApresKeep({})} style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:11}}>Excluir todos</button>
+                  </div>
+                </div>
+              </>}
+          </div>
+
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
+            <button className="btn" onClick={()=>setShowApresModal(false)}>Cancelar</button>
+            <button className="btn primary" onClick={gerarApresentacao}><i className="ti ti-external-link" aria-hidden/>Gerar Apresentação</button>
+          </div>
+        </div></div>
+      })()}
 
       {/* ── SEND MODAL ── */}
       {showSendModal&&<div className="modal-overlay"><div className="modal" style={{width:460}} onClick={e=>e.stopPropagation()}>
