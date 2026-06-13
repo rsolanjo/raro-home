@@ -17,6 +17,7 @@ import Suppliers from './components/Suppliers.jsx'
 import Tools from './components/Tools.jsx'
 import Admins from './components/Admins.jsx'
 import Reports from './components/Reports.jsx'
+import AreaClientes from './components/AreaClientes.jsx'
 import Financial from './components/Financial.jsx'
 import Backup    from './components/Backup.jsx'
 import {
@@ -51,6 +52,7 @@ function getSession() {
 export default function App() {
   const [user, setUser]   = useState(getSession)
   const [page, setPage]   = useState('dashboard')
+  const [showAreaClientes, setShowAreaClientes] = useState(false)
   const [data, setData]   = useState(EMPTY)
   const [loading, setLoading] = useState(false)
   const [editingProposal, setEditingProposal] = useState(null)
@@ -113,9 +115,15 @@ export default function App() {
   // Mestre de obra: vê apenas o diário da obra atribuída
   if (user.role === 'mestre') return <MestreView user={user} onLogout={logout} />
 
+  // Área de Clientes — tela cheia, oculta todos os menus do app
+  if (showAreaClientes) return <AreaClientes
+    clients={data.clients} proposals={data.proposals} catalog={data.catalog}
+    onRefresh={refresh} onClose={()=>setShowAreaClientes(false)} />
+
+
   return (
     <div className="app">
-      <Sidebar active={page} onNav={nav} counts={counts} user={user} onLogout={logout} />
+      <Sidebar active={page} onNav={nav} counts={counts} user={user} onLogout={logout} onAreaClientes={()=>setShowAreaClientes(true)} />
 
       <div className="main">
         {/* Backup bar */}
@@ -206,11 +214,14 @@ export default function App() {
                   <i className={`ti ${ic}`} aria-hidden/><span>{lb}</span>
                 </button>
               ))}
+              <button onClick={()=>{setShowAreaClientes(true);setMobileMenu(false)}} className="mmenu-item" style={{color:'#C9A268'}}>
+                <i className="ti ti-presentation-analytics" aria-hidden/><span>Área de Clientes</span>
+              </button>
             </div>
             <button className="mmenu-logout" onClick={logout}>
               <i className="ti ti-logout" aria-hidden/> Sair
             </button>
-            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v96 · build 2026-06</div>
+            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v97 · build 2026-06</div>
           </div>
         </div>
       )}

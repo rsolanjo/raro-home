@@ -86,10 +86,11 @@ export async function saveProposal(p) {
   try {
     saved = await upsert('proposals', { ...p, updated_at: new Date().toISOString() })
   } catch (e) {
-    // Se a coluna labor_by_cat ainda não existe no banco, salva sem ela
-    // (rode SUPABASE_LABOR_BY_CAT_v89.sql para habilitar o detalhamento)
-    if (String(e?.message||'').includes('labor_by_cat') || e?.code === 'PGRST204') {
-      const { labor_by_cat, ...rest } = p
+    // Se alguma coluna nova ainda não existe no banco (PGRST204), remove as
+    // colunas opcionais conhecidas e re-tenta, para nunca travar o salvamento.
+    const msg = String(e?.message||'')
+    if (e?.code === 'PGRST204' || /column .* does not exist/i.test(msg) || msg.includes('labor_by_cat') || msg.includes('planta_cliente')) {
+      const { labor_by_cat, planta_cliente, ...rest } = p
       saved = await upsert('proposals', { ...rest, updated_at: new Date().toISOString() })
     } else throw e
   }

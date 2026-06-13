@@ -1,7 +1,7 @@
 import { LOGO_DARK } from '../logos.js'
-// v96 — Fix: apresentação acompanha categorias ocultas na proposta (não traz dados de categoria oculta); tabela 3 com colunas dinâmicas só das categorias presentes; modal de readicionar ignora itens de categoria oculta
+// v97 — Área de Clientes: modo apresentação em tela cheia (oculta menus), planta com markers, zoom/pan, mover itens, filtro por categoria, valor de venda oculto com botão revelar (nunca custo), Salvar (planta_cliente, não altera executivo) e Importar para Projeto Executivo
 
-export default function Sidebar({ active, onNav, counts, user, onLogout }) {
+export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
     <div className={`sb-item${active===id?' active':''}`} onClick={()=>onNav(id)}>
       <i className={`ti ti-${icon}`} aria-hidden />
@@ -29,6 +29,11 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
       {item('diarios','notebook','Diários')}
       {item('schedule','calendar-event','Cronograma')}
 
+      <div className="sb-item" onClick={onAreaClientes} style={{color:'#E8CFA0'}}>
+        <i className="ti ti-presentation-analytics" aria-hidden />
+        <span className="sb-label">Área de Clientes</span>
+      </div>
+
       <div className="sb-section">Sistema</div>
       {item('backup','database-export','Backup & Restore')}
       <div className="sb-section">Cadastros</div>
@@ -48,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout }) {
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v96 · build 2026-06
+          v97 · build 2026-06
         </div>
       </div>
     </div>
