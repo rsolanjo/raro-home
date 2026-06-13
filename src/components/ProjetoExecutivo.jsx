@@ -274,6 +274,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [editorSearch, setEditorSearch] = useState('')         // busca nos markers na planta
   const [filterRooms, setFilterRooms] = useState(new Set())   // cômodos selecionados (vazio = todos)
   const [filterCateg, setFilterCateg] = useState(new Set())   // categorias selecionadas (vazio = todas)
+  const [filterItem, setFilterItem] = useState('')            // filtra mapa por nome de item (resumo)
   const [showRackModal, setShowRackModal] = useState(false)
   const [rackEquip, setRackEquip] = useState([])   // [{code,name,qty,u}]
   const [execDoc, setExecDoc] = useState(null)
@@ -1766,6 +1767,33 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
               </div>
 
               {/* ── FILTROS COLAPSÁVEIS (fundo da sidebar) ── */}
+              <FilterSection title="📋 Resumo de itens" badge={filterItem?'•':null} onClear={filterItem?()=>setFilterItem(''):null} defaultOpen={false}>
+                {(()=>{
+                  const g={}
+                  markers.forEach(m=>{ const nm=m.name; if(!nm)return; const q=parseInt(m.qty)||1
+                    if(!g[nm]) g[nm]={name:nm,qty:0,rooms:{},type:equipType(nm)}
+                    g[nm].qty+=q; const r=m.room||'Sem cômodo'; g[nm].rooms[r]=(g[nm].rooms[r]||0)+q })
+                  const list=Object.values(g).sort((a,b)=>b.qty-a.qty)
+                  if(!list.length) return <div style={{fontSize:10,color:'rgba(255,255,255,0.35)'}}>Sem itens.</div>
+                  return <div>
+                    {filterItem&&<button onClick={()=>setFilterItem('')} style={{width:'100%',marginBottom:6,fontSize:10,padding:'5px',borderRadius:5,border:'1px solid #38BDF8',background:'rgba(56,189,248,0.15)',color:'#38BDF8',cursor:'pointer',fontFamily:'inherit'}}>✕ Mostrar todos</button>}
+                    {list.map(it=>{
+                      const st=EQUIP_STYLE[it.type]||EQUIP_STYLE.Outro; const sel=filterItem===it.name
+                      const roomsTxt=Object.entries(it.rooms).map(([r,q])=>q>1?`${r} (${q})`:r).join(', ')
+                      return <button key={it.name} onClick={()=>setFilterItem(sel?'':it.name)} title="Clique para ver só este item no mapa"
+                        style={{display:'block',width:'100%',textAlign:'left',background:sel?'rgba(56,189,248,0.12)':'transparent',border:`1px solid ${sel?'#38BDF8':'transparent'}`,borderRadius:5,padding:'5px 6px',cursor:'pointer',marginBottom:2,fontFamily:'inherit'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:6,color:'#fff',fontSize:11}}>
+                          <span style={{width:7,height:7,borderRadius:'50%',background:st.c,flexShrink:0}}/>
+                          <b style={{color:'#38BDF8',minWidth:18}}>{it.qty}</b>
+                          <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{it.name}</span>
+                        </div>
+                        <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginLeft:13,marginTop:1}}>{roomsTxt}</div>
+                      </button>
+                    })}
+                  </div>
+                })()}
+              </FilterSection>
+
               <FilterSection title="🔍 Buscar na planta" defaultOpen={false}>
                 <input value={editorSearch} onChange={e=>setEditorSearch(e.target.value)}
                   placeholder="Nome, código ou cômodo..."
@@ -1790,13 +1818,14 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
 
               <FilterSection title="🏷 Filtrar categorias" badge={filterCateg.size||null} onClear={filterCateg.size?()=>setFilterCateg(new Set()):null} defaultOpen={false}>
                 <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
-                  {[...new Set(markers.map(m=>equipType(m.name)))].sort().map(t=>{
-                    const st=EQUIP_STYLE[t]||EQUIP_STYLE.Outro; const sel=filterCateg.has(t)
+                  {[...new Set(markers.map(m=>inferCategory(m.name||'').cat||'Outros'))].sort().map(t=>{
+                    const cc={'Segurança':'#DC2626','Sonorização':'#BE185D','Redes':'#0EA5E9','Automação':'#059669','Gourmet':'#D97706','Elétrica':'#F59E0B','CPD':'#7C3AED','Outros':'#6B7280'}[t]||'#6B7280'
+                    const sel=filterCateg.has(t)
                     return <button key={t} onClick={()=>setFilterCateg(prev=>{const s=new Set(prev);if(s.has(t))s.delete(t);else s.add(t);return s})}
-                      style={{fontSize:9,padding:'2px 6px',borderRadius:6,border:'1px solid',cursor:'pointer',fontFamily:'inherit',
-                        borderColor:sel?st.c:'rgba(255,255,255,0.15)',background:sel?st.c+'28':'rgba(255,255,255,0.03)',
-                        color:sel?st.c:'rgba(255,255,255,0.5)'}}>
-                      {st.s} {t}
+                      style={{fontSize:9,padding:'2px 8px',borderRadius:6,border:'1px solid',cursor:'pointer',fontFamily:'inherit',display:'inline-flex',alignItems:'center',gap:4,
+                        borderColor:sel?cc:'rgba(255,255,255,0.15)',background:sel?cc+'28':'rgba(255,255,255,0.03)',
+                        color:sel?cc:'rgba(255,255,255,0.5)'}}>
+                      <span style={{width:7,height:7,borderRadius:'50%',background:cc}}/>{t}
                     </button>})}
                 </div>
               </FilterSection>
@@ -1823,8 +1852,9 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                   const srch=editorSearch.toLowerCase()
                   const matchS=!editorSearch||m.name?.toLowerCase().includes(srch)||m.code?.toLowerCase().includes(srch)||m.room?.toLowerCase().includes(srch)
                   const matchR=filterRooms.size===0||filterRooms.has(m.room||'Sem cômodo')
-                  const matchC=filterCateg.size===0||filterCateg.has(equipType(m.name))
-                  const visible=matchS&&matchR&&matchC
+                  const matchC=filterCateg.size===0||filterCateg.has(inferCategory(m.name||'').cat||'Outros')
+                  const matchI=!filterItem||m.name===filterItem
+                  const visible=matchS&&matchR&&matchC&&matchI
                   const isRack = isRackItem(m.name||'', m.code||'')
                   const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
                   const sel=selected===m.uid
@@ -1880,8 +1910,8 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                 <div style={{padding:14}}>
                   <div style={{fontSize:11,color:'#38BDF8',fontWeight:600,marginBottom:10,textTransform:'uppercase'}}>Resumo</div>
                   <div style={{fontSize:12,color:'rgba(255,255,255,0.7)',lineHeight:1.8}}>{markers.length} equipamentos posicionados</div>
-                  {(filterRooms.size>0||filterCateg.size>0||editorSearch)&&<div style={{marginTop:8,fontSize:11,color:'#38BDF8',background:'rgba(56,189,248,0.1)',padding:'6px 8px',borderRadius:5}}>
-                    Visíveis: {markers.filter(m=>{const s=editorSearch.toLowerCase();return(!editorSearch||m.name?.toLowerCase().includes(s)||m.code?.toLowerCase().includes(s)||m.room?.toLowerCase().includes(s))&&(filterRooms.size===0||filterRooms.has(m.room||'Sem cômodo'))&&(filterCateg.size===0||filterCateg.has(equipType(m.name)))}).length} / {markers.length}
+                  {(filterRooms.size>0||filterCateg.size>0||editorSearch||filterItem)&&<div style={{marginTop:8,fontSize:11,color:'#38BDF8',background:'rgba(56,189,248,0.1)',padding:'6px 8px',borderRadius:5}}>
+                    Visíveis: {markers.filter(m=>{const s=editorSearch.toLowerCase();return(!editorSearch||m.name?.toLowerCase().includes(s)||m.code?.toLowerCase().includes(s)||m.room?.toLowerCase().includes(s))&&(filterRooms.size===0||filterRooms.has(m.room||'Sem cômodo'))&&(filterCateg.size===0||filterCateg.has(inferCategory(m.name||'').cat||'Outros'))&&(!filterItem||m.name===filterItem)}).length} / {markers.length}
                   </div>}
                   <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginTop:10,lineHeight:1.6}}>Clique num marcador para editar.<br/>Arraste para mover.<br/>Use o painel esquerdo para adicionar.</div>
               </div>

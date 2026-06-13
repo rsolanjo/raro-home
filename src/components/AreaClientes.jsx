@@ -28,11 +28,18 @@ function isRackItemAC(name='', code=''){
   const n=(name+' '+code).toLowerCase()
   return /\b(hd|nvr|dvr|switch|patch|nobreak|no-break|patch ?cord|dream machine|udm|controladora|servidor|fonte|mini rack|rack)\b/.test(n) && !/gateway/.test(n)
 }
-// categoria (para filtro/valores) a partir do nome
+// categorias canônicas (nomes corretos)
+const CANON = new Set(['Segurança','Sonorização','Redes','Automação','Gourmet','Elétrica','CPD','Outros'])
+// categoria (para filtro/valores) — sempre normaliza para os nomes corretos
 function catOf(it){
-  if(it.category) return it.category
+  // normaliza nomes conhecidos com variações
+  const raw=(it.category||'').trim()
+  const map={'Som':'Sonorização','Rede':'Redes','Redes / WiFi':'Redes','Redes/WiFi':'Redes','Segurança / CFTV':'Segurança','CPD / Rack':'CPD','CPD/Rack':'CPD'}
+  if(map[raw]) return map[raw]
+  if(CANON.has(raw)) return raw
+  // se a categoria não for canônica (ex: "Interruptor"), infere pelo nome
   const r=inferCategory(it.itemName||it.name||'')
-  return r?.cat || 'Outros'
+  return (r && CANON.has(r.cat)) ? r.cat : (raw||'Outros')
 }
 // nome / código normalizados (suporta markers do PlantaEditor e do ProjetoExecutivo)
 const nameOf = m => m.itemName || m.name || ''
@@ -87,7 +94,8 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
   const [catFilter, setCatFilter]   = useState('')      // dropdown "Todas as categorias"
   const [plantaSearch, setPlantaSearch] = useState('')  // buscar na planta
   const [filterRooms, setFilterRooms]   = useState(new Set())
-  const [openSec, setOpenSec]       = useState({busca:false,comodos:false,cats:false})
+  const [openSec, setOpenSec]       = useState({resumo:false,busca:false,comodos:false,cats:false})
+  const [itemFilter, setItemFilter] = useState('')      // filtra o mapa por nome de item
   const [tapCount, setTapCount]     = useState(0)      // gesto discreto p/ revelar valor (item 4)
   const stageRef = useRef(null)
   const fileRef  = useRef(null)
@@ -139,9 +147,22 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
   const visMarkers = markers.filter(m=>{
     if(hiddenCats.has(catOf(m))) return false
     if(filterRooms.size>0 && !filterRooms.has(m.room||'Sem cômodo')) return false
+    if(itemFilter && nameOf(m)!==itemFilter) return false
     if(plantaSearch){ const q=plantaSearch.toLowerCase(); if(!(nameOf(m).toLowerCase().includes(q)||codeOf(m).toLowerCase().includes(q)||(m.room||'').toLowerCase().includes(q))) return false }
     return true
   })
+  // Resumo de itens: agrupa por NOME → quantidade total + lista de cômodos
+  const itemResumo = (()=>{
+    const g={}
+    markers.forEach(m=>{
+      const nm=nameOf(m); if(!nm) return
+      const q=parseInt(m.qty)||1
+      if(!g[nm]) g[nm]={ name:nm, qty:0, rooms:{}, cat:catOf(m) }
+      g[nm].qty+=q
+      const r=m.room||'Sem cômodo'; g[nm].rooms[r]=(g[nm].rooms[r]||0)+q
+    })
+    return Object.values(g).sort((a,b)=>b.qty-a.qty)
+  })()
   const toggleCat = c => setHiddenCats(s=>{ const n=new Set(s); n.has(c)?n.delete(c):n.add(c); return n })
   const totalVenda = visMarkers.reduce((s,m)=>s+(m.sale_price||0)*(parseInt(m.qty)||1),0)
 
@@ -386,6 +407,28 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
           </div>
           {/* Seções de filtro — igual ao executivo */}
           <div style={{borderTop:'1px solid rgba(148,163,184,0.15)'}}>
+            {/* Resumo de itens */}
+            <button onClick={()=>setOpenSec(s=>({...s,resumo:!s.resumo}))} style={SC.secBtn}>
+              <i className={`ti ti-chevron-${openSec.resumo?'down':'right'}`} aria-hidden/><i className="ti ti-list-numbers" aria-hidden style={{color:'#E8CFA0'}}/> Resumo de itens {itemFilter&&<span style={{color:'#E8CFA0'}}>(filtrando)</span>}
+            </button>
+            {openSec.resumo && <div style={{padding:'4px 10px 12px'}}>
+              {itemFilter && <button onClick={()=>setItemFilter('')} style={{width:'100%',marginBottom:8,fontSize:11,padding:'6px',borderRadius:6,border:'1px solid #C9A268',background:'rgba(201,162,104,0.15)',color:'#E8CFA0',cursor:'pointer'}}>✕ Mostrar todos os itens</button>}
+              {itemResumo.length===0 && <div style={{fontSize:11,color:'#64748B'}}>Sem itens.</div>}
+              {itemResumo.map(it=>{
+                const color=CAT_COLOR[it.cat]||'#6B7280'; const sel=itemFilter===it.name
+                const roomsTxt=Object.entries(it.rooms).map(([r,q])=>q>1?`${r} (${q})`:r).join(', ')
+                return <button key={it.name} onClick={()=>setItemFilter(sel?'':it.name)} title="Clique para ver só este item no mapa"
+                  style={{display:'block',width:'100%',textAlign:'left',background:sel?'rgba(201,162,104,0.12)':'none',border:`1px solid ${sel?'#C9A268':'transparent'}`,borderRadius:6,padding:'7px 8px',cursor:'pointer',marginBottom:3}}
+                  onMouseEnter={e=>{if(!sel)e.currentTarget.style.background='rgba(148,163,184,0.08)'}} onMouseLeave={e=>{if(!sel)e.currentTarget.style.background='none'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:7,color:'#E2E8F0',fontSize:12}}>
+                    <span style={{width:8,height:8,borderRadius:'50%',background:color,flexShrink:0}}/>
+                    <b style={{color:'#E8CFA0',minWidth:22}}>{it.qty}</b>
+                    <span style={{flex:1}}>{it.name}</span>
+                  </div>
+                  <div style={{fontSize:10,color:'#64748B',marginLeft:15,marginTop:1}}>{roomsTxt}</div>
+                </button>
+              })}
+            </div>}
             {/* Buscar na planta */}
             <button onClick={()=>setOpenSec(s=>({...s,busca:!s.busca}))} style={SC.secBtn}>
               <i className={`ti ti-chevron-${openSec.busca?'down':'right'}`} aria-hidden/><i className="ti ti-search" aria-hidden style={{color:'#0EA5E9'}}/> Buscar na planta
