@@ -2,47 +2,49 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { inferCategory } from '../taxonomy.js'
 import { saveProposal } from '../db/supabase.js'
 
-// ── Identidade visual por categoria (símbolo + cor) ──
-const CAT_STYLE = {
-  'Segurança':   { color:'#DC2626', symbol:'S' },
-  'Sonorização': { color:'#BE185D', symbol:'♪' },
-  'Som':         { color:'#BE185D', symbol:'♪' },
-  'Redes':       { color:'#0EA5E9', symbol:'W' },
-  'Rede':        { color:'#0EA5E9', symbol:'W' },
-  'Automação':   { color:'#059669', symbol:'A' },
-  'Gourmet':     { color:'#D97706', symbol:'G' },
-  'Elétrica':    { color:'#F59E0B', symbol:'E' },
-  'CPD':         { color:'#7C3AED', symbol:'C' },
-  'Outros':      { color:'#6B7280', symbol:'•' },
+// ── Identidade visual idêntica ao Projeto Executivo ──
+// cor + símbolo por TIPO de equipamento (derivado do nome do item)
+const EQUIP_STYLE = {
+  'Gateway':{c:'#0EA5E9',s:'G'},'NVR':{c:'#7C3AED',s:'N'},'Câmera':{c:'#DC2626',s:'C'},
+  'Keypad':{c:'#059669',s:'K'},'Hub IR':{c:'#D97706',s:'I'},'Módulo':{c:'#6366F1',s:'M'},
+  'Som':{c:'#BE185D',s:'S'},'Wi-Fi':{c:'#0E7490',s:'W'},'Sensor':{c:'#16A34A',s:'P'},
+  'Tomada':{c:'#475569',s:'T'},'Outro':{c:'#374151',s:'?'},
 }
-// símbolo mais específico por tipo de equipamento (sobrepõe o da categoria)
-function symbolForName(name=''){
+function equipType(name=''){
   const n=name.toLowerCase()
-  if(/c[âa]mera|dome|bullet|cftv/.test(n)) return '◉'
-  if(/nvr|gravador|dvr/.test(n)) return 'N'
-  if(/access point|ap u6|unifi|wi-?fi|roteador/.test(n)) return 'W'
-  if(/switch/.test(n)) return '⇄'
-  if(/dream machine|controladora|udm|cloud key/.test(n)) return '◆'
-  if(/keypad|bot[ãa]o|tecla/.test(n)) return 'K'
-  if(/caixa|speaker|alto-falante|som|jbl/.test(n)) return '♪'
-  if(/amplificad|receiver/.test(n)) return '≣'
-  if(/sensor/.test(n)) return '◌'
-  if(/m[óo]dulo|rel[ée]/.test(n)) return 'M'
-  if(/tomada|interruptor/.test(n)) return 'T'
-  if(/coifa|cooktop|churrasq/.test(n)) return 'G'
-  return null
+  if(n.includes('gateway')) return 'Gateway'
+  if(n.includes('nvr')||n.includes('gravador')) return 'NVR'
+  if(n.includes('câmera')||n.includes('camera')||n.includes('dome')) return 'Câmera'
+  if(n.includes('hub ir')||n.includes('qair')) return 'Hub IR'
+  if(n.includes('keypad')||n.includes('botão')) return 'Keypad'
+  if(n.includes('módulo')||n.includes('qarz')) return 'Módulo'
+  if(n.includes('som')||n.includes('caixa')||n.includes('amplificador')) return 'Som'
+  if(n.includes('wi-fi')||n.includes('wifi')||n.includes('access point')||n.includes('ap ')) return 'Wi-Fi'
+  if(n.includes('sensor')||n.includes('presença')) return 'Sensor'
+  if(n.includes('tomada')) return 'Tomada'
+  return 'Outro'
 }
+function isRackItemAC(name='', code=''){
+  const n=(name+' '+code).toLowerCase()
+  return /\b(hd|nvr|dvr|switch|patch|nobreak|no-break|patch ?cord|dream machine|udm|controladora|servidor|fonte|mini rack|rack)\b/.test(n) && !/gateway/.test(n)
+}
+// categoria (para filtro/valores) a partir do nome
 function catOf(it){
   if(it.category) return it.category
   const r=inferCategory(it.itemName||it.name||'')
   return r?.cat || 'Outros'
 }
-function styleOf(cat){ return CAT_STYLE[cat] || CAT_STYLE['Outros'] }
-function markerSymbol(m){
-  const s=symbolForName(m.itemName||m.name||'')
-  return s || styleOf(catOf(m)).symbol
-}
+// nome / código normalizados (suporta markers do PlantaEditor e do ProjetoExecutivo)
+const nameOf = m => m.itemName || m.name || ''
+const codeOf = m => m.itemCode || m.code || ''
+const styleOf = m => EQUIP_STYLE[equipType(nameOf(m))] || EQUIP_STYLE.Outro
 const fmt = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
+
+// cor por CATEGORIA (para a sidebar de categorias)
+const CAT_COLOR = {
+  'Segurança':'#DC2626','Sonorização':'#BE185D','Som':'#BE185D','Redes':'#0EA5E9','Rede':'#0EA5E9',
+  'Automação':'#059669','Gourmet':'#D97706','Elétrica':'#F59E0B','CPD':'#7C3AED','Outros':'#6B7280',
+}
 
 // PDF → imagem (planta carregada)
 async function pdfToImage(base64Pdf){
@@ -82,6 +84,10 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
   const [panning, setPanning]   = useState(null)
   const [showEditor, setShowEditor] = useState(false)  // painel de adicionar itens (item 7)
   const [catSearch, setCatSearch]   = useState('')
+  const [catFilter, setCatFilter]   = useState('')      // dropdown "Todas as categorias"
+  const [plantaSearch, setPlantaSearch] = useState('')  // buscar na planta
+  const [filterRooms, setFilterRooms]   = useState(new Set())
+  const [openSec, setOpenSec]       = useState({busca:false,comodos:false,cats:false})
   const [tapCount, setTapCount]     = useState(0)      // gesto discreto p/ revelar valor (item 4)
   const stageRef = useRef(null)
   const fileRef  = useRef(null)
@@ -127,7 +133,13 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
   },[dragMarker,panning,onMouseMove,onMouseUp])
 
   const cats = [...new Set(markers.map(m=>catOf(m)))].sort()
-  const visMarkers = markers.filter(m=>!hiddenCats.has(catOf(m)))
+  const rooms = [...new Set(markers.map(m=>m.room).filter(Boolean))].sort()
+  const visMarkers = markers.filter(m=>{
+    if(hiddenCats.has(catOf(m))) return false
+    if(filterRooms.size>0 && !filterRooms.has(m.room||'Sem cômodo')) return false
+    if(plantaSearch){ const q=plantaSearch.toLowerCase(); if(!(nameOf(m).toLowerCase().includes(q)||codeOf(m).toLowerCase().includes(q)||(m.room||'').toLowerCase().includes(q))) return false }
+    return true
+  })
   const toggleCat = c => setHiddenCats(s=>{ const n=new Set(s); n.has(c)?n.delete(c):n.add(c); return n })
   const totalVenda = visMarkers.reduce((s,m)=>s+(m.sale_price||0)*(parseInt(m.qty)||1),0)
 
@@ -174,7 +186,8 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
   // ── Adicionar item do catálogo na planta (item 7) ──
   function addItem(cat0){
     const inf=inferCategory(cat0.name||'')
-    setMarkers(ms=>[...ms,{ id:MID++, x:50, y:50, itemCode:cat0.code, itemName:cat0.name,
+    const maxN=markers.reduce((mx,m)=>Math.max(mx, parseInt(m.n)||0),0)
+    setMarkers(ms=>[...ms,{ id:MID++, n:maxN+1, x:50, y:50, itemCode:cat0.code, itemName:cat0.name,
       room:'', qty:1, note:'', category:inf?.cat||'Outros', sale_price:cat0.sale_price||0 }])
     setDirty(true)
   }
@@ -210,10 +223,12 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
     const g={}
     catalog.filter(c=>!q||c.name?.toLowerCase().includes(q)).forEach(c=>{
       const cat=inferCategory(c.name||'').cat||'Outros'
+      if(catFilter && cat!==catFilter) return
       ;(g[cat]=g[cat]||[]).push(c)
     })
     return g
   })()
+  const allCatNames = [...new Set(catalog.map(c=>inferCategory(c.name||'').cat||'Outros'))].sort()
 
   // ───────── TELA DE SELEÇÃO ─────────
   if(!selProposal){
@@ -255,7 +270,7 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
       <div style={{...SC.topbar,gap:14}}>
         <button onClick={()=>{ if(dirty&&!window.confirm('Há alterações não salvas. Sair mesmo assim?'))return; setSelProposal(null) }} style={SC.ghost}>‹ Clientes</button>
         <div style={{flex:1}}>
-          <div style={{fontFamily:"'DM Serif Display',serif",fontSize:18}}>{clientName(selProposal)}</div>
+          <div onClick={discreteTap} title="" style={{fontFamily:"'DM Serif Display',serif",fontSize:18,cursor:'default'}}>{clientName(selProposal)}</div>
           <div style={{fontSize:11,color:'#94A3B8'}}>{selProposal.code||''} · {visMarkers.length} itens visíveis{showValues&&<span style={{color:'#E8CFA0'}}> · {fmt(totalVenda)}</span>}</div>
         </div>
         <button onClick={()=>setShowEditor(s=>!s)} title="Adicionar itens" style={{...SC.ghost,color:showEditor?'#E8CFA0':'#94A3B8',borderColor:showEditor?'rgba(201,162,104,0.5)':'rgba(148,163,184,0.3)'}}>
@@ -271,9 +286,9 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
         <div style={{width:210,borderRight:'1px solid rgba(148,163,184,0.15)',padding:'16px 14px',overflowY:'auto',flexShrink:0}}>
           <div style={SC.sectLabel}>Categorias</div>
           {cats.map(c=>{
-            const st=styleOf(c); const n=markers.filter(m=>catOf(m)===c).length; const off=hiddenCats.has(c)
+            const color=CAT_COLOR[c]||'#6B7280'; const n=markers.filter(m=>catOf(m)===c).length; const off=hiddenCats.has(c)
             return <button key={c} onClick={()=>toggleCat(c)} style={{display:'flex',alignItems:'center',gap:9,width:'100%',background:'none',border:'none',padding:'7px 6px',cursor:'pointer',borderRadius:6,opacity:off?0.4:1,color:'#E2E8F0',textAlign:'left'}}>
-              <span style={{width:18,height:18,borderRadius:'50%',background:st.color,color:'#fff',fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{st.symbol}</span>
+              <span style={{width:14,height:14,borderRadius:'50%',background:color,flexShrink:0}}/>
               <span style={{flex:1,fontSize:12.5}}>{c}</span>
               <span style={{fontSize:11,color:'#64748B'}}>{n}</span>
               <i className={off?'ti ti-eye-off':'ti ti-eye'} style={{fontSize:13,color:'#64748B'}} aria-hidden/>
@@ -303,15 +318,20 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
               <div style={{position:'relative',display:'inline-block'}}>
                 <img src={bgImage} draggable={false} style={{display:'block',maxWidth:'min(86vw,1200px)',maxHeight:'82vh',pointerEvents:'none'}}/>
                 {visMarkers.map(m=>{
-                  const st=styleOf(catOf(m)); const sel=selMarker===m.id
+                  const st=styleOf(m); const sel=selMarker===m.id; const rack=isRackItemAC(nameOf(m),codeOf(m))
+                  const label=m.n||st.s
                   return <div key={m.id} className="mk" onMouseDown={e=>{ e.stopPropagation(); setSelMarker(m.id); setDragMarker(m.id) }}
                     style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:10,cursor:'move'}}>
-                    <div style={{width:26,height:26,borderRadius:'50%',background:st.color,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,border:`2px solid ${sel?'#E8CFA0':'#fff'}`,boxShadow:'0 1px 5px rgba(0,0,0,0.5)'}}>{markerSymbol(m)}</div>
-                    {sel && <div style={{position:'absolute',left:30,top:-4,background:'rgba(10,15,22,0.96)',border:`1px solid ${st.color}`,borderRadius:5,padding:'5px 9px',whiteSpace:'nowrap',fontSize:11,color:'#E2E8F0',boxShadow:'0 2px 8px rgba(0,0,0,0.5)'}}>
-                      {m.qty>1?m.qty+'× ':''}{m.itemName}
-                      {showValues && <span style={{color:'#E8CFA0',marginLeft:6}}>{fmt((m.sale_price||0)*(parseInt(m.qty)||1))}</span>}
-                      {m.room && <div style={{fontSize:9,color:'#94A3B8'}}>{m.room}</div>}
-                      <button onClick={()=>removeMarker(m.id)} title="Remover" style={{marginTop:4,background:'none',border:'1px solid #DC2626',color:'#F87171',borderRadius:4,fontSize:9,padding:'1px 6px',cursor:'pointer'}}>remover</button>
+                    {rack
+                      ? <div style={{width:sel?32:28,height:sel?32:28,borderRadius:6,background:'#4C1D95',color:'#C4B5FD',fontSize:13,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:`2px solid ${sel?'#E8CFA0':'#7C3AED'}`,boxShadow:'0 2px 6px rgba(0,0,0,0.6)'}}><i className="ti ti-server" aria-hidden style={{fontSize:15}}/></div>
+                      : <div style={{width:sel?28:26,height:sel?28:26,borderRadius:'50%',background:st.c,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,border:`2px solid ${sel?'#E8CFA0':'#fff'}`,boxShadow:'0 1px 5px rgba(0,0,0,0.5)'}}>{label}</div>}
+                    <div style={{position:'absolute',left:'50%',top:-8,transform:'translateX(-50%)',background:rack?'#4C1D95':st.c,color:'#fff',borderRadius:'50%',width:13,height:13,fontSize:7,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'1px solid #fff',pointerEvents:'none'}}>{rack?'R':st.s}</div>
+                    {sel && <div style={{position:'absolute',left:32,top:-4,background:'rgba(10,15,22,0.96)',border:`1px solid ${rack?'#7C3AED':st.c}`,borderRadius:5,padding:'6px 10px',whiteSpace:'nowrap',fontSize:11.5,color:'#E2E8F0',boxShadow:'0 2px 8px rgba(0,0,0,0.5)'}}>
+                      <div style={{fontWeight:600}}>{m.qty>1?m.qty+'× ':''}{nameOf(m)}</div>
+                      {codeOf(m) && <div style={{fontSize:9,color:'#94A3B8',fontFamily:'monospace'}}>{codeOf(m)}</div>}
+                      {m.room && <div style={{fontSize:9.5,color:'#94A3B8'}}>{m.room}</div>}
+                      {showValues && <div style={{color:'#E8CFA0',marginTop:2}}>{fmt((m.sale_price||0)*(parseInt(m.qty)||1))}</div>}
+                      <button onClick={()=>removeMarker(m.id)} title="Remover" style={{marginTop:5,background:'none',border:'1px solid #DC2626',color:'#F87171',borderRadius:4,fontSize:9,padding:'1px 6px',cursor:'pointer'}}>remover</button>
                     </div>}
                   </div>
                 })}
@@ -325,9 +345,7 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
             <button onClick={()=>setZoom(z=>Math.max(0.4,+(z-0.2).toFixed(2)))} style={SC.zbtn}>−</button>
             <button onClick={()=>{setZoom(1);setPan({x:0,y:0})}} title="Resetar" style={{...SC.zbtn,fontSize:13}}><i className="ti ti-focus-2" aria-hidden/></button>
           </div>
-          <div style={{position:'absolute',left:16,bottom:16,fontSize:11,color:'#64748B'}}>Arraste a planta · role para zoom · arraste os pontos</div>
-          {/* gesto discreto p/ revelar valor (item 4): área quase invisível no canto inferior direito */}
-          <div onClick={discreteTap} title="" style={{position:'absolute',right:0,bottom:0,width:46,height:46,cursor:'default',opacity:0}}/>
+          <div style={{position:'absolute',left:16,bottom:16,fontSize:11,color:'#64748B'}}>Arraste a planta · role para zoom · arraste os pontos · toque num ponto para ver o que é</div>
         </div>
 
         {/* Painel ADICIONAR ITENS (item 7) */}
@@ -336,17 +354,22 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
             <span style={{fontSize:13,fontWeight:600}}>Adicionar itens</span>
             <button onClick={()=>setShowEditor(false)} style={{background:'none',border:'none',color:'#64748B',cursor:'pointer',fontSize:16}}>×</button>
           </div>
-          <div style={{padding:'10px 12px'}}>
+          <div style={{padding:'10px 12px',display:'flex',flexDirection:'column',gap:8}}>
             <input value={catSearch} onChange={e=>setCatSearch(e.target.value)} placeholder="Buscar no catálogo..."
               style={{width:'100%',background:'#0E1622',border:'1px solid rgba(148,163,184,0.25)',borderRadius:8,padding:'8px 10px',color:'#E2E8F0',fontSize:12.5}}/>
+            <select value={catFilter} onChange={e=>setCatFilter(e.target.value)}
+              style={{width:'100%',background:'#0E1622',border:'1px solid rgba(148,163,184,0.25)',borderRadius:8,padding:'8px 10px',color:'#E2E8F0',fontSize:12.5}}>
+              <option value="">Todas as categorias</option>
+              {allCatNames.map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
           <div style={{flex:1,overflowY:'auto',padding:'0 8px 12px'}}>
             {Object.keys(catalogGroups).length===0 && <div style={{color:'#64748B',fontSize:12,padding:'12px',textAlign:'center'}}>Nada encontrado.</div>}
             {Object.entries(catalogGroups).map(([grp,items])=>{
-              const st=styleOf(grp)
+              const color=CAT_COLOR[grp]||'#6B7280'
               return <div key={grp} style={{marginBottom:8}}>
                 <div style={{display:'flex',alignItems:'center',gap:7,padding:'7px 8px',fontSize:10,letterSpacing:1,textTransform:'uppercase',color:'#94A3B8'}}>
-                  <span style={{width:14,height:14,borderRadius:'50%',background:st.color,color:'#fff',fontSize:8,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center'}}>{st.symbol}</span>{grp}
+                  <span style={{width:11,height:11,borderRadius:'50%',background:color}}/>{grp}
                 </div>
                 {items.slice(0,40).map((it,i)=>(
                   <button key={i} onClick={()=>addItem(it)} title="Adicionar no centro da planta"
@@ -358,6 +381,35 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
                 ))}
               </div>
             })}
+          </div>
+          {/* Seções de filtro — igual ao executivo */}
+          <div style={{borderTop:'1px solid rgba(148,163,184,0.15)'}}>
+            {/* Buscar na planta */}
+            <button onClick={()=>setOpenSec(s=>({...s,busca:!s.busca}))} style={SC.secBtn}>
+              <i className={`ti ti-chevron-${openSec.busca?'down':'right'}`} aria-hidden/><i className="ti ti-search" aria-hidden style={{color:'#0EA5E9'}}/> Buscar na planta
+            </button>
+            {openSec.busca && <div style={{padding:'4px 12px 12px'}}>
+              <input value={plantaSearch} onChange={e=>setPlantaSearch(e.target.value)} placeholder="Nome, código ou cômodo..."
+                style={{width:'100%',background:'#0E1622',border:'1px solid rgba(148,163,184,0.25)',borderRadius:8,padding:'7px 10px',color:'#E2E8F0',fontSize:12}}/>
+            </div>}
+            {/* Filtrar cômodos */}
+            <button onClick={()=>setOpenSec(s=>({...s,comodos:!s.comodos}))} style={SC.secBtn}>
+              <i className={`ti ti-chevron-${openSec.comodos?'down':'right'}`} aria-hidden/><i className="ti ti-home" aria-hidden style={{color:'#C9A268'}}/> Filtrar cômodos {filterRooms.size>0&&<span style={{color:'#E8CFA0'}}>({filterRooms.size})</span>}
+            </button>
+            {openSec.comodos && <div style={{padding:'4px 12px 12px',display:'flex',flexWrap:'wrap',gap:6}}>
+              {rooms.length===0 && <span style={{fontSize:11,color:'#64748B'}}>Sem cômodos definidos.</span>}
+              {rooms.map(r=>{ const on=filterRooms.has(r); return <button key={r} onClick={()=>setFilterRooms(s=>{const n=new Set(s);n.has(r)?n.delete(r):n.add(r);return n})}
+                style={{fontSize:11,padding:'4px 9px',borderRadius:12,border:`1px solid ${on?'#C9A268':'rgba(148,163,184,0.25)'}`,background:on?'rgba(201,162,104,0.15)':'none',color:on?'#E8CFA0':'#CBD5E1',cursor:'pointer'}}>{r}</button> })}
+            </div>}
+            {/* Filtrar categorias */}
+            <button onClick={()=>setOpenSec(s=>({...s,cats:!s.cats}))} style={SC.secBtn}>
+              <i className={`ti ti-chevron-${openSec.cats?'down':'right'}`} aria-hidden/><i className="ti ti-category" aria-hidden style={{color:'#059669'}}/> Filtrar categorias {hiddenCats.size>0&&<span style={{color:'#E8CFA0'}}>({cats.length-hiddenCats.size}/{cats.length})</span>}
+            </button>
+            {openSec.cats && <div style={{padding:'4px 12px 12px',display:'flex',flexWrap:'wrap',gap:6}}>
+              {cats.map(c=>{ const on=!hiddenCats.has(c); const color=CAT_COLOR[c]||'#6B7280'; return <button key={c} onClick={()=>toggleCat(c)}
+                style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11,padding:'4px 9px',borderRadius:12,border:`1px solid ${on?color:'rgba(148,163,184,0.25)'}`,background:on?color+'22':'none',color:on?'#E2E8F0':'#64748B',cursor:'pointer',opacity:on?1:0.6}}>
+                <span style={{width:8,height:8,borderRadius:'50%',background:color}}/>{c}</button> })}
+            </div>}
           </div>
         </div>}
       </div>
@@ -381,4 +433,5 @@ const SC = {
   cardIcon:{width:44,height:44,borderRadius:10,background:'rgba(201,162,104,0.12)',border:'1px solid rgba(201,162,104,0.3)',display:'flex',alignItems:'center',justifyContent:'center',color:'#E8CFA0',fontSize:18,flexShrink:0},
   sectLabel:{fontSize:10,letterSpacing:2,textTransform:'uppercase',color:'#64748B',marginBottom:10},
   zbtn:{width:36,height:36,borderRadius:8,background:'rgba(19,26,38,0.9)',border:'1px solid rgba(148,163,184,0.3)',color:'#E2E8F0',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'},
+  secBtn:{display:'flex',alignItems:'center',gap:8,width:'100%',background:'none',border:'none',borderTop:'1px solid rgba(148,163,184,0.1)',padding:'10px 12px',cursor:'pointer',color:'#CBD5E1',textAlign:'left',fontSize:12,fontWeight:500},
 }

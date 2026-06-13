@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v98 — Resumo ao salvar com qtd E valor por cômodo/categoria (acompanha ocultas); estudo de esforço de M.O. aprofundado com i por categoria (piso+volume+espalhamento+itens complexos); Área de Clientes: ícones por categoria, ver valor discreto (3 toques no canto), importar/puxar planta do cadastro, menu editor p/ adicionar itens
+// v99 — Área de Clientes: ícones seguem código de cores por equipamento (igual executivo, com itens de rack roxos); revelar/ocultar valores com 3 cliques no nome do cliente; painel direito completo (buscar catálogo, dropdown categorias, buscar na planta, filtrar cômodos, filtrar categorias); clicar no ponto mostra o que é (nome, código, cômodo)
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v98 · build 2026-06
+          v99 · build 2026-06
         </div>
       </div>
     </div>
