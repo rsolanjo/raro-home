@@ -24,7 +24,7 @@ const fmt = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFracti
  * Gera o HTML da apresentação comercial (paleta clara/azul da proposta).
  * Retorna { html, excludedTotal, excludedNames, grandTotal }
  */
-export function buildApresentacaoComercial({ clientName, neighborhood, code, floors, execValue, laborByCat, laborTotal }) {
+export function buildApresentacaoComercial({ clientName, neighborhood, code, floors, execValue, laborByCat, laborTotal, plantaImage }) {
   laborByCat = laborByCat || {}
   laborTotal = laborTotal || 0
   const catTotals = {}
@@ -289,6 +289,12 @@ function baixarHTML(){
         </div>
       </div>
     </section>
+
+    ${plantaImage ? `<section class="section">
+      <h2>A Sua <span class="highlight">Planta</span></h2>
+      <p class="section-sub">O projeto pensado para o seu imóvel, com cada ambiente preparado para a automação.</p>
+      <div style="text-align:center"><img src="${plantaImage}" alt="Planta do projeto" style="max-width:100%;max-height:560px;border:1px solid var(--border);border-radius:12px;background:#fff;padding:8px"/></div>
+    </section>` : ''}
 
     <section class="section">
       <h2>Soluções <span class="highlight">Integradas</span></h2>

@@ -1,5 +1,5 @@
 import { LOGO_DARK } from '../logos.js'
-// v101 — Resumo de itens (no Projeto Executivo e na Área de Clientes): agrupa por item com qtd e cômodos, clicar filtra o mapa p/ mostrar só aquele item; filtro de categorias do executivo agora usa categorias de negócio (Sonorização, Redes, Automação, Segurança)
+// v102 — Fix: salvar proposta não reseta cômodos/itens (key estável + onSaved sincroniza editingProposal no App); apresentação: importar planta do Projeto Executivo OU imagem antes de gerar, com seção A Sua Planta no documento
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v101 · build 2026-06
+          v102 · build 2026-06
         </div>
       </div>
     </div>

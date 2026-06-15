@@ -546,7 +546,7 @@ ${cover}${roomPagesHtml.join('\n')}${totalPage}
 
 
 // ── COMPONENT ──────────────────────────────────────────────
-export default function ProposalBuilder({ clients, onRefresh, editProposal, execSeed, onGenerateExec, isAdmin, currentUser }) {
+export default function ProposalBuilder({ clients, onRefresh, onSaved, editProposal, execSeed, onGenerateExec, isAdmin, currentUser }) {
   const [catalog, setCatalog] = useState([])
   const [mobilePanel, setMobilePanel] = useState('rooms') // 'rooms' | 'edit' (only affects mobile)
   const [stock,   setStock]   = useState([])
@@ -624,6 +624,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
   const [showApresModal, setShowApresModal] = useState(false)
   const [apresKeep,      setApresKeep]      = useState({})   // {key:true} itens de rack a MANTER
   const [apresExec,      setApresExec]      = useState('3000')
+  const [apresPlanta,    setApresPlanta]    = useState(null)   // imagem da planta para a apresentação
   const [showSendModal,  setShowSendModal]  = useState(false)
   const [laborInput,     setLaborInput]     = useState(String(init?.labor??''))
   const [savedProposal,  setSavedProposal]  = useState(init||null)
@@ -920,6 +921,8 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
       setSaved(true)
       try { await auditedSave('orçamentos', before ? 'update' : 'create', saved2, currentUser?.name, before) } catch(e){}
       setShowSaveModal(false)
+      // sincroniza a proposta salva no pai (evita reset de cômodos/itens ao recarregar)
+      if (onSaved) onSaved(saved2)
       onRefresh()
       setSavedMsg('✓ Proposta salva!')
       setTimeout(()=>setSavedMsg(''), 3000)
@@ -1009,7 +1012,24 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
     return arr
   }
   function abrirModalApresentacao(){
-    setApresKeep({}); setApresExec('3000'); setShowApresModal(true)
+    setApresKeep({}); setApresExec('3000')
+    // pré-carrega a planta do projeto executivo, se houver
+    const pd = plantaData || savedProposal?.planta_data
+    const pdObj = typeof pd==='string' ? (()=>{try{return JSON.parse(pd)}catch{return null}})() : pd
+    setApresPlanta(pdObj?.image || null)
+    setShowApresModal(true)
+  }
+  function importarPlantaExec(){
+    const pd = plantaData || savedProposal?.planta_data
+    const pdObj = typeof pd==='string' ? (()=>{try{return JSON.parse(pd)}catch{return null}})() : pd
+    if(pdObj?.image){ setApresPlanta(pdObj.image) }
+    else alert('Esta proposta não tem planta no Projeto Executivo. Você pode importar uma imagem.')
+  }
+  function importarPlantaImagem(e){
+    const file=e.target.files?.[0]; if(!file) return
+    const reader=new FileReader()
+    reader.onload=ev=>setApresPlanta(ev.target.result)
+    reader.readAsDataURL(file)
   }
 
   function gerarApresentacao(){
@@ -1039,6 +1059,7 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
         execValue,
         laborByCat: laborByCatVisible,
         laborTotal: laborVisible,
+        plantaImage: apresPlanta,
       })
       setShowApresModal(false)
       try {
@@ -2008,6 +2029,24 @@ export default function ProposalBuilder({ clients, onRefresh, editProposal, exec
                   </div>
                 </div>
               </>}
+          </div>
+
+          {/* planta da apresentação */}
+          <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
+            <div className="flabel" style={{marginBottom:6}}>Planta na apresentação <span style={{fontSize:10,color:'var(--text3)',fontWeight:400}}>(opcional)</span></div>
+            {apresPlanta
+              ? <div style={{position:'relative'}}>
+                  <img src={apresPlanta} style={{width:'100%',maxHeight:160,objectFit:'contain',borderRadius:6,border:'1px solid var(--border)',background:'#fff'}}/>
+                  <button onClick={()=>setApresPlanta(null)} style={{position:'absolute',top:6,right:6,background:'rgba(0,0,0,0.6)',color:'#fff',border:'none',borderRadius:6,padding:'3px 8px',fontSize:11,cursor:'pointer'}}>✕ Remover</button>
+                </div>
+              : <div style={{fontSize:12,color:'var(--text3)'}}>Nenhuma planta selecionada. Importe abaixo para incluir no documento.</div>}
+            <div style={{display:'flex',gap:8,marginTop:8}}>
+              <button type="button" className="btn" style={{fontSize:11,flex:1}} onClick={importarPlantaExec}><i className="ti ti-map-2" aria-hidden/> Importar do Projeto Executivo</button>
+              <label className="btn" style={{fontSize:11,flex:1,cursor:'pointer',textAlign:'center'}}>
+                <i className="ti ti-photo-up" aria-hidden/> Importar imagem
+                <input type="file" accept="image/*" style={{display:'none'}} onChange={importarPlantaImagem}/>
+              </label>
+            </div>
           </div>
 
           <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
