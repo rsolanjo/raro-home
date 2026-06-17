@@ -277,6 +277,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [history, setHistory] = useState([])   // pilha de estados anteriores de markers (undo)
   // ── Roteamento de cabos (planta elétrica) ──
   const [cableMode, setCableMode]   = useState(false)        // ativa o modo de traçar cabos
+  const [hideCables, setHideCables] = useState(false)        // oculta os cabos (mostra só itens)
   const [cables, setCables]         = useState(()=> fromProposal?.planta_data?.cables || []) // [{id,fromUid,toUid,points:[{x,y}],color}]
   const [cableDraft, setCableDraft] = useState(null)         // {fromUid, points:[]} enquanto desenha
   const [selCable, setSelCable]     = useState(null)
@@ -644,6 +645,10 @@ Responda APENAS JSON válido:
     const i=STEP_ORDER.indexOf(step)
     if(i>0) setStep(STEP_ORDER[i-1])
   }
+  function avancarEtapa(){
+    const i=STEP_ORDER.indexOf(step)
+    if(i>=0 && i<STEP_ORDER.length-1) setStep(STEP_ORDER[i+1])
+  }
   useEffect(()=>{
     function onKey(e){ if((e.ctrlKey||e.metaKey)&&e.key==='z'&&step==='editor'){ e.preventDefault(); undo() } }
     window.addEventListener('keydown',onKey); return ()=>window.removeEventListener('keydown',onKey)
@@ -681,19 +686,32 @@ Responda APENAS JSON válido:
   }
 
   // ── Roteamento de cabos ──
-  const CABLE_PALETTE = { rj45:'#2563EB', electric:'#DC2626', hdmi:'#7C3AED', coax:'#D97706' }
+  // Legenda de cores dos cabos (segue o padrão da planta)
+  const CABLE_PALETTE = { dados:'#2563EB', ap:'#F59E0B', camera:'#92400E', uplink:'#DC2626', hdmi:'#7C3AED' }
+  const CABLE_LABELS  = { dados:'Dados', ap:'AP / Access Point', camera:'Câmera', uplink:'Uplink', hdmi:'HDMI' }
   const mk = uid => markers.find(m=>m.uid===uid)
-  // clique num item em modo cabo: 1º define origem, 2º define destino e cria a rota
+  // adivinha o tipo de cabo pela natureza dos itens conectados
+  function guessCableType(from, to){
+    const n=(from?.name+' '+to?.name).toLowerCase()
+    if(/uplink|gateway|dream machine|provedor|ont|modem/.test(n)) return 'uplink'
+    if(/c[âa]mera|dome|bullet|nvr/.test(n)) return 'camera'
+    if(/access point|ap |wi-?fi|u6/.test(n)) return 'ap'
+    return 'dados'
+  }
   function onCableItemClick(uid){
     if(!cableMode) return false
     if(!cableDraft){ setCableDraft({fromUid:uid}); return true }
-    if(cableDraft.fromUid===uid){ setCableDraft(null); return true } // clicou no mesmo, cancela
+    if(cableDraft.fromUid===uid){ setCableDraft(null); return true }
     const from=mk(cableDraft.fromUid), to=mk(uid)
     if(from&&to){
-      // ponto intermediário no meio (para o usuário poder dobrar)
-      const midX=+( (from.x+to.x)/2 ).toFixed(1), midY=+( (from.y+to.y)/2 ).toFixed(1)
+      // cria 3 pontos intermediários distribuídos entre origem e destino (para moldar ao caminho)
+      const pts=[1,2,3].map(i=>({
+        x:+(from.x + (to.x-from.x)*(i/4)).toFixed(1),
+        y:+(from.y + (to.y-from.y)*(i/4)).toFixed(1)
+      }))
+      const type=guessCableType(from,to)
       const newCable={ id:Date.now(), fromUid:cableDraft.fromUid, toUid:uid,
-        points:[{x:midX,y:midY}], color:CABLE_PALETTE.rj45, type:'rj45' }
+        points:pts, color:CABLE_PALETTE[type], type }
       setCables(cs=>[...cs,newCable]); setSelCable(newCable.id)
     }
     setCableDraft(null); return true
@@ -1509,11 +1527,16 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         </div>
         <div style={{flex:1}}/>
         <div style={{display:'flex',gap:6,fontSize:11,color:'rgba(255,255,255,0.5)'}}>
-          {['upload','rooms','chat','editor','exec'].map((s,i)=>(
-            <span key={s} style={{padding:'3px 10px',borderRadius:12,background:step===s?'#0EA5E9':'rgba(255,255,255,0.08)',color:step===s?'#fff':'rgba(255,255,255,0.4)',cursor:['chat','editor','exec'].includes(s)&&['chat','editor','exec'].includes(step)?'pointer':'default'}} onClick={()=>{ if(s==='rooms'&&['chat','editor','exec'].includes(step)) setStep('rooms') }}>
+          {['upload','rooms','chat','editor','exec'].map((s,i)=>{
+            // pode ir para qualquer etapa; as que dependem de planta exigem bgImage
+            const needsPlanta=['rooms','chat','editor','exec'].includes(s)
+            const allowed = s==='upload' || (needsPlanta && bgImage)
+            return <span key={s} onClick={()=>{ if(allowed) setStep(s) }}
+              style={{padding:'3px 10px',borderRadius:12,background:step===s?'#0EA5E9':'rgba(255,255,255,0.08)',color:step===s?'#fff':allowed?'rgba(255,255,255,0.7)':'rgba(255,255,255,0.3)',cursor:allowed?'pointer':'not-allowed',userSelect:'none'}}
+              title={allowed?`Ir para ${s}`:'Carregue a planta primeiro'}>
               {i+1}. {s==='upload'?'Planta':s==='rooms'?'Cômodos':s==='chat'?'Perguntas':s==='editor'?'Editor':'Projeto'}
             </span>
-          ))}
+          })}
         </div>
       </div>
 
@@ -1977,6 +2000,9 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                 <button onClick={()=>setCableMode(m=>!m)} style={{height:32,borderRadius:6,border:`1px solid ${cableMode?'#F59E0B':'#F59E0B88'}`,background:cableMode?'#F59E0B':'rgba(245,158,11,0.15)',color:cableMode?'#1a1a2e':'#FBBf24',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Traçar cabos da planta elétrica">
                   <i className="ti ti-route" aria-hidden/>{cableMode?'Cabos: ON':'Cabos'}
                 </button>
+                {cables.length>0 && <button onClick={()=>setHideCables(h=>!h)} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:hideCables?'rgba(255,255,255,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={hideCables?'Mostrar cabos':'Ocultar cabos (só itens)'}>
+                  <i className={hideCables?'ti ti-eye-off':'ti ti-eye'} aria-hidden/>{hideCables?'Cabos ocultos':'Ocultar cabos'}
+                </button>}
                 <button onClick={undo} disabled={!history.length} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:history.length?'#fff':'rgba(255,255,255,0.3)',cursor:history.length?'pointer':'default',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Desfazer (Ctrl+Z)">
                   <i className="ti ti-arrow-back-up" aria-hidden/>Desfazer
                 </button>
@@ -1985,6 +2011,9 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                 </button>
                 <button onClick={voltarEtapa} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Voltar uma etapa">
                   <i className="ti ti-chevron-left" aria-hidden/>Voltar
+                </button>
+                <button onClick={avancarEtapa} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Avançar uma etapa">
+                  Avançar<i className="ti ti-chevron-right" aria-hidden/>
                 </button>
                 <button onClick={recomecar} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Recomeçar do zero">
                   <i className="ti ti-refresh" aria-hidden/>Recomeçar
@@ -2007,8 +2036,8 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                   return <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid rgba(255,255,255,0.15)'}}>
                     <div style={{marginBottom:5}}>Cabo: <b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b></div>
                     <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap'}}>
-                      {[['rj45','Rede','#2563EB'],['electric','Elétrico','#DC2626'],['hdmi','HDMI','#7C3AED'],['coax','Coax','#D97706']].map(([t,lb,col])=>(
-                        <button key={t} onClick={()=>setCableColor(c.id,t)} style={{fontSize:10,padding:'3px 8px',borderRadius:10,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.2)'}`,background:c.type===t?col+'33':'transparent',color:c.type===t?col==='#2563EB'?'#93C5FD':col:'rgba(255,255,255,0.6)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:col}}/>{lb}</button>
+                      {[['dados','Dados','#2563EB'],['ap','AP / Access Point','#F59E0B'],['camera','Câmera','#92400E'],['uplink','Uplink','#DC2626'],['hdmi','HDMI','#7C3AED']].map(([t,lb,col])=>(
+                        <button key={t} onClick={()=>setCableColor(c.id,t)} style={{fontSize:10,padding:'3px 8px',borderRadius:10,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.2)'}`,background:c.type===t?col+'33':'transparent',color:c.type===t?'#fff':'rgba(255,255,255,0.6)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:col}}/>{lb}</button>
                       ))}
                       <button onClick={()=>deleteCable(c.id)} style={{fontSize:10,padding:'3px 8px',borderRadius:10,border:'1px solid #DC2626',background:'transparent',color:'#FCA5A5',cursor:'pointer',marginLeft:'auto'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
                     </div>
@@ -2022,7 +2051,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                       <div style={{position:'absolute',top:10,left:0,right:0,textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.45)',pointerEvents:'none'}}>Pontos posicionados — arraste para ajustar, ou carregue a planta.</div>
                     </div>}
                 {/* ── Camada de CABOS (planta elétrica) ── */}
-                <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:4,overflow:'visible'}} preserveAspectRatio="none" viewBox="0 0 100 100">
+                {!hideCables && <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:4,overflow:'visible'}} preserveAspectRatio="none" viewBox="0 0 100 100">
                   {cables.map(c=>{
                     const pts=cablePolyPoints(c); if(pts.length<2) return null
                     const d=pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')
@@ -2032,9 +2061,9 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                       style={{pointerEvents:cableMode?'stroke':'none',cursor:'pointer',filter:sel?'drop-shadow(0 0 2px '+c.color+')':'none',strokeWidth:sel?3:2}}
                       onClick={e=>{e.stopPropagation(); setSelCable(c.id)}}/>
                   })}
-                </svg>
+                </svg>}
                 {/* pontos arrastáveis do cabo selecionado + dobra ao clicar no segmento */}
-                {cableMode && cables.filter(c=>c.id===selCable).map(c=>{
+                {!hideCables && cableMode && cables.filter(c=>c.id===selCable).map(c=>{
                   const pts=cablePolyPoints(c)
                   return <div key={'pts'+c.id}>
                     {(c.points||[]).map((p,idx)=>(
