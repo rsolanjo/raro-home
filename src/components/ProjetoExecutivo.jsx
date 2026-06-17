@@ -598,12 +598,16 @@ Responda APENAS JSON válido:
   function onDown(e,uid){ e.preventDefault(); e.stopPropagation(); setSelected(uid)
     const r=containerRef.current.getBoundingClientRect(); setDragging({uid,ox:e.clientX,oy:e.clientY,r}) }
   const onMove=useCallback(e=>{ if(!dragging)return; const{uid,ox,oy,r}=dragging
-    const dx=((e.clientX-ox)/r.width)*100, dy=((e.clientY-oy)/r.height)*100
+    const cx=e.touches?e.touches[0].clientX:e.clientX, cy=e.touches?e.touches[0].clientY:e.clientY
+    const dx=((cx-ox)/r.width)*100, dy=((cy-oy)/r.height)*100
     setMarkers(ms=>ms.map(m=>m.uid!==uid?m:{...m,x:Math.max(0,Math.min(98,m.x+dx)),y:Math.max(0,Math.min(96,m.y+dy))}))
-    setDragging(d=>({...d,ox:e.clientX,oy:e.clientY})) },[dragging])
+    setDragging(d=>({...d,ox:cx,oy:cy})) },[dragging])
   const onUp=useCallback(()=>setDragging(null),[])
-  useEffect(()=>{window.addEventListener('mousemove',onMove);window.addEventListener('mouseup',onUp)
-    return()=>{window.removeEventListener('mousemove',onMove);window.removeEventListener('mouseup',onUp)}},[onMove,onUp])
+  useEffect(()=>{
+    window.addEventListener('mousemove',onMove);window.addEventListener('mouseup',onUp)
+    window.addEventListener('touchmove',onMove,{passive:false});window.addEventListener('touchend',onUp)
+    return()=>{window.removeEventListener('mousemove',onMove);window.removeEventListener('mouseup',onUp)
+      window.removeEventListener('touchmove',onMove);window.removeEventListener('touchend',onUp)}},[onMove,onUp])
 
   function onCanvasClick(e){
     if(!addMode||!addItem)return
@@ -680,15 +684,18 @@ Responda APENAS JSON válido:
   // arrastar um ponto intermediário do cabo
   const onPointMove = useCallback((e)=>{
     if(!dragPoint||!containerRef.current) return
+    const cx=e.touches?e.touches[0].clientX:e.clientX, cy=e.touches?e.touches[0].clientY:e.clientY
     const r=containerRef.current.getBoundingClientRect()
-    const x=Math.max(0,Math.min(100,((e.clientX-r.left)/r.width)*100))
-    const y=Math.max(0,Math.min(100,((e.clientY-r.top)/r.height)*100))
+    const x=Math.max(0,Math.min(100,((cx-r.left)/r.width)*100))
+    const y=Math.max(0,Math.min(100,((cy-r.top)/r.height)*100))
     setCables(cs=>cs.map(c=>c.id!==dragPoint.cableId?c:{...c,points:c.points.map((p,i)=>i===dragPoint.idx?{x:+x.toFixed(1),y:+y.toFixed(1)}:p)}))
   },[dragPoint])
   const onPointUp = useCallback(()=>setDragPoint(null),[])
   useEffect(()=>{
     if(dragPoint){ window.addEventListener('mousemove',onPointMove); window.addEventListener('mouseup',onPointUp)
-      return ()=>{ window.removeEventListener('mousemove',onPointMove); window.removeEventListener('mouseup',onPointUp) } }
+      window.addEventListener('touchmove',onPointMove,{passive:false}); window.addEventListener('touchend',onPointUp)
+      return ()=>{ window.removeEventListener('mousemove',onPointMove); window.removeEventListener('mouseup',onPointUp)
+        window.removeEventListener('touchmove',onPointMove); window.removeEventListener('touchend',onPointUp) } }
   },[dragPoint,onPointMove,onPointUp])
 
   async function askJSON(prompt, maxTokens){
@@ -1997,17 +2004,20 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                   const pts=cablePolyPoints(c)
                   return <div key={'pts'+c.id}>
                     {(c.points||[]).map((p,idx)=>(
-                      <div key={idx} onMouseDown={e=>{e.stopPropagation(); setDragPoint({cableId:c.id,idx})}}
+                      <div key={idx}
+                        onMouseDown={e=>{e.stopPropagation(); setDragPoint({cableId:c.id,idx})}}
+                        onTouchStart={e=>{e.stopPropagation(); setDragPoint({cableId:c.id,idx})}}
                         onDoubleClick={e=>{e.stopPropagation(); removeCablePoint(c.id,idx)}}
                         title="Arraste para dobrar · duplo-clique remove"
-                        style={{position:'absolute',left:`${p.x}%`,top:`${p.y}%`,transform:'translate(-50%,-50%)',zIndex:15,
-                          width:12,height:12,borderRadius:'50%',background:'#fff',border:`2px solid ${c.color}`,cursor:'move',boxShadow:'0 1px 3px rgba(0,0,0,0.5)'}}/>
+                        style={{position:'absolute',left:`${p.x}%`,top:`${p.y}%`,transform:'translate(-50%,-50%)',zIndex:15,touchAction:'none',
+                          width:18,height:18,borderRadius:'50%',background:'#fff',border:`3px solid ${c.color}`,cursor:'move',boxShadow:'0 1px 4px rgba(0,0,0,0.6)'}}/>
                     ))}
                     {pts.slice(0,-1).map((p,i)=>{ const n=pts[i+1]; const mx=(p.x+n.x)/2, my=(p.y+n.y)/2
-                      return <div key={'mid'+i} onClick={e=>{e.stopPropagation(); addCablePoint(c.id,i,mx,my)}}
-                        title="Clique para criar uma dobra aqui"
+                      return <div key={'mid'+i}
+                        onClick={e=>{e.stopPropagation(); addCablePoint(c.id,i,mx,my)}}
+                        title="Toque para criar uma dobra aqui"
                         style={{position:'absolute',left:`${mx}%`,top:`${my}%`,transform:'translate(-50%,-50%)',zIndex:14,
-                          width:9,height:9,borderRadius:2,background:c.color+'99',border:'1px solid #fff',cursor:'copy'}}/>
+                          width:15,height:15,borderRadius:3,background:c.color+'cc',border:'2px solid #fff',cursor:'copy'}}/>
                     })}
                   </div>
                 })}
@@ -2022,9 +2032,11 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                   const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
                   const sel=selected===m.uid
                   const isCableOrigin = cableDraft?.fromUid===m.uid
-                  return <div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:cableMode?'crosshair':'grab',opacity:visible?1:0.07,pointerEvents:visible?'auto':'none',transition:'opacity 0.15s'}}
-                    onMouseDown={e=>{ if(cableMode){ e.stopPropagation(); onCableItemClick(m.uid) } else { onDown(e,m.uid) } }}>
-                    {isCableOrigin && <div style={{position:'absolute',inset:-6,borderRadius:'50%',border:'2px dashed #F59E0B',animation:'none'}}/>}
+                  return <div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:cableMode?'pointer':'grab',opacity:visible?1:0.07,pointerEvents:visible?'auto':'none',transition:'opacity 0.15s',touchAction:'none'}}
+                    onMouseDown={e=>{ if(!cableMode) onDown(e,m.uid) }}
+                    onTouchStart={e=>{ if(!cableMode){ const t=e.touches[0]; onDown({preventDefault:()=>{},stopPropagation:()=>e.stopPropagation(),clientX:t.clientX,clientY:t.clientY},m.uid) } }}
+                    onClick={e=>{ if(cableMode){ e.stopPropagation(); onCableItemClick(m.uid) } }}>
+                    {isCableOrigin && <div style={{position:'absolute',inset:-7,borderRadius:'50%',border:'3px dashed #F59E0B',pointerEvents:'none'}}/>}
                     {isRack
                       ? <div style={{width:sel?36:30,height:sel?36:30,borderRadius:6,background:'#4C1D95',color:'#C4B5FD',fontSize:14,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #7C3AED',boxShadow:sel?`0 0 0 3px #7C3AED`:'0 2px 6px rgba(0,0,0,0.6)'}}><i className="ti ti-server" aria-hidden style={{fontSize:16}}/></div>
                       : <div style={{width:sel?28:24,height:sel?28:24,borderRadius:'50%',background:st.c,color:'#fff',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #fff',boxShadow:sel?`0 0 0 3px ${st.c}`:'0 1px 4px rgba(0,0,0,0.5)'}}>{m.n}</div>}
