@@ -340,6 +340,8 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const fileRef = useRef()
   const bgOnlyRef = useRef()
   const containerRef = useRef()
+  const canvasRef = useRef()                 // wrapper rolável da planta no editor
+  const [canvasPan, setCanvasPan] = useState(null)  // {sx,sy,sl,st} enquanto arrasta o fundo
 
   // Attach wheel with passive:false so preventDefault() works
   useEffect(()=>{
@@ -646,6 +648,37 @@ Responda APENAS JSON válido:
     function onKey(e){ if((e.ctrlKey||e.metaKey)&&e.key==='z'&&step==='editor'){ e.preventDefault(); undo() } }
     window.addEventListener('keydown',onKey); return ()=>window.removeEventListener('keydown',onKey)
   }) // eslint-disable-line
+
+  // ── Pan (arrastar o fundo) + zoom por scroll no canvas do editor ──
+  function onCanvasPanDown(e){
+    // só inicia pan se o clique foi no fundo (não num marker/cabo) e não está adicionando item
+    if(addMode || cableMode) return
+    if(e.target.closest('.mk-item') || e.target.closest('.cable-handle')) return
+    const el=canvasRef.current; if(!el) return
+    const t=e.touches?e.touches[0]:e
+    setCanvasPan({sx:t.clientX, sy:t.clientY, sl:el.scrollLeft, st:el.scrollTop})
+  }
+  const onCanvasPanMove=useCallback((e)=>{
+    if(!canvasPan||!canvasRef.current) return
+    const t=e.touches?e.touches[0]:e
+    canvasRef.current.scrollLeft = canvasPan.sl - (t.clientX - canvasPan.sx)
+    canvasRef.current.scrollTop  = canvasPan.st - (t.clientY - canvasPan.sy)
+  },[canvasPan])
+  const onCanvasPanUp=useCallback(()=>setCanvasPan(null),[])
+  useEffect(()=>{
+    if(canvasPan){
+      window.addEventListener('mousemove',onCanvasPanMove); window.addEventListener('mouseup',onCanvasPanUp)
+      window.addEventListener('touchmove',onCanvasPanMove,{passive:false}); window.addEventListener('touchend',onCanvasPanUp)
+      return ()=>{ window.removeEventListener('mousemove',onCanvasPanMove); window.removeEventListener('mouseup',onCanvasPanUp)
+        window.removeEventListener('touchmove',onCanvasPanMove); window.removeEventListener('touchend',onCanvasPanUp) }
+    }
+  },[canvasPan,onCanvasPanMove,onCanvasPanUp])
+  function onCanvasWheel(e){
+    if(!bgImage) return
+    e.preventDefault()
+    const d = e.deltaY<0 ? 0.15 : -0.15
+    setZoom(z=>Math.min(4, Math.max(0.4, +(z+d).toFixed(2))))
+  }
 
   // ── Roteamento de cabos ──
   const CABLE_PALETTE = { rj45:'#2563EB', electric:'#DC2626', hdmi:'#7C3AED', coax:'#D97706' }
@@ -1938,7 +1971,8 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
 
             </div>
             {/* ── Canvas ── */}
-            <div className="pe-editor-canvas" style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20,position:'relative'}}>
+            <div ref={canvasRef} className="pe-editor-canvas" onMouseDown={onCanvasPanDown} onTouchStart={onCanvasPanDown} onWheel={onCanvasWheel}
+              style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'block',padding:20,position:'relative',cursor:canvasPan?'grabbing':(addMode||cableMode?'default':'grab'),touchAction:'none'}}>
               <div style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content',flexWrap:'wrap',justifyContent:'flex-end',maxWidth:'70%'}}>
                 <button onClick={()=>setCableMode(m=>!m)} style={{height:32,borderRadius:6,border:`1px solid ${cableMode?'#F59E0B':'#F59E0B88'}`,background:cableMode?'#F59E0B':'rgba(245,158,11,0.15)',color:cableMode?'#1a1a2e':'#FBBf24',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Traçar cabos da planta elétrica">
                   <i className="ti ti-route" aria-hidden/>{cableMode?'Cabos: ON':'Cabos'}
@@ -1982,7 +2016,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                   </div>
                 })()}
               </div>}
-              <div ref={containerRef} style={{position:'relative',display:'inline-block',cursor:addMode?'crosshair':'default',width:bgImage?`${zoom*100}%`:`${Math.min(640*zoom,window.innerWidth*0.82)}px`,transformOrigin:'top center'}} onClick={onCanvasClick}>
+              <div ref={containerRef} style={{position:'relative',display:'block',margin:'0 auto',cursor:addMode?'crosshair':'default',width:bgImage?`${zoom*100}%`:`${Math.min(640*zoom,window.innerWidth*0.82)}px`,transformOrigin:'top center'}} onClick={onCanvasClick}>
                 {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false}/>
                   : <div style={{width:'100%',aspectRatio:'4/3',background:'repeating-linear-gradient(0deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px),repeating-linear-gradient(90deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px)',backgroundColor:'rgba(255,255,255,0.02)',border:'2px dashed rgba(255,255,255,0.15)',borderRadius:10,position:'relative'}}>
                       <div style={{position:'absolute',top:10,left:0,right:0,textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.45)',pointerEvents:'none'}}>Pontos posicionados — arraste para ajustar, ou carregue a planta.</div>
@@ -2004,7 +2038,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                   const pts=cablePolyPoints(c)
                   return <div key={'pts'+c.id}>
                     {(c.points||[]).map((p,idx)=>(
-                      <div key={idx}
+                      <div key={idx} className="cable-handle"
                         onMouseDown={e=>{e.stopPropagation(); setDragPoint({cableId:c.id,idx})}}
                         onTouchStart={e=>{e.stopPropagation(); setDragPoint({cableId:c.id,idx})}}
                         onDoubleClick={e=>{e.stopPropagation(); removeCablePoint(c.id,idx)}}
@@ -2013,7 +2047,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                           width:18,height:18,borderRadius:'50%',background:'#fff',border:`3px solid ${c.color}`,cursor:'move',boxShadow:'0 1px 4px rgba(0,0,0,0.6)'}}/>
                     ))}
                     {pts.slice(0,-1).map((p,i)=>{ const n=pts[i+1]; const mx=(p.x+n.x)/2, my=(p.y+n.y)/2
-                      return <div key={'mid'+i}
+                      return <div key={'mid'+i} className="cable-handle"
                         onClick={e=>{e.stopPropagation(); addCablePoint(c.id,i,mx,my)}}
                         title="Toque para criar uma dobra aqui"
                         style={{position:'absolute',left:`${mx}%`,top:`${my}%`,transform:'translate(-50%,-50%)',zIndex:14,
@@ -2032,7 +2066,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                   const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
                   const sel=selected===m.uid
                   const isCableOrigin = cableDraft?.fromUid===m.uid
-                  return <div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:cableMode?'pointer':'grab',opacity:visible?1:0.07,pointerEvents:visible?'auto':'none',transition:'opacity 0.15s',touchAction:'none'}}
+                  return <div key={m.uid} className="mk-item" style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:cableMode?'pointer':'grab',opacity:visible?1:0.07,pointerEvents:visible?'auto':'none',transition:'opacity 0.15s',touchAction:'none'}}
                     onMouseDown={e=>{ if(!cableMode) onDown(e,m.uid) }}
                     onTouchStart={e=>{ if(!cableMode){ const t=e.touches[0]; onDown({preventDefault:()=>{},stopPropagation:()=>e.stopPropagation(),clientX:t.clientX,clientY:t.clientY},m.uid) } }}
                     onClick={e=>{ if(cableMode){ e.stopPropagation(); onCableItemClick(m.uid) } }}>
