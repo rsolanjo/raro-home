@@ -504,6 +504,8 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
   const [filter,   setFilter]   = useState('all')
   const [search,   setSearch]   = useState('')
   const [changeReq, setChangeReq] = useState(null)
+  const [apprType, setApprType]   = useState('proposta')   // 'proposta' | 'executivo'
+  const [apprValue, setApprValue] = useState('')
   const [contractProposal, setContractProposal] = useState(null)
   const [sendContractProposal, setSendContractProposal] = useState(null)
   const [enviarDoc, setEnviarDoc] = useState(null)
@@ -573,12 +575,28 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
     .map(r=>({...r, avg:Math.round(r.total/r.count), min:Math.min(...r.vals), max:Math.max(...r.vals)}))
     .sort((a,b)=>b.avg-a.avg)
 
-  function requestStatusChange(p, status) { setChangeReq({ proposal:p, newStatus:status }) }
+  function requestStatusChange(p, status) {
+    setChangeReq({ proposal:p, newStatus:status })
+    if(status==='approved'){
+      // valor da proposta = equipamentos + mão de obra
+      const propostaVal = fmtTotal(p)
+      // valor do executivo = se houver exec_doc com valor próprio, senão usa o da proposta
+      const execVal = Number(p.exec_value)>0 ? Number(p.exec_value) : propostaVal
+      const tipo = p.exec_doc ? 'executivo' : 'proposta'
+      setApprType(tipo)
+      setApprValue(String(tipo==='executivo'?execVal:propostaVal))
+    }
+  }
   async function confirmChange() {
     if (!changeReq) return
     try {
     const before = proposals.find(p=>p.id===changeReq.proposal.id)
     const updated = { ...changeReq.proposal, status:changeReq.newStatus }
+    if(changeReq.newStatus==='approved'){
+      updated.approved_type = apprType                  // 'proposta' | 'executivo'
+      updated.approved_value = Number(String(apprValue).replace(/[^0-9.-]/g,''))||0
+      updated.approved_at = new Date().toISOString()
+    }
     const saved = await saveProposal(updated)
     if (!saved) throw new Error('Supabase não retornou o registro salvo')
     await auditedSave('orçamentos','status_change',saved,currentUser?.name,before)
@@ -779,6 +797,28 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
                     {STATUS_NOTE[changeReq.newStatus] && (
                       <div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:6,padding:'8px 12px',fontSize:12,color:'var(--text2)'}}>
                         {STATUS_NOTE[changeReq.newStatus]}
+                      </div>
+                    )}
+                    {changeReq.newStatus==='approved' && (
+                      <div style={{marginTop:12}}>
+                        <div style={{fontSize:12,fontWeight:600,marginBottom:6,color:'var(--text2)'}}>O que foi aprovado?</div>
+                        <div style={{display:'flex',gap:8,marginBottom:12}}>
+                          {[['proposta','Proposta','ti-file-invoice'],['executivo','Projeto Executivo','ti-clipboard-check']].map(([v,lb,ic])=>{
+                            const sel=apprType===v
+                            const base = v==='executivo'
+                              ? (Number(changeReq.proposal.exec_value)>0?Number(changeReq.proposal.exec_value):fmtTotal(changeReq.proposal))
+                              : fmtTotal(changeReq.proposal)
+                            return <button key={v} onClick={()=>{setApprType(v); setApprValue(String(base))}}
+                              style={{flex:1,padding:'10px 8px',borderRadius:8,border:`1.5px solid ${sel?'var(--accent)':'var(--border)'}`,background:sel?'var(--accent-lt,rgba(14,165,233,0.08))':'var(--surf)',cursor:'pointer',textAlign:'center'}}>
+                              <i className={`ti ${ic}`} style={{fontSize:18,color:sel?'var(--accent)':'var(--text3)'}} aria-hidden/>
+                              <div style={{fontSize:11.5,fontWeight:sel?600:400,marginTop:4,color:sel?'var(--accent)':'var(--text2)'}}>{lb}</div>
+                            </button>
+                          })}
+                        </div>
+                        <div style={{fontSize:12,fontWeight:600,marginBottom:6,color:'var(--text2)'}}>Valor final aprovado (R$)</div>
+                        <input type="number" value={apprValue} onChange={e=>setApprValue(e.target.value)}
+                          style={{width:'100%',fontSize:18,fontWeight:700,textAlign:'center',padding:'8px',border:'1px solid var(--border)',borderRadius:8}}/>
+                        <div style={{fontSize:10.5,color:'var(--text3)',marginTop:5,textAlign:'center'}}>Confira o valor a pedir e edite se necessário antes de confirmar.</div>
                       </div>
                     )}
                   </div>}

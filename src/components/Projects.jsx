@@ -13,11 +13,22 @@ const RJ_DIST = {
   'niterói':55,'icaraí':57,'itaipava':110,'petrópolis':120,'teresópolis':140,
   'nova iguaçu':25,'duque de caxias':35,'nilópolis':28,'belford roxo':25,
 }
+// Base RARO: Estr. da Cachamorra, 2011 - Campo Grande, RJ. Distâncias de IDA (km) aproximadas.
 function guessKm(neighborhood='') {
-  const key = neighborhood.toLowerCase().trim().replace(/ rj| rio$/,'').trim()
-  for(const [k,v] of Object.entries(RJ_DIST)) {
-    if(key.includes(k)||k.includes(key.split(',')[0])) return v
-  }
+  if(!neighborhood) return null
+  // normaliza: minúsculas, sem acento, sem ", rio de janeiro - rj", sem CEP
+  let key = neighborhood.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/\d{5}-?\d{3}/g,'')
+    .replace(/-?\s*(rio de janeiro|rj|brasil)\.?/g,'')
+    .replace(/[,\-–].*$/,'')   // corta tudo após vírgula/traço (pega só o bairro)
+    .trim()
+  if(!key) return null
+  // match exato primeiro
+  const norm = s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  for(const [k,v] of Object.entries(RJ_DIST)){ if(norm(k)===key) return v }
+  // depois match parcial (bairro contém a chave ou vice-versa)
+  for(const [k,v] of Object.entries(RJ_DIST)){ const kn=norm(k); if(key.includes(kn)||kn.includes(key)) return v }
   return null
 }
 function calcTravelCost(km, visits, fuelPrice, consumption) {
@@ -86,6 +97,9 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
   }, [sel, tab]) // re-init when switching project or entering costs tab
 
   const costs = (tab === 'costs' && localCosts) ? localCosts : (proj || {})
+  // bairro vem do cliente cadastrado (não do projeto). Calcula a ida a partir da base RARO (Campo Grande).
+  const projClient = proj ? clients.find(c=>c.id===Number(proj.client_id)) : null
+  const projBairro = projClient?.neighborhood || proj?.neighborhood || ''
 
   // Save costs explicitly
   async function saveCosts() {
@@ -465,16 +479,16 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
                     <div className="fg">
                       <div className="flabel">Bairro do cliente</div>
                       <div style={{fontSize:11,color:'var(--text3)',marginBottom:4}}>
-                        {(()=>{const km=guessKm(proj.neighborhood||'');return km!==null?`🗺 Estimativa: ${km} km de Campo Grande`:''})()}
+                        {(()=>{const km=guessKm(projBairro);return km!==null?`🗺 Estimativa: ${km} km de Campo Grande`:''})()}
                       </div>
-                      <input value={proj.neighborhood||''} readOnly style={{opacity:0.6,fontSize:11}} placeholder="—"/>
+                      <input value={projBairro} readOnly style={{opacity:0.6,fontSize:11}} placeholder="—"/>
                     </div>
                     <div className="fg">
                       <div className="flabel">Distância (km) — ida</div>
                       <input type="number" min="0" step="1"
-                        value={costs.travel_km!==undefined&&costs.travel_km!==''?costs.travel_km:guessKm(proj.neighborhood||'')||''}
+                        value={costs.travel_km!==undefined&&costs.travel_km!==''?costs.travel_km:guessKm(projBairro)||''}
                         onChange={e=>setLocalCosts(lc=>({...lc,travel_km:e.target.value}))}
-                        placeholder={guessKm(proj.neighborhood||'')||'ex: 38'}/>
+                        placeholder={guessKm(projBairro)||'ex: 38'}/>
                     </div>
                   </div>
                   <div className="form-row" style={{marginBottom:10}}>
@@ -490,14 +504,14 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
                       <div className="flabel">Custo total estimado</div>
                       <div style={{padding:'8px 12px',background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:5,fontSize:15,fontWeight:700,color:'var(--amber)',textAlign:'center'}}>
                         {(()=>{
-                          const km=Number(costs.travel_km)||guessKm(proj.neighborhood||'')||0
+                          const km=Number(costs.travel_km)||guessKm(projBairro)||0
                           const cost=calcTravelCost(km,(costs.travel_visits||5),(costs.fuel_price||6.50),(costs.fuel_consumption||8))
                           return `R$ ${cost.toLocaleString('pt-BR',{minimumFractionDigits:2})}`
                         })()}
                       </div>
                       <div style={{fontSize:10,color:'var(--text3)',marginTop:4,textAlign:'center'}}>
                         {(()=>{
-                          const km=Number(costs.travel_km)||guessKm(proj.neighborhood||'')||0
+                          const km=Number(costs.travel_km)||guessKm(projBairro)||0
                           const v=proj.travel_visits||5,c2=proj.fuel_consumption||8
                           return `${km}km × 2 × ${v} visitas ÷ ${c2}km/l × R$${proj.fuel_price||6.50}/l`
                         })()}
@@ -602,28 +616,31 @@ export default function Projects({ projects, clients, proposals=[], catalog=[], 
                 <div className="sec-hdr"><div className="sec-title"><i className="ti ti-report-money" style={{marginRight:6}} aria-hidden/>Resumo de custos do projeto</div></div>
                 <div style={{padding:'12px 16px'}}>
                   {(()=>{
-                    const km=Number(costs.travel_km)||guessKm(proj.neighborhood||'')||0
+                    const km=Number(costs.travel_km)||guessKm(projBairro)||0
                     const travel=calcTravelCost(km,(costs.travel_visits||5),(costs.fuel_price||6.50),(costs.fuel_consumption||8))
                     const hours=((costs.labor_hours_actual||costs.labor_hours_estimated||0))*((costs.hourly_rate||150))
                     const third=(costs.third_party_costs||[]).reduce((s,t)=>s+(t.total||t.days*t.daily_rate||0),0)
-                    const total=travel+hours+third
                     const linkedProp=proposals?.find(p=>p.id===proj.proposal_id)
+                    // custo da API Anthropic gravado ao gerar o Projeto Executivo
+                    const aiCost = (()=>{ let a=linkedProp?.exec_api_cost; if(typeof a==='string'){try{a=JSON.parse(a)}catch{a=null}} return Number(a?.brl)||0 })()
+                    const total=travel+hours+third+aiCost
                     const revenue=linkedProp?(()=>{const fl=Array.isArray(linkedProp.floors)?linkedProp.floors:(typeof linkedProp.floors==='string'?JSON.parse(linkedProp.floors||'[]'):[]);return fl.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)+(Number(linkedProp.labor)||0)})():0
                     const equipCost=linkedProp?(()=>{const fl=Array.isArray(linkedProp.floors)?linkedProp.floors:(typeof linkedProp.floors==='string'?JSON.parse(linkedProp.floors||'[]'):[]);return fl.flatMap(f=>(f.rooms||[]).flatMap(r=>(r.items||[]))).reduce((s,i)=>s+(i.cost_price||0)*(parseInt(i.qty)||1),0)})():0
                     const totalCost=equipCost+total
                     const profit=revenue-totalCost
                     const margin=revenue>0?Math.round(profit/revenue*100):null
-                    return <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10}}>
+                    return <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10}}>
                       {[
                         {l:'Deslocamento',v:travel,c:'var(--amber)',i:'ti-car'},
                         {l:'Hora interna',v:hours,c:'#7C3AED',i:'ti-clock'},
                         {l:'Terceiros',v:third,c:'var(--amber)',i:'ti-users'},
+                        {l:'Custo IA (executivo)',v:aiCost,c:'#0EA5E9',i:'ti-robot'},
                         {l:'Total operacional',v:total,c:'var(--red)',i:'ti-coins',bold:true},
                         {l:'Lucro estimado',v:profit,c:profit>=0?'var(--green)':'var(--red)',i:'ti-trending-up',bold:true,sub:margin!==null?`${margin}% margem`:revenue===0?'sem proposta vinculada':''},
                       ].map((k,ki)=>(
                         <div key={ki} style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',borderTop:`3px solid ${k.c}`}}>
                           <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,marginBottom:4}}><i className={`ti ${k.i}`} style={{marginRight:3}} aria-hidden/>{k.l}</div>
-                          <div style={{fontSize:k.bold?16:14,fontWeight:k.bold?700:500,color:k.c}}>R$ {Math.abs(v=>v,Math.abs(k.v)).toFixed?k.v.toLocaleString('pt-BR',{minimumFractionDigits:2}):k.v}</div>
+                          <div style={{fontSize:k.bold?16:14,fontWeight:k.bold?700:500,color:k.c}}>R$ {Number(k.v||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
                           {k.sub&&<div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>{k.sub}</div>}
                         </div>
                       ))}

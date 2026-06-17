@@ -60,13 +60,16 @@ async function pdfToImg(b64){
   })
 }
 
-async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1500) {
+async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1500, onCost=null) {
   const content = []
   if(imageB64) content.push({type:'image',source:{type:'base64',media_type:mime,data:imageB64}})
   const apiMessages = messages.map(m=>({role:m.role, content: m.role==='user' && m===messages[messages.length-1] && imageB64
     ? [...content, {type:'text',text:m.text}]
     : m.text }))
   const payload = JSON.stringify({model:'claude-sonnet-4-5-20250929',max_tokens:maxTokens,clientStream:true,messages:apiMessages})
+  // estimativa de tokens de entrada (≈4 chars/token; imagem ≈ 1300 tokens)
+  const inChars = messages.reduce((s,m)=>s+(m.text?.length||0),0)
+  const inTokens = Math.ceil(inChars/4) + (imageB64?1300:0)
 
   const res = await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:payload})
   if(!res.ok){
@@ -76,7 +79,9 @@ async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1
   const ct = res.headers.get('content-type')||''
   if(ct.includes('application/json')){
     const data = await res.json()
-    return data.content?.[0]?.text || ''
+    const txt = data.content?.[0]?.text || ''
+    reportCost(onCost, inTokens, data.usage?.output_tokens ?? Math.ceil(txt.length/4))
+    return txt
   }
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
@@ -98,7 +103,15 @@ async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1
       }catch(e){ if(e.message&&e.message!=='Unexpected end of JSON input') {/*parcial*/} }
     }
   }
+  reportCost(onCost, inTokens, Math.ceil(full.length/4))
   return full
+}
+// Preço Sonnet (US$/milhão de tokens): input 3, output 15. Câmbio aproximado.
+const USD_BRL = 5.40
+function reportCost(onCost, inTokens, outTokens){
+  if(!onCost) return
+  const usd = (inTokens/1e6)*3 + (outTokens/1e6)*15
+  onCost({ inTokens, outTokens, usd, brl: usd*USD_BRL })
 }
 
 // Seção colapsável para filtros na sidebar do editor
@@ -261,6 +274,18 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [chatInput, setChatInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [markers, setMarkers] = useState(()=> fromProposal?.planta_data?.markers || [])
+  const [history, setHistory] = useState([])   // pilha de estados anteriores de markers (undo)
+  // ── Roteamento de cabos (planta elétrica) ──
+  const [cableMode, setCableMode]   = useState(false)        // ativa o modo de traçar cabos
+  const [cables, setCables]         = useState(()=> fromProposal?.planta_data?.cables || []) // [{id,fromUid,toUid,points:[{x,y}],color}]
+  const [cableDraft, setCableDraft] = useState(null)         // {fromUid, points:[]} enquanto desenha
+  const [selCable, setSelCable]     = useState(null)
+  const [dragPoint, setDragPoint]   = useState(null)         // {cableId, idx}
+  // snapshot para undo (chamar ANTES de alterar markers)
+  const pushHistory = () => setHistory(h=>[...h.slice(-29), markers])
+  // acumulador de custo da API Anthropic durante a geração do executivo
+  const apiCostRef = useRef({ inTokens:0, outTokens:0, usd:0, brl:0, calls:0 })
+  const accumulateCost = (c)=>{ const a=apiCostRef.current; a.inTokens+=c.inTokens; a.outTokens+=c.outTokens; a.usd+=c.usd; a.brl+=c.brl; a.calls++ }
   const [projectInfo, setProjectInfo] = useState({
     client: preClient?`${preClient.name1||''}${preClient.name2?' & '+preClient.name2:''}`
           : fromProposal?.client_name || '',
@@ -445,7 +470,7 @@ Campos:
 
 Identifique TODOS os cômodos: salas, quartos, banheiros, cozinha, área de serviço, garagem, varanda, etc.`
     try{
-      const reply = await askClaude([{role:'user',text:prompt}], imgUrl.split(',')[1], 'image/jpeg', 2000)
+      const reply = await askClaude([{role:'user',text:prompt}], imgUrl.split(',')[1], 'image/jpeg', 2000, accumulateCost)
       let clean = reply.trim().replace(/\`\`\`json?\n?/g,'').replace(/\`\`\`/g,'').trim()
       const s=clean.indexOf('{'); if(s>0) clean=clean.slice(s)
       const e=clean.lastIndexOf('}'); if(e>=0) clean=clean.slice(0,e+1)
@@ -484,7 +509,7 @@ Com base nos cômodos listados, faça APENAS 4 ou 5 perguntas objetivas essencia
 - Pergunta sobre câmeras e som ambiente
 Cada pergunta em parágrafo separado. Seja direto e objetivo.`
     try{
-      const reply = await askClaude([{role:'user',text:sys+'\n\nFaça as perguntas sobre este projeto.'}], null, 'image/jpeg', 800)
+      const reply = await askClaude([{role:'user',text:sys+'\n\nFaça as perguntas sobre este projeto.'}], null, 'image/jpeg', 800, accumulateCost)
       setChat([{role:'assistant',text:reply}])
     }catch(err){ setChat([{role:'assistant',text:'❌ Erro: '+err.message}]) }
     setLoading(false)
@@ -497,7 +522,7 @@ Cada pergunta em parágrafo separado. Seja direto e objetivo.`
     const newChat=[...chat,userMsg]
     setChat(newChat); setChatInput(''); setLoading(true)
     try{
-      const reply=await askClaude(newChat.map(m=>({role:m.role,text:m.text})), null, 'image/jpeg', 1200)
+      const reply=await askClaude(newChat.map(m=>({role:m.role,text:m.text})), null, 'image/jpeg', 1200, accumulateCost)
       setChat([...newChat,{role:'assistant',text:reply}])
     }catch(err){ setChat([...newChat,{role:'assistant',text:'❌ Erro: '+err.message}]) }
     setLoading(false)
@@ -585,6 +610,7 @@ Responda APENAS JSON válido:
     const r=containerRef.current.getBoundingClientRect()
     const x=((e.clientX-r.left)/r.width)*100, y=((e.clientY-r.top)/r.height)*100
     const {cat, sub} = inferCategory(addItem.name, addItem.category||'')
+    pushHistory()
     setMarkers(ms=>{
       const newId = genItemId('', sub, ms)
       return [...ms,{uid:Date.now(),n:ms.length+1,id:newId,code:addItem.code,name:addItem.name,
@@ -593,9 +619,81 @@ Responda APENAS JSON válido:
     setAddMode(false); setAddItem(null)
   }
 
+  // ── Undo / Limpar / Recomeçar ──
+  function undo(){
+    setHistory(h=>{ if(!h.length) return h; const prev=h[h.length-1]; setMarkers(prev); return h.slice(0,-1) })
+  }
+  function limparItens(){
+    if(!markers.length){ alert('Não há itens para limpar.'); return }
+    if(!window.confirm(`Remover todos os ${markers.length} itens da planta?\n\nA planta (imagem) e os cômodos continuam. Você pode desfazer com Ctrl+Z ou o botão Desfazer.`)) return
+    pushHistory(); setMarkers([]); setCables([])
+  }
+  function recomecar(){
+    if(!window.confirm('Recomeçar o projeto do zero?\n\nIsto volta para a tela inicial e descarta a planta, os itens e os cabos NÃO salvos.')) return
+    setMarkers([]); setCables([]); setHistory([]); setBgImage(null); setChat([]); setStep('upload')
+  }
+  // voltar uma etapa do fluxo
+  const STEP_ORDER = ['upload','rooms','chat','editor','exec']
+  function voltarEtapa(){
+    const i=STEP_ORDER.indexOf(step)
+    if(i>0) setStep(STEP_ORDER[i-1])
+  }
+  useEffect(()=>{
+    function onKey(e){ if((e.ctrlKey||e.metaKey)&&e.key==='z'&&step==='editor'){ e.preventDefault(); undo() } }
+    window.addEventListener('keydown',onKey); return ()=>window.removeEventListener('keydown',onKey)
+  }) // eslint-disable-line
+
+  // ── Roteamento de cabos ──
+  const CABLE_PALETTE = { rj45:'#2563EB', electric:'#DC2626', hdmi:'#7C3AED', coax:'#D97706' }
+  const mk = uid => markers.find(m=>m.uid===uid)
+  // clique num item em modo cabo: 1º define origem, 2º define destino e cria a rota
+  function onCableItemClick(uid){
+    if(!cableMode) return false
+    if(!cableDraft){ setCableDraft({fromUid:uid}); return true }
+    if(cableDraft.fromUid===uid){ setCableDraft(null); return true } // clicou no mesmo, cancela
+    const from=mk(cableDraft.fromUid), to=mk(uid)
+    if(from&&to){
+      // ponto intermediário no meio (para o usuário poder dobrar)
+      const midX=+( (from.x+to.x)/2 ).toFixed(1), midY=+( (from.y+to.y)/2 ).toFixed(1)
+      const newCable={ id:Date.now(), fromUid:cableDraft.fromUid, toUid:uid,
+        points:[{x:midX,y:midY}], color:CABLE_PALETTE.rj45, type:'rj45' }
+      setCables(cs=>[...cs,newCable]); setSelCable(newCable.id)
+    }
+    setCableDraft(null); return true
+  }
+  // insere um ponto (dobra) no meio de um segmento do cabo
+  function addCablePoint(cableId, segIdx, x, y){
+    setCables(cs=>cs.map(c=>{ if(c.id!==cableId) return c
+      const pts=[...c.points]; pts.splice(segIdx,0,{x:+x.toFixed(1),y:+y.toFixed(1)}); return {...c,points:pts} }))
+  }
+  function removeCablePoint(cableId, idx){
+    setCables(cs=>cs.map(c=>c.id!==cableId?c:{...c,points:c.points.filter((_,i)=>i!==idx)}))
+  }
+  function deleteCable(id){ setCables(cs=>cs.filter(c=>c.id!==id)); setSelCable(null) }
+  function setCableColor(id,type){ setCables(cs=>cs.map(c=>c.id===id?{...c,type,color:CABLE_PALETTE[type]}:c)) }
+  // pontos completos do cabo: origem + intermediários + destino (em %)
+  function cablePolyPoints(c){
+    const from=mk(c.fromUid), to=mk(c.toUid)
+    if(!from||!to) return []
+    return [{x:from.x,y:from.y}, ...(c.points||[]), {x:to.x,y:to.y}]
+  }
+  // arrastar um ponto intermediário do cabo
+  const onPointMove = useCallback((e)=>{
+    if(!dragPoint||!containerRef.current) return
+    const r=containerRef.current.getBoundingClientRect()
+    const x=Math.max(0,Math.min(100,((e.clientX-r.left)/r.width)*100))
+    const y=Math.max(0,Math.min(100,((e.clientY-r.top)/r.height)*100))
+    setCables(cs=>cs.map(c=>c.id!==dragPoint.cableId?c:{...c,points:c.points.map((p,i)=>i===dragPoint.idx?{x:+x.toFixed(1),y:+y.toFixed(1)}:p)}))
+  },[dragPoint])
+  const onPointUp = useCallback(()=>setDragPoint(null),[])
+  useEffect(()=>{
+    if(dragPoint){ window.addEventListener('mousemove',onPointMove); window.addEventListener('mouseup',onPointUp)
+      return ()=>{ window.removeEventListener('mousemove',onPointMove); window.removeEventListener('mouseup',onPointUp) } }
+  },[dragPoint,onPointMove,onPointUp])
+
   async function askJSON(prompt, maxTokens){
     for(let attempt=0; attempt<2; attempt++){
-      const reply=await askClaude([{role:'user',text:prompt}],null,'image/jpeg',maxTokens)
+      const reply=await askClaude([{role:'user',text:prompt}],null,'image/jpeg',maxTokens,accumulateCost)
       let j=reply.trim()
       if(j.includes('```')) j=j.replace(/```json?\n?/g,'').replace(/```/g,'')
       const s=j.indexOf('{'); if(s>0) j=j.slice(s)
@@ -695,7 +793,7 @@ Responda APENAS JSON válido:
       if(fromProposal?.id){
         try{
           const { saveProposal } = await import('../db/supabase.js')
-          const updated = { ...fromProposal, exec_doc:full, planta_data:{image:bgImage,markers} }
+          const updated = { ...fromProposal, exec_doc:full, planta_data:{image:bgImage,markers,cables} }
           await saveProposal(updated)
         }catch(e){ console.warn('Auto-save falhou:', e.message) }
       }
@@ -1333,17 +1431,18 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
       price:String(items.reduce((s,m)=>s+(m.sale||0),0))
     }))}]
 
+    const apiCost = { ...apiCostRef.current, model:'claude-sonnet-4-5', at:new Date().toISOString() }
     if(fromProposal?.id){
       try{
         const { saveProposal } = await import('../db/supabase.js')
-        const updated = { ...fromProposal, exec_doc:docToSave, planta_data:{image:bgImage,markers} }
+        const updated = { ...fromProposal, exec_doc:docToSave, planta_data:{image:bgImage,markers,cables}, exec_api_cost:apiCost }
         await saveProposal(updated)
-        alert('✅ Projeto Executivo salvo no orçamento!')
+        alert(`✅ Projeto Executivo salvo no orçamento!\n\n💸 Custo de IA na geração: R$ ${apiCost.brl.toFixed(2)} (${apiCost.calls} chamadas)`)
         onClose && onClose()
         return
       }catch(e){ alert('Erro ao salvar: '+e.message); return }
     }
-    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers}, client_name:projectInfo.client||selClient, exec_doc:docToSave })
+    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_api_cost:apiCost })
   }
 
   const catGroups={}
@@ -1833,7 +1932,22 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
             </div>
             {/* ── Canvas ── */}
             <div className="pe-editor-canvas" style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20,position:'relative'}}>
-              <div style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content'}}>
+              <div style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content',flexWrap:'wrap',justifyContent:'flex-end',maxWidth:'70%'}}>
+                <button onClick={()=>setCableMode(m=>!m)} style={{height:32,borderRadius:6,border:`1px solid ${cableMode?'#F59E0B':'#F59E0B88'}`,background:cableMode?'#F59E0B':'rgba(245,158,11,0.15)',color:cableMode?'#1a1a2e':'#FBBf24',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Traçar cabos da planta elétrica">
+                  <i className="ti ti-route" aria-hidden/>{cableMode?'Cabos: ON':'Cabos'}
+                </button>
+                <button onClick={undo} disabled={!history.length} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:history.length?'#fff':'rgba(255,255,255,0.3)',cursor:history.length?'pointer':'default',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Desfazer (Ctrl+Z)">
+                  <i className="ti ti-arrow-back-up" aria-hidden/>Desfazer
+                </button>
+                <button onClick={limparItens} style={{height:32,borderRadius:6,border:'1px solid #DC262688',background:'rgba(220,38,38,0.12)',color:'#FCA5A5',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Remover todos os itens">
+                  <i className="ti ti-eraser" aria-hidden/>Limpar
+                </button>
+                <button onClick={voltarEtapa} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Voltar uma etapa">
+                  <i className="ti ti-chevron-left" aria-hidden/>Voltar
+                </button>
+                <button onClick={recomecar} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Recomeçar do zero">
+                  <i className="ti ti-refresh" aria-hidden/>Recomeçar
+                </button>
                 <button onClick={()=>setShowRackModal(true)} style={{height:32,borderRadius:6,border:'1px solid #7C3AED',background:'rgba(124,58,237,0.2)',color:'#C4B5FD',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}}>
                   <i className="ti ti-server" aria-hidden/>Rack CPD
                 </button>
@@ -1843,11 +1957,60 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                 <span style={{color:'#fff',fontSize:11,display:'flex',alignItems:'center',padding:'0 4px'}}>{Math.round(zoom*100)}%</span>
                 <button onClick={()=>setZoom(z=>Math.min(3,z+0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>+</button>
               </div>
+              {cableMode && <div style={{position:'sticky',top:44,marginLeft:'auto',alignSelf:'flex-start',zIndex:29,background:'rgba(20,20,40,0.95)',border:'1px solid #F59E0B',borderRadius:8,padding:'8px 12px',maxWidth:340,fontSize:11,color:'#fff'}}>
+                <div style={{color:'#FBBf24',fontWeight:600,marginBottom:4}}><i className="ti ti-route" aria-hidden/> Modo cabos</div>
+                {!cableDraft
+                  ? <div style={{color:'rgba(255,255,255,0.7)'}}>Clique no item de <b>origem</b>, depois no item de <b>destino</b>. Eu traço o cabo. Depois arraste os pontos para curvar/fazer 90°.</div>
+                  : <div style={{color:'#FBBf24'}}>Origem: <b>{mk(cableDraft.fromUid)?.name}</b> — agora clique no destino. <span onClick={()=>setCableDraft(null)} style={{textDecoration:'underline',cursor:'pointer'}}>cancelar</span></div>}
+                {selCable && (()=>{ const c=cables.find(x=>x.id===selCable); if(!c) return null
+                  return <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid rgba(255,255,255,0.15)'}}>
+                    <div style={{marginBottom:5}}>Cabo: <b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b></div>
+                    <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap'}}>
+                      {[['rj45','Rede','#2563EB'],['electric','Elétrico','#DC2626'],['hdmi','HDMI','#7C3AED'],['coax','Coax','#D97706']].map(([t,lb,col])=>(
+                        <button key={t} onClick={()=>setCableColor(c.id,t)} style={{fontSize:10,padding:'3px 8px',borderRadius:10,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.2)'}`,background:c.type===t?col+'33':'transparent',color:c.type===t?col==='#2563EB'?'#93C5FD':col:'rgba(255,255,255,0.6)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:col}}/>{lb}</button>
+                      ))}
+                      <button onClick={()=>deleteCable(c.id)} style={{fontSize:10,padding:'3px 8px',borderRadius:10,border:'1px solid #DC2626',background:'transparent',color:'#FCA5A5',cursor:'pointer',marginLeft:'auto'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
+                    </div>
+                    <div style={{fontSize:9.5,color:'rgba(255,255,255,0.45)',marginTop:5}}>Arraste os pontos brancos para curvar. Clique no quadradinho do meio de um trecho para criar uma dobra (90°). Duplo-clique num ponto remove.</div>
+                  </div>
+                })()}
+              </div>}
               <div ref={containerRef} style={{position:'relative',display:'inline-block',cursor:addMode?'crosshair':'default',width:bgImage?`${zoom*100}%`:`${Math.min(640*zoom,window.innerWidth*0.82)}px`,transformOrigin:'top center'}} onClick={onCanvasClick}>
                 {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false}/>
                   : <div style={{width:'100%',aspectRatio:'4/3',background:'repeating-linear-gradient(0deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px),repeating-linear-gradient(90deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px)',backgroundColor:'rgba(255,255,255,0.02)',border:'2px dashed rgba(255,255,255,0.15)',borderRadius:10,position:'relative'}}>
                       <div style={{position:'absolute',top:10,left:0,right:0,textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.45)',pointerEvents:'none'}}>Pontos posicionados — arraste para ajustar, ou carregue a planta.</div>
                     </div>}
+                {/* ── Camada de CABOS (planta elétrica) ── */}
+                <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:4,overflow:'visible'}} preserveAspectRatio="none" viewBox="0 0 100 100">
+                  {cables.map(c=>{
+                    const pts=cablePolyPoints(c); if(pts.length<2) return null
+                    const d=pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')
+                    const sel=selCable===c.id
+                    return <path key={c.id} d={d} fill="none" stroke={c.color}
+                      strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke"
+                      style={{pointerEvents:cableMode?'stroke':'none',cursor:'pointer',filter:sel?'drop-shadow(0 0 2px '+c.color+')':'none',strokeWidth:sel?3:2}}
+                      onClick={e=>{e.stopPropagation(); setSelCable(c.id)}}/>
+                  })}
+                </svg>
+                {/* pontos arrastáveis do cabo selecionado + dobra ao clicar no segmento */}
+                {cableMode && cables.filter(c=>c.id===selCable).map(c=>{
+                  const pts=cablePolyPoints(c)
+                  return <div key={'pts'+c.id}>
+                    {(c.points||[]).map((p,idx)=>(
+                      <div key={idx} onMouseDown={e=>{e.stopPropagation(); setDragPoint({cableId:c.id,idx})}}
+                        onDoubleClick={e=>{e.stopPropagation(); removeCablePoint(c.id,idx)}}
+                        title="Arraste para dobrar · duplo-clique remove"
+                        style={{position:'absolute',left:`${p.x}%`,top:`${p.y}%`,transform:'translate(-50%,-50%)',zIndex:15,
+                          width:12,height:12,borderRadius:'50%',background:'#fff',border:`2px solid ${c.color}`,cursor:'move',boxShadow:'0 1px 3px rgba(0,0,0,0.5)'}}/>
+                    ))}
+                    {pts.slice(0,-1).map((p,i)=>{ const n=pts[i+1]; const mx=(p.x+n.x)/2, my=(p.y+n.y)/2
+                      return <div key={'mid'+i} onClick={e=>{e.stopPropagation(); addCablePoint(c.id,i,mx,my)}}
+                        title="Clique para criar uma dobra aqui"
+                        style={{position:'absolute',left:`${mx}%`,top:`${my}%`,transform:'translate(-50%,-50%)',zIndex:14,
+                          width:9,height:9,borderRadius:2,background:c.color+'99',border:'1px solid #fff',cursor:'copy'}}/>
+                    })}
+                  </div>
+                })}
                 {markers.map(m=>{
                   const srch=editorSearch.toLowerCase()
                   const matchS=!editorSearch||m.name?.toLowerCase().includes(srch)||m.code?.toLowerCase().includes(srch)||m.room?.toLowerCase().includes(srch)
@@ -1858,7 +2021,10 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                   const isRack = isRackItem(m.name||'', m.code||'')
                   const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
                   const sel=selected===m.uid
-                  return <div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:'grab',opacity:visible?1:0.07,pointerEvents:visible?'auto':'none',transition:'opacity 0.15s'}} onMouseDown={e=>onDown(e,m.uid)}>
+                  const isCableOrigin = cableDraft?.fromUid===m.uid
+                  return <div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:5,cursor:cableMode?'crosshair':'grab',opacity:visible?1:0.07,pointerEvents:visible?'auto':'none',transition:'opacity 0.15s'}}
+                    onMouseDown={e=>{ if(cableMode){ e.stopPropagation(); onCableItemClick(m.uid) } else { onDown(e,m.uid) } }}>
+                    {isCableOrigin && <div style={{position:'absolute',inset:-6,borderRadius:'50%',border:'2px dashed #F59E0B',animation:'none'}}/>}
                     {isRack
                       ? <div style={{width:sel?36:30,height:sel?36:30,borderRadius:6,background:'#4C1D95',color:'#C4B5FD',fontSize:14,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #7C3AED',boxShadow:sel?`0 0 0 3px #7C3AED`:'0 2px 6px rgba(0,0,0,0.6)'}}><i className="ti ti-server" aria-hidden style={{fontSize:16}}/></div>
                       : <div style={{width:sel?28:24,height:sel?28:24,borderRadius:'50%',background:st.c,color:'#fff',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #fff',boxShadow:sel?`0 0 0 3px ${st.c}`:'0 1px 4px rgba(0,0,0,0.5)'}}>{m.n}</div>}
@@ -1960,7 +2126,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
             if(!fromProposal?.id){ alert('Abra o executivo a partir de um orçamento para poder salvar.'); return }
             try{
               const { saveProposal, addAuditLog } = await import('../db/supabase.js')
-              const updated = { ...fromProposal, planta_data:{image:bgImage, markers} }
+              const updated = { ...fromProposal, planta_data:{image:bgImage, markers, cables} }
               await saveProposal(updated)
               await addAuditLog({ type:'exec_save_markers', user_name:currentUser?.name||'—',
                 after:JSON.stringify({markers:markers.length, rooms:rooms.length, proposal_id:fromProposal.id}) })
