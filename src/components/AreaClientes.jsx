@@ -118,7 +118,18 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
   }
   function openProposal(p){
     const pc = parseJSON(p.planta_cliente), pdExec = parseJSON(p.planta_data)
-    const pd = (pc && pc.markers?.length) ? pc : (pdExec||{})
+    const temCliente = pc && (pc.markers?.length || pc.image)
+    const temExec = pdExec && (pdExec.markers?.length || pdExec.image)
+    let pd = {}
+    if(temCliente && temExec){
+      // tem os dois: pergunta qual base usar
+      pd = window.confirm('Esta proposta tem uma planta da Área de Clientes E um Projeto Executivo.\n\nOK = continuar de onde parou na Área de Clientes\nCancelar = puxar do Projeto Executivo') ? pc : pdExec
+    } else if(temCliente){
+      pd = pc
+    } else if(temExec){
+      // só tem executivo: pergunta se puxa dele ou começa do zero
+      pd = window.confirm('Há um Projeto Executivo pronto para esta proposta.\n\nOK = puxar a planta e os itens do Projeto Executivo\nCancelar = começar do zero') ? pdExec : {}
+    }
     setSelProposal(p); setBgImage(pd.image||null); setMarkers(enrich(pd.markers))
     setZoom(1); setPan({x:0,y:0}); setShowValues(false); setHiddenCats(new Set())
     setSelMarker(null); setDirty(false); setShowEditor(false); setTapCount(0)

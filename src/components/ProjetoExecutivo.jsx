@@ -270,6 +270,7 @@ function AddRoomInline({ onAdd }){
 function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal, onSaveToProposal, onClose, currentUser }) {
   // planta_data pode vir como objeto OU string JSON (do Supabase) — normaliza
   const initPlanta = (()=>{ let pd=fromProposal?.planta_data; if(typeof pd==='string'){try{pd=JSON.parse(pd)}catch{pd=null}} return pd||null })()
+  const initPlantaCliente = (()=>{ let pd=fromProposal?.planta_cliente; if(typeof pd==='string'){try{pd=JSON.parse(pd)}catch{pd=null}} return pd||null })()
   const [step, setStep] = useState(()=> (initPlanta?.markers?.length || initPlanta?.image) ? 'editor' : 'upload')
   const [bgImage, setBgImage] = useState(()=> initPlanta?.image || null)
   const [chat, setChat] = useState([])
@@ -655,6 +656,23 @@ Responda APENAS JSON válido:
     function onKey(e){ if((e.ctrlKey||e.metaKey)&&e.key==='z'&&step==='editor'){ e.preventDefault(); undo() } }
     window.addEventListener('keydown',onKey); return ()=>window.removeEventListener('keydown',onKey)
   }) // eslint-disable-line
+
+  // Na montagem: se há uma planta da Área de Clientes pronta, pergunta se puxa dela
+  const askedClienteRef = useRef(false)
+  useEffect(()=>{
+    if(askedClienteRef.current) return
+    askedClienteRef.current = true
+    const temCliente = initPlantaCliente && (initPlantaCliente.markers?.length || initPlantaCliente.image)
+    if(!temCliente) return
+    // só pergunta se a Área de Clientes tem conteúdo diferente/adicional
+    const usar = window.confirm('Existe uma planta montada na Área de Clientes para esta proposta.\n\nOK = puxar a planta e os itens da Área de Clientes\nCancelar = continuar com o Projeto Executivo atual')
+    if(usar){
+      setBgImage(initPlantaCliente.image||null)
+      setMarkers(initPlantaCliente.markers||[])
+      if(initPlantaCliente.cables) setCables(initPlantaCliente.cables)
+      setStep('editor')
+    }
+  }, []) // eslint-disable-line
 
   // ── Pan (arrastar o fundo) + zoom por scroll no canvas do editor ──
   function onCanvasPanDown(e){

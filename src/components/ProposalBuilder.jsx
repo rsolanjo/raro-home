@@ -632,6 +632,8 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   // Modals
   const [showSaveModal,  setShowSaveModal]  = useState(false)
   const [showApresModal, setShowApresModal] = useState(false)
+  const [showPdfVersionModal, setShowPdfVersionModal] = useState(false)  // escolher versão ao gerar PDF
+  const [showLoadVersionModal, setShowLoadVersionModal] = useState(false) // carregar versão antiga p/ edição
   const [apresVersion, setApresVersion] = useState(0)   // índice da versão escolhida (0 = atual/mais recente)
   const [apresKeep,      setApresKeep]      = useState({})   // {key:true} itens de rack a MANTER
   const [apresExec,      setApresExec]      = useState('3000')
@@ -973,13 +975,15 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
     setShowSendModal(false)
   }
 
-  function openPDF(admin=false, preview=false){
+  function openPDF(admin=false, preview=false, srcFloors=null, srcLabor=null){
     try {
       const previewCode = proposalCode || 'PRÉVIA'
       const cl = clients.find(c=>c.id===Number(clientId))
+      const baseFloors = srcFloors || floors
+      const baseLaborVisible = srcLabor!=null ? srcLabor : laborVisible
       // Recalcula r.price dos itens visíveis (excluindo categorias ocultas) e
       // SEMPRE remove cômodos com valor zero — independente de haver ocultos ou não.
-      const floorsFiltered = floors.map(f=>({...f,
+      const floorsFiltered = baseFloors.map(f=>({...f,
         rooms: f.rooms.map(r=>{
           const visItems=(r.items||[]).filter(it=>!hiddenCateg.has(it.category||'Sem categoria'))
           const visPrice=visItems.reduce((s,it)=>s+(it.sale_price||0)*(parseInt(it.qty)||1),0)
@@ -992,7 +996,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
         proposal_code: previewCode,
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         date_str: new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),
-        floors: floorsFiltered, labor:laborVisible, margin, itemFontSize:pdfFontSize,
+        floors: floorsFiltered, labor:baseLaborVisible, margin, itemFontSize:pdfFontSize,
         client_phone1: cl?.phone1, client_phone2: cl?.phone2
       }, admin)
       // Try window.open with blob
@@ -1020,6 +1024,30 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
     }
   }
 
+  // Ao gerar PDF: se houver versões salvas, pergunta qual usar; senão gera direto
+  function pedirVersaoPdf(){
+    if(savedVersions.length>0) setShowPdfVersionModal(true)
+    else openPDF(false,false)
+  }
+  // Gera o PDF de uma versão específica (idx 0 = atual)
+  function gerarPdfVersao(idx){
+    setShowPdfVersionModal(false)
+    if(idx===0){ openPDF(false,false); return }
+    const v=savedVersions[idx-1]; if(!v) return
+    openPDF(false,false, v.floors, v.labor)
+  }
+  // Carrega uma versão antiga para edição (substitui o estado atual)
+  function carregarVersao(idx){
+    const v=savedVersions[idx]; if(!v) return
+    if(!window.confirm(`Carregar "${v.label}" para edição?\n\nIsto substitui os cômodos, itens e mão de obra atuais na tela. Salve depois para manter.`)) return
+    setFloors(v.floors||[])
+    setLaborByCat(v.labor_by_cat||{})
+    setLabor(String(v.labor||0))
+    if(v.planta_data!=null) setPlantaData(v.planta_data)
+    setShowLoadVersionModal(false)
+    setSaved(false)
+  }
+
   // Gera a Apresentação Comercial (pág 1 institucional + pág 2 investimento)
   // Detecta itens de rack (espelha apresentacaoComercial.js) para o modal de exclusões
   const RACK_CATS_PB = new Set(['CPD','CPD / Rack','CPD/Rack','Rack'])
@@ -1028,20 +1056,29 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
     const cat=(it.category||'').trim()
     return RACK_CATS_PB.has(cat) || RACK_NAME_PB.test(it.name||'')
   }
-  function rackItemsList(){
-    const arr=[]
-    floors.forEach((f,fi)=>(f.rooms||[]).forEach((r,ri)=>(r.items||[]).forEach((it,ii)=>{
+  // chave estável por CONTEÚDO (não por índice) — funciona igual entre versões
+  function rackKey(it){ return `${it.code||''}|${(it.name||'').trim()}|${(it.room||'').trim()}` }
+  // lista de itens de rack a partir de um conjunto de floors (default: floors atual)
+  function rackItemsListFrom(srcFloors){
+    const map={}
+    ;(srcFloors||[]).forEach(f=>(f.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{
       if(it.name && isRackItemPB(it) && !hiddenCateg.has(it.category||'Sem categoria')){
-        arr.push({key:`${fi}:${ri}:${ii}`,name:it.name,cat:it.category||'Outros',val:(it.sale_price||0)*(parseInt(it.qty)||1),qty:parseInt(it.qty)||1})
+        const k=rackKey({...it,room:it.room||r.name})
+        if(!map[k]) map[k]={key:k,name:it.name,cat:it.category||'Outros',val:0,qty:0}
+        map[k].qty += parseInt(it.qty)||1
+        map[k].val += (it.sale_price||0)*(parseInt(it.qty)||1)
       }
     })))
-    return arr
+    return Object.values(map)
   }
+  function rackItemsList(){ return rackItemsListFrom(floors) }
   // versões salvas da proposta (até 3); a atual em edição é sempre a opção 0
   const savedVersions = (()=>{ let v=savedProposal?.versions; if(typeof v==='string'){try{v=JSON.parse(v)}catch{v=[]}} return Array.isArray(v)?v:[] })()
 
   function abrirModalApresentacao(){
-    setApresKeep({}); setApresExec('3000'); setApresVersion(0)
+    setApresExec('3000'); setApresVersion(0)
+    // por padrão INCLUI todos os itens de rack → apresentação fiel à proposta
+    const all={}; rackItemsList().forEach(it=>all[it.key]=true); setApresKeep(all)
     const pd = plantaData || savedProposal?.planta_data
     const pdObj = typeof pd==='string' ? (()=>{try{return JSON.parse(pd)}catch{return null}})() : pd
     setApresPlanta(pdObj?.image || null)
@@ -1072,10 +1109,11 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
       const keepSet = new Set(Object.entries(apresKeep).filter(([,v])=>v).map(([k])=>k))
       const floorsApres = baseFloors.map((f,fi)=>({...f, rooms:(f.rooms||[]).map((r,ri)=>({
         ...r,
-        items:(r.items||[]).filter((it,ii)=>{
+        items:(r.items||[]).filter((it)=>{
           if(!it.name) return false
           if(hiddenCateg.has(it.category||'Sem categoria')) return false
-          if(isRackItemPB(it)){ return keepSet.has(`${fi}:${ri}:${ii}`) }
+          // itens de rack: só entram se marcados (chave por conteúdo, estável entre versões)
+          if(isRackItemPB(it)){ return keepSet.has(rackKey({...it,room:it.room||r.name})) }
           return true
         })
       }))}))
@@ -1217,10 +1255,15 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           <button className="btn" onClick={()=>setShowSaveModal(true)}>
             <i className="ti ti-device-floppy" aria-hidden/>Salvar proposta
           </button>
+          {/* CARREGAR VERSÃO ANTIGA */}
+          {savedVersions.length>0 && <button className="btn" title="Carregar uma versão salva anterior para edição"
+            style={{gap:6}} onClick={()=>setShowLoadVersionModal(true)}>
+            <i className="ti ti-history" aria-hidden/>Versões ({savedVersions.length})
+          </button>}
           {/* GERAR PROPOSTA PDF */}
           <button className="btn" title="Gerar PDF da proposta (com preço atualizado conforme categorias ocultas)"
             style={{gap:6, color:'#0369A1', borderColor:'#0369A1', position:'relative'}}
-            onClick={()=>openPDF(false,false)}>
+            onClick={()=>pedirVersaoPdf()}>
             <i className="ti ti-file-invoice" aria-hidden/>
             Gerar Proposta
             {hiddenCateg.size>0&&<span style={{position:'absolute',top:-5,right:-5,background:'#F59E0B',color:'#fff',borderRadius:'50%',width:16,height:16,fontSize:9,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}} title={`${hiddenCateg.size} categoria(s) oculta(s)`}>{hiddenCateg.size}</span>}
@@ -2019,9 +2062,55 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
         </div>
       </div></div>}
 
+      {/* ── MODAL: escolher versão ao GERAR PDF ── */}
+      {showPdfVersionModal && <div className="modal-overlay" onClick={()=>setShowPdfVersionModal(false)}><div className="modal" style={{width:460,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title"><i className="ti ti-file-invoice" style={{marginRight:6}} aria-hidden/>Gerar Proposta — qual versão?</div>
+          <button className="modal-close" onClick={()=>setShowPdfVersionModal(false)}>×</button>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:8}}>
+          <button className="btn" style={{justifyContent:'space-between',padding:'12px 14px'}} onClick={()=>gerarPdfVersao(0)}>
+            <span style={{fontWeight:600}}>Versão atual (em edição)</span>
+            <i className="ti ti-chevron-right" aria-hidden/>
+          </button>
+          {savedVersions.map((v,i)=>(
+            <button key={i} className="btn" style={{justifyContent:'space-between',padding:'12px 14px'}} onClick={()=>gerarPdfVersao(i+1)}>
+              <span>{v.label||`Versão ${i+1}`}</span>
+              <span style={{color:'var(--accent)',fontWeight:700}}>{fmt(v.grand_total||0)}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{fontSize:10.5,color:'var(--text3)',marginTop:10}}>O PDF usa exatamente os itens e valores da versão escolhida.</div>
+      </div></div>}
+
+      {/* ── MODAL: carregar versão antiga para edição ── */}
+      {showLoadVersionModal && <div className="modal-overlay" onClick={()=>setShowLoadVersionModal(false)}><div className="modal" style={{width:460,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title"><i className="ti ti-history" style={{marginRight:6}} aria-hidden/>Carregar versão salva</div>
+          <button className="modal-close" onClick={()=>setShowLoadVersionModal(false)}>×</button>
+        </div>
+        {savedVersions.length===0
+          ? <div style={{fontSize:13,color:'var(--text3)',padding:'12px 0'}}>Nenhuma versão salva ainda. Salve a proposta para criar versões.</div>
+          : <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:8}}>
+            {savedVersions.map((v,i)=>(
+              <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',border:'1px solid var(--border)',borderRadius:8}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600}}>{v.label||`Versão ${i+1}`}</div>
+                  <div style={{fontSize:11,color:'var(--text3)'}}>{fmt(v.grand_total||0)} · {(v.floors||[]).reduce((s,f)=>s+(f.rooms||[]).reduce((rs,r)=>rs+(r.items||[]).filter(it=>it.name).length,0),0)} itens</div>
+                </div>
+                <button className="btn" style={{fontSize:12}} onClick={()=>carregarVersao(i)}>
+                  <i className="ti ti-download" aria-hidden/>Carregar
+                </button>
+              </div>
+            ))}
+          </div>}
+        <div style={{fontSize:10.5,color:'var(--text3)',marginTop:10}}>Carregar substitui o que está na tela. Salve depois para manter como versão mais recente.</div>
+      </div></div>}
+
       {/* ── MODAL APRESENTAÇÃO COMERCIAL ── */}
       {showApresModal&&(()=>{
-        const rackItens=rackItemsList()
+        const verFloors = apresVersion>0 ? (savedVersions[apresVersion-1]?.floors||floors) : floors
+        const rackItens=rackItemsListFrom(verFloors)
         const keepCount=Object.values(apresKeep).filter(Boolean).length
         return <div className="modal-overlay"><div className="modal" style={{width:560,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
           <div className="modal-header">
@@ -2031,21 +2120,21 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
 
           {/* seletor de versão salva (item 2) */}
           {savedVersions.length>0 && <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
-            <div className="flabel" style={{marginBottom:6}}>Qual versão usar na apresentação?</div>
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12.5,cursor:'pointer'}}>
-                <input type="radio" checked={apresVersion===0} onChange={()=>setApresVersion(0)}/>
-                <span>Versão atual (em edição)</span>
+            <div className="flabel" style={{marginBottom:8}}>Qual versão usar na apresentação?</div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              <label style={{display:'flex',alignItems:'center',gap:10,fontSize:12.5,cursor:'pointer',padding:'8px 10px',borderRadius:6,border:`1.5px solid ${apresVersion===0?'var(--accent)':'var(--border)'}`,background:apresVersion===0?'rgba(14,165,233,0.08)':'transparent'}}>
+                <input type="radio" checked={apresVersion===0} onChange={()=>setApresVersion(0)} style={{flexShrink:0}}/>
+                <span style={{flex:1,fontWeight:apresVersion===0?600:400}}>Versão atual (em edição)</span>
               </label>
               {savedVersions.map((v,i)=>(
-                <label key={i} style={{display:'flex',alignItems:'center',gap:8,fontSize:12.5,cursor:'pointer'}}>
-                  <input type="radio" checked={apresVersion===i+1} onChange={()=>setApresVersion(i+1)}/>
-                  <span style={{flex:1}}>{v.label||`Versão ${i+1}`}</span>
-                  <span style={{color:'var(--accent)',fontWeight:600}}>{fmt(v.grand_total||0)}</span>
+                <label key={i} style={{display:'flex',alignItems:'center',gap:10,fontSize:12.5,cursor:'pointer',padding:'8px 10px',borderRadius:6,border:`1.5px solid ${apresVersion===i+1?'var(--accent)':'var(--border)'}`,background:apresVersion===i+1?'rgba(14,165,233,0.08)':'transparent'}}>
+                  <input type="radio" checked={apresVersion===i+1} onChange={()=>setApresVersion(i+1)} style={{flexShrink:0}}/>
+                  <span style={{flex:1,fontWeight:apresVersion===i+1?600:400}}>{v.label||`Versão ${i+1}`}</span>
+                  <span style={{color:'var(--accent)',fontWeight:700,whiteSpace:'nowrap'}}>{fmt(v.grand_total||0)}</span>
                 </label>
               ))}
             </div>
-            <div style={{fontSize:10,color:'var(--text3)',marginTop:6}}>A apresentação usa exatamente os itens e valores da versão escolhida — mesma base do orçamento.</div>
+            <div style={{fontSize:10,color:'var(--text3)',marginTop:8}}>A apresentação usa exatamente os itens e valores da versão escolhida — mesma base do orçamento.</div>
           </div>}
 
           {/* valor mão de obra do projeto executivo */}
@@ -2062,7 +2151,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
             {rackItens.length===0
               ? <div style={{fontSize:12,color:'var(--text3)'}}>Nenhum item de rack identificado nesta proposta.</div>
               : <>
-                <div style={{fontSize:11,color:'var(--text3)',marginBottom:8}}>Por padrão esses itens <b>não aparecem</b> na apresentação. Marque os que quiser <b>incluir</b>:</div>
+                <div style={{fontSize:11,color:'var(--text3)',marginBottom:8}}>Por padrão <b>todos entram</b> (apresentação fiel à proposta). Desmarque os que <b>não</b> quiser mostrar:</div>
                 {rackItens.map(it=>(
                   <label key={it.key} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:'0.5px solid var(--border)',cursor:'pointer',fontSize:12.5}}>
                     <input type="checkbox" checked={!!apresKeep[it.key]} onChange={e=>setApresKeep(p=>({...p,[it.key]:e.target.checked}))}/>
