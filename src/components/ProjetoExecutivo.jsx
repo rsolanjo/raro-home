@@ -268,17 +268,19 @@ function AddRoomInline({ onAdd }){
 }
 
 function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal, onSaveToProposal, onClose, currentUser }) {
-  const [step, setStep] = useState(()=> fromProposal?.planta_data?.markers?.length ? 'editor' : 'upload')
-  const [bgImage, setBgImage] = useState(()=> fromProposal?.planta_data?.image || null)
+  // planta_data pode vir como objeto OU string JSON (do Supabase) — normaliza
+  const initPlanta = (()=>{ let pd=fromProposal?.planta_data; if(typeof pd==='string'){try{pd=JSON.parse(pd)}catch{pd=null}} return pd||null })()
+  const [step, setStep] = useState(()=> (initPlanta?.markers?.length || initPlanta?.image) ? 'editor' : 'upload')
+  const [bgImage, setBgImage] = useState(()=> initPlanta?.image || null)
   const [chat, setChat] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [markers, setMarkers] = useState(()=> fromProposal?.planta_data?.markers || [])
+  const [markers, setMarkers] = useState(()=> initPlanta?.markers || [])
   const [history, setHistory] = useState([])   // pilha de estados anteriores de markers (undo)
   // ── Roteamento de cabos (planta elétrica) ──
   const [cableMode, setCableMode]   = useState(false)        // ativa o modo de traçar cabos
   const [hideCables, setHideCables] = useState(false)        // oculta os cabos (mostra só itens)
-  const [cables, setCables]         = useState(()=> fromProposal?.planta_data?.cables || []) // [{id,fromUid,toUid,points:[{x,y}],color}]
+  const [cables, setCables]         = useState(()=> initPlanta?.cables || []) // [{id,fromUid,toUid,points:[{x,y}],color}]
   const [cableDraft, setCableDraft] = useState(null)         // {fromUid, points:[]} enquanto desenha
   const [selCable, setSelCable]     = useState(null)
   const [dragPoint, setDragPoint]   = useState(null)         // {cableId, idx}
@@ -355,7 +357,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   useEffect(()=>{ chatEndRef.current?.scrollIntoView({behavior:'smooth'}) },[chat])
 
   useEffect(()=>{
-    if(fromProposal && !fromProposal?.planta_data?.markers?.length && !markers.length){
+    if(fromProposal && !initPlanta?.markers?.length && !markers.length){
       const floors = typeof fromProposal.floors==='string' ? (()=>{try{return JSON.parse(fromProposal.floors)}catch{return[]}})() : (fromProposal.floors||[])
       // 1) agrupa os itens por cômodo (ignora itens de rack)
       const rooms=[]; let n=1
@@ -392,7 +394,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
             cost:it.cost, sale:it.sale, category:it.category})
         })
       })
-      if(mk.length){ setMarkers(mk); if(!fromProposal?.planta_data?.image) setStep('editor') }
+      if(mk.length){ setMarkers(mk); if(!initPlanta?.image) setStep('editor') }
     }
   },[])  // eslint-disable-line
 
@@ -400,7 +402,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [clientePlanta, setClientePlanta] = useState(null) // {url, label}
 
   useEffect(()=>{
-    if(bgImage || fromProposal?.planta_data?.image) return
+    if(bgImage || initPlanta?.image) return
     const cli = clients.find(c=> c.id===Number(fromProposal?.client_id))
       || (preClient && clients.find(c=>c.id===Number(preClient.id)))
       || preClient || null

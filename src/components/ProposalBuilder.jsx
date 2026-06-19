@@ -450,16 +450,26 @@ function buildPDF(data, adminMode=false){
 
   // ── totals page ───────────────────────────────────────────────
   // Tabela de cômodos: 2 colunas fixas (nome | valor), sem colisão
+  const CAT_COLORS_PDF={'Segurança':'#DC2626','Sonorização':'#BE185D','Som':'#BE185D','Redes':'#0EA5E9','Rede':'#0EA5E9','Automação':'#059669','Gourmet':'#D97706','Elétrica':'#F59E0B','CPD':'#7C3AED','Outros':'#6B7280'}
   const roomsTable=(rooms)=>{
-    const rows=rooms.map(r=>{
-      const q=(r.items||[]).filter(it=>it.name).reduce((s,it)=>s+(parseInt(it.qty)||1),0)
-      return `<tr style="border-bottom:0.5px solid #E8F4FF">`+
-      `<td style="font-size:9px;color:#1E3A5F;padding:5px 8px 5px 0">${r.name}</td>`+
-      `<td style="font-size:8px;color:#6B8CAE;text-align:center;padding:5px 6px;white-space:nowrap">${q>0?'['+q+']':''}</td>`+
-      `<td style="font-size:12px;color:#060B1A;text-align:right;padding:5px 0;white-space:nowrap;font-family:'DM Serif Display',serif">${fmt(parse(r.price))}</td>`+
-      `</tr>`
+    return rooms.map(r=>{
+      const items=(r.items||[]).filter(it=>it.name)
+      const q=items.reduce((s,it)=>s+(parseInt(it.qty)||1),0)
+      // valor por categoria dentro do cômodo (item 5)
+      const byCat={}
+      items.forEach(it=>{ const c=it.category||'Outros'; byCat[c]=(byCat[c]||0)+(it.sale_price||0)*(parseInt(it.qty)||1) })
+      const chips=Object.entries(byCat).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([cat,v])=>{
+        const col=CAT_COLORS_PDF[cat]||'#6B7280'
+        return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:7px;color:#1E3A5F;background:#fff;border:0.5px solid ${col}55;border-left:2px solid ${col};border-radius:3px;padding:1px 5px;margin:2px 3px 0 0;font-family:'DM Sans',sans-serif"><span style="color:${col};font-weight:600">${cat}</span> ${fmt(v)}</span>`
+      }).join('')
+      return `<div style="border-bottom:0.5px solid #E8F4FF;padding:5px 0">`+
+        `<div style="display:flex;justify-content:space-between;align-items:baseline">`+
+          `<span style="font-size:9px;color:#1E3A5F">${r.name}${q>0?` <span style="font-size:7.5px;color:#6B8CAE">[${q}]</span>`:''}</span>`+
+          `<span style="font-size:12px;color:#060B1A;font-family:'DM Serif Display',serif;white-space:nowrap">${fmt(parse(r.price))}</span>`+
+        `</div>`+
+        (chips?`<div style="margin-top:2px">${chips}</div>`:'')+
+      `</div>`
     }).join('')
-    return `<table style="width:100%;border-collapse:collapse;margin:2px 0 4px"><colgroup><col style="width:62%"/><col style="width:13%"/><col style="width:25%"/></colgroup>${rows}</table>`
   }
   const isSingle=(floors||[]).length===1
   const pavBlocks=isSingle
@@ -622,6 +632,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   // Modals
   const [showSaveModal,  setShowSaveModal]  = useState(false)
   const [showApresModal, setShowApresModal] = useState(false)
+  const [apresVersion, setApresVersion] = useState(0)   // índice da versão escolhida (0 = atual/mais recente)
   const [apresKeep,      setApresKeep]      = useState({})   // {key:true} itens de rack a MANTER
   const [apresExec,      setApresExec]      = useState('3000')
   const [apresPlanta,    setApresPlanta]    = useState(null)   // imagem da planta para a apresentação
@@ -869,6 +880,20 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
     const code=proposalCode||generateProposalCode(cl||{name1:clientName?.[0]||'X',name2:clientName?.split(' ')?.[1]?.[0]||'X'})
     // Item 6: garante pitch automático em cômodos com itens e sem pitch
     const floorsComPitch = ensurePitches(floors)
+    const floorsOut = floorsComPitch.map(f=>({name:f.name,rooms:f.rooms.map(r=>({name:r.name,icon:r.icon,highlight:r.highlight,pitch:r.pitch,price:parse(r.price),items:(r.items||[]).filter(it=>it.name)}))}))
+    // ── Histórico das últimas 3 versões (snapshot a cada salvamento) ──
+    const prevVersions = (()=>{ let v=savedProposal?.versions; if(typeof v==='string'){try{v=JSON.parse(v)}catch{v=[]}} return Array.isArray(v)?v:[] })()
+    const snapshot = {
+      savedAt: new Date().toISOString(),
+      label: `v${prevVersions.length+1} · ${new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}`,
+      floors: floorsOut,
+      labor: parse(laborValue!=null?laborValue:laborTotal),
+      labor_by_cat: {...laborByCat},
+      planta_data: plantaData,
+      exec_doc: execDocData,
+      grand_total: floorsOut.reduce((s,f)=>s+f.rooms.reduce((rs,r)=>rs+(r.price||0),0),0) + parse(laborValue!=null?laborValue:laborTotal),
+    }
+    const versions = [snapshot, ...prevVersions].slice(0,3)  // mantém as 3 mais recentes
     return{
       ...(savedProposal||{}),
       client_id:clientId?Number(clientId):null,
@@ -879,7 +904,8 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
       status,
       labor:parse(laborValue!=null?laborValue:laborTotal),
       labor_by_cat:{...laborByCat},
-      floors:floorsComPitch.map(f=>({name:f.name,rooms:f.rooms.map(r=>({name:r.name,icon:r.icon,highlight:r.highlight,pitch:r.pitch,price:parse(r.price),items:(r.items||[]).filter(it=>it.name)}))})),
+      floors:floorsOut,
+      versions,
       valid_days:30,
       planta_data: plantaData,
       exec_doc: execDocData,
@@ -1011,9 +1037,11 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
     })))
     return arr
   }
+  // versões salvas da proposta (até 3); a atual em edição é sempre a opção 0
+  const savedVersions = (()=>{ let v=savedProposal?.versions; if(typeof v==='string'){try{v=JSON.parse(v)}catch{v=[]}} return Array.isArray(v)?v:[] })()
+
   function abrirModalApresentacao(){
-    setApresKeep({}); setApresExec('3000')
-    // pré-carrega a planta do projeto executivo, se houver
+    setApresKeep({}); setApresExec('3000'); setApresVersion(0)
     const pd = plantaData || savedProposal?.planta_data
     const pdObj = typeof pd==='string' ? (()=>{try{return JSON.parse(pd)}catch{return null}})() : pd
     setApresPlanta(pdObj?.image || null)
@@ -1037,20 +1065,22 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
       const execValue = parse(apresExec)
       if (!(execValue > 0)) { alert('Informe um valor válido para a mão de obra do Projeto Executivo.'); return }
       const cl = clients.find(c=>c.id===Number(clientId))
+      // versão escolhida: 0 = estado atual; >0 usa o snapshot salvo (mesmos valores do orçamento daquela versão)
+      const useV = apresVersion>0 ? savedVersions[apresVersion-1] : null
+      const baseFloors = useV ? useV.floors : floors
+      const baseLaborByCat = useV ? (useV.labor_by_cat||{}) : laborByCat
       const keepSet = new Set(Object.entries(apresKeep).filter(([,v])=>v).map(([k])=>k))
-      const floorsApres = floors.map((f,fi)=>({...f, rooms:(f.rooms||[]).map((r,ri)=>({
+      const floorsApres = baseFloors.map((f,fi)=>({...f, rooms:(f.rooms||[]).map((r,ri)=>({
         ...r,
         items:(r.items||[]).filter((it,ii)=>{
           if(!it.name) return false
-          // remove categorias ocultas na proposta (acompanha o que está oculto)
           if(hiddenCateg.has(it.category||'Sem categoria')) return false
-          // itens de rack: só entram se marcados para manter
           if(isRackItemPB(it)){ return keepSet.has(`${fi}:${ri}:${ii}`) }
           return true
         })
       }))}))
       const laborByCatVisible = {}
-      proposalCategories.forEach(c=>{ if(!hiddenCateg.has(c)){ const v=parse(laborByCat[c]); if(v>0) laborByCatVisible[c]=v } })
+      Object.keys(baseLaborByCat).forEach(c=>{ if(!hiddenCateg.has(c)){ const v=parse(baseLaborByCat[c]); if(v>0) laborByCatVisible[c]=v } })
       const { html } = buildApresentacaoComercial({
         clientName: cl ? `${cl.name1} & ${cl.name2}` : (clientName || 'Cliente'),
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
@@ -1998,6 +2028,25 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
             <div className="modal-title"><i className="ti ti-presentation" style={{marginRight:6}} aria-hidden/>Gerar Apresentação Comercial</div>
             <button className="modal-close" onClick={()=>setShowApresModal(false)}>×</button>
           </div>
+
+          {/* seletor de versão salva (item 2) */}
+          {savedVersions.length>0 && <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
+            <div className="flabel" style={{marginBottom:6}}>Qual versão usar na apresentação?</div>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12.5,cursor:'pointer'}}>
+                <input type="radio" checked={apresVersion===0} onChange={()=>setApresVersion(0)}/>
+                <span>Versão atual (em edição)</span>
+              </label>
+              {savedVersions.map((v,i)=>(
+                <label key={i} style={{display:'flex',alignItems:'center',gap:8,fontSize:12.5,cursor:'pointer'}}>
+                  <input type="radio" checked={apresVersion===i+1} onChange={()=>setApresVersion(i+1)}/>
+                  <span style={{flex:1}}>{v.label||`Versão ${i+1}`}</span>
+                  <span style={{color:'var(--accent)',fontWeight:600}}>{fmt(v.grand_total||0)}</span>
+                </label>
+              ))}
+            </div>
+            <div style={{fontSize:10,color:'var(--text3)',marginTop:6}}>A apresentação usa exatamente os itens e valores da versão escolhida — mesma base do orçamento.</div>
+          </div>}
 
           {/* valor mão de obra do projeto executivo */}
           <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>

@@ -89,8 +89,8 @@ export async function saveProposal(p) {
     // Se alguma coluna nova ainda não existe no banco (PGRST204), remove as
     // colunas opcionais conhecidas e re-tenta, para nunca travar o salvamento.
     const msg = String(e?.message||'')
-    if (e?.code === 'PGRST204' || /column .* does not exist/i.test(msg) || msg.includes('labor_by_cat') || msg.includes('planta_cliente') || msg.includes('approved_') || msg.includes('exec_api_cost')) {
-      const { labor_by_cat, planta_cliente, approved_type, approved_value, approved_at, exec_value, exec_api_cost, ...rest } = p
+    if (e?.code === 'PGRST204' || /column .* does not exist/i.test(msg) || msg.includes('labor_by_cat') || msg.includes('planta_cliente') || msg.includes('approved_') || msg.includes('exec_api_cost') || msg.includes('versions')) {
+      const { labor_by_cat, planta_cliente, approved_type, approved_value, approved_at, exec_value, exec_api_cost, versions, ...rest } = p
       saved = await upsert('proposals', { ...rest, updated_at: new Date().toISOString() })
     } else throw e
   }
