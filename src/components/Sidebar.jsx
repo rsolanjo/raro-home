@@ -1,5 +1,5 @@
-import { LOGO_DARK } from '../logos.js'
-// v103 — Aprovacao pergunta tipo (Proposta/Executivo) + valor final editavel; deslocamento puxa bairro do cliente; Projeto Executivo: custo da API Anthropic em Custos, limpar itens, desfazer Ctrl+Z, voltar etapa, recomecar, roteamento de cabos na planta eletrica
+import { LOGO_MONO } from '../logos.js'
+// v111 — Logo RARO refeito (dois R entrelacados, wordmark RARO correto, fundo transparente); seletor de versao da apresentacao redesenhado (cards limpos); corrigido "Outros" fantasma na apresentacao Compacta (mao de obra orfa realocada por categoria)
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -13,7 +13,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
     <div className="sidebar">
       {/* Logo — hidden on mobile */}
       <div className="sb-logo">
-        <img src={LOGO_DARK} alt="RARO Home" style={{height:46,width:46,borderRadius:8,objectFit:'cover'}} />
+        <img src={LOGO_MONO} alt="RARO Home" style={{height:46,width:46,borderRadius:8,objectFit:'contain'}} />
         <div>
           <div className="sb-brand">RARO Home</div>
           <div className="sb-sub">Automação Residencial</div>
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v110 · build 2026-06
+          v111 · build 2026-06
         </div>
       </div>
     </div>

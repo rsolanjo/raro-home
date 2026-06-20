@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getProjects, getClients } from '../db/supabase.js'
 import DiarioGuiado from './DiarioGuiado.jsx'
-import { LOGO_DARK } from '../logos.js'
+import { LOGO_MONO } from '../logos.js'
 
 export default function MestreView({ user, onLogout }) {
   const [projects, setProjects] = useState([])
@@ -78,7 +78,7 @@ export default function MestreView({ user, onLogout }) {
   return (
     <div style={{minHeight:'100vh',height:'100vh',background:'var(--bg)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
       <div style={{background:'#060B1A',padding:'12px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
-        <img src={LOGO_DARK} alt="RARO" style={{height:26,borderRadius:4}}/>
+        <img src={LOGO_MONO} alt="RARO" style={{height:30,width:30,objectFit:'contain',borderRadius:4}}/>
         <div style={{color:'#fff',flex:1,minWidth:0}}>
           <div style={{fontSize:13,fontWeight:600}}>Diário de Obra</div>
           <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user.name}</div>

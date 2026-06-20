@@ -1,11 +1,8 @@
 import { useState } from 'react'
-import { LOGO_DARK, LOGO_COVER } from '../logos.js'
+import { LOGO_COVER } from '../logos.js'
 
-// Logo específico para o contrato (fundo branco puro — body do contrato é #fff)
-// Re-usa o SVG do LOGO_COVER mas troca o fundo #F5FAFF → #ffffff
-const LOGO_CONTRACT = LOGO_COVER.includes('base64,')
-  ? 'data:image/svg+xml;base64,' + btoa(atob(LOGO_COVER.split('base64,')[1]).replace('#F5FAFF','#ffffff'))
-  : LOGO_COVER
+// Logo do contrato — fundo transparente blenda no #fff do corpo do contrato
+const LOGO_CONTRACT = LOGO_COVER
 
 const fmt = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
 

@@ -459,6 +459,23 @@ export function buildApresentacaoV2({ clientName, neighborhood, code, floors, ex
   const mo = {}
   Object.entries(laborByCat).forEach(([c,v])=>{ const n=normV2(c); mo[n]=(mo[n]||0)+parseFloat(v||0) })
 
+  // categorias reais = as que têm itens/equipamentos (depois da inferência)
+  const realCats = new Set(Object.keys(eq))
+  // mão de obra "órfã": categoria sem nenhum item/equipamento (ex.: "Outros" fantasma).
+  // Sua categoria foi reatribuída pela inferência, então essa MO não pode virar linha sozinha.
+  // Reaproveita o valor distribuindo proporcionalmente entre as categorias reais (preserva o total).
+  let orphanMO = 0
+  Object.keys(mo).forEach(c=>{ if(!realCats.has(c) && (qty[c]||0)===0){ orphanMO += mo[c]; delete mo[c] } })
+  if(orphanMO>0 && realCats.size>0){
+    const totalEqReal = [...realCats].reduce((s,c)=>s+(eq[c]||0),0)
+    if(totalEqReal>0){
+      [...realCats].forEach(c=>{ mo[c]=(mo[c]||0)+orphanMO*(eq[c]||0)/totalEqReal })
+    } else {
+      const per = orphanMO/realCats.size
+      ;[...realCats].forEach(c=>{ mo[c]=(mo[c]||0)+per })
+    }
+  }
+
   // ordena por subtotal desc
   const cats = [...new Set([...Object.keys(eq), ...Object.keys(mo)])]
     .map(c => ({ cat:c, q:qty[c]||0, eq:eq[c]||0, mo:mo[c]||0, sub:(eq[c]||0)+(mo[c]||0) }))

@@ -1,5 +1,5 @@
 import { openProposalPDF } from './proposalPDF.js'
-import { LOGO_COVER, LOGO_DARK } from '../logos.js'
+import { LOGO_COVER } from '../logos.js'
 import { buildApresentacaoComercial, buildApresentacaoV2 } from './apresentacaoComercial.js'
 import { useState, useEffect, useCallback } from 'react'
 import { saveProposal, getCatalog, getStockWithReservations, getCatalogCategories,
@@ -2151,22 +2151,33 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           </div>
 
           {/* seletor de versão salva (item 2) */}
-          {savedVersions.length>0 && <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
-            <div className="flabel" style={{marginBottom:8}}>Qual versão usar na apresentação?</div>
+          {savedVersions.length>0 && <div style={{background:'var(--surf)',borderRadius:8,padding:'12px 14px',marginBottom:12}}>
+            <div className="flabel" style={{marginBottom:10}}>Qual versão usar na apresentação?</div>
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              <label style={{display:'flex',alignItems:'center',gap:10,fontSize:12.5,cursor:'pointer',padding:'8px 10px',borderRadius:6,border:`1.5px solid ${apresVersion===0?'var(--accent)':'var(--border)'}`,background:apresVersion===0?'rgba(14,165,233,0.08)':'transparent'}}>
-                <input type="radio" checked={apresVersion===0} onChange={()=>setApresVersion(0)} style={{flexShrink:0}}/>
-                <span style={{flex:1,fontWeight:apresVersion===0?600:400}}>Versão atual (em edição)</span>
-              </label>
-              {savedVersions.map((v,i)=>(
-                <label key={i} style={{display:'flex',alignItems:'center',gap:10,fontSize:12.5,cursor:'pointer',padding:'8px 10px',borderRadius:6,border:`1.5px solid ${apresVersion===i+1?'var(--accent)':'var(--border)'}`,background:apresVersion===i+1?'rgba(14,165,233,0.08)':'transparent'}}>
-                  <input type="radio" checked={apresVersion===i+1} onChange={()=>setApresVersion(i+1)} style={{flexShrink:0}}/>
-                  <span style={{flex:1,fontWeight:apresVersion===i+1?600:400}}>{v.label||`Versão ${i+1}`}</span>
-                  <span style={{color:'var(--accent)',fontWeight:700,whiteSpace:'nowrap'}}>{fmt(v.grand_total||0)}</span>
-                </label>
-              ))}
+              {[{i:0,label:'Versão atual',sub:'em edição agora',val:null},
+                ...savedVersions.map((v,idx)=>({i:idx+1,label:v.label||`Versão ${idx+1}`,sub:null,val:v.grand_total||0}))
+              ].map(opt=>{
+                const sel = apresVersion===opt.i
+                return (
+                  <label key={opt.i} onClick={()=>setApresVersion(opt.i)}
+                    style={{display:'flex',alignItems:'center',gap:12,cursor:'pointer',padding:'10px 12px',borderRadius:8,
+                      border:`1.5px solid ${sel?'var(--accent)':'var(--border)'}`,
+                      background:sel?'rgba(14,165,233,0.08)':'var(--bg)',transition:'all .12s'}}>
+                    <span style={{flexShrink:0,width:18,height:18,borderRadius:'50%',border:`2px solid ${sel?'var(--accent)':'var(--text3)'}`,
+                      display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      {sel&&<span style={{width:9,height:9,borderRadius:'50%',background:'var(--accent)'}}/>}
+                    </span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:sel?700:600,color:sel?'var(--accent)':'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{opt.label}</div>
+                      {opt.sub&&<div style={{fontSize:10.5,color:'var(--text3)',marginTop:1}}>{opt.sub}</div>}
+                    </div>
+                    {opt.val!=null&&<span style={{fontSize:13,color:sel?'var(--accent)':'var(--text2)',fontWeight:700,whiteSpace:'nowrap',flexShrink:0}}>{fmt(opt.val)}</span>}
+                    <input type="radio" checked={sel} onChange={()=>setApresVersion(opt.i)} style={{display:'none'}}/>
+                  </label>
+                )
+              })}
             </div>
-            <div style={{fontSize:10,color:'var(--text3)',marginTop:8}}>A apresentação usa exatamente os itens e valores da versão escolhida — mesma base do orçamento.</div>
+            <div style={{fontSize:10,color:'var(--text3)',marginTop:8,lineHeight:1.5}}>A apresentação usa exatamente os itens e valores da versão escolhida — mesma base do orçamento.</div>
           </div>}
 
           {/* valor mão de obra do projeto executivo */}
