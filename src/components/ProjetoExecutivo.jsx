@@ -337,7 +337,13 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   // ── Roteamento de cabos (planta elétrica) ──
   const [cableMode, setCableMode]   = useState(false)        // ativa o modo de traçar cabos
   const [hideCables, setHideCables] = useState(false)        // oculta os cabos (mostra só itens)
-  const [cables, setCables]         = useState(()=> initPlanta?.cables || []) // [{id,fromUid,toUid,points:[{x,y}],color}]
+  const [cables, setCables]         = useState(()=> initPlanta?.cables || []) // [{id,fromUid,toUid,points:[{x,y}],color,meters?}]
+  // ── Escala da planta (metros) ──
+  const [plantScale, setPlantScale] = useState(()=> initPlanta?.scale || null) // metros por unidade-de-distância-%  (null = não calibrado)
+  const [imgRatio, setImgRatio]     = useState(()=> initPlanta?.imgRatio || 0.75) // altura/largura da imagem (p/ converter % em distância real)
+  const [calibMode, setCalibMode]   = useState(false)   // ativa o modo de calibrar clicando 2 pontos
+  const [calibPts, setCalibPts]     = useState([])       // [{x,y}] até 2 pontos
+  const [folgaPct, setFolgaPct]     = useState(15)       // folga de instalação (%)
   const [cableDraft, setCableDraft] = useState(null)         // {fromUid, points:[]} enquanto desenha
   const [selCable, setSelCable]     = useState(null)
   const [dragPoint, setDragPoint]   = useState(null)         // {cableId, idx}
@@ -681,6 +687,23 @@ Responda APENAS JSON válido:
       window.removeEventListener('touchmove',onMove);window.removeEventListener('touchend',onUp)}},[onMove,onUp])
 
   function onCanvasClick(e){
+    // modo calibração: coleta 2 pontos e pergunta a distância real
+    if(calibMode){
+      const r=containerRef.current.getBoundingClientRect()
+      const x=((e.clientX-r.left)/r.width)*100, y=((e.clientY-r.top)/r.height)*100
+      setCalibPts(prev=>{
+        const next=[...prev,{x:+x.toFixed(1),y:+y.toFixed(1)}]
+        if(next.length===2){
+          const d=polyLenWidthUnits(next)  // distância entre os 2 pontos em unidades-de-largura
+          const resp=window.prompt('Quantos METROS tem essa distância que você marcou?\n(ex: 5 para uma parede de 5 metros)')
+          const metros=parseFloat((resp||'').replace(',','.'))
+          if(metros>0 && d>0){ setPlantScale(metros/d); alert(`✅ Escala definida: a planta inteira tem ~${(metros/d).toFixed(2)}m de largura. Os cabos agora calculam a metragem sozinhos.`) }
+          setCalibMode(false); return []
+        }
+        return next
+      })
+      return
+    }
     if(!addMode||!addItem)return
     const r=containerRef.current.getBoundingClientRect()
     const x=((e.clientX-r.left)/r.width)*100, y=((e.clientY-r.top)/r.height)*100
@@ -853,6 +876,27 @@ Responda APENAS JSON válido:
     if(!from||!to) return []
     return [{x:from.x,y:from.y}, ...(c.points||[]), {x:to.x,y:to.y}]
   }
+  // comprimento da polilinha em "unidades de largura" (corrige proporção da imagem)
+  function polyLenWidthUnits(pts, ratio=imgRatio){
+    let L=0
+    for(let i=1;i<pts.length;i++){
+      const dx=(pts[i].x-pts[i-1].x)/100
+      const dy=((pts[i].y-pts[i-1].y)/100)*ratio
+      L+=Math.sqrt(dx*dx+dy*dy)
+    }
+    return L
+  }
+  // metros do cabo: se o usuário fixou .meters, usa; senão calcula pela escala + folga
+  function cableMeters(c){
+    if(c.meters!=null && c.meters!=='') return parseFloat(c.meters)
+    if(!plantScale) return null
+    const pts=cablePolyPoints(c); if(pts.length<2) return null
+    const base = polyLenWidthUnits(pts)*plantScale            // metros do caminho na planta
+    const subidaDescida = 3.0                                  // ~3m de subida ao forro/descida à caixa
+    const comFolga = (base+subidaDescida) * (1+folgaPct/100)
+    return Math.round(comFolga*10)/10
+  }
+  function setCableMetersManual(id, val){ setCables(cs=>cs.map(c=>c.id===id?{...c, meters: val===''?undefined:val}:c)) }
   // arrastar um ponto intermediário do cabo
   const onPointMove = useCallback((e)=>{
     if(!dragPoint||!containerRef.current) return
@@ -936,14 +980,20 @@ Responda APENAS JSON válido:
     // cabos de rede a partir dos cabos desenhados na planta (se houver)
     const rack_cable_table = (cables||[]).map((c,i)=>{
       const from=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid)
+      const mt=cableMeters(c)
       return { porta_patch:`P${String(i+1).padStart(2,'0')}`, device_origem:from?.name||'Rack', porta_origem:'',
-        destino:to?.name||'—', tipo:(c.type==='ap'||c.type==='camera'||c.type==='dados'||c.type==='uplink')?'CAT6':'CAT6',
+        destino:to?.name||'—', tipo:(CABLE_SPEC[c.type]?.spec)||'CAT6',
+        metros: mt!=null?String(mt):'—',
         etiqueta:`${(to?.code||to?.name||'PT')}`.toUpperCase().slice(0,16), cor:'' }
     })
 
     // cabos de som
-    const cabos_som = markers.filter(isSom).map((m,i)=>({ id:`SOM-${String(i+1).padStart(2,'0')}`,
-      origem:'Amplificador no Rack', destino:`${m.name} (${m.room||''})`, tipo:'2×1,5mm²', metros:'—', etiqueta:`SOM-${i+1}` }))
+    const cabos_som = markers.filter(isSom).map((m,i)=>{
+      const cab=(cables||[]).find(c=>c.toUid===m.uid||c.fromUid===m.uid)
+      const mt=cab?cableMeters(cab):null
+      return { id:`SOM-${String(i+1).padStart(2,'0')}`, origem:'Amplificador no Rack', destino:`${m.name} (${m.room||''})`,
+        tipo:'2×1,5mm²', metros: mt!=null?String(mt):'—', etiqueta:`SOM-${i+1}` }
+    })
 
     // alimentação keypads
     const alim_keypads = markers.filter(isKeypad).map((m,i)=>({ id:`KEY-${String(i+1).padStart(2,'0')}`,
@@ -1011,7 +1061,7 @@ Responda APENAS JSON válido:
       setStep('exec')
       if(fromProposal?.id){
         import('../db/supabase.js').then(({saveProposal})=>{
-          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, planta_data:{image:bgImage,markers,cables} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
+          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
         })
       }
     } catch(err){
@@ -1107,7 +1157,7 @@ Responda APENAS JSON válido:
       if(fromProposal?.id){
         try{
           const { saveProposal } = await import('../db/supabase.js')
-          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, planta_data:{image:bgImage,markers,cables} }
+          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct} }
           await saveProposal(updated)
         }catch(e){ console.warn('Auto-save falhou:', e.message) }
       }
@@ -1915,11 +1965,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         ;(cables||[]).forEach(c=>{ const t=c.type||'dados'; (byType[t]=byType[t]||[]).push(c) })
         return Object.entries(byType).map(([t,arr])=>{
           const col=CABLE_PALETTE[t]||'#374151', lb=CABLE_LABELS[t]||t, sp=CABLE_SPEC[t]||{spec:'—',conector:'—'}
-          const rows = arr.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid)
-            return `<tr>${pinCell(to?.id,to?.code,to?.n)}<td>${f?`<b>#${f.n}</b> ${esc(f.name)}`:'—'}</td><td>${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td><td style="font-size:10px">${esc(to?.room||'—')}</td></tr>` }).join('')
+          const rows = arr.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid); const mt=cableMeters(c)
+            return `<tr>${pinCell(to?.id,to?.code,to?.n)}<td>${f?`<b>#${f.n}</b> ${esc(f.name)}`:'—'}</td><td>${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td><td style="font-size:10px">${esc(to?.room||'—')}</td><td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td></tr>` }).join('')
+          const totM = arr.reduce((s,c)=>{ const m=cableMeters(c); return s+(m||0) },0)
           return `<div style="font-size:10px;font-weight:700;color:${col};text-transform:uppercase;letter-spacing:.5px;padding:8px 0 3px;border-bottom:2px solid ${col};margin:14px 0 6px">
-            ${lb} — ${arr.length} cabo${arr.length!==1?'s':''} · <span style="font-weight:500;text-transform:none">${sp.spec} · ${sp.conector}</span></div>
-            ${T(rows,['Nº destino','Origem','Destino','Cômodo'])}`
+            ${lb} — ${arr.length} cabo${arr.length!==1?'s':''} · <span style="font-weight:500;text-transform:none">${sp.spec} · ${sp.conector}</span>${totM>0?` · <span style="color:#0F172A;background:#F1F5F9;padding:1px 6px;border-radius:6px">total ~${Math.round(totM)}m</span>`:''}</div>
+            ${T(rows,['Nº destino','Origem','Destino','Cômodo','Metros'])}`
         }).join('')
       })() : ''
       const obraSections = [
@@ -1995,14 +2046,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(fromProposal?.id){
       try{
         const { saveProposal } = await import('../db/supabase.js')
-        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, planta_data:{image:bgImage,markers,cables}, exec_api_cost:apiCost }
+        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct}, exec_api_cost:apiCost }
         await saveProposal(updated)
         alert(`✅ Projeto Executivo salvo no orçamento!\n\n💸 Custo de IA na geração: R$ ${apiCost.brl.toFixed(2)} (${apiCost.calls} chamadas)`)
         onClose && onClose()
         return
       }catch(e){ alert('Erro ao salvar: '+e.message); return }
     }
-    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_api_cost:apiCost })
+    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_api_cost:apiCost })
   }
 
   const catGroups={}
@@ -2533,6 +2584,15 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <button onClick={()=>setCableMode(m=>!m)} style={{height:32,borderRadius:6,border:`1px solid ${cableMode?'#F59E0B':'#F59E0B88'}`,background:cableMode?'#F59E0B':'rgba(245,158,11,0.15)',color:cableMode?'#1a1a2e':'#FBBf24',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Traçar cabos da planta elétrica">
                   <i className="ti ti-route" aria-hidden/>{cableMode?'Cabos: ON':'Cabos'}
                 </button>
+                <button onClick={()=>{
+                  const opc=window.prompt('ESCALA DA PLANTA — escolha:\n\n1 = Calibrar clicando 2 pontos numa parede e digitar os metros\n2 = Digitar a largura total da planta em metros\n\nDigite 1 ou 2:', plantScale?'(já calibrado) 1 ou 2':'1')
+                  if(opc==null) return
+                  const o=opc.trim()
+                  if(o.startsWith('1')){ setCalibMode(true); setCalibPts([]); setCableMode(false); setAddMode(false) }
+                  else if(o.startsWith('2')){ const w=window.prompt('Largura TOTAL da planta, em metros (ex: 12):'); const wm=parseFloat((w||'').replace(',','.')); if(wm>0){ setPlantScale(wm); alert(`✅ Escala definida: ${wm}m de largura. Cabos com metragem automática.`) } }
+                }} style={{height:32,borderRadius:6,border:`1px solid ${calibMode?'#0EA5E9':(plantScale?'#16A34A88':'rgba(255,255,255,0.2)')}`,background:calibMode?'#0EA5E9':(plantScale?'rgba(22,163,74,0.15)':'rgba(255,255,255,0.08)'),color:calibMode?'#fff':(plantScale?'#6EE7B7':'#fff'),cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Definir a escala em metros para calcular a metragem dos cabos">
+                  <i className="ti ti-ruler-2" aria-hidden/>{calibMode?'Clique 2 pontos...':(plantScale?`Escala ✓ ${(plantScale).toFixed(1)}m`:'Escala')}
+                </button>
                 {cables.length>0 && <button onClick={()=>setHideCables(h=>!h)} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:hideCables?'rgba(255,255,255,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={hideCables?'Mostrar cabos':'Ocultar cabos (só itens)'}>
                   <i className={hideCables?'ti ti-eye-off':'ti ti-eye'} aria-hidden/>{hideCables?'Cabos ocultos':'Ocultar cabos'}
                 </button>}
@@ -2583,12 +2643,22 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     {CABLE_SPEC[c.type] && <div style={{fontSize:10,color:'rgba(255,255,255,0.6)',marginTop:6,background:'rgba(255,255,255,0.05)',borderRadius:5,padding:'4px 8px'}}>
                       <b style={{color:CABLE_PALETTE[c.type]}}>{CABLE_LABELS[c.type]}</b> · {CABLE_SPEC[c.type].spec} · {CABLE_SPEC[c.type].conector}
                     </div>}
+                    <div style={{display:'flex',alignItems:'center',gap:6,marginTop:6,fontSize:11,color:'rgba(255,255,255,0.7)'}}>
+                      <i className="ti ti-ruler-measure" aria-hidden/>
+                      <span>Metragem:</span>
+                      <input type="number" step="0.5" value={c.meters??''} placeholder={plantScale? (cableMeters({...c,meters:undefined})??'auto') : 'defina a escala'}
+                        onChange={e=>setCableMetersManual(c.id, e.target.value)}
+                        style={{width:70,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'3px 6px',color:'#fff',fontSize:11,fontFamily:'inherit'}}/>
+                      <span>m</span>
+                      {c.meters!=null && c.meters!=='' && <button onClick={()=>setCableMetersManual(c.id,'')} style={{fontSize:9,padding:'2px 6px',borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.5)',cursor:'pointer'}}>auto</button>}
+                      {!plantScale && <span style={{fontSize:9,color:'#FBBF24'}}>← clique "Escala" para automático</span>}
+                    </div>
                     <div style={{fontSize:9.5,color:'rgba(255,255,255,0.45)',marginTop:5}}>Arraste os pontos brancos para curvar. Clique no quadradinho do meio de um trecho para criar uma dobra (90°). Duplo-clique num ponto remove.</div>
                   </div>
                 })()}
               </div>}
               <div ref={containerRef} style={{position:'relative',display:'block',margin:'0 auto',cursor:addMode?'crosshair':'default',width:bgImage?`${zoom*100}%`:`${Math.min(640*zoom,window.innerWidth*0.82)}px`,transformOrigin:'top center'}} onClick={onCanvasClick}>
-                {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false}/>
+                {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false} onLoad={e=>{const im=e.target; if(im.naturalWidth)setImgRatio(im.naturalHeight/im.naturalWidth)}}/>
                   : <div style={{width:'100%',aspectRatio:'4/3',background:'repeating-linear-gradient(0deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px),repeating-linear-gradient(90deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px)',backgroundColor:'rgba(255,255,255,0.02)',border:'2px dashed rgba(255,255,255,0.15)',borderRadius:10,position:'relative'}}>
                       <div style={{position:'absolute',top:10,left:0,right:0,textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.45)',pointerEvents:'none'}}>Pontos posicionados — arraste para ajustar, ou carregue a planta.</div>
                     </div>}
@@ -2792,7 +2862,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             if(!fromProposal?.id){ alert('Abra o executivo a partir de um orçamento para poder salvar.'); return }
             try{
               const { saveProposal, addAuditLog } = await import('../db/supabase.js')
-              const updated = { ...fromProposal, planta_data:{image:bgImage, markers, cables} }
+              const updated = { ...fromProposal, planta_data:{image:bgImage, markers, cables, scale:plantScale, imgRatio, folgaPct} }
               await saveProposal(updated)
               await addAuditLog({ type:'exec_save_markers', user_name:currentUser?.name||'—',
                 after:JSON.stringify({markers:markers.length, rooms:rooms.length, proposal_id:fromProposal.id}) })

@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v121 — Atalhos eletricos no editor: adicionar Tomada baixa/media/alta/piso, Interruptor, Ponto de luz, Arandela, QDL ja com altura e tipo eletrico definidos; cabos ganham tipos Som e Eletrica (alem de dados/ap/camera/uplink/hdmi) com ESPECIFICACAO tecnica (CAT6, 2x1,5mm², 3x2,5mm² F+N+T) na legenda e nova tabela "Cabos Desenhados por Tipo" no doc de Obra
+// v122 — Metragem automatica dos cabos: botao "Escala" calibra por 2 pontos numa parede (digita metros) OU largura total da planta; comprimento real calculado pela polilinha (corrige proporcao da imagem) + 3m subida/descida + 15% folga; editavel por cabo; metros entram nas tabelas dos documentos + total por tipo; escala salva no planta_data
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v121 · build 2026-06
+          v122 · build 2026-06
         </div>
       </div>
     </div>
