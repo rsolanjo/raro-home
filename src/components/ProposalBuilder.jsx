@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { saveProposal, getCatalog, getStockWithReservations, getCatalogCategories,
          generateProposalCode, auditedSave, checkProposalStock, checkPINSession, setPINSession, verifyPIN, addAuditLog } from '../db/supabase.js'
 import PINModal from './PINModal.jsx'
+import { ALL_CATEGORIES } from '../taxonomy.js'
 import PlantaIA from './PlantaIA.jsx'
 import PlantaEditor from './PlantaEditor.jsx'
 
@@ -642,6 +643,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   const [showSendModal,  setShowSendModal]  = useState(false)
   const [laborInput,     setLaborInput]     = useState(String(init?.labor??''))
   const [savedProposal,  setSavedProposal]  = useState(init||null)
+  const [uncatItems, setUncatItems] = useState(null)  // itens sem categoria de catálogo (bloqueia apresentação)
 
   const floor = floors[cf]
 
@@ -1047,7 +1049,34 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
     else openPDF(false,false)
   }
   // Gera o PDF de uma versão específica (idx 0 = atual)
+  // ── Validação de categoria (regra RARO: NÃO existe "Outros") ──
+  // Retorna lista de itens sem categoria REAL de catálogo (ou [] se tudo certo).
+  const BAD_CAT_FN = c => { const x=(c||'').trim().toLowerCase(); return !x || x==='outros' || x==='outro' || x==='sem categoria' }
+  function checkCategorias(floorsToCheck){
+    const validCatNames = new Set([
+      ...((cats||[]).map(c=>(typeof c==='string'?c:c?.name)||'').filter(Boolean)),
+      ...ALL_CATEGORIES
+    ].map(s=>s.trim().toLowerCase()))
+    const problemas = []
+    ;(floorsToCheck||[]).forEach(f=>(f.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{
+      if(!it.name) return
+      if(hiddenCateg.has(it.category||'Sem categoria')) return
+      let cat = (it.category||'').trim()
+      const match = catalog.find(c => c.code && it.code && c.code===it.code)
+      if (BAD_CAT_FN(cat) && match && !BAD_CAT_FN(match.category)) cat = match.category.trim()
+      const ok = cat && !BAD_CAT_FN(cat) && (validCatNames.size===0 || validCatNames.has(cat.toLowerCase()))
+      if(!ok) problemas.push({ name: it.name, code: it.code||'—', room: r.name||'', cat:(it.category||'').trim()||'(vazia)', noCatalog: !match })
+    })))
+    const seen=new Set(); const dedup=[]
+    problemas.forEach(p=>{ const k=`${p.code}|${p.name}`; if(!seen.has(k)){ seen.add(k); dedup.push(p) } })
+    return dedup
+  }
+
   function gerarPdfVersao(idx){
+    const baseFloors = idx===0 ? floors : (savedVersions[idx-1]?.floors)
+    if(idx!==0 && !baseFloors) return
+    const probs = checkCategorias(baseFloors)
+    if(probs.length){ setShowPdfVersionModal(false); setUncatItems(probs); return }  // PARA — sem "Outros"
     setShowPdfVersionModal(false)
     if(idx===0){ openPDF(false,false); return }
     const v=savedVersions[idx-1]; if(!v) return
@@ -1134,13 +1163,32 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           return true
         })
       }))}))
+
+      // ── Validação de categoria (regra RARO: NÃO existe "Outros") ──
+      // Cada item precisa de categoria REAL de catálogo. Se faltar, PARAMOS e listamos
+      // os produtos — não inventamos nem inferimos categoria.
+      const BAD_CAT = BAD_CAT_FN
+      const problemas = checkCategorias(floorsApres)
+      if (problemas.length) {
+        setUncatItems(problemas)
+        return  // PARA — não gera a apresentação com "Outros"
+      }
+
       const laborByCatVisible = {}
       Object.keys(baseLaborByCat).forEach(c=>{ if(!hiddenCateg.has(c)){ const v=parse(baseLaborByCat[c]); if(v>0) laborByCatVisible[c]=v } })
+      // garante que cada item leve a categoria REAL do catálogo (resolve "Outros"/vazia pelo código)
+      const floorsResolvidos = floorsApres.map(f=>({...f, rooms:(f.rooms||[]).map(r=>({...r,
+        items:(r.items||[]).map(it=>{
+          if (!BAD_CAT(it.category)) return it
+          const m = catalog.find(c => c.code && it.code && c.code===it.code)
+          return (m && !BAD_CAT(m.category)) ? {...it, category:m.category.trim()} : it
+        })
+      }))}))
       const apresArgs = {
         clientName: cl ? `${cl.name1} & ${cl.name2}` : (clientName || 'Cliente'),
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         code: proposalCode || '',
-        floors: floorsApres,
+        floors: floorsResolvidos,
         execValue,
         laborByCat: laborByCatVisible,
         laborTotal: laborVisible,
@@ -2236,6 +2284,40 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           </div>
         </div></div>
       })()}
+
+      {/* ── MODAL: itens sem categoria do catálogo (bloqueia apresentação) ── */}
+      {uncatItems && <div className="modal-overlay" onClick={()=>setUncatItems(null)}><div className="modal" style={{width:520,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title"><i className="ti ti-alert-triangle" style={{marginRight:6,color:'var(--amber)'}} aria-hidden/>Categoria faltando no catálogo</div>
+          <button className="modal-close" onClick={()=>setUncatItems(null)}>×</button>
+        </div>
+        <div style={{background:'var(--amber-lt)',border:'1px solid var(--amber)',borderRadius:8,padding:'10px 12px',marginBottom:12,fontSize:12.5,color:'var(--amber)',lineHeight:1.6}}>
+          A apresentação <b>não usa a categoria "Outros"</b>. {uncatItems.length===1?'O produto abaixo está':'Os produtos abaixo estão'} sem categoria válida no catálogo. Defina a categoria de cada um no <b>Catálogo</b> e gere a apresentação de novo.
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {uncatItems.map((p,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',border:'1px solid var(--border)',borderRadius:8,background:'var(--bg)'}}>
+              <i className="ti ti-package" style={{fontSize:16,color:'var(--text3)',flexShrink:0}} aria-hidden/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p.name}</div>
+                <div style={{fontSize:10.5,color:'var(--text3)',marginTop:1}}>
+                  <span style={{fontFamily:'monospace'}}>{p.code}</span>
+                  {p.room?` · ${p.room}`:''}
+                  {p.noCatalog
+                    ? <span style={{color:'var(--red)',marginLeft:6}}>· não encontrado no catálogo</span>
+                    : <span style={{marginLeft:6}}>· categoria atual: {p.cat}</span>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{fontSize:11,color:'var(--text3)',marginTop:12,lineHeight:1.6}}>
+          <b>Como resolver:</b> abra a aba <b>Catálogo</b>, localize {uncatItems.length===1?'esse produto':'esses produtos'} pelo código e selecione a categoria correta (puxada do catálogo). Depois volte aqui e gere a apresentação — as categorias e a mão de obra vão bater com a proposta.
+        </div>
+        <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:14}}>
+          <button className="btn" onClick={()=>setUncatItems(null)}>Entendi</button>
+        </div>
+      </div></div>}
 
       {/* ── SEND MODAL ── */}
       {showSendModal&&<div className="modal-overlay"><div className="modal" style={{width:460}} onClick={e=>e.stopPropagation()}>

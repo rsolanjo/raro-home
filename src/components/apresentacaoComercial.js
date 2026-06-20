@@ -427,7 +427,6 @@ function baixarHTML(){
 // Renderiza EXATAMENTE os floors recebidos (sem filtro interno) → fiel à proposta.
 // ════════════════════════════════════════════════════════════════════
 import { LOGO_COVER as _LOGO_V2 } from '../logos.js'
-import { inferCategory as _inferCat } from '../taxonomy.js'
 
 const CAT_COLORS_V2 = {
   'Automação':'#059669','Sonorização':'#BE185D','Som':'#BE185D',
@@ -443,38 +442,18 @@ export function buildApresentacaoV2({ clientName, neighborhood, code, floors, ex
   const fmtV = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
 
   // agrega por categoria: itens (qtd), equipamentos (venda), mão de obra
+  // A categoria já vem saneada pelo catálogo (ProposalBuilder garante isso antes de gerar).
+  // Aqui NÃO inferimos nem inventamos categoria — usamos exatamente o que veio.
   const eq = {}, qty = {}
   ;(floors||[]).forEach(fl => (fl.rooms||[]).forEach(r => (r.items||[]).forEach(it => {
     if(!it.name) return
-    // se a categoria estiver vazia/Outros, infere pelo nome (igual à proposta) — evita "Outros" fantasma
-    let rawCat = (it.category||'').trim()
-    if(!rawCat || rawCat==='Outros' || rawCat==='Sem categoria'){
-      try { rawCat = _inferCat(it.name, rawCat)?.cat || rawCat } catch(_){}
-    }
-    const cat = normV2(rawCat || 'Outros')
+    const cat = normV2((it.category||'').trim() || 'Outros')
     const q = parseInt(it.qty)||1
     eq[cat] = (eq[cat]||0) + (it.sale_price||0)*q
     qty[cat] = (qty[cat]||0) + q
   })))
   const mo = {}
   Object.entries(laborByCat).forEach(([c,v])=>{ const n=normV2(c); mo[n]=(mo[n]||0)+parseFloat(v||0) })
-
-  // categorias reais = as que têm itens/equipamentos (depois da inferência)
-  const realCats = new Set(Object.keys(eq))
-  // mão de obra "órfã": categoria sem nenhum item/equipamento (ex.: "Outros" fantasma).
-  // Sua categoria foi reatribuída pela inferência, então essa MO não pode virar linha sozinha.
-  // Reaproveita o valor distribuindo proporcionalmente entre as categorias reais (preserva o total).
-  let orphanMO = 0
-  Object.keys(mo).forEach(c=>{ if(!realCats.has(c) && (qty[c]||0)===0){ orphanMO += mo[c]; delete mo[c] } })
-  if(orphanMO>0 && realCats.size>0){
-    const totalEqReal = [...realCats].reduce((s,c)=>s+(eq[c]||0),0)
-    if(totalEqReal>0){
-      [...realCats].forEach(c=>{ mo[c]=(mo[c]||0)+orphanMO*(eq[c]||0)/totalEqReal })
-    } else {
-      const per = orphanMO/realCats.size
-      ;[...realCats].forEach(c=>{ mo[c]=(mo[c]||0)+per })
-    }
-  }
 
   // ordena por subtotal desc
   const cats = [...new Set([...Object.keys(eq), ...Object.keys(mo)])]
