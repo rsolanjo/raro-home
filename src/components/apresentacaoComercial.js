@@ -455,6 +455,12 @@ export function buildApresentacaoV2({ clientName, neighborhood, code, floors, ex
   const mo = {}
   Object.entries(laborByCat).forEach(([c,v])=>{ const n=normV2(c); mo[n]=(mo[n]||0)+parseFloat(v||0) })
 
+  // REGRA (fiel à proposta): mão de obra só conta para categorias que TÊM itens na apresentação.
+  // MO de categoria sem item (resíduo de versões antigas do laborByCat, ex.: "Redes"/"Outros"
+  // sem nenhum produto) NÃO vira linha nem entra no total — a proposta não a contabiliza.
+  const catsComItens = new Set(Object.keys(eq))
+  Object.keys(mo).forEach(c=>{ if(!catsComItens.has(c)) delete mo[c] })
+
   // ordena por subtotal desc
   const cats = [...new Set([...Object.keys(eq), ...Object.keys(mo)])]
     .map(c => ({ cat:c, q:qty[c]||0, eq:eq[c]||0, mo:mo[c]||0, sub:(eq[c]||0)+(mo[c]||0) }))

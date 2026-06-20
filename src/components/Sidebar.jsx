@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v112 — Regra "sem Outros": apresentacao e PDF param e listam produtos sem categoria de catalogo (nao inferimos/inventamos); categoria puxada do catalogo pelo codigo; revertida a inferencia por nome da v111; apresentacao bate 100% com a proposta
+// v113 — Apresentacao Compacta: mao de obra so conta para categorias COM itens (mesma regra da Completa); descartado residuo de MO fantasma (Redes/Outros sem item) do laborByCat de versoes antigas; Compacta agora bate 100% com a proposta
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v112 · build 2026-06
+          v113 · build 2026-06
         </div>
       </div>
     </div>
