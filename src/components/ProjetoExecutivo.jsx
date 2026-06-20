@@ -1211,6 +1211,7 @@ Responda APENAS JSON válido:
         ${head}${fig}${legenda}${aviso}</div>`
     }
 
+    const cliente=projectInfo.client||fromProposal?.client_name||'Cliente'
     const hoje=new Date().toLocaleDateString('pt-BR')
     const T=(rows,cols)=>`<table class="ex-tbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`
     const esc=s=>(s==null?'':String(s))

@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v118 — "Gerar sem IA" com try/catch que mostra erro (nao falha silencioso); botoes "Regerar sem IA" tambem na tela de documentos; PDF indica a versao atual; fluxo de geracao manual revisado e testado isoladamente (completo/obra/eletrica)
+// v119 — FIX: "Gerar sem IA" quebrava com "cliente is not defined" (declaracao removida por engano na v117); restaurada. Testados os 3 modos (completo/obra/eletrica) gerando OK sem IA
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v118 · build 2026-06
+          v119 · build 2026-06
         </div>
       </div>
     </div>
