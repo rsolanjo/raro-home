@@ -30,6 +30,47 @@ function equipType(name='') {
   return 'Outro'
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// SÍMBOLOS ELÉTRICOS — padrão ABNT NBR 5444 (representação em planta baixa)
+// Cada símbolo é um <g> SVG desenhado num espaço ~20×20 centrado em (0,0).
+// ─────────────────────────────────────────────────────────────────────────
+const ELE_SYMBOLS = {
+  // Tomada baixa (até 0,30m) — círculo com meia-lua preenchida + 2 traços (NBR 5444)
+  tomada_baixa: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="0" y1="-11" x2="0" y2="-7" stroke="#111" stroke-width="1.3"/>`,
+  // Tomada média/alta (1,30m+) — igual com 3 traços de altura
+  tomada_alta: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="-2" y1="-11" x2="-2" y2="-7" stroke="#111" stroke-width="1.1"/><line x1="2" y1="-11" x2="2" y2="-7" stroke="#111" stroke-width="1.1"/>`,
+  // Tomada de piso — círculo com X dentro
+  tomada_piso: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-4.5" y1="-4.5" x2="4.5" y2="4.5" stroke="#111" stroke-width="1.2"/><line x1="-4.5" y1="4.5" x2="4.5" y2="-4.5" stroke="#111" stroke-width="1.2"/>`,
+  // Interruptor simples — letra S (representação usual em planta)
+  interruptor_simples: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3.5" font-size="9" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S</text>`,
+  // Interruptor paralelo (three-way) — S com traço
+  interruptor_paralelo: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3.5" font-size="8" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S₃</text>`,
+  // Interruptor intermediário (four-way)
+  interruptor_intermediario: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3.5" font-size="8" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S₄</text>`,
+  // Ponto de luz no teto — círculo com 4 traços (luminária)
+  ponto_luz: `<circle r="6.5" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="0" x2="-6.5" y2="0" stroke="#111" stroke-width="1.1"/><line x1="6.5" y1="0" x2="9" y2="0" stroke="#111" stroke-width="1.1"/><line x1="0" y1="-9" x2="0" y2="-6.5" stroke="#111" stroke-width="1.1"/><line x1="0" y1="6.5" x2="0" y2="9" stroke="#111" stroke-width="1.1"/><circle r="2" fill="#111"/>`,
+  // Arandela (luz de parede) — meio círculo
+  arandela: `<path d="M-7 6 A7 7 0 0 1 7 6 Z" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="6" x2="9" y2="6" stroke="#111" stroke-width="1.3"/>`,
+  // Quadro de distribuição (QDL)
+  quadro: `<rect x="-10" y="-7" width="20" height="14" fill="#fff" stroke="#111" stroke-width="1.5"/><line x1="-10" y1="-2.5" x2="10" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="-5" y1="-7" x2="-5" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="0" y1="-7" x2="0" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="5" y1="-7" x2="5" y2="-2.5" stroke="#111" stroke-width="1"/>`,
+  // Genérico
+  generico: `<circle r="6" fill="#fff" stroke="#111" stroke-width="1.2"/><circle r="1.6" fill="#111"/>`,
+}
+// classifica um marcador em símbolo elétrico NBR
+function classifyEle(m){
+  const n=((m.name||'')+' '+(m.note||'')).toLowerCase()
+  if(/quadro|qdl|qd |distribui/.test(n)) return {sym:'quadro', label:'QDL', tipo:'Quadro de Distribuição'}
+  if(/interruptor.*(intermedi|four)/.test(n)) return {sym:'interruptor_intermediario', label:'S₄', tipo:'Interruptor intermediário'}
+  if(/interruptor.*(paralel|three|hotel)|paralelo/.test(n)) return {sym:'interruptor_paralelo', label:'S₃', tipo:'Interruptor paralelo'}
+  if(/interruptor|keypad|botão/.test(n)) return {sym:'interruptor_simples', label:'S', tipo:'Interruptor / Keypad'}
+  if(/tomada.*piso|piso/.test(n)) return {sym:'tomada_piso', label:'TUG-P', tipo:'Tomada de piso'}
+  if(/tomada.*(alta|1,30|bancada|0,90|média|media)/.test(n)) return {sym:'tomada_alta', label:'TUG-A', tipo:'Tomada média/alta'}
+  if(/tomada/.test(n)) return {sym:'tomada_baixa', label:'TUG', tipo:'Tomada baixa (0,30m)'}
+  if(/arandela/.test(n)) return {sym:'arandela', label:'L', tipo:'Arandela'}
+  if(/luz|luminária|luminaria|spot|lustre|plafon|ponto de luz/.test(n)) return {sym:'ponto_luz', label:'L', tipo:'Ponto de luz'}
+  return null  // não é elétrico → não entra na planta elétrica
+}
+
 async function downscale(dataUrl, maxDim=1568, q=0.85) {
   return new Promise(res=>{
     const img=new Image()
@@ -818,6 +859,129 @@ Responda APENAS JSON válido:
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────
+  // GERAÇÃO SEM IA — monta o objeto `d` (mesma estrutura da IA) só a partir
+  // dos marcadores posicionados + cabos + convenções RARO. Tudo determinístico.
+  // ─────────────────────────────────────────────────────────────────────
+  function buildExecDataFromMarkers(){
+    const lc = s => (s||'').toLowerCase()
+    const isKeypad = m => /keypad|interruptor|botão/.test(lc(m.name))
+    const isCortina = m => /cortina|persiana/.test(lc(m.name))
+    const isModulo  = m => /módulo|modulo|qarz/.test(lc(m.name))
+    const isCam     = m => /câmera|camera|dome/.test(lc(m.name))
+    const isAP      = m => /access point|\bap\b|wi-?fi/.test(lc(m.name))
+    const isSom     = m => /som|caixa|amplificador|receiver/.test(lc(m.name))
+    const isTomada  = m => /tomada/.test(lc(m.name))
+    const isSensor  = m => /sensor|presença/.test(lc(m.name))
+    const isHubIR   = m => /hub ir|qair/.test(lc(m.name))
+    const alturaDe = m => isKeypad(m) ? '1,10m' : isTomada(m) ? '0,30m' : isCortina(m) ? '2,55m' : isModulo(m) ? 'forro' : isCam(m)||isAP(m) ? 'teto' : isSom(m) ? 'teto' : isSensor(m) ? '2,20m' : '—'
+    const caixaDe  = m => isKeypad(m) ? '4×4 + NEUTRO' : isTomada(m) ? '4×2' : isModulo(m)||isCortina(m) ? 'forro' : '—'
+    const caboDe   = m => isKeypad(m) ? '3×2,5mm² (F+N+T)' : isTomada(m) ? '3×2,5mm²' : isCam(m)||isAP(m) ? 'CAT6 PoE' : isSom(m) ? '2×1,5mm²' : isCortina(m)||isModulo(m) ? '2×2,5mm² (F+N)' : 'CAT6'
+
+    const aps  = markers.filter(isAP).length
+    const cams = markers.filter(isCam).length
+    const totalPoe = aps+cams
+    const precisaSwitch = totalPoe > 6
+
+    // pontos por ambiente (parede/dist/alt/caixa/cabo/orientação)
+    const byRoom = {}
+    markers.forEach(m=>{ if(isRackItem(m.name,m.code)) return; const r=m.room||'Geral'; (byRoom[r]=byRoom[r]||[]).push(m) })
+    const pontos = Object.entries(byRoom).map(([ambiente,ms])=>({
+      ambiente,
+      linhas: ms.map(m=>({ ponto:m.id||m.code||('#'+m.n), equip:m.name, parede:m.note||'—', dist:'—',
+        alt:alturaDe(m), caixa:caixaDe(m), cabo:caboDe(m), virado:'frente p/ ambiente' }))
+    }))
+
+    // cabos elétricos por cômodo (keypads, tomadas, cortinas, módulos)
+    const cabos_eletricos_por_comodo = Object.entries(byRoom).map(([comodo,ms])=>{
+      const itens = ms.filter(m=>isKeypad(m)||isTomada(m)||isCortina(m)||isModulo(m)).map((m,i)=>({
+        id:`ELT-${(m.id||m.code||m.n)}`, equip:m.name,
+        tipo:isKeypad(m)?'fase+neutro+terra':'fase+neutro',
+        fios:caboDe(m), origem:'Quadro QDL', destino:`${m.room||''} H=${alturaDe(m)}`,
+        metros:'—', obs:isKeypad(m)?'NEUTRO obrigatório':'' }))
+      return itens.length?{comodo,itens}:null
+    }).filter(Boolean)
+
+    // cabos de rede a partir dos cabos desenhados na planta (se houver)
+    const rack_cable_table = (cables||[]).map((c,i)=>{
+      const from=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid)
+      return { porta_patch:`P${String(i+1).padStart(2,'0')}`, device_origem:from?.name||'Rack', porta_origem:'',
+        destino:to?.name||'—', tipo:(c.type==='ap'||c.type==='camera'||c.type==='dados'||c.type==='uplink')?'CAT6':'CAT6',
+        etiqueta:`${(to?.code||to?.name||'PT')}`.toUpperCase().slice(0,16), cor:'' }
+    })
+
+    // cabos de som
+    const cabos_som = markers.filter(isSom).map((m,i)=>({ id:`SOM-${String(i+1).padStart(2,'0')}`,
+      origem:'Amplificador no Rack', destino:`${m.name} (${m.room||''})`, tipo:'2×1,5mm²', metros:'—', etiqueta:`SOM-${i+1}` }))
+
+    // alimentação keypads
+    const alim_keypads = markers.filter(isKeypad).map((m,i)=>({ id:`KEY-${String(i+1).padStart(2,'0')}`,
+      origem:'Quadro QDL — disj. dedicado', destino:`${m.name} ${m.room||''}`, cota:alturaDe(m),
+      comodo:m.room||'—', metros:'—', fios:'3×2,5mm² (F+N+T)' }))
+
+    // rack: só se houver marcador de rack
+    const rackMarker = markers.find(m=>isRackItem(m.name||'', m.code||''))
+    const rack_items = rackMarker ? ((rackMarker.rackEquip||[]).length
+      ? rackMarker.rackEquip.map(e=>({u:e.u||'',equip:e.name||e.equip||'',funcao:e.funcao||'',watts:e.watts||'—'}))
+      : []) : []
+
+    // itens por cômodo (consolidado simples)
+    const pecasMap = {}
+    markers.forEach(m=>{ if(!m.name) return; pecasMap[m.name]=(pecasMap[m.name]||0)+1 })
+    const pecas = Object.entries(pecasMap).map(([item,qtd])=>({item,qtd}))
+
+    return {
+      premissas:[
+        'Documento montado manualmente a partir dos pontos posicionados na planta.',
+        'Todo cabeamento estruturado CAT6 sai do rack/CPD até cada ponto.',
+        'Keypads SEMPRE com fase + neutro + terra do quadro (neutro obrigatório).',
+        precisaSwitch?`APs + Câmeras = ${totalPoe} → adicionar Switch PoE+ (Dream Machine SE tem 8 portas).`:`Dream Machine SE comporta os ${totalPoe} dispositivos PoE.`,
+      ],
+      rack_config:{ dream_machine_portas:8, aps, cameras:cams, precisa_switch:precisaSwitch, switch_portas:precisaSwitch?16:0 },
+      rack_items,
+      rack_detalhe: rackMarker ? ['Rack embutido em armário ventilado','Tomada 110V dedicada para a régua filtrada','Fibra do provedor direto na porta WAN do Dream Machine SE'] : [],
+      rack_cable_table,
+      pontos,
+      cabos_eletricos_por_comodo,
+      cabos_som,
+      alim_keypads,
+      pecas,
+      checklist_obra:[
+        'Passar eletroduto 3/4" em todas as paredes antes do revestimento',
+        'Deixar caixa 4×4 em CADA keypad com NEUTRO chegando (obrigatório)',
+        'Eletroduto seco 3/4" do rack até o forro para câmeras e APs',
+        'Tomada 110V dedicada + aterramento no nicho do rack',
+        'Deixar fio-guia em todos os eletrodutos',
+        'Sangria no teto para cada caixa de som embutida',
+        'Identificar todos os circuitos no quadro',
+        'Marcar com fita todos os pontos antes de rebocar',
+      ],
+      checklist_raro:[
+        'Conferir neutro chegando em 100% das caixas de keypad',
+        'Testar continuidade de cada cabo CAT6 antes de terminar',
+        'Crimpar patch panel com etiquetas conforme tabela',
+        'Parear todos os keypads e módulos Zigbee',
+      ],
+      _manual:true,
+    }
+  }
+
+  // Gera o documento SEM chamar a IA (na mão)
+  function generateExecManual(){
+    if(!markers.length){ alert('Posicione ao menos um item na planta antes de gerar.'); return }
+    const data = buildExecDataFromMarkers()
+    setExecData(data)
+    const full = buildExecHtml(data,'completo')
+    const obra = buildExecHtml(data,'obra')
+    setExecDoc(full); setExecDocObra(obra)
+    setStep('exec')
+    if(fromProposal?.id){
+      import('../db/supabase.js').then(({saveProposal})=>{
+        saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, planta_data:{image:bgImage,markers,cables} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
+      })
+    }
+  }
+
   async function generateExec(){
     setLoading(true)
     setExecProgress('Coletando dados...')
@@ -913,6 +1077,62 @@ Responda APENAS JSON válido:
 
   function buildExecHtml(d, mode='completo'){
     const isObra = mode==='obra'
+
+    // ── PLANTA ELÉTRICA (ABNT NBR 5444) — símbolos técnicos sobre a planta ──
+    // Desenha tomadas, interruptores, pontos de luz e QDL com símbolos normalizados,
+    // eletrodutos (linhas) ligando cada ponto ao quadro, legenda e quadro de cargas.
+    function buildPlantaEletrica(numFn){
+      const eleMarks = markers.map(m=>({m, cls:classifyEle(m)})).filter(x=>x.cls)
+      if(!bgImage || !eleMarks.length) return ''
+      const qdl = eleMarks.find(x=>x.cls.sym==='quadro')
+      // símbolos posicionados
+      const syms = eleMarks.map(({m,cls})=>`
+        <g transform="translate(${m.x},${m.y}) scale(0.34)">
+          ${ELE_SYMBOLS[cls.sym]||ELE_SYMBOLS.generico}
+          <text x="0" y="16" font-size="6.5" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="700" fill="#0D1420">${esc(cls.label)}</text>
+        </g>`).join('')
+      // eletrodutos: liga cada ponto ao QDL (se houver) com curva pontilhada
+      const dutos = qdl ? eleMarks.filter(x=>x!==qdl).map(({m})=>{
+        const mx=(m.x+qdl.m.x)/2, my=Math.min(m.y,qdl.m.y)-6
+        return `<path d="M${m.x} ${m.y} Q ${mx} ${my} ${qdl.m.x} ${qdl.m.y}" fill="none" stroke="#16A34A" stroke-width="0.5" stroke-dasharray="1.5,1.2" vector-effect="non-scaling-stroke" style="stroke-width:1.4px" opacity="0.7"/>`
+      }).join('') : ''
+      // legenda dos símbolos presentes
+      const usados = [...new Map(eleMarks.map(x=>[x.cls.sym,x.cls])).values()]
+      const legenda = `<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;padding:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px">
+        ${usados.map(c=>`<div style="display:flex;align-items:center;gap:7px;font-size:10.5px;color:#334155">
+          <svg viewBox="-12 -14 24 32" width="22" height="29">${ELE_SYMBOLS[c.sym]||ELE_SYMBOLS.generico}</svg>
+          <span><b>${esc(c.label)}</b> — ${esc(c.tipo)}</span></div>`).join('')}
+        <div style="display:flex;align-items:center;gap:7px;font-size:10.5px;color:#334155"><span style="width:20px;height:0;border-top:2px dashed #16A34A;display:inline-block"></span> Eletroduto / circuito até o QDL</div>
+      </div>`
+      // quadro de cargas por cômodo (contagem de pontos por tipo)
+      const byRoomCarga={}
+      eleMarks.forEach(({m,cls})=>{ if(cls.sym==='quadro')return; const r=m.room||'Geral'; (byRoomCarga[r]=byRoomCarga[r]||{tug:0,tomA:0,piso:0,int:0,luz:0}); 
+        if(cls.sym==='tomada_baixa')byRoomCarga[r].tug++; else if(cls.sym==='tomada_alta')byRoomCarga[r].tomA++; else if(cls.sym==='tomada_piso')byRoomCarga[r].piso++;
+        else if(cls.sym.startsWith('interruptor'))byRoomCarga[r].int++; else if(cls.sym==='ponto_luz'||cls.sym==='arandela')byRoomCarga[r].luz++ })
+      const VA_TUG=100, VA_LUZ=60
+      const cargaRows = Object.entries(byRoomCarga).map(([r,c])=>{
+        const totTom=c.tug+c.tomA+c.piso
+        const va = totTom*VA_TUG + c.luz*VA_LUZ
+        return `<tr><td><b>${esc(r)}</b></td><td style="text-align:center">${totTom||'—'}</td><td style="text-align:center">${c.int||'—'}</td><td style="text-align:center">${c.luz||'—'}</td><td style="text-align:right">${va} VA</td></tr>`
+      }).join('')
+      const totalVA = Object.values(byRoomCarga).reduce((s,c)=>s+((c.tug+c.tomA+c.piso)*VA_TUG+c.luz*VA_LUZ),0)
+      const cargaTbl = cargaRows ? `<table class="ex-tbl"><thead><tr><th>Cômodo</th><th style="text-align:center">Tomadas</th><th style="text-align:center">Interrup.</th><th style="text-align:center">Pts Luz</th><th style="text-align:right">Carga estimada</th></tr></thead><tbody>${cargaRows}<tr style="background:#0D1420;color:#fff"><td colspan="4"><b>Demanda total estimada</b></td><td style="text-align:right"><b>${totalVA} VA</b></td></tr></tbody></table>
+        <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin-top:4px">Estimativa simplificada (TUG ${VA_TUG}VA · ponto de luz ${VA_LUZ}VA). O dimensionamento final de circuitos, disjuntores e bitolas deve ser feito por engenheiro eletricista responsável (ART/NBR 5410).</p>` : ''
+
+      const head = `<div style="background:#0D1420;color:#38BDF8;font-size:11px;font-weight:700;padding:8px 14px;letter-spacing:1px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
+        <span>PLANTA ELÉTRICA — Símbolos ABNT NBR 5444</span><span style="color:rgba(255,255,255,0.5);font-size:9px;font-weight:400">${eleMarks.length} pontos${qdl?' · QDL':''}</span></div>`
+      const fig = `<div style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
+        <div style="position:relative;width:100%">
+          <img src="${bgImage}" style="width:100%;display:block;filter:grayscale(0.35) contrast(0.92) brightness(1.05)"/>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${dutos}${syms}</svg>
+        </div></div>`
+      const titulo = numFn ? `<h2><span class="ex-sec-num">${numFn()}</span>Planta Elétrica (ABNT NBR 5444)</h2>` : `<h2>Planta Elétrica (ABNT NBR 5444)</h2>`
+      return `<div class="ex-sec ex-breakable">${titulo}
+        <p class="ex-p" style="margin-bottom:10px">Representação técnica dos pontos elétricos com símbolos normalizados. Tomadas, interruptores, pontos de luz e quadro de distribuição posicionados conforme a planta. As linhas pontilhadas indicam o encaminhamento de eletrodutos até o QDL.</p>
+        ${head}${fig}${legenda}
+        <h3 class="ex-amb" style="margin-top:18px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}
+      </div>`
+    }
     const cliente=projectInfo.client||'Cliente'
     const hoje=new Date().toLocaleDateString('pt-BR')
     const T=(rows,cols)=>`<table class="ex-tbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`
@@ -1566,6 +1786,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         `<div class="ex-sec"><h2 style="border:none;margin-bottom:4px">Projeto de Obra — Guia do Eletricista / Pedreiro</h2>
           <p class="ex-p" style="color:#6B7280">Documento simplificado: só infraestrutura. Caminho dos cabos, metragem, alturas, orientação dos pontos e caixas 4×4 por parede. Sem listas comerciais.</p></div>`,
         plantaCabos,
+        buildPlantaEletrica(()=>++_n),
         secN(`Cabos de Rede — Origem → Destino`, tblRedeObra, true),
         secN(`Cabos de Som — Origem → Destino`, tblSomObra, true),
         secN(`Cabos Elétricos — por Cômodo`, tblEletObra, true),
@@ -1578,6 +1799,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
 
     return [
     secN(`Premissas Confirmadas`, list(d.premissas)),
+    buildPlantaEletrica(()=>++_n),
     secN(`Detalhe do RACK / CPD`, hasRack && (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Todos os Cabos de Rede (APs · Câmeras · Keystones · Uplinks)</h3>${rackCableTableHtml}`:'')):'', true),
     secN(`Cabos de Rede — Patch Panel e Etiquetas`, cabosRedeHtml, true),
     secN(`Segurança — Câmeras e Sensores de Alarme`, tblSeguranca, true),
@@ -1879,6 +2101,10 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                   style={{...btnPrimary,width:'100%',justifyContent:'center',gap:8,opacity:rooms.length===0?0.4:1}}>
                   <i className="ti ti-message-2" aria-hidden/>
                   Confirmar e ir para as perguntas ({rooms.length} cômodo{rooms.length!==1?'s':''})
+                </button>
+                <button onClick={()=>setStep('editor')} disabled={loading}
+                  style={{...btnGhost,width:'100%',justifyContent:'center',marginTop:6,gap:6,borderColor:'rgba(148,163,184,0.5)',color:'#CBD5E1'}}>
+                  <i className="ti ti-hand-finger" aria-hidden/>Pular IA — editar na mão
                 </button>
                 <button onClick={()=>startRooms(bgImage)} disabled={loading}
                   style={{...btnGhost,width:'100%',justifyContent:'center',marginTop:6,fontSize:11}}>
@@ -2380,8 +2606,11 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
           {execDoc && <button onClick={()=>{ setExecMode('completo'); setStep('exec') }} disabled={loading} style={{...btnGhost,borderColor:'rgba(110,231,183,0.5)',color:'#6EE7B7',gap:6}} title="Abrir o documento já gerado, sem chamar a IA de novo">
             <i className="ti ti-eye" aria-hidden/> Ver documento salvo
           </button>}
+          <button onClick={generateExecManual} disabled={loading} style={{...btnGhost,borderColor:'rgba(148,163,184,0.5)',color:'#CBD5E1',gap:6}} title="Monta o documento a partir dos pontos posicionados, sem usar IA">
+            <i className="ti ti-file-pencil" aria-hidden/> Gerar sem IA
+          </button>
           <button onClick={generateExec} disabled={loading} style={{...btnPrimary,background:'#7C3AED'}}>
-            <i className="ti ti-file-text" aria-hidden/> {loading?(execProgress||'Gerando...'):(execDoc?'Regerar (IA)':'Gerar Projeto Executivo')}
+            <i className="ti ti-sparkles" aria-hidden/> {loading?(execProgress||'Gerando...'):(execDoc?'Regerar com IA':'Gerar com IA')}
           </button>
         </div>
       )}

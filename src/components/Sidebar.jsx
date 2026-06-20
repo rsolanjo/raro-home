@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v115 — Executivo restaura tudo ao reabrir (cerebro): planta + marcadores + cabos JA voltavam; agora o DOCUMENTO salvo (Completo + Obra) tambem volta, sem chamar IA. Botao "Ver documento salvo" e "Regerar (IA)" explicito; aviso quando uma versao foi salva antes de existir
+// v116 — Executivo SEM IA (botoes "Pular IA - editar na mao" e "Gerar sem IA"; monta o doc determinstico dos marcadores) mantendo a opcao com IA; nova PLANTA ELETRICA padrao ABNT NBR 5444 (tomadas alta/baixa/piso, interruptores S/S3/S4, pontos de luz, QDL, eletrodutos ate o quadro, legenda + quadro de cargas) nas duas versoes do documento
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v115 · build 2026-06
+          v116 · build 2026-06
         </div>
       </div>
     </div>
