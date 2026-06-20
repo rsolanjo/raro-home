@@ -896,7 +896,13 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
       exec_doc: execDocData,
       grand_total: floorsOut.reduce((s,f)=>s+f.rooms.reduce((rs,r)=>rs+(r.price||0),0),0) + parse(laborValue!=null?laborValue:laborTotal),
     }
-    const versions = [snapshot, ...prevVersions].slice(0,3)  // mantém as 3 mais recentes
+    // compara conteúdo relevante com a última versão — não duplica versão idêntica
+    const sameAsLast = (()=>{
+      const last = prevVersions[0]; if(!last) return false
+      const sig = s => JSON.stringify({f:s.floors, l:s.labor, lc:s.labor_by_cat, g:s.grand_total})
+      return sig(last) === sig(snapshot)
+    })()
+    const versions = sameAsLast ? prevVersions : [snapshot, ...prevVersions].slice(0,3)
     return{
       ...(savedProposal||{}),
       client_id:clientId?Number(clientId):null,
@@ -2193,7 +2199,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
                   <img src={apresPlanta} style={{width:'100%',maxHeight:160,objectFit:'contain',borderRadius:6,border:'1px solid var(--border)',background:'#fff'}}/>
                   <button onClick={()=>setApresPlanta(null)} style={{position:'absolute',top:6,right:6,background:'rgba(0,0,0,0.6)',color:'#fff',border:'none',borderRadius:6,padding:'3px 8px',fontSize:11,cursor:'pointer'}}>✕ Remover</button>
                 </div>
-              : <div style={{fontSize:12,color:'var(--text3)'}}>Nenhuma planta selecionada. Importe abaixo para incluir no documento.</div>}
+              : <div style={{fontSize:12,color:'var(--text3)'}}>Nenhuma planta selecionada. <b>Sem planta, a seção "Planta Executiva" não aparece no documento.</b> Importe abaixo para incluir.</div>}
             <div style={{display:'flex',gap:8,marginTop:8}}>
               <button type="button" className="btn" style={{fontSize:11,flex:1}} onClick={importarPlantaExec}><i className="ti ti-map-2" aria-hidden/> Importar do Projeto Executivo</button>
               <label className="btn" style={{fontSize:11,flex:1,cursor:'pointer',textAlign:'center'}}>

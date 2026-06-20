@@ -357,44 +357,48 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
 
   useEffect(()=>{ chatEndRef.current?.scrollIntoView({behavior:'smooth'}) },[chat])
 
+  // Gera markers a partir dos itens da proposta (distribuídos por cômodo na planta)
+  function markersFromProposal(startN=1){
+    const floors = typeof fromProposal?.floors==='string' ? (()=>{try{return JSON.parse(fromProposal.floors)}catch{return[]}})() : (fromProposal?.floors||[])
+    const rooms=[]; let n=startN
+    floors.forEach(fl=>(fl.rooms||[]).forEach(r=>{
+      const items=[]
+      ;(r.items||[]).forEach(it=>{
+        if(!it.name && !it.code) return
+        const cat=catalog.find(c=>c.code===it.code)
+        const qty=parseInt(it.qty)||1
+        for(let i=0;i<qty;i++){
+          if(isRackItem(it.name||cat?.name||'', it.code||'')) continue
+          items.push({code:it.code||cat?.code||'', name:it.name||cat?.name||'Item', room:r.name||'',
+            cost:it.cost_price||cat?.cost_price||0, sale:it.sale_price||cat?.sale_price||0, category:it.category||cat?.category||''})
+        }
+      })
+      if(items.length) rooms.push({name:r.name||'', items})
+    }))
+    const mk=[]
+    const cols=Math.ceil(Math.sqrt(rooms.length))||1
+    const rows=Math.ceil(rooms.length/cols)||1
+    rooms.forEach((room,ri)=>{
+      const cx=ri%cols, cy=Math.floor(ri/cols)
+      const cellW=92/cols, cellH=88/rows
+      const baseX=4+cellW*cx, baseY=6+cellH*cy
+      const per=room.items.length
+      const icols=Math.ceil(Math.sqrt(per))||1
+      room.items.forEach((it,ii)=>{
+        const ix=ii%icols, iy=Math.floor(ii/icols)
+        const stepX=(cellW-6)/Math.max(1,icols-0), stepY=(cellH-10)/Math.max(1,Math.ceil(per/icols))
+        mk.push({uid:Date.now()+Math.random(), n:n++, id:'', code:it.code, name:it.name, room:it.room, note:'',
+          x:Math.min(96,Math.max(3, baseX+3+ix*stepX)),
+          y:Math.min(94,Math.max(5, baseY+6+iy*stepY)),
+          cost:it.cost, sale:it.sale, category:it.category})
+      })
+    })
+    return mk
+  }
+
   useEffect(()=>{
     if(fromProposal && !initPlanta?.markers?.length && !markers.length){
-      const floors = typeof fromProposal.floors==='string' ? (()=>{try{return JSON.parse(fromProposal.floors)}catch{return[]}})() : (fromProposal.floors||[])
-      // 1) agrupa os itens por cômodo (ignora itens de rack)
-      const rooms=[]; let n=1
-      floors.forEach(fl=>(fl.rooms||[]).forEach(r=>{
-        const items=[]
-        ;(r.items||[]).forEach(it=>{
-          if(!it.name && !it.code) return
-          const cat=catalog.find(c=>c.code===it.code)
-          const qty=parseInt(it.qty)||1
-          for(let i=0;i<qty;i++){
-            if(isRackItem(it.name||cat?.name||'', it.code||'')) continue
-            items.push({code:it.code||cat?.code||'', name:it.name||cat?.name||'Item', room:r.name||'',
-              cost:it.cost_price||cat?.cost_price||0, sale:it.sale_price||cat?.sale_price||0, category:it.category||cat?.category||''})
-          }
-        })
-        if(items.length) rooms.push({name:r.name||'', items})
-      }))
-      // 2) distribui os cômodos numa grade e, dentro de cada cômodo, espalha os pontos
-      const mk=[]
-      const cols=Math.ceil(Math.sqrt(rooms.length))||1
-      const rows=Math.ceil(rooms.length/cols)||1
-      rooms.forEach((room,ri)=>{
-        const cx=ri%cols, cy=Math.floor(ri/cols)
-        const cellW=92/cols, cellH=88/rows
-        const baseX=4+cellW*cx, baseY=6+cellH*cy
-        const per=room.items.length
-        const icols=Math.ceil(Math.sqrt(per))||1
-        room.items.forEach((it,ii)=>{
-          const ix=ii%icols, iy=Math.floor(ii/icols)
-          const stepX=(cellW-6)/Math.max(1,icols-0), stepY=(cellH-10)/Math.max(1,Math.ceil(per/icols))
-          mk.push({uid:Date.now()+Math.random(), n:n++, id:'', code:it.code, name:it.name, room:it.room, note:'',
-            x:Math.min(96,Math.max(3, baseX+3+ix*stepX)),
-            y:Math.min(94,Math.max(5, baseY+6+iy*stepY)),
-            cost:it.cost, sale:it.sale, category:it.category})
-        })
-      })
+      const mk=markersFromProposal(1)
       if(mk.length){ setMarkers(mk); if(!initPlanta?.image) setStep('editor') }
     }
   },[])  // eslint-disable-line
@@ -641,6 +645,20 @@ Responda APENAS JSON válido:
   function recomecar(){
     if(!window.confirm('Recomeçar o projeto do zero?\n\nIsto volta para a tela inicial e descarta a planta, os itens e os cabos NÃO salvos.')) return
     setMarkers([]); setCables([]); setHistory([]); setBgImage(null); setChat([]); setStep('upload')
+  }
+  // Apaga tudo do projeto (itens, cabos e planta) sem sair da tela
+  function apagarProjeto(){
+    if(!window.confirm('Apagar o projeto inteiro?\n\nRemove a planta, todos os itens e os cabos. Esta ação não pode ser desfeita depois de salvar.')) return
+    pushHistory(); setMarkers([]); setCables([]); setBgImage(null)
+  }
+  // Importa os itens da proposta e adiciona aos cômodos da planta atual
+  function importarDaProposta(){
+    const novos = markersFromProposal((markers.length||0)+1)
+    if(!novos.length){ alert('A proposta não tem itens para importar (ou só tem itens de rack).'); return }
+    if(markers.length && !window.confirm(`Adicionar ${novos.length} itens da proposta aos ${markers.length} já existentes na planta?`)) return
+    pushHistory()
+    setMarkers(ms=>[...ms, ...novos])
+    if(step!=='editor' && (bgImage||initPlanta?.image)) setStep('editor')
   }
   // voltar uma etapa do fluxo
   const STEP_ORDER = ['upload','rooms','chat','editor','exec']
@@ -2037,6 +2055,12 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                 </button>
                 <button onClick={recomecar} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Recomeçar do zero">
                   <i className="ti ti-refresh" aria-hidden/>Recomeçar
+                </button>
+                {fromProposal && <button onClick={importarDaProposta} style={{height:32,borderRadius:6,border:'1px solid #059669',background:'rgba(5,150,105,0.18)',color:'#6EE7B7',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Adicionar os itens da proposta aos cômodos">
+                  <i className="ti ti-download" aria-hidden/>Importar da proposta
+                </button>}
+                <button onClick={apagarProjeto} style={{height:32,borderRadius:6,border:'1px solid #DC2626',background:'rgba(220,38,38,0.18)',color:'#FCA5A5',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Apagar planta, itens e cabos">
+                  <i className="ti ti-trash" aria-hidden/>Apagar projeto
                 </button>
                 <button onClick={()=>setShowRackModal(true)} style={{height:32,borderRadius:6,border:'1px solid #7C3AED',background:'rgba(124,58,237,0.2)',color:'#C4B5FD',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}}>
                   <i className="ti ti-server" aria-hidden/>Rack CPD

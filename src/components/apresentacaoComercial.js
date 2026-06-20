@@ -484,6 +484,35 @@ export function buildApresentacaoV2({ clientName, neighborhood, code, floors, ex
 
   const safeName = (clientName||'cliente').replace(/[^a-zA-Z0-9]/g,'-').toLowerCase()
 
+  // Seção 2 (Planta) só existe se houver imagem de planta; senão é omitida e a numeração ajusta
+  const secPlanta = plantaImage ? `
+  <div class="sec">
+    <div class="sec-h"><div class="sec-n">2</div><h2>Planta Executiva do Projeto</h2></div>
+    <div class="sec-sub">Visualização completa da infraestrutura inteligente planejada para sua residência. A planta abaixo apresenta a localização de todos os pontos previstos em projeto, incluindo automação, sonorização, redes, segurança e infraestrutura de dados.</div>
+    <div class="planta"><img src="${plantaImage}" alt="Planta executiva"/></div>
+    <div class="legrow">${legenda}</div>
+    <div class="benef">
+      <div>
+        <div class="check-h"><span style="color:#059669">✔</span> O que está contemplado nesta planta</div>
+        <div class="checks">
+          <div class="chk"><i>✓</i> Posicionamento exato dos equipamentos</div>
+          <div class="chk"><i>✓</i> Altura de instalação de cada dispositivo</div>
+          <div class="chk"><i>✓</i> Infraestrutura de cabeamento estruturado</div>
+          <div class="chk"><i>✓</i> Distribuição de áudio ambiente</div>
+          <div class="chk"><i>✓</i> Pontos de automação e controle</div>
+          <div class="chk"><i>✓</i> Rede de dados e Wi-Fi corporativo</div>
+          <div class="chk"><i>✓</i> Sistema de segurança integrado</div>
+          <div class="chk"><i>✓</i> Dimensionamento completo do Rack / CPD</div>
+        </div>
+      </div>
+      <div class="diff">
+        <h4>★ Diferencial Raro</h4>
+        <p>Cada ponto representado nesta planta faz parte de um projeto executivo desenvolvido para evitar retrabalho na obra e garantir que todos os sistemas funcionem perfeitamente desde o primeiro dia.</p>
+      </div>
+    </div>
+  </div>` : ''
+  const nCat = plantaImage ? 3 : 2   // número da seção de categorias
+
   const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>O Seu Investimento — ${clientName||''}</title>
@@ -584,36 +613,9 @@ td.sub{font-weight:800;font-size:1rem}
       </div>
     </div>
   </div>
-
+${secPlanta}
   <div class="sec">
-    <div class="sec-h"><div class="sec-n">2</div><h2>Planta Executiva do Projeto</h2></div>
-    <div class="sec-sub">Visualização completa da infraestrutura inteligente planejada para sua residência. A planta abaixo apresenta a localização de todos os pontos previstos em projeto, incluindo automação, sonorização, redes, segurança e infraestrutura de dados.</div>
-    <div class="planta">${plantaImage?`<img src="${plantaImage}" alt="Planta executiva"/>`:`<div class="ph">Planta executiva do projeto</div>`}</div>
-    <div class="legrow">${legenda}</div>
-
-    <div class="benef">
-      <div>
-        <div class="check-h"><span style="color:#059669">✔</span> O que está contemplado nesta planta</div>
-        <div class="checks">
-          <div class="chk"><i>✓</i> Posicionamento exato dos equipamentos</div>
-          <div class="chk"><i>✓</i> Altura de instalação de cada dispositivo</div>
-          <div class="chk"><i>✓</i> Infraestrutura de cabeamento estruturado</div>
-          <div class="chk"><i>✓</i> Distribuição de áudio ambiente</div>
-          <div class="chk"><i>✓</i> Pontos de automação e controle</div>
-          <div class="chk"><i>✓</i> Rede de dados e Wi-Fi corporativo</div>
-          <div class="chk"><i>✓</i> Sistema de segurança integrado</div>
-          <div class="chk"><i>✓</i> Dimensionamento completo do Rack / CPD</div>
-        </div>
-      </div>
-      <div class="diff">
-        <h4>★ Diferencial Raro</h4>
-        <p>Cada ponto representado nesta planta faz parte de um projeto executivo desenvolvido para evitar retrabalho na obra e garantir que todos os sistemas funcionem perfeitamente desde o primeiro dia.</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="sec">
-    <div class="sec-h"><div class="sec-n">3</div><h2>Estimativa de Investimento por Categoria</h2></div>
+    <div class="sec-h"><div class="sec-n">${nCat}</div><h2>Estimativa de Investimento por Categoria</h2></div>
     <div class="sec-sub">Um compilado de valores aproximados por categoria, separando os equipamentos da mão de obra de instalação e programação, para você dimensionar cada frente da sua casa inteligente.</div>
     <table>
       <thead><tr><th>Categoria</th><th class="num">Itens</th><th class="num">Equipamentos</th><th class="num">Mão de obra</th><th class="num">Subtotal</th></tr></thead>
