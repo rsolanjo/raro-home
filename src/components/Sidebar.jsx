@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v119 — FIX: "Gerar sem IA" quebrava com "cliente is not defined" (declaracao removida por engano na v117); restaurada. Testados os 3 modos (completo/obra/eletrica) gerando OK sem IA
+// v120 — Todas as tabelas dos documentos (Completo/Obra/Eletrica) ganham coluna "Nº" com o numero do pino da planta, para cruzar tabela <-> planta; simbolos da planta eletrica tambem mostram o numero do ponto
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v119 · build 2026-06
+          v120 · build 2026-06
         </div>
       </div>
     </div>

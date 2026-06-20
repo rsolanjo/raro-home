@@ -1115,6 +1115,8 @@ Responda APENAS JSON válido:
       const syms = eleMarks.map(({m,cls})=>`
         <g transform="translate(${m.x},${m.y}) scale(0.34)">
           ${ELE_SYMBOLS[cls.sym]||ELE_SYMBOLS.generico}
+          <circle cx="11" cy="-9" r="6" fill="#0EA5E9" stroke="#fff" stroke-width="1"/>
+          <text x="11" y="-6.5" font-size="7" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" fill="#fff">${m.n}</text>
           <text x="0" y="16" font-size="6.5" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="700" fill="#0D1420">${esc(cls.label)}</text>
         </g>`).join('')
       // eletrodutos: liga cada ponto ao QDL (se houver) com curva pontilhada
@@ -1215,6 +1217,20 @@ Responda APENAS JSON válido:
     const hoje=new Date().toLocaleDateString('pt-BR')
     const T=(rows,cols)=>`<table class="ex-tbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`
     const esc=s=>(s==null?'':String(s))
+    // ── Número do pino na planta — para cruzar tabela ↔ planta ──
+    const pin=(n,color='#0EA5E9')=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${color};color:#fff;font-size:9px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);vertical-align:middle">${n}</span>`
+    const _normKey = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'')
+    const pinNum = (...keys)=>{
+      for(const k of keys){ if(k==null) continue; const kk=_normKey(k); if(!kk) continue
+        const hit = markers.find(m=> _normKey(m.id)===kk || _normKey(m.code)===kk || _normKey(m.n)===kk || _normKey('#'+m.n)===kk )
+        if(hit) return hit.n
+        const byName = markers.find(m=> (m.code && kk.includes(_normKey(m.code))) || (m.name && _normKey(m.name).includes(kk) && kk.length>=3) )
+        if(byName) return byName.n
+      }
+      return null
+    }
+    // célula <td> com o número do pino (ou — quando não casar)
+    const pinCell = (...keys)=>{ const n=pinNum(...keys); return `<td style="text-align:center">${n!=null?pin(n):'<span style="color:#CBD5E1">—</span>'}</td>` }
 
     // Planta com marcadores
     let planta=''
@@ -1351,18 +1367,18 @@ Responda APENAS JSON válido:
     })() : ''
 
     // Tópico 5 — Pontos de parede
-    const pontosHtml=(d.pontos||[]).map(a=>`<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T((a.linhas||[]).map(l=>`<tr><td><b>${esc(l.ponto)}</b></td><td>${esc(l.equip)}</td><td>${esc(l.parede)}</td><td>${esc(l.dist)}</td><td>${esc(l.alt)}</td><td>${esc(l.caixa)}</td><td>${esc(l.cabo)}</td></tr>`).join(''),['Ponto','Equip.','Parede ref.','Dist.','Alt.','Caixa','Cabo'])}`).join('')
+    const pontosHtml=(d.pontos||[]).map(a=>`<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T((a.linhas||[]).map(l=>`<tr>${pinCell(l.ponto,l.equip)}<td><b>${esc(l.ponto)}</b></td><td>${esc(l.equip)}</td><td>${esc(l.parede)}</td><td>${esc(l.dist)}</td><td>${esc(l.alt)}</td><td>${esc(l.caixa)}</td><td>${esc(l.cabo)}</td></tr>`).join(''),['Nº','Ponto','Equip.','Parede ref.','Dist.','Alt.','Caixa','Cabo'])}`).join('')
 
     // Tópico 6 — Cabos de rede com patch panel e etiquetas
     const cabosRedeHtml = (d.cabos_rede||[]).length
-      ? T(d.cabos_rede.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td><td><span style="background:${r.cor_etiqueta==='Azul'?'#0EA5E9':r.cor_etiqueta==='Amarelo'?'#D97706':r.cor_etiqueta==='Verde'?'#16A34A':r.cor_etiqueta==='Vermelho'?'#DC2626':'#374151'};color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">${esc(r.cor_etiqueta||'Azul')}</span></td><td style="font-family:monospace;font-size:10px;background:#F0F9FF;color:#0369A1"><b>${esc(r.porta_patch||'-')}</b></td><td style="font-family:monospace;font-size:10px;font-weight:700;color:#0D1420">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['ID','Origem','Destino','Tipo','Bitola','Metros','Cor Cabo','Porta PP','Etiqueta'])
+      ? T(d.cabos_rede.map(r=>`<tr>${pinCell(r.destino,r.etiqueta,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td><td><span style="background:${r.cor_etiqueta==='Azul'?'#0EA5E9':r.cor_etiqueta==='Amarelo'?'#D97706':r.cor_etiqueta==='Verde'?'#16A34A':r.cor_etiqueta==='Vermelho'?'#DC2626':'#374151'};color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">${esc(r.cor_etiqueta||'Azul')}</span></td><td style="font-family:monospace;font-size:10px;background:#F0F9FF;color:#0369A1"><b>${esc(r.porta_patch||'-')}</b></td><td style="font-family:monospace;font-size:10px;font-weight:700;color:#0D1420">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['Nº','ID','Origem','Destino','Tipo','Bitola','Metros','Cor Cabo','Porta PP','Etiqueta'])
       : ''
 
     // Tópico 8 — Cabos elétricos detalhados por cômodo
     const cabosEletHtml = (d.cabos_eletricos_por_comodo||[]).length
       ? d.cabos_eletricos_por_comodo.map(comodo=>`
 <h3 class="ex-amb">${esc(comodo.comodo)}</h3>
-${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip)}</td><td>${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.fios)}</td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.metros)}m</td><td style="color:#6B7280;font-size:10px">${esc(r.obs)}</td></tr>`).join(''),['ID','Equipamento','Tipo','Fios/Bitola','Origem','Destino','m','Obs'])}`).join('')
+${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</b></td><td>${esc(r.equip)}</td><td>${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.fios)}</td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.metros)}m</td><td style="color:#6B7280;font-size:10px">${esc(r.obs)}</td></tr>`).join(''),['Nº','ID','Equipamento','Tipo','Fios/Bitola','Origem','Destino','m','Obs'])}`).join('')
       : (d.cabos_eletricos||[]).length
         ? T(d.cabos_eletricos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros'])
         : ''
@@ -1631,31 +1647,31 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
 <p class="ex-p" style="font-size:10px;color:#64748B;font-style:italic">Cada foto é vinculada ao ponto pelo número (ex: K1, AP1, CAM2). O relatório diário mostra o status de cada ponto — concluído ✓, pendente ⏳ ou com problema ⚠.</p>
 `
     // ── Helper: pin badge com número da planta ──────────────────────────────
-    const pin=(n,color='#0EA5E9')=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${color};color:#fff;font-size:9px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);vertical-align:middle;margin-right:4px">${n}</span>`
+    // (pin/pinNum/pinCell já definidos no topo de buildExecHtml)
     const CATCOLOR={'Redes':'#0EA5E9','Segurança':'#DC2626','Sonorização':'#BE185D','Automação':'#059669','Gourmet':'#D97706'}
     const catColor=(cat)=>CATCOLOR[cat]||'#6B7280'
 
     // ── Tabela Automação (Interruptores, Tomadas, Sensores, Hub IR, Módulos) ──
     const tblAutomacao = (d.tabela_automacao||[]).length
-      ? T((d.tabela_automacao||[]).map(r=>`<tr><td>${pin(r.num_planta||r.id,catColor('Automação'))}</td><td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.funcao)}</td><td style="font-size:10px">${esc(r.protocolo||'Zigbee')}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+      ? T((d.tabela_automacao||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Automação'))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.funcao)}</td><td style="font-size:10px">${esc(r.protocolo||'Zigbee')}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
         ['#','ID','Equipamento','Ambiente','Função','Protocolo','Posição/Altura','Obs'])
       : ''
 
     // ── Tabela Segurança (Câmeras, Sensores de Alarme) ────────────────────────
     const tblSeguranca = (d.tabela_seguranca||[]).length
-      ? T((d.tabela_seguranca||[]).map(r=>`<tr><td>${pin(r.num_planta||r.id,catColor('Segurança'))}</td><td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.resolucao||'—')}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px">${esc(r.angulo||'—')}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+      ? T((d.tabela_seguranca||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Segurança'))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.resolucao||'—')}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px">${esc(r.angulo||'—')}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
         ['#','ID','Equipamento','Ambiente','Resolução','Tipo','Posição','Ângulo','Obs'])
       : ''
 
     // ── Tabela Som Ambiente ────────────────────────────────────────────────────
     const tblSom = (d.tabela_som||[]).length
-      ? T((d.tabela_som||[]).map(r=>`<tr><td>${pin(r.num_planta||r.id,catColor('Sonorização'))}</td><td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.zona)}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.saida_amplif)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+      ? T((d.tabela_som||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Sonorização'))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.zona)}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.saida_amplif)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
         ['#','ID','Equipamento','Ambiente','Zona','Tipo','Saída Amplif.','Cabo','Obs'])
       : ''
 
     // ── Tabela Devices no Teto (APs, Câmeras, Caixas de Som, Sensores) ────────
     const tblTeto = (d.tabela_teto||[]).length
-      ? T((d.tabela_teto||[]).map(r=>`<tr><td>${pin(r.num_planta||r.id,catColor(r.categoria||'Redes'))}</td><td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.instalacao)}</td><td style="font-family:monospace;font-size:10px">${esc(r.origem)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px">${esc(r.metros)}m</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+      ? T((d.tabela_teto||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor(r.categoria||'Redes'))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.instalacao)}</td><td style="font-family:monospace;font-size:10px">${esc(r.origem)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px">${esc(r.metros)}m</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
         ['#','ID','Equipamento','Ambiente','Posição Teto','Vem de / Origem','Cabo','m','Obs'])
       : (d.modulos_teto||[]).length
         ? (d.modulos_teto||[]).map(mt=>`<h3 class="ex-amb">${esc(mt.ambiente)}</h3>${T((mt.itens||[]).map(it=>`<tr><td>${esc(it)}</td></tr>`).join(''),['Itens de teto / forro'])}`).join('')
@@ -1856,26 +1872,27 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
       }
       const tblRedeObra = (d.rack_cable_table||[]).length
         ? T(d.rack_cable_table.map(r=>`<tr>
+            ${pinCell(r.destino,r.etiqueta)}
             <td style="font-family:monospace;font-size:10px"><b>${esc(r.etiqueta||r.porta_patch||'—')}</b></td>
             <td>${esc(r.device_origem||'Rack')} ${r.porta_origem?`<span style="color:#6B7280">(${esc(r.porta_origem)})</span>`:''}</td>
             <td>${esc(r.destino||'—')}</td>
             <td style="font-size:10px">${esc(r.tipo||'CAT6')}</td>
             <td style="text-align:right">${esc(r.metros||'—')}m</td>
-          </tr>`).join(''), ['Etiqueta','Origem','Destino','Tipo','Metros'])
+          </tr>`).join(''), ['Nº','Etiqueta','Origem','Destino','Tipo','Metros'])
         : ''
       const tblSomObra = (d.cabos_som||[]).length
-        ? T(d.cabos_som.map(r=>`<tr><td style="font-family:monospace;font-size:10px"><b>${esc(r.etiqueta||r.id||'—')}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td style="font-size:10px">${esc(r.tipo||'2×1,5mm²')}</td><td style="text-align:right">${esc(r.metros||'—')}m</td></tr>`).join(''), ['Etiqueta','Origem','Destino','Tipo','Metros'])
+        ? T(d.cabos_som.map(r=>`<tr>${pinCell(r.destino,r.etiqueta,r.id)}<td style="font-family:monospace;font-size:10px"><b>${esc(r.etiqueta||r.id||'—')}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td style="font-size:10px">${esc(r.tipo||'2×1,5mm²')}</td><td style="text-align:right">${esc(r.metros||'—')}m</td></tr>`).join(''), ['Nº','Etiqueta','Origem','Destino','Tipo','Metros'])
         : ''
       const tblEletObra = (d.cabos_eletricos_por_comodo||[]).length
-        ? d.cabos_eletricos_por_comodo.map(c=>`<h3 class="ex-amb">${esc(c.comodo)}</h3>${T((c.itens||[]).map(it=>`<tr><td style="font-family:monospace;font-size:10px"><b>${esc(it.id)}</b></td><td>${esc(it.equip)}</td><td>${esc(it.origem)}</td><td>${esc(it.destino)}</td><td style="font-size:10px">${esc(it.fios||it.tipo||'')}</td><td style="text-align:right">${esc(it.metros||'—')}m</td><td style="font-size:9.5px;color:#B45309">${esc(it.obs||'')}</td></tr>`).join(''),['ID','Equip.','Origem (quadro)','Destino','Fios','Metros','Obs'])}`).join('')
+        ? d.cabos_eletricos_por_comodo.map(c=>`<h3 class="ex-amb">${esc(c.comodo)}</h3>${T((c.itens||[]).map(it=>`<tr>${pinCell(it.id,it.equip)}<td style="font-family:monospace;font-size:10px"><b>${esc(it.id)}</b></td><td>${esc(it.equip)}</td><td>${esc(it.origem)}</td><td>${esc(it.destino)}</td><td style="font-size:10px">${esc(it.fios||it.tipo||'')}</td><td style="text-align:right">${esc(it.metros||'—')}m</td><td style="font-size:9.5px;color:#B45309">${esc(it.obs||'')}</td></tr>`).join(''),['Nº','ID','Equip.','Origem (quadro)','Destino','Fios','Metros','Obs'])}`).join('')
         : (cabosEletConsolidado || '')
       const tblPontosObra = (d.pontos||[]).length
-        ? (d.pontos||[]).map(a=>`<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T((a.linhas||[]).map(l=>`<tr><td><b>${esc(l.ponto)}</b></td><td>${esc(l.equip)}</td><td>${esc(l.parede)}</td><td>${esc(l.dist)}</td><td style="font-weight:700;color:#0F172A">${esc(l.alt)}</td><td>${esc(l.caixa)}</td><td style="font-size:10px">${esc(l.virado||l.orientacao||'frente p/ ambiente')}</td></tr>`).join(''),['Ponto','Equip.','Parede ref.','Distância','Altura','Caixa','Virado p/'])}`).join('')
+        ? (d.pontos||[]).map(a=>`<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T((a.linhas||[]).map(l=>`<tr>${pinCell(l.ponto,l.equip)}<td><b>${esc(l.ponto)}</b></td><td>${esc(l.equip)}</td><td>${esc(l.parede)}</td><td>${esc(l.dist)}</td><td style="font-weight:700;color:#0F172A">${esc(l.alt)}</td><td>${esc(l.caixa)}</td><td style="font-size:10px">${esc(l.virado||l.orientacao||'frente p/ ambiente')}</td></tr>`).join(''),['Nº','Ponto','Equip.','Parede ref.','Distância','Altura','Caixa','Virado p/'])}`).join('')
         : ''
       const caixasPorComodo = (d.pontos||[]).map(a=>{
         const linhas=(a.linhas||[]).filter(l=>(l.caixa||'').trim())
         if(!linhas.length) return ''
-        return `<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T(linhas.map(l=>`<tr><td><b>${esc(l.ponto)}</b></td><td>${esc(l.parede)}</td><td>${esc(l.caixa)}</td><td style="font-weight:700">${esc(l.alt)}</td><td style="font-size:10px">${esc(l.cabo||'')}</td></tr>`).join(''),['Ponto','Parede','Caixa','Altura','Eletroduto/Cabo'])}`
+        return `<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T(linhas.map(l=>`<tr>${pinCell(l.ponto,l.equip)}<td><b>${esc(l.ponto)}</b></td><td>${esc(l.parede)}</td><td>${esc(l.caixa)}</td><td style="font-weight:700">${esc(l.alt)}</td><td style="font-size:10px">${esc(l.cabo||'')}</td></tr>`).join(''),['Nº','Ponto','Parede','Caixa','Altura','Eletroduto/Cabo'])}`
       }).filter(Boolean).join('')
       const eletrodutoNotas = (d.checklist_obra||[]).filter(x=>/eletroduto|caixa 4|4×4|4x4|sangria|passagem|fio-guia/i.test(x))
       const obraSections = [
@@ -1899,9 +1916,9 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     secN(`Segurança — Câmeras e Sensores de Alarme`, tblSeguranca, true),
     secN(`Som Ambiente — Caixas, Amplificador e Zonas`, tblSom, true),
     secN(`Devices no Teto — Posição, Origem e Cabeamento`, tblTeto, true),
-    secN(`Cabos de Som — Amplificador no RACK`, (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-size:10px">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['ID','Origem','Destino','Tipo','Metros','Etiqueta']):'', true),
+    secN(`Cabos de Som — Amplificador no RACK`, (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr>${pinCell(r.destino,r.etiqueta,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-size:10px">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['Nº','ID','Origem','Destino','Tipo','Metros','Etiqueta']):'', true),
     secN(`Automação — Interruptores, Tomadas, Sensores, Hub IR, Módulos`, tblAutomacao||pontosHtml, true),
-    secN(`Alimentação dos Keypads (Fase + Neutro)`, (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x2,5mm²')}</td></tr>`).join(''),['ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m','Fios']):'', true),
+    secN(`Alimentação dos Keypads (Fase + Neutro)`, (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr>${pinCell(r.destino,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x2,5mm²')}</td></tr>`).join(''),['Nº','ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m','Fios']):'', true),
     secN(`Cabos Elétricos — por Cômodo`, cabosEletHtml, true),
     secN(`Cabos Elétricos — Todos os Pontos (consolidado)`, cabosEletConsolidado, true),
     secN(`Itens por Cômodo e Total Geral`, itensComodoHtml ? (itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml) : '', true),
