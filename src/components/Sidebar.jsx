@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v113 — Apresentacao Compacta: mao de obra so conta para categorias COM itens (mesma regra da Completa); descartado residuo de MO fantasma (Redes/Outros sem item) do laborByCat de versoes antigas; Compacta agora bate 100% com a proposta
+// v114 — Executivo: RACK so aparece se houver marcador de rack na planta (nada "do nada"); itens do rack puxados do que voce configurou; nova versao OBRA/PEDREIRO selecionavel (planta com caminho dos cabos + tabelas origem->destino/metros/tipo + altura/orientacao dos pontos + caixas 4x4/eletrodutos), salva junto com a Completa (exec_doc_obra)
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v113 · build 2026-06
+          v114 · build 2026-06
         </div>
       </div>
     </div>

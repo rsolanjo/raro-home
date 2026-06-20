@@ -306,7 +306,10 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [filterItem, setFilterItem] = useState('')            // filtra mapa por nome de item (resumo)
   const [showRackModal, setShowRackModal] = useState(false)
   const [rackEquip, setRackEquip] = useState([])   // [{code,name,qty,u}]
-  const [execDoc, setExecDoc] = useState(null)
+  const [execDoc, setExecDoc] = useState(null)         // versão Completa (HTML)
+  const [execDocObra, setExecDocObra] = useState(null) // versão Obra/Pedreiro (HTML)
+  const [execMode, setExecMode] = useState('completo') // 'completo' | 'obra' — qual está sendo exibida
+  const [execData, setExecData] = useState(null)       // dados crus da IA (p/ re-render das 2 versões)
   const [execProgress, setExecProgress] = useState('')
   const [zoom, setZoom] = useState(1)
   const [selected, setSelected] = useState(null)
@@ -888,8 +891,11 @@ Responda APENAS JSON válido:
 
       setExecProgress('Montando documento...')
       const data={...d1,...d2}
-      const full=buildExecHtml(data)
+      setExecData(data)
+      const full=buildExecHtml(data,'completo')
+      const obra=buildExecHtml(data,'obra')
       setExecDoc(full)
+      setExecDocObra(obra)
       setStep('exec')
       setExecProgress('')
 
@@ -897,7 +903,7 @@ Responda APENAS JSON válido:
       if(fromProposal?.id){
         try{
           const { saveProposal } = await import('../db/supabase.js')
-          const updated = { ...fromProposal, exec_doc:full, planta_data:{image:bgImage,markers,cables} }
+          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, planta_data:{image:bgImage,markers,cables} }
           await saveProposal(updated)
         }catch(e){ console.warn('Auto-save falhou:', e.message) }
       }
@@ -905,7 +911,8 @@ Responda APENAS JSON válido:
     setLoading(false)
   }
 
-  function buildExecHtml(d){
+  function buildExecHtml(d, mode='completo'){
+    const isObra = mode==='obra'
     const cliente=projectInfo.client||'Cliente'
     const hoje=new Date().toLocaleDateString('pt-BR')
     const T=(rows,cols)=>`<table class="ex-tbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`
@@ -923,8 +930,17 @@ Responda APENAS JSON válido:
     const list=arr=>arr&&arr.length?`<ul class="ex-ul">${arr.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''
 
     // Tópico 3 — Rack com visual REALISTA (equipamentos vistos de frente)
+    // REGRA: o RACK só aparece no documento se houver um marcador de rack na planta.
+    // Sem rack posicionado, nada de rack "do nada".
+    const rackMarker = markers.find(m=>isRackItem(m.name||'', m.code||''))
+    const hasRack = !!rackMarker
     const rackCfg = d.rack_config || {}
-    const rackItems = d.rack_items || d.rack || []
+    // itens do rack: prioriza o que VOCÊ configurou no rack da planta; só usa o da IA como apoio
+    const rackItems = hasRack
+      ? ((rackMarker.rackEquip||[]).length
+          ? rackMarker.rackEquip.map(e=>({u:e.u||'',equip:e.name||e.equip||'',funcao:e.funcao||'',watts:e.watts||'—'}))
+          : (d.rack_items || d.rack || []))
+      : []
     const aps = rackCfg.aps||0, cams = rackCfg.cameras||0
     const totalPoe = aps+cams
     const precisaSwitch = rackCfg.precisa_switch || totalPoe > 6
@@ -1196,16 +1212,16 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
 <div class="ex-doc">
   <!-- CAPA -->
   <div class="ex-cover">
-    <div class="ex-cover-top">DOCUMENTO TÉCNICO · PROJETO EXECUTIVO</div>
+    <div class="ex-cover-top">${isObra?'DOCUMENTO DE OBRA · INFRAESTRUTURA':'DOCUMENTO TÉCNICO · PROJETO EXECUTIVO'}</div>
     <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:160px;max-width:50%;margin:0 auto 8px;display:block"/>
     <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
-    <div class="ex-cover-title">Projeto Executivo de Automação</div>
-    <div class="ex-cover-sub">Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto</div>
+    <div class="ex-cover-title">${isObra?'Projeto de Obra — Cabos e Infraestrutura':'Projeto Executivo de Automação'}</div>
+    <div class="ex-cover-sub">${isObra?'Caminho dos cabos · Metragens · Alturas · Caixas 4×4<br>Guia direto para o eletricista e o pedreiro':'Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto'}</div>
     <div class="ex-cover-client"><div class="ex-cc-name">${esc(cliente)}</div><div class="ex-cc-meta">${hoje} · RARO Home</div></div>
     <div class="ex-cover-foot">RARO Home · contato@rarohome.com.br · (21) 98170-9009</div>
   </div>
 
-  ${(()=>{ let _n=0
+  ${(()=>{ if(isObra) return ''; let _n=0
     const secN2=(title,inner,breakable=false)=> inner ? `<div class="ex-sec${breakable?' ex-breakable':''}"><h2><span class="ex-sec-num">${++_n}</span>${title}</h2>${inner}</div>` : ''
     if(bgImage){
       const dots=markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
@@ -1215,7 +1231,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     return ''
   })()}
 
-  ${(()=>{ let _n=bgImage ? 1 : 0
+  ${(()=>{ let _n=(bgImage && !isObra) ? 1 : 0
     const secN=(title,inner,breakable=false)=> inner ? `<div class="ex-sec${breakable?' ex-breakable':''}"><h2><span class="ex-sec-num">${++_n}</span>${title}</h2>${inner}</div>` : ''
     const fotosTxt=`
 <p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>
@@ -1485,9 +1501,84 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         ['#','ID','Equipamento','Ambiente','Alimentação','Bitola','Origem','Obs'])
       : ''
 
+    // ══════════════════════════════════════════════════════════════════
+    // VERSÃO OBRA / PEDREIRO — só infraestrutura para quem executa:
+    // planta com caminho dos cabos · tabela origem→destino/metros/tipo ·
+    // altura e orientação de cada ponto · eletrodutos e caixas 4×4 por parede.
+    // ══════════════════════════════════════════════════════════════════
+    if (isObra) {
+      // 1) Planta com o CAMINHO DOS CABOS desenhado por cima
+      let plantaCabos = ''
+      if (bgImage) {
+        const dots = markers.map(m=>{
+          const isR = isRackItem(m.name||'', m.code||'')
+          const st = EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
+          const col = isR ? '#4C1D95' : st.c
+          return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
+            <div style="width:18px;height:18px;border-radius:50%;background:${col};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
+            <div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:7.5px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>
+          </div>`
+        }).join('')
+        const cableSvg = (cables||[]).map(c=>{
+          const pts = cablePolyPoints(c)
+          if (pts.length<2) return ''
+          const poly = pts.map(p=>`${p.x},${p.y}`).join(' ')
+          const col = c.color || '#2563EB'
+          return `<polyline points="${poly}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:2.2px" vector-effect="non-scaling-stroke"/>`
+        }).join('')
+        const legenda = Object.entries(CABLE_PALETTE).map(([k,v])=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;color:#374151;margin-right:14px"><span style="width:16px;height:3px;border-radius:2px;background:${v};display:inline-block"></span>${CABLE_LABELS[k]||k}</span>`).join('')
+        plantaCabos = `<div class="ex-sec ex-breakable"><h2><span class="ex-sec-num">${++_n}</span>Planta — Caminho dos Cabos</h2>
+          <p class="ex-p" style="margin-bottom:8px">Cada linha colorida é um cabo: parte da origem (rack/quadro) até o destino. Siga o caminho desenhado e use a tabela abaixo para metragem e tipo.</p>
+          <div style="position:relative;display:inline-block;max-width:100%;width:100%">
+            <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${cableSvg}</svg>
+            ${dots}
+          </div>
+          <div style="margin-top:10px;display:flex;flex-wrap:wrap;align-items:center">${legenda}</div>
+          ${(cables||[]).length===0?'<p class="ex-p" style="color:#B45309;margin-top:8px">⚠ Nenhum cabo foi desenhado na planta. Volte ao editor e use o modo "Cabos" para traçar os caminhos.</p>':''}
+        </div>`
+      }
+      const tblRedeObra = (d.rack_cable_table||[]).length
+        ? T(d.rack_cable_table.map(r=>`<tr>
+            <td style="font-family:monospace;font-size:10px"><b>${esc(r.etiqueta||r.porta_patch||'—')}</b></td>
+            <td>${esc(r.device_origem||'Rack')} ${r.porta_origem?`<span style="color:#6B7280">(${esc(r.porta_origem)})</span>`:''}</td>
+            <td>${esc(r.destino||'—')}</td>
+            <td style="font-size:10px">${esc(r.tipo||'CAT6')}</td>
+            <td style="text-align:right">${esc(r.metros||'—')}m</td>
+          </tr>`).join(''), ['Etiqueta','Origem','Destino','Tipo','Metros'])
+        : ''
+      const tblSomObra = (d.cabos_som||[]).length
+        ? T(d.cabos_som.map(r=>`<tr><td style="font-family:monospace;font-size:10px"><b>${esc(r.etiqueta||r.id||'—')}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td style="font-size:10px">${esc(r.tipo||'2×1,5mm²')}</td><td style="text-align:right">${esc(r.metros||'—')}m</td></tr>`).join(''), ['Etiqueta','Origem','Destino','Tipo','Metros'])
+        : ''
+      const tblEletObra = (d.cabos_eletricos_por_comodo||[]).length
+        ? d.cabos_eletricos_por_comodo.map(c=>`<h3 class="ex-amb">${esc(c.comodo)}</h3>${T((c.itens||[]).map(it=>`<tr><td style="font-family:monospace;font-size:10px"><b>${esc(it.id)}</b></td><td>${esc(it.equip)}</td><td>${esc(it.origem)}</td><td>${esc(it.destino)}</td><td style="font-size:10px">${esc(it.fios||it.tipo||'')}</td><td style="text-align:right">${esc(it.metros||'—')}m</td><td style="font-size:9.5px;color:#B45309">${esc(it.obs||'')}</td></tr>`).join(''),['ID','Equip.','Origem (quadro)','Destino','Fios','Metros','Obs'])}`).join('')
+        : (cabosEletConsolidado || '')
+      const tblPontosObra = (d.pontos||[]).length
+        ? (d.pontos||[]).map(a=>`<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T((a.linhas||[]).map(l=>`<tr><td><b>${esc(l.ponto)}</b></td><td>${esc(l.equip)}</td><td>${esc(l.parede)}</td><td>${esc(l.dist)}</td><td style="font-weight:700;color:#0F172A">${esc(l.alt)}</td><td>${esc(l.caixa)}</td><td style="font-size:10px">${esc(l.virado||l.orientacao||'frente p/ ambiente')}</td></tr>`).join(''),['Ponto','Equip.','Parede ref.','Distância','Altura','Caixa','Virado p/'])}`).join('')
+        : ''
+      const caixasPorComodo = (d.pontos||[]).map(a=>{
+        const linhas=(a.linhas||[]).filter(l=>(l.caixa||'').trim())
+        if(!linhas.length) return ''
+        return `<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T(linhas.map(l=>`<tr><td><b>${esc(l.ponto)}</b></td><td>${esc(l.parede)}</td><td>${esc(l.caixa)}</td><td style="font-weight:700">${esc(l.alt)}</td><td style="font-size:10px">${esc(l.cabo||'')}</td></tr>`).join(''),['Ponto','Parede','Caixa','Altura','Eletroduto/Cabo'])}`
+      }).filter(Boolean).join('')
+      const eletrodutoNotas = (d.checklist_obra||[]).filter(x=>/eletroduto|caixa 4|4×4|4x4|sangria|passagem|fio-guia/i.test(x))
+      const obraSections = [
+        `<div class="ex-sec"><h2 style="border:none;margin-bottom:4px">Projeto de Obra — Guia do Eletricista / Pedreiro</h2>
+          <p class="ex-p" style="color:#6B7280">Documento simplificado: só infraestrutura. Caminho dos cabos, metragem, alturas, orientação dos pontos e caixas 4×4 por parede. Sem listas comerciais.</p></div>`,
+        plantaCabos,
+        secN(`Cabos de Rede — Origem → Destino`, tblRedeObra, true),
+        secN(`Cabos de Som — Origem → Destino`, tblSomObra, true),
+        secN(`Cabos Elétricos — por Cômodo`, tblEletObra, true),
+        secN(`Pontos — Altura, Parede e Orientação`, tblPontosObra, true),
+        secN(`Caixas 4×4 e Eletrodutos — por Cômodo`, caixasPorComodo, true),
+        secN(`Notas de Infraestrutura (Eletrodutos · Sangrias · Caixas)`, list(eletrodutoNotas.length?eletrodutoNotas:d.checklist_obra), true),
+      ].filter(Boolean)
+      return obraSections.join('\n') + '</div>'
+    }
+
     return [
     secN(`Premissas Confirmadas`, list(d.premissas)),
-    secN(`Detalhe do RACK / CPD`, (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Todos os Cabos de Rede (APs · Câmeras · Keystones · Uplinks)</h3>${rackCableTableHtml}`:'')):'', true),
+    secN(`Detalhe do RACK / CPD`, hasRack && (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Todos os Cabos de Rede (APs · Câmeras · Keystones · Uplinks)</h3>${rackCableTableHtml}`:'')):'', true),
     secN(`Cabos de Rede — Patch Panel e Etiquetas`, cabosRedeHtml, true),
     secN(`Segurança — Câmeras e Sensores de Alarme`, tblSeguranca, true),
     secN(`Som Ambiente — Caixas, Amplificador e Zonas`, tblSom, true),
@@ -1512,11 +1603,13 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     const w=window.open('','_blank')
     const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
     const codigo=(fromProposal?.code||'').replace(/[\\/:*?"<>|]/g,'')
-    const tituloPdf=`Projeto Executivo RARO Home — ${cliNome}${codigo?' — '+codigo:''}`
+    const sufixo = execMode==='obra' ? ' — OBRA' : ''
+    const tituloPdf=`Projeto Executivo RARO Home — ${cliNome}${codigo?' — '+codigo:''}${sufixo}`
+    const docHtml = (execMode==='obra'?execDocObra:execDoc)||''
     w.document.write(`<html><head><title>${tituloPdf}</title><meta charset="utf-8">
       <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
       <style>body{margin:0}${EXEC_CSS}</style></head><body>
-      ${execDoc}
+      ${docHtml}
       </body></html>`)
     w.document.close(); setTimeout(()=>w.print(),700)
   }
@@ -1528,6 +1621,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
 
   async function saveToProposal(docOverride){
     const docToSave = typeof docOverride==='string' ? docOverride : execDoc
+    const obraToSave = execDocObra
     const roomMap={}
     markers.forEach(m=>{ const r=m.room||'Geral'; if(!roomMap[r])roomMap[r]=[]; roomMap[r].push(m) })
     const floors=[{name:'Pavimento único', rooms:Object.entries(roomMap).map(([name,items])=>({
@@ -1539,14 +1633,14 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     if(fromProposal?.id){
       try{
         const { saveProposal } = await import('../db/supabase.js')
-        const updated = { ...fromProposal, exec_doc:docToSave, planta_data:{image:bgImage,markers,cables}, exec_api_cost:apiCost }
+        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, planta_data:{image:bgImage,markers,cables}, exec_api_cost:apiCost }
         await saveProposal(updated)
         alert(`✅ Projeto Executivo salvo no orçamento!\n\n💸 Custo de IA na geração: R$ ${apiCost.brl.toFixed(2)} (${apiCost.calls} chamadas)`)
         onClose && onClose()
         return
       }catch(e){ alert('Erro ao salvar: '+e.message); return }
     }
-    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_api_cost:apiCost })
+    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_api_cost:apiCost })
   }
 
   const catGroups={}
@@ -2216,7 +2310,20 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         {step==='exec' && (
           <div style={{flex:1,overflowY:'auto',background:'#e8eaed',padding:'20px 0'}}>
             <style>{EXEC_CSS}</style>
-            <div style={{maxWidth:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)'}} dangerouslySetInnerHTML={{__html:execDoc||''}}/>
+            {/* Seletor de versão do documento (Completo · Obra/Pedreiro) */}
+            <div style={{maxWidth:820,margin:'0 auto 14px',display:'flex',gap:8,alignItems:'center',padding:'0 4px'}}>
+              <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:4}}>Versão do documento:</span>
+              {[['completo','Completo','ti-file-text'],['obra','Obra / Pedreiro','ti-tools']].map(([m,label,icon])=>(
+                <button key={m} onClick={()=>setExecMode(m)}
+                  style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,fontSize:12.5,fontWeight:execMode===m?700:500,cursor:'pointer',
+                    border:`1.5px solid ${execMode===m?'#7C3AED':'#CBD5E1'}`,background:execMode===m?'#7C3AED':'#fff',color:execMode===m?'#fff':'#475569'}}>
+                  <i className={`ti ${icon}`} aria-hidden/>{label}
+                </button>
+              ))}
+              <div style={{flex:1}}/>
+              <span style={{fontSize:11,color:'#94A3B8'}}>{execMode==='obra'?'Só infraestrutura: cabos, alturas, caixas 4×4':'Documento técnico completo'}</span>
+            </div>
+            <div style={{maxWidth:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)'}} dangerouslySetInnerHTML={{__html:(execMode==='obra'?execDocObra:execDoc)||''}}/>
           </div>
         )}
       </div>
