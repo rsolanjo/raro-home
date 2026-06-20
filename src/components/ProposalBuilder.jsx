@@ -1,6 +1,6 @@
 import { openProposalPDF } from './proposalPDF.js'
 import { LOGO_COVER, LOGO_DARK } from '../logos.js'
-import { buildApresentacaoComercial } from './apresentacaoComercial.js'
+import { buildApresentacaoComercial, buildApresentacaoV2 } from './apresentacaoComercial.js'
 import { useState, useEffect, useCallback } from 'react'
 import { saveProposal, getCatalog, getStockWithReservations, getCatalogCategories,
          generateProposalCode, auditedSave, checkProposalStock, checkPINSession, setPINSession, verifyPIN, addAuditLog } from '../db/supabase.js'
@@ -635,6 +635,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   const [showPdfVersionModal, setShowPdfVersionModal] = useState(false)  // escolher versão ao gerar PDF
   const [showLoadVersionModal, setShowLoadVersionModal] = useState(false) // carregar versão antiga p/ edição
   const [apresVersion, setApresVersion] = useState(0)   // índice da versão escolhida (0 = atual/mais recente)
+  const [apresLayout, setApresLayout] = useState('v2')  // 'v1' (institucional) | 'v2' (O Seu Investimento)
   const [apresKeep,      setApresKeep]      = useState({})   // {key:true} itens de rack a MANTER
   const [apresExec,      setApresExec]      = useState('3000')
   const [apresPlanta,    setApresPlanta]    = useState(null)   // imagem da planta para a apresentação
@@ -1119,7 +1120,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
       }))}))
       const laborByCatVisible = {}
       Object.keys(baseLaborByCat).forEach(c=>{ if(!hiddenCateg.has(c)){ const v=parse(baseLaborByCat[c]); if(v>0) laborByCatVisible[c]=v } })
-      const { html } = buildApresentacaoComercial({
+      const apresArgs = {
         clientName: cl ? `${cl.name1} & ${cl.name2}` : (clientName || 'Cliente'),
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         code: proposalCode || '',
@@ -1128,7 +1129,8 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
         laborByCat: laborByCatVisible,
         laborTotal: laborVisible,
         plantaImage: apresPlanta,
-      })
+      }
+      const { html } = apresLayout==='v2' ? buildApresentacaoV2(apresArgs) : buildApresentacaoComercial(apresArgs)
       setShowApresModal(false)
       try {
         const blob = new Blob([html], {type:'text/html;charset=utf-8'})
@@ -2116,6 +2118,20 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           <div className="modal-header">
             <div className="modal-title"><i className="ti ti-presentation" style={{marginRight:6}} aria-hidden/>Gerar Apresentação Comercial</div>
             <button className="modal-close" onClick={()=>setShowApresModal(false)}>×</button>
+          </div>
+
+          {/* escolha do modelo de documento */}
+          <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
+            <div className="flabel" style={{marginBottom:8}}>Modelo do documento</div>
+            <div style={{display:'flex',gap:8}}>
+              {[['v2','O Seu Investimento','Novo — por categoria, com planta e legenda'],['v1','Institucional','Apresentação completa em 2 páginas']].map(([v,t,d])=>(
+                <button key={v} type="button" onClick={()=>setApresLayout(v)}
+                  style={{flex:1,textAlign:'left',padding:'10px 12px',borderRadius:8,cursor:'pointer',border:`1.5px solid ${apresLayout===v?'var(--accent)':'var(--border)'}`,background:apresLayout===v?'rgba(14,165,233,0.08)':'var(--surf)'}}>
+                  <div style={{fontSize:12.5,fontWeight:apresLayout===v?700:500,color:apresLayout===v?'var(--accent)':'var(--text)'}}>{t}</div>
+                  <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>{d}</div>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* seletor de versão salva (item 2) */}

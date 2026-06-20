@@ -5,6 +5,8 @@ const RACK_EXCLUDE_CATS = new Set(['CPD', 'CPD / Rack', 'CPD/Rack', 'Rack'])
 const RACK_EXCLUDE_NAME = /(dream\s*machine|amplificad|switch|rack\b|patch\s*panel|nobreak|no-break|dio\b|nvr\b|receiver|controladora|cloud\s*key|poe)/i
 
 function isRackItem(it){
+  // NÃO usado mais para filtrar — a seleção de itens é feita no ProposalBuilder
+  // (gerarApresentacao), que respeita "incluir todos". Mantido só por compat.
   const cat = (it.category||'').trim()
   if (RACK_EXCLUDE_CATS.has(cat)) return true
   if (RACK_EXCLUDE_NAME.test(it.name||'')) return true
@@ -36,18 +38,15 @@ export function buildApresentacaoComercial({ clientName, neighborhood, code, flo
   ;(floors||[]).forEach(fl => {
     ;(fl.rooms||[]).forEach(r => {
       ;(r.items||[]).forEach(it => {
-        if (it.name && isRackItem(it)) {
-          const val = (it.sale_price||0) * (parseInt(it.qty)||1)
-          excludedTotal += val
-          excludedNames[it.name] = (excludedNames[it.name]||0) + val
-        }
+        // nada é excluído internamente — a seleção é feita antes
       })
     })
   })
 
   ;(floors||[]).forEach(fl => {
     ;(fl.rooms||[]).forEach(r => {
-      const visItems = (r.items||[]).filter(it => it.name && !isRackItem(it))
+      // renderiza TODOS os itens recebidos — a filtragem já foi feita antes
+      const visItems = (r.items||[]).filter(it => it.name)
       if (!visItems.length) return
       const byCat = {}
       let qty = 0
@@ -420,4 +419,217 @@ function baixarHTML(){
 </html>`
 
   return { html, excludedTotal, excludedNames, grandTotal }
+}
+
+
+// ════════════════════════════════════════════════════════════════════
+// MODELO V2 — "O Seu Investimento" (layout do documento de referência)
+// Renderiza EXATAMENTE os floors recebidos (sem filtro interno) → fiel à proposta.
+// ════════════════════════════════════════════════════════════════════
+import { LOGO_COVER as _LOGO_V2 } from '../logos.js'
+
+const CAT_COLORS_V2 = {
+  'Automação':'#059669','Sonorização':'#BE185D','Som':'#BE185D',
+  'Redes':'#0EA5E9','Rede':'#0EA5E9','Segurança':'#DC2626',
+  'Keystone':'#F59E0B','Keystone / Dados':'#F59E0B','Dados':'#F59E0B',
+  'Gourmet':'#D97706','Elétrica':'#F59E0B','CPD':'#7C3AED','Outros':'#6B7280'
+}
+const normV2 = c => (c==='Rede'?'Redes': (c==='Som'?'Sonorização': c))
+
+export function buildApresentacaoV2({ clientName, neighborhood, code, floors, execValue, laborByCat, laborTotal, plantaImage }){
+  laborByCat = laborByCat || {}
+  execValue = parseFloat(execValue||0)
+  const fmtV = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
+
+  // agrega por categoria: itens (qtd), equipamentos (venda), mão de obra
+  const eq = {}, qty = {}
+  ;(floors||[]).forEach(fl => (fl.rooms||[]).forEach(r => (r.items||[]).forEach(it => {
+    if(!it.name) return
+    const cat = normV2(it.category || 'Outros')
+    const q = parseInt(it.qty)||1
+    eq[cat] = (eq[cat]||0) + (it.sale_price||0)*q
+    qty[cat] = (qty[cat]||0) + q
+  })))
+  const mo = {}
+  Object.entries(laborByCat).forEach(([c,v])=>{ const n=normV2(c); mo[n]=(mo[n]||0)+parseFloat(v||0) })
+
+  // ordena por subtotal desc
+  const cats = [...new Set([...Object.keys(eq), ...Object.keys(mo)])]
+    .map(c => ({ cat:c, q:qty[c]||0, eq:eq[c]||0, mo:mo[c]||0, sub:(eq[c]||0)+(mo[c]||0) }))
+    .filter(c => c.sub>0)
+    .sort((a,b)=>b.sub-a.sub)
+
+  const totalEquip = cats.reduce((s,c)=>s+c.eq,0)
+  const totalMO = cats.reduce((s,c)=>s+c.mo,0)
+  // total estimado = soma dos subtotais por categoria (equipamentos + mão de obra)
+  const totalCategorias = cats.reduce((s,c)=>s+c.sub,0)
+  const totalGeral = totalCategorias
+
+  const rows = cats.map(c=>{
+    const col = CAT_COLORS_V2[c.cat]||'#6B7280'
+    return `<tr>
+      <td class="ci"><span class="dot" style="background:${col}"></span>${c.cat}</td>
+      <td class="num">${c.q}</td>
+      <td class="num">${fmtV(c.eq)}</td>
+      <td class="num">${c.mo>0?fmtV(c.mo):'·'}</td>
+      <td class="num sub" style="color:${col}">${fmtV(c.sub)}</td>
+    </tr>`
+  }).join('')
+
+  // legenda de pontos (sob a planta)
+  const legenda = cats.map(c=>{
+    const col = CAT_COLORS_V2[c.cat]||'#6B7280'
+    return `<span class="leg"><span class="dot" style="background:${col}"></span>${c.cat} <b>(${c.q})</b></span>`
+  }).join('')
+
+  const safeName = (clientName||'cliente').replace(/[^a-zA-Z0-9]/g,'-').toLowerCase()
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>O Seu Investimento — ${clientName||''}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--navy:#0B2C73;--navy2:#1E3A5F;--blue:#1F66FF;--gold:#C9A268;--bg:#FFFFFF;--soft:#F4F8FF;--border:#D8E4F5;--gray:#6B7B92}
+body{font-family:'Montserrat',-apple-system,Roboto,Helvetica,sans-serif;background:#E9EEF6;color:var(--navy2);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{max-width:1024px;margin:24px auto;background:var(--bg);box-shadow:0 10px 40px rgba(11,44,115,0.12);border-radius:14px;overflow:hidden}
+.inner{padding:48px 56px}
+.toolbar{position:sticky;top:0;z-index:50;background:var(--navy);display:flex;gap:10px;justify-content:flex-end;padding:10px 18px}
+.toolbar button{font-family:inherit;font-size:12px;font-weight:600;border:none;border-radius:7px;padding:9px 16px;cursor:pointer;background:var(--gold);color:#fff}
+.toolbar button.alt{background:rgba(255,255,255,0.15)}
+@media print{.toolbar{display:none}body{background:#fff}.page{box-shadow:none;margin:0;max-width:100%}}
+/* cabeçalho */
+.hdr{display:flex;align-items:center;gap:28px;border-bottom:2px solid var(--border);padding-bottom:26px;margin-bottom:34px}
+.hdr img{width:84px;height:84px;flex-shrink:0}
+.hdr h1{font-size:2.5rem;font-weight:800;color:var(--navy);line-height:1.05;letter-spacing:-0.5px}
+.hdr p{font-size:.92rem;color:var(--gray);margin-top:8px;max-width:620px;font-weight:400;line-height:1.5}
+/* seção */
+.sec{margin-bottom:38px}
+.sec-h{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.sec-n{width:34px;height:34px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0}
+.sec-h h2{font-size:1.35rem;font-weight:700;color:var(--navy)}
+.sec-sub{font-size:.9rem;color:var(--gray);line-height:1.55;margin-bottom:18px;max-width:820px}
+/* seção 1 — 2 colunas */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:stretch}
+.two .txt{font-size:.92rem;line-height:1.65;color:var(--navy2)}
+.two .txt b{color:var(--navy);font-weight:700}
+.card{border:1.5px solid var(--border);border-radius:12px;padding:22px 24px;display:flex;flex-direction:column;gap:10px;background:var(--soft)}
+.card .ic{width:40px;height:40px;border-radius:9px;background:#E3EDFF;color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:20px}
+.card h3{font-size:1rem;font-weight:700;color:var(--navy)}
+.card .desc{font-size:.84rem;color:var(--gray);line-height:1.5;flex:1}
+.card .val{display:flex;align-items:baseline;justify-content:space-between;border-top:1px solid var(--border);padding-top:12px;margin-top:4px}
+.card .val .l{font-size:.72rem;letter-spacing:2px;color:var(--gray);font-weight:600}
+.card .val .v{font-size:1.7rem;font-weight:800;color:var(--navy)}
+/* planta */
+.planta{width:100%;border:1px solid var(--border);border-radius:12px;background:var(--soft);min-height:340px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:16px}
+.planta img{width:100%;display:block}
+.planta .ph{color:#A8BBD6;font-size:.9rem;padding:80px 0}
+.legrow{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;padding:14px 0 6px;border-top:1px solid var(--border)}
+.leg{display:inline-flex;align-items:center;gap:7px;font-size:.82rem;color:var(--navy2)}
+.dot{width:11px;height:11px;border-radius:50%;display:inline-block;flex-shrink:0}
+/* benefícios */
+.benef{display:grid;grid-template-columns:1.4fr 1fr;gap:22px;margin-top:26px}
+.check-h{font-size:.95rem;font-weight:700;color:var(--navy);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:9px 18px}
+.chk{display:flex;align-items:flex-start;gap:8px;font-size:.82rem;color:var(--navy2);line-height:1.4}
+.chk i{color:#059669;font-style:normal;font-weight:700;flex-shrink:0}
+.diff{background:#ECFDF5;border:1px solid #A7F3D0;border-radius:12px;padding:20px 22px}
+.diff h4{font-size:.98rem;font-weight:700;color:#047857;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.diff p{font-size:.84rem;color:#065F46;line-height:1.6}
+/* tabela */
+table{width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+thead th{background:var(--navy);color:#fff;font-size:.74rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;padding:13px 16px;text-align:left}
+thead th.num{text-align:right}
+tbody td{padding:13px 16px;font-size:.9rem;border-bottom:1px solid var(--border)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:nth-child(even){background:var(--soft)}
+td.ci{display:flex;align-items:center;gap:10px;font-weight:500;color:var(--navy2)}
+td.num{text-align:right;color:var(--navy2)}
+td.sub{font-weight:800;font-size:1rem}
+/* banner total */
+.banner{display:flex;align-items:center;justify-content:space-between;background:var(--navy);color:#fff;border-radius:12px;padding:24px 32px;margin-top:30px}
+.banner .lft{display:flex;align-items:center;gap:16px}
+.banner .lft .bic{width:46px;height:46px;border-radius:11px;background:rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;font-size:22px}
+.banner .lft .t{font-size:1.05rem;font-weight:600}
+.banner .lft .s{font-size:.78rem;color:#A8BDE0}
+.banner .big{font-size:2.4rem;font-weight:800;letter-spacing:-0.5px}
+.foot{text-align:center;color:var(--gray);font-size:.78rem;padding:26px 0 6px;margin-top:8px}
+.foot b{color:var(--navy)}
+@media(max-width:720px){.two,.benef{grid-template-columns:1fr}.checks{grid-template-columns:1fr}.inner{padding:30px 22px}.hdr{flex-direction:column;text-align:center}.banner{flex-direction:column;gap:16px;text-align:center}.banner .big{font-size:2rem}}
+</style></head>
+<body>
+<div class="toolbar">
+  <button onclick="window.print()">⬇ Salvar PDF</button>
+  <button class="alt" onclick="const b=new Blob([document.documentElement.outerHTML],{type:'text/html'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='investimento-${safeName}.html';a.click()">Baixar HTML</button>
+</div>
+<div class="page"><div class="inner">
+
+  <div class="hdr">
+    <img src="${_LOGO_V2}" alt="RARO HOME"/>
+    <div>
+      <h1>O Seu Investimento</h1>
+      <p>Transparência total. Veja abaixo o valor do projeto executivo e uma estimativa de investimento por categoria para preparar a sua casa.</p>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><div class="sec-n">1</div><h2>Valor do Projeto</h2></div>
+    <div class="two">
+      <div class="txt">Preparar a sua casa para receber a automação mais moderna do mercado começa por um <b>projeto executivo de engenharia</b>: o documento que garante que cada ponto, cabo e medida estejam corretos antes da obra. Além do projeto, você conta com um <b>acompanhamento adicional na sua obra</b>, garantindo que tudo seja executado conforme o planejado.</div>
+      <div class="card">
+        <div class="ic">▦</div>
+        <h3>Projeto Executivo de Automação + Acompanhamento</h3>
+        <div class="desc">Engenharia completa da sua casa inteligente, pronta para o arquiteto e o eletricista executarem sem dúvidas.</div>
+        <div class="val"><span class="l">VALOR</span><span class="v">${fmtV(execValue)}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><div class="sec-n">2</div><h2>Planta Executiva do Projeto</h2></div>
+    <div class="sec-sub">Visualização completa da infraestrutura inteligente planejada para sua residência. A planta abaixo apresenta a localização de todos os pontos previstos em projeto, incluindo automação, sonorização, redes, segurança e infraestrutura de dados.</div>
+    <div class="planta">${plantaImage?`<img src="${plantaImage}" alt="Planta executiva"/>`:`<div class="ph">Planta executiva do projeto</div>`}</div>
+    <div class="legrow">${legenda}</div>
+
+    <div class="benef">
+      <div>
+        <div class="check-h"><span style="color:#059669">✔</span> O que está contemplado nesta planta</div>
+        <div class="checks">
+          <div class="chk"><i>✓</i> Posicionamento exato dos equipamentos</div>
+          <div class="chk"><i>✓</i> Altura de instalação de cada dispositivo</div>
+          <div class="chk"><i>✓</i> Infraestrutura de cabeamento estruturado</div>
+          <div class="chk"><i>✓</i> Distribuição de áudio ambiente</div>
+          <div class="chk"><i>✓</i> Pontos de automação e controle</div>
+          <div class="chk"><i>✓</i> Rede de dados e Wi-Fi corporativo</div>
+          <div class="chk"><i>✓</i> Sistema de segurança integrado</div>
+          <div class="chk"><i>✓</i> Dimensionamento completo do Rack / CPD</div>
+        </div>
+      </div>
+      <div class="diff">
+        <h4>★ Diferencial Raro</h4>
+        <p>Cada ponto representado nesta planta faz parte de um projeto executivo desenvolvido para evitar retrabalho na obra e garantir que todos os sistemas funcionem perfeitamente desde o primeiro dia.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><div class="sec-n">3</div><h2>Estimativa de Investimento por Categoria</h2></div>
+    <div class="sec-sub">Um compilado de valores aproximados por categoria, separando os equipamentos da mão de obra de instalação e programação, para você dimensionar cada frente da sua casa inteligente.</div>
+    <table>
+      <thead><tr><th>Categoria</th><th class="num">Itens</th><th class="num">Equipamentos</th><th class="num">Mão de obra</th><th class="num">Subtotal</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>
+
+  <div class="banner">
+    <div class="lft"><div class="bic">📊</div><div><div class="t">Investimento total estimado</div><div class="s">Soma das categorias</div></div></div>
+    <div class="big">${fmtV(totalGeral)}</div>
+  </div>
+
+  <div class="foot">RARO HOME · <b>TECNOLOGIA · CONFORTO · EXCLUSIVIDADE</b><br>contato@rarohome.com.br · (21) 98170-9009 · @rarohome</div>
+
+</div></div>
+</body></html>`
+
+  return { html, grandTotal: totalEquip, totalGeral }
 }
