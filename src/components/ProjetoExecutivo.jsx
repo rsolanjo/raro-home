@@ -57,7 +57,22 @@ const ELE_SYMBOLS = {
   generico: `<circle r="6" fill="#fff" stroke="#111" stroke-width="1.2"/><circle r="1.6" fill="#111"/>`,
 }
 // classifica um marcador em símbolo elétrico NBR
+const ELE_TYPE_INFO = {
+  tomada_baixa:{label:'TUG', tipo:'Tomada baixa (0,30m)'},
+  tomada_alta:{label:'TUG-A', tipo:'Tomada média/alta'},
+  tomada_piso:{label:'TUG-P', tipo:'Tomada de piso'},
+  interruptor_simples:{label:'S', tipo:'Interruptor / Keypad'},
+  interruptor_paralelo:{label:'S₃', tipo:'Interruptor paralelo'},
+  interruptor_intermediario:{label:'S₄', tipo:'Interruptor intermediário'},
+  ponto_luz:{label:'L', tipo:'Ponto de luz'},
+  arandela:{label:'L', tipo:'Arandela'},
+  quadro:{label:'QDL', tipo:'Quadro de Distribuição'},
+}
 function classifyEle(m){
+  // 1) tipo elétrico definido manualmente (dropdown no marcador) tem prioridade
+  if(m.eleType && ELE_TYPE_INFO[m.eleType]) return { sym:m.eleType, ...ELE_TYPE_INFO[m.eleType] }
+  if(m.eleType==='nenhum') return null  // marcado explicitamente como "não é elétrico"
+  // 2) senão, infere pelo nome/nota
   const n=((m.name||'')+' '+(m.note||'')).toLowerCase()
   if(/quadro|qdl|qd |distribui/.test(n)) return {sym:'quadro', label:'QDL', tipo:'Quadro de Distribuição'}
   if(/interruptor.*(intermedi|four)/.test(n)) return {sym:'interruptor_intermediario', label:'S₄', tipo:'Interruptor intermediário'}
@@ -349,7 +364,9 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [rackEquip, setRackEquip] = useState([])   // [{code,name,qty,u}]
   const [execDoc, setExecDoc] = useState(()=> fromProposal?.exec_doc || null)         // versão Completa (HTML)
   const [execDocObra, setExecDocObra] = useState(()=> fromProposal?.exec_doc_obra || null) // versão Obra/Pedreiro (HTML)
-  const [execMode, setExecMode] = useState('completo') // 'completo' | 'obra' — qual está sendo exibida
+  const [execDocEletrica, setExecDocEletrica] = useState(()=> fromProposal?.exec_doc_eletrica || null) // versão Elétrica (HTML)
+  const [execMode, setExecMode] = useState('completo') // 'completo' | 'obra' | 'eletrica'
+  const [showHeatmap, setShowHeatmap] = useState(true)  // mostrar mapa de calor de Wi-Fi na planta elétrica
   const [execData, setExecData] = useState(null)       // dados crus da IA (p/ re-render das 2 versões)
   const [execProgress, setExecProgress] = useState('')
   const [zoom, setZoom] = useState(1)
@@ -973,11 +990,12 @@ Responda APENAS JSON válido:
     setExecData(data)
     const full = buildExecHtml(data,'completo')
     const obra = buildExecHtml(data,'obra')
-    setExecDoc(full); setExecDocObra(obra)
+    const eletrica = buildExecHtml(data,'eletrica')
+    setExecDoc(full); setExecDocObra(obra); setExecDocEletrica(eletrica)
     setStep('exec')
     if(fromProposal?.id){
       import('../db/supabase.js').then(({saveProposal})=>{
-        saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, planta_data:{image:bgImage,markers,cables} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
+        saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, planta_data:{image:bgImage,markers,cables} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
       })
     }
   }
@@ -1058,8 +1076,10 @@ Responda APENAS JSON válido:
       setExecData(data)
       const full=buildExecHtml(data,'completo')
       const obra=buildExecHtml(data,'obra')
+      const eletrica=buildExecHtml(data,'eletrica')
       setExecDoc(full)
       setExecDocObra(obra)
+      setExecDocEletrica(eletrica)
       setStep('exec')
       setExecProgress('')
 
@@ -1067,7 +1087,7 @@ Responda APENAS JSON válido:
       if(fromProposal?.id){
         try{
           const { saveProposal } = await import('../db/supabase.js')
-          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, planta_data:{image:bgImage,markers,cables} }
+          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, planta_data:{image:bgImage,markers,cables} }
           await saveProposal(updated)
         }catch(e){ console.warn('Auto-save falhou:', e.message) }
       }
@@ -1133,7 +1153,58 @@ Responda APENAS JSON válido:
         <h3 class="ex-amb" style="margin-top:18px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}
       </div>`
     }
-    const cliente=projectInfo.client||'Cliente'
+
+    // ── MAPA DE CALOR Wi-Fi — propagação aproximada dos APs (paredes de concreto) ──
+    // Modelo simples: cada AP irradia um gradiente radial. Concreto atenua forte,
+    // então o raio "bom" é curto. Gera mancha verde→amarelo→vermelho + aviso de zonas mortas.
+    function buildHeatmap(numFn){
+      const aps = markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
+      if(!bgImage) return ''
+      // raios em % da largura da planta (aprox.). Concreto: cobertura útil menor.
+      // forte ~ até 14%, médio ~ 22%, fraco ~ 30% do lado da imagem.
+      const R_FORTE=14, R_MEDIO=22, R_FRACO=30
+      const grads = aps.map((m,i)=>`
+        <radialgradient id="ap${i}" cx="${m.x}%" cy="${m.y}%" r="${R_FRACO}%" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#16A34A" stop-opacity="0.55"/>
+          <stop offset="${(R_FORTE/R_FRACO*100).toFixed(0)}%" stop-color="#84CC16" stop-opacity="0.40"/>
+          <stop offset="${(R_MEDIO/R_FRACO*100).toFixed(0)}%" stop-color="#FACC15" stop-opacity="0.30"/>
+          <stop offset="100%" stop-color="#DC2626" stop-opacity="0.16"/>
+        </radialgradient>`).join('')
+      const manchas = aps.map((m,i)=>`<circle cx="${m.x}" cy="${m.y}" r="${R_FRACO}" fill="url(#ap${i})"/>`).join('')
+      const pinos = aps.map((m,i)=>`<g transform="translate(${m.x},${m.y})">
+        <circle r="2.2" fill="#0E7490" stroke="#fff" stroke-width="0.7"/>
+        <text x="0" y="-3.2" font-size="3" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="700" fill="#0E7490">AP${i+1}</text></g>`).join('')
+
+      // detecção simples de "zona morta": cômodos cujo centro está fora do raio médio de todo AP
+      const semCobertura = (rooms||[]).filter(r=>{
+        const rx=r.x||50, ry=r.y||50
+        return !aps.some(a=>{ const dx=a.x-rx, dy=a.y-ry; return Math.sqrt(dx*dx+dy*dy) <= R_MEDIO })
+      }).map(r=>r.name)
+
+      const aviso = aps.length===0
+        ? `<div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;padding:10px 12px;font-size:11.5px;color:#92400E;margin-top:10px">⚠ Nenhum Access Point posicionado na planta. Adicione APs para ver a cobertura Wi-Fi.</div>`
+        : semCobertura.length
+        ? `<div style="background:#FEE2E2;border:1px solid #DC2626;border-radius:8px;padding:10px 12px;font-size:11.5px;color:#991B1B;margin-top:10px"><b>⚠ Possíveis zonas sem cobertura adequada:</b> ${semCobertura.map(esc).join(', ')}. Considere reposicionar ou adicionar um AP.</div>`
+        : `<div style="background:#DCFCE7;border:1px solid #16A34A;border-radius:8px;padding:10px 12px;font-size:11.5px;color:#065F46;margin-top:10px">✓ Todos os cômodos identificados estão dentro do alcance médio de pelo menos um AP.</div>`
+
+      const head = `<div style="background:#0D1420;color:#38BDF8;font-size:11px;font-weight:700;padding:8px 14px;letter-spacing:1px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
+        <span>COBERTURA Wi-Fi — Propagação aproximada</span><span style="color:rgba(255,255,255,0.5);font-size:9px;font-weight:400">${aps.length} AP${aps.length!==1?'s':''} · paredes de concreto</span></div>`
+      const fig = `<div style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
+        <div style="position:relative;width:100%">
+          <img src="${bgImage}" style="width:100%;display:block;filter:grayscale(0.5) brightness(1.05)"/>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%"><defs>${grads}</defs>${manchas}${pinos}</svg>
+        </div></div>`
+      const legenda = `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:10.5px;color:#334155">
+        <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:#16A34A;opacity:.7"></span>Sinal forte</span>
+        <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:#FACC15;opacity:.7"></span>Sinal médio</span>
+        <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:#DC2626;opacity:.7"></span>Sinal fraco / borda</span>
+      </div>`
+      const titulo = numFn ? `<h2><span class="ex-sec-num">${numFn()}</span>Cobertura Wi-Fi (Mapa de Calor)</h2>` : `<h2>Cobertura Wi-Fi (Mapa de Calor)</h2>`
+      return `<div class="ex-sec ex-breakable">${titulo}
+        <p class="ex-p" style="margin-bottom:10px">Estimativa visual do alcance dos Access Points considerando <b>paredes de concreto</b> (alta atenuação). A mancha verde indica sinal forte; amarelo, médio; vermelho, sinal fraco na borda. É uma aproximação — a cobertura real depende de mobiliário, espelhos e interferências.</p>
+        ${head}${fig}${legenda}${aviso}</div>`
+    }
+
     const hoje=new Date().toLocaleDateString('pt-BR')
     const T=(rows,cols)=>`<table class="ex-tbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`
     const esc=s=>(s==null?'':String(s))
@@ -1428,20 +1499,21 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
   </div>
 </div>`
 
+    const _eletr = mode==='eletrica'
     return `<style>${EXEC_CSS}</style>
 <div class="ex-doc">
   <!-- CAPA -->
   <div class="ex-cover">
-    <div class="ex-cover-top">${isObra?'DOCUMENTO DE OBRA · INFRAESTRUTURA':'DOCUMENTO TÉCNICO · PROJETO EXECUTIVO'}</div>
+    <div class="ex-cover-top">${_eletr?'DOCUMENTO TÉCNICO · ELÉTRICA E Wi-Fi':isObra?'DOCUMENTO DE OBRA · INFRAESTRUTURA':'DOCUMENTO TÉCNICO · PROJETO EXECUTIVO'}</div>
     <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:160px;max-width:50%;margin:0 auto 8px;display:block"/>
     <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
-    <div class="ex-cover-title">${isObra?'Projeto de Obra — Cabos e Infraestrutura':'Projeto Executivo de Automação'}</div>
-    <div class="ex-cover-sub">${isObra?'Caminho dos cabos · Metragens · Alturas · Caixas 4×4<br>Guia direto para o eletricista e o pedreiro':'Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto'}</div>
+    <div class="ex-cover-title">${_eletr?'Planta Elétrica e Cobertura Wi-Fi':isObra?'Projeto de Obra — Cabos e Infraestrutura':'Projeto Executivo de Automação'}</div>
+    <div class="ex-cover-sub">${_eletr?'Símbolos ABNT NBR 5444 · Quadro de cargas · Mapa de calor Wi-Fi<br>Pontos elétricos e cobertura aproximada':isObra?'Caminho dos cabos · Metragens · Alturas · Caixas 4×4<br>Guia direto para o eletricista e o pedreiro':'Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto'}</div>
     <div class="ex-cover-client"><div class="ex-cc-name">${esc(cliente)}</div><div class="ex-cc-meta">${hoje} · RARO Home</div></div>
     <div class="ex-cover-foot">RARO Home · contato@rarohome.com.br · (21) 98170-9009</div>
   </div>
 
-  ${(()=>{ if(isObra) return ''; let _n=0
+  ${(()=>{ if(isObra||_eletr) return ''; let _n=0
     const secN2=(title,inner,breakable=false)=> inner ? `<div class="ex-sec${breakable?' ex-breakable':''}"><h2><span class="ex-sec-num">${++_n}</span>${title}</h2>${inner}</div>` : ''
     if(bgImage){
       const dots=markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
@@ -1726,6 +1798,23 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     // planta com caminho dos cabos · tabela origem→destino/metros/tipo ·
     // altura e orientação de cada ponto · eletrodutos e caixas 4×4 por parede.
     // ══════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════════
+    // VERSÃO ELÉTRICA — documento separado: planta elétrica (NBR 5444),
+    // cobertura Wi-Fi (mapa de calor, opcional) e quadro de cargas.
+    // ══════════════════════════════════════════════════════════════════
+    if (mode==='eletrica') {
+      let _ne=0
+      const eleSecs = [
+        `<div class="ex-sec"><h2 style="border:none;margin-bottom:4px">Planta Elétrica e Cobertura Wi-Fi</h2>
+          <p class="ex-p" style="color:#6B7280">Documento técnico de pontos elétricos (símbolos ABNT NBR 5444) e estimativa de cobertura Wi-Fi. As paredes são consideradas de concreto para o cálculo de propagação.</p></div>`,
+        buildPlantaEletrica(()=>++_ne),
+        showHeatmap ? buildHeatmap(()=>++_ne) : '',
+      ].filter(Boolean)
+      const eleBody = eleSecs.join('\n')
+      const semNada = !bgImage || (!markers.some(m=>classifyEle(m)) && !markers.some(m=>/access point|\bap\b|wi-?fi/.test(((m.name||'')+' '+(m.code||'')).toLowerCase())))
+      return eleBody + (semNada?`<div class="ex-sec"><p class="ex-p" style="color:#B45309">Adicione pontos elétricos (tomadas, interruptores, luz, QDL) e/ou Access Points na planta para gerar este documento.</p></div>`:'') + '</div>'
+    }
+
     if (isObra) {
       // 1) Planta com o CAMINHO DOS CABOS desenhado por cima
       let plantaCabos = ''
@@ -1786,7 +1875,6 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         `<div class="ex-sec"><h2 style="border:none;margin-bottom:4px">Projeto de Obra — Guia do Eletricista / Pedreiro</h2>
           <p class="ex-p" style="color:#6B7280">Documento simplificado: só infraestrutura. Caminho dos cabos, metragem, alturas, orientação dos pontos e caixas 4×4 por parede. Sem listas comerciais.</p></div>`,
         plantaCabos,
-        buildPlantaEletrica(()=>++_n),
         secN(`Cabos de Rede — Origem → Destino`, tblRedeObra, true),
         secN(`Cabos de Som — Origem → Destino`, tblSomObra, true),
         secN(`Cabos Elétricos — por Cômodo`, tblEletObra, true),
@@ -1799,7 +1887,6 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
 
     return [
     secN(`Premissas Confirmadas`, list(d.premissas)),
-    buildPlantaEletrica(()=>++_n),
     secN(`Detalhe do RACK / CPD`, hasRack && (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Todos os Cabos de Rede (APs · Câmeras · Keystones · Uplinks)</h3>${rackCableTableHtml}`:'')):'', true),
     secN(`Cabos de Rede — Patch Panel e Etiquetas`, cabosRedeHtml, true),
     secN(`Segurança — Câmeras e Sensores de Alarme`, tblSeguranca, true),
@@ -1825,9 +1912,9 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     const w=window.open('','_blank')
     const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
     const codigo=(fromProposal?.code||'').replace(/[\\/:*?"<>|]/g,'')
-    const sufixo = execMode==='obra' ? ' — OBRA' : ''
+    const sufixo = execMode==='obra' ? ' — OBRA' : execMode==='eletrica' ? ' — ELETRICA' : ''
     const tituloPdf=`Projeto Executivo RARO Home — ${cliNome}${codigo?' — '+codigo:''}${sufixo}`
-    const docHtml = (execMode==='obra'?execDocObra:execDoc)||''
+    const docHtml = (execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execDoc)||''
     w.document.write(`<html><head><title>${tituloPdf}</title><meta charset="utf-8">
       <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
       <style>body{margin:0}${EXEC_CSS}</style></head><body>
@@ -1844,6 +1931,7 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
   async function saveToProposal(docOverride){
     const docToSave = typeof docOverride==='string' ? docOverride : execDoc
     const obraToSave = execDocObra
+    const eletrToSave = execDocEletrica
     const roomMap={}
     markers.forEach(m=>{ const r=m.room||'Geral'; if(!roomMap[r])roomMap[r]=[]; roomMap[r].push(m) })
     const floors=[{name:'Pavimento único', rooms:Object.entries(roomMap).map(([name,items])=>({
@@ -1855,14 +1943,14 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
     if(fromProposal?.id){
       try{
         const { saveProposal } = await import('../db/supabase.js')
-        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, planta_data:{image:bgImage,markers,cables}, exec_api_cost:apiCost }
+        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, planta_data:{image:bgImage,markers,cables}, exec_api_cost:apiCost }
         await saveProposal(updated)
         alert(`✅ Projeto Executivo salvo no orçamento!\n\n💸 Custo de IA na geração: R$ ${apiCost.brl.toFixed(2)} (${apiCost.calls} chamadas)`)
         onClose && onClose()
         return
       }catch(e){ alert('Erro ao salvar: '+e.message); return }
     }
-    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_api_cost:apiCost })
+    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_api_cost:apiCost })
   }
 
   const catGroups={}
@@ -2516,6 +2604,20 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
                   </select>
                   <label style={lbl}>ID único</label>
                   <input value={m.id} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,id:e.target.value}:x))} style={inputDark}/>
+                  <label style={lbl}>Tipo elétrico (planta elétrica)</label>
+                  <select value={m.eleType||'auto'} onChange={e=>{const v=e.target.value; setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,eleType:v==='auto'?undefined:v}:x))}} style={inputDark}>
+                    <option value="auto">Automático (pelo nome)</option>
+                    <option value="tomada_baixa">🔌 Tomada baixa (perto do chão)</option>
+                    <option value="tomada_alta">🔌 Tomada alta (bancada/mesa)</option>
+                    <option value="tomada_piso">🔌 Tomada de piso</option>
+                    <option value="interruptor_simples">💡 Interruptor simples</option>
+                    <option value="interruptor_paralelo">💡 Interruptor paralelo (2 lugares)</option>
+                    <option value="interruptor_intermediario">💡 Interruptor 3+ lugares</option>
+                    <option value="ponto_luz">⭘ Ponto de luz (teto)</option>
+                    <option value="arandela">⭘ Arandela (luz de parede)</option>
+                    <option value="quadro">▦ Quadro de luz (QDL)</option>
+                    <option value="nenhum">— Não é elétrico</option>
+                  </select>
                   <label style={lbl}>Nota (posição/altura)</label>
                   <textarea value={m.note} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,note:e.target.value}:x))} rows={3} style={{...inputDark,resize:'vertical'}}/>
                   <button onClick={()=>{setMarkers(ms=>ms.filter(x=>x.uid!==m.uid).map((x,i)=>({...x,n:i+1})));setSelected(null)}} style={{...btnGhost,width:'100%',marginTop:10,color:'#FCA5A5',borderColor:'rgba(220,38,38,0.4)'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
@@ -2536,27 +2638,41 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         {step==='exec' && (
           <div style={{flex:1,overflowY:'auto',background:'#e8eaed',padding:'20px 0'}}>
             <style>{EXEC_CSS}</style>
-            {/* Seletor de versão do documento (Completo · Obra/Pedreiro) */}
-            <div style={{maxWidth:820,margin:'0 auto 14px',display:'flex',gap:8,alignItems:'center',padding:'0 4px'}}>
+            {/* Seletor de versão do documento (Completo · Obra · Elétrica) */}
+            <div style={{maxWidth:820,margin:'0 auto 14px',display:'flex',gap:8,alignItems:'center',padding:'0 4px',flexWrap:'wrap'}}>
               <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:4}}>Versão do documento:</span>
-              {[['completo','Completo','ti-file-text'],['obra','Obra / Pedreiro','ti-tools']].map(([m,label,icon])=>(
+              {[['completo','Completo','ti-file-text'],['obra','Obra / Pedreiro','ti-tools'],['eletrica','Elétrica','ti-bolt']].map(([m,label,icon])=>{
+                const doc = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:execDoc
+                return (
                 <button key={m} onClick={()=>setExecMode(m)}
-                  style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,fontSize:12.5,fontWeight:execMode===m?700:500,cursor:'pointer',
+                  style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,fontSize:12.5,fontWeight:execMode===m?700:500,cursor:'pointer',opacity:doc?1:0.55,
                     border:`1.5px solid ${execMode===m?'#7C3AED':'#CBD5E1'}`,background:execMode===m?'#7C3AED':'#fff',color:execMode===m?'#fff':'#475569'}}>
                   <i className={`ti ${icon}`} aria-hidden/>{label}
                 </button>
-              ))}
+              )})}
               <div style={{flex:1}}/>
-              <span style={{fontSize:11,color:'#94A3B8'}}>{execMode==='obra'?'Só infraestrutura: cabos, alturas, caixas 4×4':'Documento técnico completo'}</span>
+              {/* Toggle do mapa de calor — só na versão elétrica */}
+              {execMode==='eletrica' && <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569',cursor:'pointer',userSelect:'none'}}>
+                <input type="checkbox" checked={showHeatmap} onChange={e=>{
+                  const v=e.target.checked; setShowHeatmap(v)
+                  // regera a elétrica com/sem o mapa de calor (sem IA)
+                  const data = execData || buildExecDataFromMarkers()
+                  setTimeout(()=>{ const eletrica=buildExecHtml(data,'eletrica'); setExecDocEletrica(eletrica) },0)
+                }}/>
+                Mostrar mapa de calor Wi-Fi
+              </label>}
             </div>
             <div style={{maxWidth:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)'}}>
-              {(execMode==='obra'?execDocObra:execDoc)
-                ? <div dangerouslySetInnerHTML={{__html:(execMode==='obra'?execDocObra:execDoc)}}/>
+              {(()=>{ const cur = execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execDoc
+                const nome = execMode==='obra'?'Obra / Pedreiro':execMode==='eletrica'?'Elétrica':'Completa'
+                return cur
+                ? <div dangerouslySetInnerHTML={{__html:cur}}/>
                 : <div style={{padding:'48px 32px',textAlign:'center',color:'#64748B'}}>
                     <i className="ti ti-file-off" style={{fontSize:32,color:'#CBD5E1'}} aria-hidden/>
-                    <p style={{margin:'12px 0 4px',fontSize:14,fontWeight:600,color:'#475569'}}>Versão {execMode==='obra'?'Obra / Pedreiro':'Completa'} ainda não gerada</p>
-                    <p style={{margin:0,fontSize:12.5}}>Este projeto foi salvo antes desta versão existir. Clique em <b>Regerar (IA)</b> no editor para criar as duas versões.</p>
-                  </div>}
+                    <p style={{margin:'12px 0 4px',fontSize:14,fontWeight:600,color:'#475569'}}>Versão {nome} ainda não gerada</p>
+                    <p style={{margin:0,fontSize:12.5}}>Este projeto foi salvo antes desta versão existir. Clique em <b>Gerar sem IA</b> ou <b>Regerar com IA</b> no editor para criar as três versões.</p>
+                  </div>
+              })()}
             </div>
           </div>
         )}
