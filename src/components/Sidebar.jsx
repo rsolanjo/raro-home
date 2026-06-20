@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v117 — Planta Eletrica vira DOCUMENTO SEPARADO (3 versoes: Completo / Obra / Eletrica); dropdown simples de tipo eletrico no marcador (tomada baixa/alta/piso, interruptor simples/paralelo/3+, ponto de luz, arandela, QDL); mapa de calor Wi-Fi (mancha degrade) considerando paredes de concreto, com toggle mostrar/ocultar e aviso de zonas mortas; sai no PDF conforme o toggle
+// v118 — "Gerar sem IA" com try/catch que mostra erro (nao falha silencioso); botoes "Regerar sem IA" tambem na tela de documentos; PDF indica a versao atual; fluxo de geracao manual revisado e testado isoladamente (completo/obra/eletrica)
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v117 · build 2026-06
+          v118 · build 2026-06
         </div>
       </div>
     </div>

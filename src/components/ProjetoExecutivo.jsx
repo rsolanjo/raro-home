@@ -986,17 +986,23 @@ Responda APENAS JSON válido:
   // Gera o documento SEM chamar a IA (na mão)
   function generateExecManual(){
     if(!markers.length){ alert('Posicione ao menos um item na planta antes de gerar.'); return }
-    const data = buildExecDataFromMarkers()
-    setExecData(data)
-    const full = buildExecHtml(data,'completo')
-    const obra = buildExecHtml(data,'obra')
-    const eletrica = buildExecHtml(data,'eletrica')
-    setExecDoc(full); setExecDocObra(obra); setExecDocEletrica(eletrica)
-    setStep('exec')
-    if(fromProposal?.id){
-      import('../db/supabase.js').then(({saveProposal})=>{
-        saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, planta_data:{image:bgImage,markers,cables} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
-      })
+    try {
+      const data = buildExecDataFromMarkers()
+      setExecData(data)
+      const full = buildExecHtml(data,'completo')
+      const obra = buildExecHtml(data,'obra')
+      const eletrica = buildExecHtml(data,'eletrica')
+      setExecDoc(full); setExecDocObra(obra); setExecDocEletrica(eletrica)
+      setExecMode('completo')
+      setStep('exec')
+      if(fromProposal?.id){
+        import('../db/supabase.js').then(({saveProposal})=>{
+          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, planta_data:{image:bgImage,markers,cables} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
+        })
+      }
+    } catch(err){
+      console.error('generateExecManual error:', err)
+      alert('Não consegui gerar o documento sem IA: '+(err?.message||err)+'\n\nVerifique se os pontos têm cômodo definido e tente de novo.')
     }
   }
 
@@ -2731,9 +2737,13 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
         </div>
       )}
       {step==='exec' && (
-        <div style={{background:'#060B1A',padding:'12px 16px',display:'flex',gap:10,justifyContent:'flex-end',flexShrink:0}}>
+        <div style={{background:'#060B1A',padding:'12px 16px',display:'flex',gap:10,justifyContent:'flex-end',flexShrink:0,alignItems:'center',flexWrap:'wrap'}}>
           <button onClick={()=>setStep('editor')} style={btnGhost}><i className="ti ti-arrow-left" aria-hidden/> Editor</button>
-          <button onClick={exportPdfAndSave} style={btnPrimary}><i className="ti ti-file-download" aria-hidden/> Gerar PDF e salvar em Orçamento</button>
+          <div style={{flex:1}}/>
+          <button onClick={generateExecManual} disabled={loading} style={{...btnGhost,borderColor:'rgba(148,163,184,0.5)',color:'#CBD5E1',gap:6}} title="Regera os 3 documentos a partir dos pontos, sem IA">
+            <i className="ti ti-refresh" aria-hidden/> Regerar sem IA
+          </button>
+          <button onClick={exportPdfAndSave} style={btnPrimary}><i className="ti ti-file-download" aria-hidden/> Baixar PDF ({execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':'Completo'}) e salvar</button>
         </div>
       )}
       <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes progslide{0%{margin-left:-40%}100%{margin-left:100%}}`}</style>
