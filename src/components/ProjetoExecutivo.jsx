@@ -654,11 +654,19 @@ Responda APENAS JSON válido:
   // Importa os itens da proposta e adiciona aos cômodos da planta atual
   function importarDaProposta(){
     const novos = markersFromProposal((markers.length||0)+1)
-    if(!novos.length){ alert('A proposta não tem itens para importar (ou só tem itens de rack).'); return }
-    if(markers.length && !window.confirm(`Adicionar ${novos.length} itens da proposta aos ${markers.length} já existentes na planta?`)) return
+    // tenta trazer a planta (imagem) da proposta, se ainda não houver uma carregada
+    let plantaImg = null
+    if(!bgImage){
+      const pd = initPlanta || (()=>{ let x=fromProposal?.planta_data; if(typeof x==='string'){try{x=JSON.parse(x)}catch{x=null}} return x })()
+      const pc = initPlantaCliente || (()=>{ let x=fromProposal?.planta_cliente; if(typeof x==='string'){try{x=JSON.parse(x)}catch{x=null}} return x })()
+      plantaImg = pd?.image || pc?.image || null
+    }
+    if(!novos.length && !plantaImg){ alert('A proposta não tem itens nem planta para importar.'); return }
+    if((markers.length||plantaImg) && !window.confirm(`Importar da proposta?\n\n${novos.length?`• ${novos.length} itens serão adicionados aos cômodos\n`:''}${plantaImg?'• a planta da proposta será carregada\n':''}`)) return
     pushHistory()
-    setMarkers(ms=>[...ms, ...novos])
-    if(step!=='editor' && (bgImage||initPlanta?.image)) setStep('editor')
+    if(plantaImg) setBgImage(plantaImg)
+    if(novos.length) setMarkers(ms=>[...ms, ...novos])
+    if(step!=='editor' && (bgImage||plantaImg||initPlanta?.image)) setStep('editor')
   }
   // voltar uma etapa do fluxo
   const STEP_ORDER = ['upload','rooms','chat','editor','exec']

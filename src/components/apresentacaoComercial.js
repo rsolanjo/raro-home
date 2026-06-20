@@ -427,6 +427,7 @@ function baixarHTML(){
 // Renderiza EXATAMENTE os floors recebidos (sem filtro interno) → fiel à proposta.
 // ════════════════════════════════════════════════════════════════════
 import { LOGO_COVER as _LOGO_V2 } from '../logos.js'
+import { inferCategory as _inferCat } from '../taxonomy.js'
 
 const CAT_COLORS_V2 = {
   'Automação':'#059669','Sonorização':'#BE185D','Som':'#BE185D',
@@ -445,7 +446,12 @@ export function buildApresentacaoV2({ clientName, neighborhood, code, floors, ex
   const eq = {}, qty = {}
   ;(floors||[]).forEach(fl => (fl.rooms||[]).forEach(r => (r.items||[]).forEach(it => {
     if(!it.name) return
-    const cat = normV2(it.category || 'Outros')
+    // se a categoria estiver vazia/Outros, infere pelo nome (igual à proposta) — evita "Outros" fantasma
+    let rawCat = (it.category||'').trim()
+    if(!rawCat || rawCat==='Outros' || rawCat==='Sem categoria'){
+      try { rawCat = _inferCat(it.name, rawCat)?.cat || rawCat } catch(_){}
+    }
+    const cat = normV2(rawCat || 'Outros')
     const q = parseInt(it.qty)||1
     eq[cat] = (eq[cat]||0) + (it.sale_price||0)*q
     qty[cat] = (qty[cat]||0) + q
@@ -515,7 +521,7 @@ export function buildApresentacaoV2({ clientName, neighborhood, code, floors, ex
 
   const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>O Seu Investimento — ${clientName||''}</title>
+<title>Seu Investimento — ${clientName||''}</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
@@ -596,7 +602,7 @@ td.sub{font-weight:800;font-size:1rem}
   <div class="hdr">
     <img src="${_LOGO_V2}" alt="RARO HOME"/>
     <div>
-      <h1>O Seu Investimento</h1>
+      <h1>Seu Investimento</h1>
       <p>Transparência total. Veja abaixo o valor do projeto executivo e uma estimativa de investimento por categoria para preparar a sua casa.</p>
     </div>
   </div>

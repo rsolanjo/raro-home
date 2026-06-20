@@ -897,10 +897,20 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
       grand_total: floorsOut.reduce((s,f)=>s+f.rooms.reduce((rs,r)=>rs+(r.price||0),0),0) + parse(laborValue!=null?laborValue:laborTotal),
     }
     // compara conteúdo relevante com a última versão — não duplica versão idêntica
+    // assinatura canônica: independe da ordem das chaves dos objetos
+    const sigOf = s => {
+      const items = []
+      ;(s.floors||[]).forEach(f=>(f.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{
+        items.push(`${(it.code||'').trim()}|${(it.name||'').trim()}|${parseInt(it.qty)||1}|${it.sale_price||0}|${(it.category||'').trim()}|${(r.name||'').trim()}`)
+      })))
+      items.sort()
+      const labor = Number(s.labor)||0
+      const lc = Object.entries(s.labor_by_cat||{}).map(([k,v])=>`${k}:${parse(v)}`).sort().join(',')
+      return JSON.stringify({items, labor, lc})
+    }
     const sameAsLast = (()=>{
       const last = prevVersions[0]; if(!last) return false
-      const sig = s => JSON.stringify({f:s.floors, l:s.labor, lc:s.labor_by_cat, g:s.grand_total})
-      return sig(last) === sig(snapshot)
+      return sigOf(last) === sigOf(snapshot)
     })()
     const versions = sameAsLast ? prevVersions : [snapshot, ...prevVersions].slice(0,3)
     return{
@@ -2130,7 +2140,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
             <div className="flabel" style={{marginBottom:8}}>Modelo do documento</div>
             <div style={{display:'flex',gap:8}}>
-              {[['v2','O Seu Investimento','Novo — por categoria, com planta e legenda'],['v1','Institucional','Apresentação completa em 2 páginas']].map(([v,t,d])=>(
+              {[['v2','Compacto','Seu Investimento — por categoria, com planta e legenda'],['v1','Completo','Apresentação institucional em 2 páginas']].map(([v,t,d])=>(
                 <button key={v} type="button" onClick={()=>setApresLayout(v)}
                   style={{flex:1,textAlign:'left',padding:'10px 12px',borderRadius:8,cursor:'pointer',border:`1.5px solid ${apresLayout===v?'var(--accent)':'var(--border)'}`,background:apresLayout===v?'rgba(14,165,233,0.08)':'var(--surf)'}}>
                   <div style={{fontSize:12.5,fontWeight:apresLayout===v?700:500,color:apresLayout===v?'var(--accent)':'var(--text)'}}>{t}</div>
