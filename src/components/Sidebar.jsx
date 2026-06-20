@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v120 — Todas as tabelas dos documentos (Completo/Obra/Eletrica) ganham coluna "Nº" com o numero do pino da planta, para cruzar tabela <-> planta; simbolos da planta eletrica tambem mostram o numero do ponto
+// v121 — Atalhos eletricos no editor: adicionar Tomada baixa/media/alta/piso, Interruptor, Ponto de luz, Arandela, QDL ja com altura e tipo eletrico definidos; cabos ganham tipos Som e Eletrica (alem de dados/ap/camera/uplink/hdmi) com ESPECIFICACAO tecnica (CAT6, 2x1,5mm², 3x2,5mm² F+N+T) na legenda e nova tabela "Cabos Desenhados por Tipo" no doc de Obra
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v120 · build 2026-06
+          v121 · build 2026-06
         </div>
       </div>
     </div>

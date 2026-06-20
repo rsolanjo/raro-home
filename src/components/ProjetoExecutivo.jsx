@@ -689,7 +689,8 @@ Responda APENAS JSON válido:
     setMarkers(ms=>{
       const newId = genItemId('', sub, ms)
       return [...ms,{uid:Date.now(),n:ms.length+1,id:newId,code:addItem.code,name:addItem.name,
-        room:'',x,y,note:'',cost:addItem.cost_price||0,sale:addItem.sale_price||0,category:cat,subcategory:sub||''}]
+        room:'',x,y,note:addItem.note||'',cost:addItem.cost_price||0,sale:addItem.sale_price||0,category:cat,subcategory:sub||'',
+        ...(addItem.eleType?{eleType:addItem.eleType}:{})}]
     })
     setAddMode(false); setAddItem(null)
   }
@@ -794,15 +795,28 @@ Responda APENAS JSON válido:
 
   // ── Roteamento de cabos ──
   // Legenda de cores dos cabos (segue o padrão da planta)
-  const CABLE_PALETTE = { dados:'#2563EB', ap:'#F59E0B', camera:'#92400E', uplink:'#DC2626', hdmi:'#7C3AED' }
-  const CABLE_LABELS  = { dados:'Dados', ap:'AP / Access Point', camera:'Câmera', uplink:'Uplink', hdmi:'HDMI' }
+  const CABLE_PALETTE = { dados:'#2563EB', ap:'#F59E0B', camera:'#92400E', uplink:'#DC2626', hdmi:'#7C3AED', som:'#BE185D', eletrica:'#16A34A' }
+  const CABLE_LABELS  = { dados:'Dados', ap:'AP / Access Point', camera:'Câmera', uplink:'Uplink', hdmi:'HDMI', som:'Som', eletrica:'Elétrica' }
+  // especificação técnica de cada tipo de cabo (vai nas tabelas e na legenda)
+  const CABLE_SPEC = {
+    dados:    { spec:'CAT6 U/UTP', uso:'Dados / rede', conector:'RJ45 / Keystone' },
+    ap:       { spec:'CAT6 U/UTP (PoE)', uso:'Access Point', conector:'RJ45 PoE' },
+    camera:   { spec:'CAT6 U/UTP (PoE)', uso:'Câmera IP', conector:'RJ45 PoE' },
+    uplink:   { spec:'CAT6 / Fibra', uso:'Uplink / WAN', conector:'RJ45 / SFP' },
+    hdmi:     { spec:'HDMI 2.0 / HDBaseT', uso:'Vídeo / TV', conector:'HDMI' },
+    som:      { spec:'2×1,5mm² (paralelo)', uso:'Áudio / caixas', conector:'Borne / banana' },
+    eletrica: { spec:'3×2,5mm² (F+N+T)', uso:'Energia / 110-220V', conector:'Direto / caixa 4×4' },
+  }
   const mk = uid => markers.find(m=>m.uid===uid)
   // adivinha o tipo de cabo pela natureza dos itens conectados
   function guessCableType(from, to){
     const n=(from?.name+' '+to?.name).toLowerCase()
     if(/uplink|gateway|dream machine|provedor|ont|modem/.test(n)) return 'uplink'
     if(/c[âa]mera|dome|bullet|nvr/.test(n)) return 'camera'
-    if(/access point|ap |wi-?fi|u6/.test(n)) return 'ap'
+    if(/access point|\bap\b|wi-?fi|u6/.test(n)) return 'ap'
+    if(/som|caixa ac[uú]stica|caixa de som|amplificador|receiver|subwoofer|sub /.test(n)) return 'som'
+    if(/tv|hdmi|tel[aã]o|projetor|matriz de v[ií]deo/.test(n)) return 'hdmi'
+    if(/keypad|interruptor|tomada|m[óo]dulo|cortina|hub ir|quadro|qdl/.test(n)) return 'eletrica'
     return 'dados'
   }
   function onCableItemClick(uid){
@@ -1895,10 +1909,24 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         return `<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T(linhas.map(l=>`<tr>${pinCell(l.ponto,l.equip)}<td><b>${esc(l.ponto)}</b></td><td>${esc(l.parede)}</td><td>${esc(l.caixa)}</td><td style="font-weight:700">${esc(l.alt)}</td><td style="font-size:10px">${esc(l.cabo||'')}</td></tr>`).join(''),['Nº','Ponto','Parede','Caixa','Altura','Eletroduto/Cabo'])}`
       }).filter(Boolean).join('')
       const eletrodutoNotas = (d.checklist_obra||[]).filter(x=>/eletroduto|caixa 4|4×4|4x4|sangria|passagem|fio-guia/i.test(x))
+      // tabela dos cabos efetivamente desenhados na planta, agrupados por tipo + especificação
+      const tblCabosDesenhados = (cables||[]).length ? (()=>{
+        const byType={}
+        ;(cables||[]).forEach(c=>{ const t=c.type||'dados'; (byType[t]=byType[t]||[]).push(c) })
+        return Object.entries(byType).map(([t,arr])=>{
+          const col=CABLE_PALETTE[t]||'#374151', lb=CABLE_LABELS[t]||t, sp=CABLE_SPEC[t]||{spec:'—',conector:'—'}
+          const rows = arr.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid)
+            return `<tr>${pinCell(to?.id,to?.code,to?.n)}<td>${f?`<b>#${f.n}</b> ${esc(f.name)}`:'—'}</td><td>${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td><td style="font-size:10px">${esc(to?.room||'—')}</td></tr>` }).join('')
+          return `<div style="font-size:10px;font-weight:700;color:${col};text-transform:uppercase;letter-spacing:.5px;padding:8px 0 3px;border-bottom:2px solid ${col};margin:14px 0 6px">
+            ${lb} — ${arr.length} cabo${arr.length!==1?'s':''} · <span style="font-weight:500;text-transform:none">${sp.spec} · ${sp.conector}</span></div>
+            ${T(rows,['Nº destino','Origem','Destino','Cômodo'])}`
+        }).join('')
+      })() : ''
       const obraSections = [
         `<div class="ex-sec"><h2 style="border:none;margin-bottom:4px">Projeto de Obra — Guia do Eletricista / Pedreiro</h2>
           <p class="ex-p" style="color:#6B7280">Documento simplificado: só infraestrutura. Caminho dos cabos, metragem, alturas, orientação dos pontos e caixas 4×4 por parede. Sem listas comerciais.</p></div>`,
         plantaCabos,
+        secN(`Cabos Desenhados — por Tipo e Especificação`, tblCabosDesenhados, true),
         secN(`Cabos de Rede — Origem → Destino`, tblRedeObra, true),
         secN(`Cabos de Som — Origem → Destino`, tblSomObra, true),
         secN(`Cabos Elétricos — por Cômodo`, tblEletObra, true),
@@ -2348,6 +2376,33 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
               {/* ── CATÁLOGO (sempre visível, rolável) ── */}
               <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+                {/* Atalhos elétricos — adicionar tomada/interruptor/luz com altura já definida */}
+                <div style={{padding:'8px 10px',background:'#0a1020',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
+                  <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:.5,fontWeight:700,marginBottom:5}}>⚡ Atalhos elétricos (com altura)</div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                    {[
+                      {label:'Tomada baixa',sub:'0,30m',eleType:'tomada_baixa',name:'Tomada baixa',note:'H=0,30m'},
+                      {label:'Tomada média',sub:'1,30m',eleType:'tomada_alta',name:'Tomada média',note:'H=1,30m (bancada)'},
+                      {label:'Tomada alta',sub:'2,00m',eleType:'tomada_alta',name:'Tomada alta',note:'H=2,00m'},
+                      {label:'Tomada piso',sub:'piso',eleType:'tomada_piso',name:'Tomada de piso',note:'caixa de piso'},
+                      {label:'Interruptor',sub:'1,10m',eleType:'interruptor_simples',name:'Interruptor simples',note:'H=1,10m'},
+                      {label:'Interr. paralelo',sub:'1,10m',eleType:'interruptor_paralelo',name:'Interruptor paralelo',note:'H=1,10m'},
+                      {label:'Ponto de luz',sub:'teto',eleType:'ponto_luz',name:'Ponto de luz',note:'teto'},
+                      {label:'Arandela',sub:'parede',eleType:'arandela',name:'Arandela',note:'H=2,20m'},
+                      {label:'Quadro QDL',sub:'1,50m',eleType:'quadro',name:'Quadro de luz QDL',note:'H=1,50m'},
+                    ].map(b=>{
+                      const active = addMode && addItem?.eleType===b.eleType && addItem?.name===b.name
+                      return <button key={b.label} onClick={()=>{ setAddItem({code:'',name:b.name,note:b.note,eleType:b.eleType,category:'Automação'}); setAddMode(true) }}
+                        style={{fontSize:10,padding:'4px 8px',borderRadius:8,cursor:'pointer',
+                          border:`1px solid ${active?'#0EA5E9':'rgba(255,255,255,0.15)'}`,
+                          background:active?'rgba(14,165,233,0.25)':'rgba(255,255,255,0.05)',color:active?'#fff':'rgba(255,255,255,0.8)',
+                          display:'inline-flex',flexDirection:'column',alignItems:'flex-start',lineHeight:1.2,gap:1}}>
+                        <span style={{fontWeight:600}}>{b.label}</span>
+                        <span style={{fontSize:8,color:active?'rgba(255,255,255,0.7)':'rgba(255,255,255,0.4)'}}>{b.sub}</span>
+                      </button>
+                    })}
+                  </div>
+                </div>
                 {/* Busca + filtros de categoria — sticky */}
                 <div style={{padding:'8px 10px',background:'#0a1020',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
                   <input value={catSearch} onChange={e=>setCatSearch(e.target.value)} placeholder="Buscar no catálogo..."
@@ -2520,11 +2575,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   return <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid rgba(255,255,255,0.15)'}}>
                     <div style={{marginBottom:5}}>Cabo: <b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b></div>
                     <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap'}}>
-                      {[['dados','Dados','#2563EB'],['ap','AP / Access Point','#F59E0B'],['camera','Câmera','#92400E'],['uplink','Uplink','#DC2626'],['hdmi','HDMI','#7C3AED']].map(([t,lb,col])=>(
+                      {[['dados','Dados','#2563EB'],['ap','AP','#F59E0B'],['camera','Câmera','#92400E'],['uplink','Uplink','#DC2626'],['hdmi','HDMI','#7C3AED'],['som','Som','#BE185D'],['eletrica','Elétrica','#16A34A']].map(([t,lb,col])=>(
                         <button key={t} onClick={()=>setCableColor(c.id,t)} style={{fontSize:10,padding:'3px 8px',borderRadius:10,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.2)'}`,background:c.type===t?col+'33':'transparent',color:c.type===t?'#fff':'rgba(255,255,255,0.6)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:col}}/>{lb}</button>
                       ))}
                       <button onClick={()=>deleteCable(c.id)} style={{fontSize:10,padding:'3px 8px',borderRadius:10,border:'1px solid #DC2626',background:'transparent',color:'#FCA5A5',cursor:'pointer',marginLeft:'auto'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
                     </div>
+                    {CABLE_SPEC[c.type] && <div style={{fontSize:10,color:'rgba(255,255,255,0.6)',marginTop:6,background:'rgba(255,255,255,0.05)',borderRadius:5,padding:'4px 8px'}}>
+                      <b style={{color:CABLE_PALETTE[c.type]}}>{CABLE_LABELS[c.type]}</b> · {CABLE_SPEC[c.type].spec} · {CABLE_SPEC[c.type].conector}
+                    </div>}
                     <div style={{fontSize:9.5,color:'rgba(255,255,255,0.45)',marginTop:5}}>Arraste os pontos brancos para curvar. Clique no quadradinho do meio de um trecho para criar uma dobra (90°). Duplo-clique num ponto remove.</div>
                   </div>
                 })()}
