@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v114 — Executivo: RACK so aparece se houver marcador de rack na planta (nada "do nada"); itens do rack puxados do que voce configurou; nova versao OBRA/PEDREIRO selecionavel (planta com caminho dos cabos + tabelas origem->destino/metros/tipo + altura/orientacao dos pontos + caixas 4x4/eletrodutos), salva junto com a Completa (exec_doc_obra)
+// v115 — Executivo restaura tudo ao reabrir (cerebro): planta + marcadores + cabos JA voltavam; agora o DOCUMENTO salvo (Completo + Obra) tambem volta, sem chamar IA. Botao "Ver documento salvo" e "Regerar (IA)" explicito; aviso quando uma versao foi salva antes de existir
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v114 · build 2026-06
+          v115 · build 2026-06
         </div>
       </div>
     </div>

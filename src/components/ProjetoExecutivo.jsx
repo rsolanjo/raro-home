@@ -306,8 +306,8 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [filterItem, setFilterItem] = useState('')            // filtra mapa por nome de item (resumo)
   const [showRackModal, setShowRackModal] = useState(false)
   const [rackEquip, setRackEquip] = useState([])   // [{code,name,qty,u}]
-  const [execDoc, setExecDoc] = useState(null)         // versão Completa (HTML)
-  const [execDocObra, setExecDocObra] = useState(null) // versão Obra/Pedreiro (HTML)
+  const [execDoc, setExecDoc] = useState(()=> fromProposal?.exec_doc || null)         // versão Completa (HTML)
+  const [execDocObra, setExecDocObra] = useState(()=> fromProposal?.exec_doc_obra || null) // versão Obra/Pedreiro (HTML)
   const [execMode, setExecMode] = useState('completo') // 'completo' | 'obra' — qual está sendo exibida
   const [execData, setExecData] = useState(null)       // dados crus da IA (p/ re-render das 2 versões)
   const [execProgress, setExecProgress] = useState('')
@@ -2323,7 +2323,15 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
               <div style={{flex:1}}/>
               <span style={{fontSize:11,color:'#94A3B8'}}>{execMode==='obra'?'Só infraestrutura: cabos, alturas, caixas 4×4':'Documento técnico completo'}</span>
             </div>
-            <div style={{maxWidth:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)'}} dangerouslySetInnerHTML={{__html:(execMode==='obra'?execDocObra:execDoc)||''}}/>
+            <div style={{maxWidth:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)'}}>
+              {(execMode==='obra'?execDocObra:execDoc)
+                ? <div dangerouslySetInnerHTML={{__html:(execMode==='obra'?execDocObra:execDoc)}}/>
+                : <div style={{padding:'48px 32px',textAlign:'center',color:'#64748B'}}>
+                    <i className="ti ti-file-off" style={{fontSize:32,color:'#CBD5E1'}} aria-hidden/>
+                    <p style={{margin:'12px 0 4px',fontSize:14,fontWeight:600,color:'#475569'}}>Versão {execMode==='obra'?'Obra / Pedreiro':'Completa'} ainda não gerada</p>
+                    <p style={{margin:0,fontSize:12.5}}>Este projeto foi salvo antes desta versão existir. Clique em <b>Regerar (IA)</b> no editor para criar as duas versões.</p>
+                  </div>}
+            </div>
           </div>
         )}
       </div>
@@ -2369,8 +2377,11 @@ ${T((comodo.itens||[]).map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.equip
           }} disabled={loading} style={{...btnGhost,borderColor:'rgba(56,189,248,0.4)',color:'#38BDF8',gap:6}}>
             <i className="ti ti-device-floppy" aria-hidden/> Salvar projeto
           </button>
+          {execDoc && <button onClick={()=>{ setExecMode('completo'); setStep('exec') }} disabled={loading} style={{...btnGhost,borderColor:'rgba(110,231,183,0.5)',color:'#6EE7B7',gap:6}} title="Abrir o documento já gerado, sem chamar a IA de novo">
+            <i className="ti ti-eye" aria-hidden/> Ver documento salvo
+          </button>}
           <button onClick={generateExec} disabled={loading} style={{...btnPrimary,background:'#7C3AED'}}>
-            <i className="ti ti-file-text" aria-hidden/> {loading?(execProgress||'Gerando...'):'Gerar Projeto Executivo'}
+            <i className="ti ti-file-text" aria-hidden/> {loading?(execProgress||'Gerando...'):(execDoc?'Regerar (IA)':'Gerar Projeto Executivo')}
           </button>
         </div>
       )}
