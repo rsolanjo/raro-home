@@ -387,6 +387,10 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [cableDraft, setCableDraft] = useState(null)         // {fromUid, points:[]} enquanto desenha
   const [selCable, setSelCable]     = useState(null)
   const [dragPoint, setDragPoint]   = useState(null)         // {cableId, idx}
+  // ── Conduíte LIVRE (desenho na parede, sem precisar de itens origem/destino) ──
+  const [conduitMode, setConduitMode] = useState(false)      // ativa o modo desenho livre de conduíte
+  const [conduitType, setConduitType] = useState('conduite_dados')  // tipo do conduíte sendo desenhado
+  const [conduitDraft, setConduitDraft] = useState([])       // [{x,y}] pontos clicados enquanto desenha
   // snapshot para undo (chamar ANTES de alterar markers)
   const pushHistory = () => setHistory(h=>[...h.slice(-29), markers])
   // acumulador de custo da API Anthropic durante a geração do executivo
@@ -759,6 +763,13 @@ Responda APENAS JSON válido:
       window.removeEventListener('touchmove',onMove);window.removeEventListener('touchend',onUp)}},[onMove,onUp])
 
   function onCanvasClick(e){
+    // modo conduíte livre: cada clique adiciona um ponto ao caminho do eletroduto
+    if(conduitMode){
+      const r=containerRef.current.getBoundingClientRect()
+      const x=((e.clientX-r.left)/r.width)*100, y=((e.clientY-r.top)/r.height)*100
+      setConduitDraft(prev=>[...prev,{x:+x.toFixed(1),y:+y.toFixed(1)}])
+      return
+    }
     // modo calibração: coleta 2 pontos e pergunta a distância real
     if(calibMode){
       const r=containerRef.current.getBoundingClientRect()
@@ -994,8 +1005,18 @@ Responda APENAS JSON válido:
   }
   function deleteCable(id){ setCables(cs=>cs.filter(c=>c.id!==id)); setSelCable(null) }
   function setCableColor(id,type){ setCables(cs=>cs.map(c=>c.id===id?{...c,type,color:CABLE_PALETTE[type]}:c)) }
+  // finaliza o conduíte livre desenhado (vira um cabo com free:true)
+  function finishConduit(){
+    if(conduitDraft.length>=2){
+      const novo={ id:Date.now(), free:true, type:conduitType, color:CABLE_PALETTE[conduitType], points:conduitDraft.map(p=>({...p})) }
+      pushHistory(); setCables(cs=>[...cs, novo]); setSelCable(novo.id)
+    }
+    setConduitDraft([])
+  }
+  function cancelConduit(){ setConduitDraft([]) }
   // pontos completos do cabo: origem + intermediários + destino (em %)
   function cablePolyPoints(c){
+    if(c.free) return c.points||[]   // conduíte livre: o caminho são os próprios pontos clicados
     const from=mk(c.fromUid), to=mk(c.toUid)
     if(!from||!to) return []
     return [{x:from.x,y:from.y}, ...(c.points||[]), {x:to.x,y:to.y}]
@@ -2847,8 +2868,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <div ref={canvasRef} className="pe-editor-canvas" onMouseDown={onCanvasPanDown} onTouchStart={onCanvasPanDown} onWheel={onCanvasWheel}
               style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'block',padding:20,position:'relative',cursor:canvasPan?'grabbing':(addMode||cableMode?'default':'grab'),touchAction:'none'}}>
               <div style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content',flexWrap:'wrap',justifyContent:'flex-end',maxWidth:'70%'}}>
-                <button onClick={()=>setCableMode(m=>!m)} style={{height:32,borderRadius:6,border:`1px solid ${cableMode?'#F59E0B':'#F59E0B88'}`,background:cableMode?'#F59E0B':'rgba(245,158,11,0.15)',color:cableMode?'#1a1a2e':'#FBBf24',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Traçar cabos da planta elétrica">
+                <button onClick={()=>setCableMode(m=>!m)} style={{height:32,borderRadius:6,border:`1px solid ${cableMode?'#F59E0B':'#F59E0B88'}`,background:cableMode?'#F59E0B':'rgba(245,158,11,0.15)',color:cableMode?'#1a1a2e':'#FBBf24',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Traçar cabos ligando item a item">
                   <i className="ti ti-route" aria-hidden/>{cableMode?'Cabos: ON':'Cabos'}
+                </button>
+                <button onClick={()=>{ setConduitMode(m=>{ const nv=!m; if(nv){setCableMode(false);setAddMode(false);setCalibMode(false)} else {setConduitDraft([])} return nv }) }} style={{height:32,borderRadius:6,border:`1px solid ${conduitMode?'#1E3A8A':'#1E3A8A88'}`,background:conduitMode?'#1E3A8A':'rgba(30,58,138,0.15)',color:conduitMode?'#fff':'#93C5FD',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Desenhar conduíte livre na parede (sem precisar ligar itens)">
+                  <i className="ti ti-vector" aria-hidden/>{conduitMode?'Conduíte: ON':'Conduíte'}
                 </button>
                 <button onClick={()=>{
                   const opc=window.prompt('ESCALA DA PLANTA — escolha:\n\n1 = Calibrar clicando 2 pontos numa parede e digitar os metros\n2 = Digitar a largura total da planta em metros\n\nDigite 1 ou 2:', plantScale?'(já calibrado) 1 ou 2':'1')
@@ -2899,6 +2923,22 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <span style={{color:'#fff',fontSize:11,display:'flex',alignItems:'center',padding:'0 4px'}}>{Math.round(zoom*100)}%</span>
                 <button onClick={()=>setZoom(z=>Math.min(3,z+0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>+</button>
               </div>
+              {conduitMode && <div style={{position:'sticky',top:44,marginLeft:'auto',alignSelf:'flex-start',zIndex:29,background:'rgba(20,20,40,0.96)',border:'1px solid #1E3A8A',borderRadius:8,padding:'8px 11px',maxWidth:260,fontSize:11,color:'#fff'}}>
+                <div style={{color:'#93C5FD',fontWeight:600,marginBottom:4,fontSize:11.5}}><i className="ti ti-vector" aria-hidden/> Conduíte livre</div>
+                <div style={{color:'rgba(255,255,255,0.6)',fontSize:9.5,lineHeight:1.35,marginBottom:6}}>Clique na planta para marcar o caminho do eletroduto (vários pontos). Não precisa ligar itens. Clique <b>Finalizar</b> quando terminar.</div>
+                <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',marginBottom:3}}>Tipo do conduíte:</div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:7}}>
+                  {[['conduite_dados','DADOS','#1E3A8A'],['conduite_eletrica','ELÉTRICA','#EAB308'],['som','SOM','#BE185D']].map(([t,lb,col])=>(
+                    <button key={t} onClick={()=>setConduitType(t)} style={{fontSize:9.5,padding:'3px 8px',borderRadius:9,border:`1px solid ${conduitType===t?col:'rgba(255,255,255,0.2)'}`,background:conduitType===t?col+'44':'transparent',color:conduitType===t?'#fff':'rgba(255,255,255,0.6)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:col}}/>{lb}</button>
+                  ))}
+                </div>
+                <div style={{fontSize:10,color:'#93C5FD',marginBottom:7}}>{conduitDraft.length} ponto(s) marcado(s){conduitDraft.length>=2 && plantScale?` · ~${Math.round((polyLenWidthUnits(conduitDraft)*plantScale)*1.15+1)}m`:''}</div>
+                <div style={{display:'flex',gap:5}}>
+                  <button onClick={finishConduit} disabled={conduitDraft.length<2} style={{flex:1,fontSize:10.5,padding:'5px 8px',borderRadius:6,border:'none',background:conduitDraft.length<2?'rgba(255,255,255,0.1)':'#16A34A',color:conduitDraft.length<2?'rgba(255,255,255,0.3)':'#fff',cursor:conduitDraft.length<2?'default':'pointer',fontWeight:600}}><i className="ti ti-check" aria-hidden/> Finalizar</button>
+                  <button onClick={cancelConduit} style={{fontSize:10.5,padding:'5px 8px',borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.6)',cursor:'pointer'}}>Limpar</button>
+                </div>
+                {conduitDraft.length>0 && <button onClick={()=>setConduitDraft(p=>p.slice(0,-1))} style={{width:'100%',marginTop:5,fontSize:9.5,padding:'3px',borderRadius:5,border:'1px solid rgba(255,255,255,0.15)',background:'transparent',color:'rgba(255,255,255,0.5)',cursor:'pointer'}}>↶ desfazer último ponto</button>}
+              </div>}
               {cableMode && <div style={{position:'sticky',top:44,marginLeft:'auto',alignSelf:'flex-start',zIndex:29,background:'rgba(20,20,40,0.96)',border:'1px solid #F59E0B',borderRadius:8,padding:'7px 10px',maxWidth:selCable?290:230,fontSize:10.5,color:'#fff'}}>
                 <div style={{color:'#FBBf24',fontWeight:600,marginBottom:3,fontSize:11}}><i className="ti ti-route" aria-hidden/> Modo cabos</div>
                 {!cableDraft
@@ -2944,8 +2984,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 {/* ── Camada de CABOS (planta elétrica) ── */}
                 {!hideCables && <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:4,overflow:'visible'}} preserveAspectRatio="none" viewBox="0 0 100 100">
                   {cables.map(c=>{
-                    // oculta o cabo se a categoria de algum dos pontos estiver filtrada (item 7)
-                    if(filterCateg.size>0){
+                    // oculta o cabo se a categoria de algum dos pontos estiver filtrada (item 7) — conduíte livre não tem itens, sempre mostra
+                    if(filterCateg.size>0 && !c.free){
                       const a=mk(c.fromUid), b=mk(c.toUid)
                       const visCat=x=> !x || isRackItem(x.name,x.code) || filterCateg.has(inferCategory(x.name||'').cat||'Outros')
                       if(!visCat(a) || !visCat(b)) return null
@@ -2953,13 +2993,21 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     const pts=cablePolyPoints(c); if(pts.length<2) return null
                     const d=pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')
                     const sel=selCable===c.id
-                    const isCond=CABLE_CONDUITE[c.type]
+                    const isCond=CABLE_CONDUITE[c.type]||c.free
                     return <path key={c.id} d={d} fill="none" stroke={c.color}
                       strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke"
-                      style={{pointerEvents:cableMode?'stroke':'none',cursor:'pointer',filter:sel?'drop-shadow(0 0 2px '+c.color+')':'none',strokeWidth:sel?(isCond?6:3):(isCond?5:2)}}
+                      style={{pointerEvents:(cableMode||conduitMode)?'stroke':'none',cursor:'pointer',filter:sel?'drop-shadow(0 0 2px '+c.color+')':'none',strokeWidth:sel?(isCond?6:3):(isCond?5:2)}}
                       onClick={e=>{e.stopPropagation(); setSelCable(c.id)}}/>
                   })}
+                  {/* preview ao vivo do conduíte livre sendo desenhado */}
+                  {conduitMode && conduitDraft.length>0 && <>
+                    <path d={conduitDraft.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')} fill="none" stroke={CABLE_PALETTE[conduitType]} strokeDasharray="2,1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" style={{strokeWidth:5,opacity:0.85}}/>
+                  </>}
                 </svg>}
+                {/* bolinhas dos pontos do conduíte livre em desenho */}
+                {conduitMode && conduitDraft.map((p,i)=>(
+                  <div key={'cd'+i} style={{position:'absolute',left:`${p.x}%`,top:`${p.y}%`,transform:'translate(-50%,-50%)',width:10,height:10,borderRadius:'50%',background:CABLE_PALETTE[conduitType],border:'2px solid #fff',zIndex:8,pointerEvents:'none',boxShadow:'0 1px 3px rgba(0,0,0,0.5)'}}/>
+                ))}
                 {/* pontos arrastáveis do cabo selecionado + dobra ao clicar no segmento */}
                 {!hideCables && cableMode && cables.filter(c=>c.id===selCable).map(c=>{
                   const pts=cablePolyPoints(c)

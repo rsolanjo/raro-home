@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v134 — (7)Completo agora gera os 3 documentos num PDF unico, separados por CAPA (Executivo + Plano de Obra + Planta Eletrica); (8)novo Relatorio de CONDUITES: uma planta por familia (Dados/Som/Eletrica) + uma com todos os conduites tracados, com tabela de bitola do eletroduto. (continua itens 1-6 da v133)
+// v135 — Conduite LIVRE: novo botao "Conduite" desenha o eletroduto direto na parede clicando pontos na planta, SEM precisar ligar item origem/destino. Escolhe tipo (DADOS/ELETRICA/SOM), preview ao vivo, calcula metragem, e entra no Relatorio de Conduites por familia + visao geral
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v134 · build 2026-06
+          v135 · build 2026-06
         </div>
       </div>
     </div>
