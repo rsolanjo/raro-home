@@ -557,7 +557,7 @@ ${cover}${roomPagesHtml.join('\n')}${totalPage}
 
 
 // ── COMPONENT ──────────────────────────────────────────────
-export default function ProposalBuilder({ clients, onRefresh, onSaved, editProposal, execSeed, onGenerateExec, isAdmin, currentUser }) {
+export default function ProposalBuilder({ clients, onRefresh, onSaved, editProposal, editIntent, execSeed, onGenerateExec, isAdmin, currentUser }) {
   const [catalog, setCatalog] = useState([])
   const [mobilePanel, setMobilePanel] = useState('rooms') // 'rooms' | 'edit' (only affects mobile)
   const [stock,   setStock]   = useState([])
@@ -633,6 +633,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   // Modals
   const [showSaveModal,  setShowSaveModal]  = useState(false)
   const [showApresModal, setShowApresModal] = useState(false)
+  useEffect(()=>{ if(editIntent==='apres'){ const t=setTimeout(()=>setShowApresModal(true),300); return ()=>clearTimeout(t) } }, [editIntent])
   const [showPdfVersionModal, setShowPdfVersionModal] = useState(false)  // escolher versão ao gerar PDF
   const [showLoadVersionModal, setShowLoadVersionModal] = useState(false) // carregar versão antiga p/ edição
   const [apresVersion, setApresVersion] = useState(0)   // índice da versão escolhida (0 = atual/mais recente)

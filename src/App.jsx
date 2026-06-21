@@ -75,7 +75,8 @@ export default function App() {
   function generateExecFromProposal(p){ setExecFromProposal(p); setExecSeed(null); setNovoCtx(null); setPage('exec') }
   function nav(p) { setPage(p); if (p !== 'builder') setEditingProposal(null) }
   function newExec() { setPage('exec') }
-  function editProposal(p) { setEditingProposal(p); setPage('builder') }
+  const [editIntent, setEditIntent] = useState(null)
+  function editProposal(p, intent=null) { setEditingProposal(p); setEditIntent(intent); setPage('builder') }
   function newProposal()   { setEditingProposal(null); setPage('builder') }
 
   async function logout() {
@@ -151,7 +152,7 @@ export default function App() {
         {!loading && <>
           {page==='dashboard'  && <Dashboard proposals={data.proposals} projects={data.projects} stock={data.stock} clients={data.clients} onNav={nav} />}
           {page==='proposals'  && <Proposals proposals={data.proposals} onRefresh={refresh} onEdit={editProposal} onNew={()=>setShowNovo(true)} onGenerateExec={generateExecFromProposal} onNewExec={newExec} currentUser={user} clients={data.clients} catalog={data.catalog} />}
-          {page==='builder'    && <ProposalBuilder key={editingProposal?.id||'novo'} clients={data.clients} onRefresh={refresh} onSaved={(p)=>setEditingProposal(p)} editProposal={editingProposal} execSeed={execSeed} onGenerateExec={generateExecFromProposal} isAdmin={true} currentUser={user} />}
+          {page==='builder'    && <ProposalBuilder key={editingProposal?.id||'novo'} clients={data.clients} onRefresh={refresh} onSaved={(p)=>setEditingProposal(p)} editProposal={editingProposal} editIntent={editIntent} execSeed={execSeed} onGenerateExec={generateExecFromProposal} isAdmin={true} currentUser={user} />}
           {page==='exec'       && <ProjetoExecutivo catalog={data.catalog} clients={data.clients} currentUser={user}
             preClient={novoCtx?.client}
             fromProposal={execFromProposal}
@@ -221,7 +222,7 @@ export default function App() {
             <button className="mmenu-logout" onClick={logout}>
               <i className="ti ti-logout" aria-hidden/> Sair
             </button>
-            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v125 · build 2026-06</div>
+            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v127 · build 2026-06</div>
           </div>
         </div>
       )}

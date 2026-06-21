@@ -510,6 +510,12 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
   const [sendContractProposal, setSendContractProposal] = useState(null)
   const [enviarDoc, setEnviarDoc] = useState(null)
   const [openMenu, setOpenMenu] = useState(null)  // {id, kind, rect, items} — dropdown de ações como overlay fixo
+  const [isMobile, setIsMobile] = useState(()=> typeof window!=='undefined' && window.innerWidth < 760)
+  useEffect(()=>{
+    const onResize=()=>setIsMobile(window.innerWidth < 760)
+    window.addEventListener('resize', onResize)
+    return ()=>window.removeEventListener('resize', onResize)
+  }, [])
   useEffect(()=>{
     if(!openMenu) return
     const close=()=>setOpenMenu(null)
@@ -543,6 +549,54 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
   function fmtTotal(p) {
     const eq = (p.floors||[]).flatMap(f=>f.rooms||[]).reduce((s,r)=>s+(r.price||0),0)
     return eq + (p.labor||0)
+  }
+
+  // Botões de ação (Editar · Docs · Criar · Enviar · Apagar) — reutilizado na tabela (desktop) e nos cards (mobile)
+  function renderActions(p){
+    const cl = clients.find(c=>c.id===Number(p.client_id))
+    const pWithPhones = { ...p,
+      client_phone1: cl?.phone1||'', client_phone2: cl?.phone2||'', itemFontSize: 7,
+      floors: Array.isArray(p.floors) ? p.floors : (typeof p.floors==='string'?JSON.parse(p.floors||'[]'):p.floors||[])
+    }
+    const btn=(extra)=>({fontSize:11,padding:'4px 8px',...extra})
+    const cancelled = p.status==='cancelled'
+    const docItems = [
+      { label:'Proposta', icon:'ti-file-invoice', color:'#1A56DB', onClick:()=>openProposalPDF(pWithPhones,false) },
+      { label:'Proposta — visão admin', icon:'ti-shield', color:'#7C3AED', onClick:()=>openProposalPDF(pWithPhones,true) },
+      { label:'Apresentação comercial', icon:'ti-presentation', color:'#DB2777', hint:'abre no editor para gerar/baixar', onClick:()=>onEdit(p,'apres') },
+      ...(p.exec_doc?[{ label:'Projeto Executivo', icon:'ti-file-text', color:'#0369A1', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc, p.client_name, p.code), `executivo-${safeFileName(p.code||p.id)}.html`) }]:[]),
+      ...(p.exec_doc_obra?[{ label:'Planta de Obra', icon:'ti-tools', color:'#B45309', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc_obra, p.client_name, p.code), `obra-${safeFileName(p.code||p.id)}.html`) }]:[]),
+      ...(p.exec_doc_eletrica?[{ label:'Planta Elétrica', icon:'ti-bolt', color:'#16A34A', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc_eletrica, p.client_name, p.code), `eletrica-${safeFileName(p.code||p.id)}.html`) }]:[]),
+      ...(!cancelled?[{ label:'Contrato (última proposta)', icon:'ti-license', color:'#059669', onClick:()=>setContractProposal(p) }]:[]),
+    ]
+    const criarItems = [
+      { label:'Proposta de venda/instalação', icon:'ti-file-invoice', color:'#1A56DB', onClick:()=>onEdit(p) },
+      { label:'Proposta — visão admin', icon:'ti-shield', color:'#7C3AED', hint:'mesma proposta, com custos', onClick:()=>onEdit(p) },
+      { label:'Apresentação comercial', icon:'ti-presentation', color:'#DB2777', hint:'gerada no editor da proposta', onClick:()=>onEdit(p,'apres') },
+      ...(onGenerateExec&&!cancelled?[
+        { label:'Projeto Executivo', icon:'ti-brain', color:'#0369A1', onClick:()=>onGenerateExec(p) },
+        { label:'Planta de Obra / Pedreiro', icon:'ti-tools', color:'#B45309', hint:'sai junto do executivo', onClick:()=>onGenerateExec(p) },
+        { label:'Planta Elétrica (NBR 5444)', icon:'ti-bolt', color:'#16A34A', hint:'sai junto do executivo', onClick:()=>onGenerateExec(p) },
+      ]:[]),
+      ...(!cancelled?[{ label:'Contrato', icon:'ti-license', color:'#059669', onClick:()=>setContractProposal(p) }]:[]),
+    ]
+    const toggle=(kind,items)=>(e)=>{
+      if(openMenu?.id===p.id && openMenu?.kind===kind){ setOpenMenu(null); return }
+      const r=e.currentTarget.getBoundingClientRect()
+      setOpenMenu({ id:p.id, kind, items, rect:{ left:r.left, right:r.right, bottom:r.bottom, top:r.top } })
+    }
+    return <>
+      <button className="btn" style={btn()} onClick={()=>onEdit(p)} title="Editar orçamento"><i className="ti ti-edit" aria-hidden/></button>
+      <button className="btn" style={btn({borderColor:'#1A56DB',color:'#1A56DB'})} onClick={toggle('doc',docItems)} title="Ver documentos salvos">
+        <i className="ti ti-folder" aria-hidden/> Docs <i className="ti ti-chevron-down" style={{fontSize:10}} aria-hidden/>
+      </button>
+      {!cancelled && <button className="btn" style={btn({borderColor:'#7C3AED',color:'#7C3AED'})} onClick={toggle('criar',criarItems)} title="Criar documentos">
+        <i className="ti ti-plus" aria-hidden/> Criar <i className="ti ti-chevron-down" style={{fontSize:10}} aria-hidden/>
+      </button>}
+      {!cancelled && <button className="btn" style={btn({color:'#16A34A',borderColor:'#16A34A'})} title="Enviar proposta, projeto executivo ou contrato"
+        onClick={()=>setEnviarDoc(p)}><i className="ti ti-send" aria-hidden/></button>}
+      <button className="btn danger" style={btn()} onClick={()=>setChangeReq({proposal:p,newStatus:'__delete__'})} title="Cancelar/Excluir"><i className="ti ti-trash" aria-hidden/></button>
+    </>
   }
 
   const sorted = [...proposals]
@@ -686,7 +740,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
             placeholder="Buscar cliente, ID..." style={{marginLeft:'auto',width:200,padding:'5px 9px',fontSize:12}}/>
         </div>
 
-        <div className="section">
+        {!isMobile && <div className="section">
           <table className="tbl">
             <thead>
               <tr>
@@ -729,54 +783,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
                     </td>
                     <td>
                       <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-                        {(()=>{
-                          const cl = clients.find(c=>c.id===Number(p.client_id))
-                          const pWithPhones = { ...p,
-                            client_phone1: cl?.phone1||'',
-                            client_phone2: cl?.phone2||'',
-                            itemFontSize: 7,
-                            floors: Array.isArray(p.floors) ? p.floors : (typeof p.floors==='string'?JSON.parse(p.floors||'[]'):p.floors||[])
-                          }
-                          const phone1 = cl?.phone1?.replace(/\\D/g,'').replace(/^(?!55)/,'55')
-                          const floors = Array.isArray(pWithPhones.floors) ? pWithPhones.floors : []
-                          const equipTotal = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)
-                          const total = equipTotal + (Number(p.labor)||0)
-                          const totalFmt = total>0?`R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`:'a confirmar'
-                          const msg = encodeURIComponent(`Ola ${cl?.name1||p.client_name}! Segue sua proposta RARO Home: ${p.code||'#'+p.id} - ${totalFmt}. O PDF foi enviado em anexo. Qualquer duvida estou a disposicao! - Rogerio | RARO Home (21) 98170-9009`)
-                          const btn=(extra)=>({fontSize:11,padding:'3px 7px',...extra})
-                          const cancelled = p.status==='cancelled'
-                          // itens do menu Documentação (ver salvos)
-                          const docItems = [
-                            { label:'Proposta', icon:'ti-file-invoice', color:'#1A56DB', onClick:()=>openProposalPDF(pWithPhones,false) },
-                            { label:'Proposta — visão admin', icon:'ti-shield', color:'#7C3AED', onClick:()=>openProposalPDF(pWithPhones,true) },
-                            ...(p.exec_doc?[{ label:'Projeto Executivo', icon:'ti-file-text', color:'#0369A1', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc, p.client_name, p.code), `executivo-${safeFileName(p.code||p.id)}.html`) }]:[]),
-                            ...(p.exec_doc_obra?[{ label:'Projeto de Obra', icon:'ti-tools', color:'#B45309', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc_obra, p.client_name, p.code), `obra-${safeFileName(p.code||p.id)}.html`) }]:[]),
-                            ...(p.exec_doc_eletrica?[{ label:'Planta Elétrica', icon:'ti-bolt', color:'#16A34A', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc_eletrica, p.client_name, p.code), `eletrica-${safeFileName(p.code||p.id)}.html`) }]:[]),
-                            ...(!cancelled?[{ label:'Contrato (última proposta)', icon:'ti-license', color:'#059669', onClick:()=>setContractProposal(p) }]:[]),
-                          ]
-                          const criarItems = [
-                            { label:'Proposta de venda/instalação', icon:'ti-currency-dollar', color:'#16A34A', onClick:()=>onEdit(p) },
-                            ...(onGenerateExec&&!cancelled?[{ label:'Projeto Executivo', icon:'ti-brain', color:'#7C3AED', hint:'planta, obra e elétrica saem juntos', onClick:()=>onGenerateExec(p) }]:[]),
-                            ...(!cancelled?[{ label:'Contrato', icon:'ti-license', color:'#059669', onClick:()=>setContractProposal(p) }]:[]),
-                          ]
-                          const toggle=(kind,items)=>(e)=>{
-                            if(openMenu?.id===p.id && openMenu?.kind===kind){ setOpenMenu(null); return }
-                            const r=e.currentTarget.getBoundingClientRect()
-                            setOpenMenu({ id:p.id, kind, items, rect:{ left:r.left, right:r.right, bottom:r.bottom, top:r.top } })
-                          }
-                          return <>
-                            <button className="btn" style={btn()} onClick={()=>onEdit(p)} title="Editar orçamento"><i className="ti ti-edit" aria-hidden/></button>
-                            <button className="btn" style={btn({borderColor:'#1A56DB',color:'#1A56DB'})} onClick={toggle('doc',docItems)} title="Ver documentos salvos">
-                              <i className="ti ti-folder" aria-hidden/> Docs <i className="ti ti-chevron-down" style={{fontSize:10}} aria-hidden/>
-                            </button>
-                            {!cancelled && <button className="btn" style={btn({borderColor:'#7C3AED',color:'#7C3AED'})} onClick={toggle('criar',criarItems)} title="Criar documentos">
-                              <i className="ti ti-plus" aria-hidden/> Criar <i className="ti ti-chevron-down" style={{fontSize:10}} aria-hidden/>
-                            </button>}
-                            {!cancelled && <button className="btn" style={btn({color:'#16A34A',borderColor:'#16A34A'})} title="Enviar proposta, projeto executivo ou contrato"
-                              onClick={()=>setEnviarDoc(p)}><i className="ti ti-send" aria-hidden/></button>}
-                            <button className="btn danger" style={btn()} onClick={()=>setChangeReq({proposal:p,newStatus:'__delete__'})} title="Cancelar/Excluir"><i className="ti ti-trash" aria-hidden/></button>
-                          </>
-                        })()}
+                        {renderActions(p)}
                       </div>
                     </td>
                   </tr>
@@ -784,7 +791,41 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
               })}
             </tbody>
           </table>
-        </div>
+        </div>}
+
+        {/* ── MOBILE: cards empilhados ── */}
+        {isMobile && <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {sorted.length===0 && <div style={{textAlign:'center',padding:24,color:'var(--text3)',fontSize:13}}>Nenhum orçamento</div>}
+          {sorted.map(p=>{
+            const s = STATUS[p.status]||STATUS.draft
+            const total = fmtTotal(p)
+            const npav=(p.floors||[]).length, ncom=(p.floors||[]).flatMap(f=>f.rooms||[]).length
+            return (
+              <div key={p.id} style={{background:'#fff',border:'1px solid var(--border)',borderRadius:12,padding:14,boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontWeight:600,fontSize:15,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p.client_name}</div>
+                    <div className="mono" style={{fontSize:11,color:'var(--text3)',marginTop:1}}>{p.code||`#${p.id}`} · #{p.id}</div>
+                  </div>
+                  <div style={{textAlign:'right',flexShrink:0}}>
+                    <div style={{color:total>0?'var(--accent)':'var(--text3)',fontWeight:700,fontSize:15}}>{total>0?`R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`:'—'}</div>
+                    <div className="mono" style={{fontSize:10,color:'var(--text3)',marginTop:1}}>{p.created_at ? new Date(p.created_at+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'2-digit'}) : '—'}</div>
+                  </div>
+                </div>
+                <div style={{fontSize:12,color:'var(--text3)',marginTop:6}}>{npav} pav · {ncom} cômodos{p.description?` · ${p.description}`:''}</div>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginTop:10,flexWrap:'wrap'}}>
+                  <select value={p.status} onChange={e=>requestStatusChange(p,e.target.value)}
+                    style={{fontSize:12,padding:'6px 8px',border:'1px solid var(--border)',borderRadius:6,cursor:'pointer',fontFamily:'inherit',flex:'1 1 auto'}}>
+                    {Object.entries(STATUS).map(([v,{label}])=><option key={v} value={v}>{label}</option>)}
+                  </select>
+                </div>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:10,paddingTop:10,borderTop:'1px solid var(--surf2,#eee)'}}>
+                  {renderActions(p)}
+                </div>
+              </div>
+            )
+          })}
+        </div>}
 
         {/* Stock legend */}
         <div style={{background:'var(--surf)',borderRadius:8,padding:'10px 14px',border:'1px solid var(--border)',fontSize:11,color:'var(--text2)'}}>
