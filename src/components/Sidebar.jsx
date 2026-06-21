@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v124 — Acoes do Orcamento reorganizadas: menu "Docs" (ver Proposta/Admin/Executivo/Obra/Eletrica/Contrato) e menu "Criar"; Enviar e Apagar como botoes soltos; contrato puxa valor aprovado da ultima proposta salva. FIX: itens importados da proposta (e da IA) vinham com ID vazio/"?" — agora geram ID unico por comodo+subcategoria
+// v125 — Menus Docs/Criar do Orcamento agora flutuam ACIMA da tabela (overlay fixo ancorado ao botao, nao mais cortado pela tabulacao); responsivo: no celular vira bottom-sheet de tela cheia com itens grandes (safe-area), no desktop/tablet abre ancorado e reposiciona p/ cima se faltar espaco; fecha ao rolar/redimensionar
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v124 · build 2026-06
+          v125 · build 2026-06
         </div>
       </div>
     </div>

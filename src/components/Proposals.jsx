@@ -461,7 +461,7 @@ function ImportarPdfModal({ catalog, currentUser, onDone, onClose }) {
 }
 function Field({label, children}){ return <div><div style={{fontSize:10,color:'var(--text3)',textTransform:'uppercase',marginBottom:3}}>{label}</div>{children}</div> }
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { saveProposal, deleteProposal, cancelProposal, getProposals, auditedSave, saveProject, getProjects, verifyPIN, syncProjectFromProposal } from '../db/supabase.js'
 import { extractPdf, askClaudeJSON, buildProposalFromExtract } from './importPdf.js'
 import { openProposalPDF } from './proposalPDF.js'
@@ -509,7 +509,14 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
   const [contractProposal, setContractProposal] = useState(null)
   const [sendContractProposal, setSendContractProposal] = useState(null)
   const [enviarDoc, setEnviarDoc] = useState(null)
-  const [openMenu, setOpenMenu] = useState(null)  // {id, kind:'doc'|'criar'} — qual dropdown de ações está aberto
+  const [openMenu, setOpenMenu] = useState(null)  // {id, kind, rect, items} — dropdown de ações como overlay fixo
+  useEffect(()=>{
+    if(!openMenu) return
+    const close=()=>setOpenMenu(null)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return ()=>{ window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close) }
+  }, [openMenu])
   const [contractsGenerated, setContractsGenerated] = useState(() => {
     try { return JSON.parse(localStorage.getItem('raro_contracts_generated')||'{}') } catch { return {} }
   })
@@ -737,78 +744,36 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
                           const totalFmt = total>0?`R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`:'a confirmar'
                           const msg = encodeURIComponent(`Ola ${cl?.name1||p.client_name}! Segue sua proposta RARO Home: ${p.code||'#'+p.id} - ${totalFmt}. O PDF foi enviado em anexo. Qualquer duvida estou a disposicao! - Rogerio | RARO Home (21) 98170-9009`)
                           const btn=(extra)=>({fontSize:11,padding:'3px 7px',...extra})
-                          const docMenuOpen = openMenu?.id===p.id && openMenu?.kind==='doc'
-                          const criarMenuOpen = openMenu?.id===p.id && openMenu?.kind==='criar'
                           const cancelled = p.status==='cancelled'
                           // itens do menu Documentação (ver salvos)
                           const docItems = [
-                            { label:'Proposta', icon:'ti-file-invoice', color:'var(--accent)', show:true, onClick:()=>openProposalPDF(pWithPhones,false) },
-                            { label:'Proposta — visão admin', icon:'ti-shield', color:'#7C3AED', show:true, onClick:()=>openProposalPDF(pWithPhones,true) },
-                            { label:'Projeto Executivo', icon:'ti-file-text', color:'#0369A1', show:!!p.exec_doc, onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc, p.client_name, p.code), `executivo-${safeFileName(p.code||p.id)}.html`) },
-                            { label:'Projeto de Obra', icon:'ti-tools', color:'#B45309', show:!!p.exec_doc_obra, onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc_obra, p.client_name, p.code), `obra-${safeFileName(p.code||p.id)}.html`) },
-                            { label:'Planta Elétrica', icon:'ti-bolt', color:'#16A34A', show:!!p.exec_doc_eletrica, onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc_eletrica, p.client_name, p.code), `eletrica-${safeFileName(p.code||p.id)}.html`) },
-                            { label:'Contrato (última proposta)', icon:'ti-license', color:'#059669', show:!cancelled, onClick:()=>setContractProposal(p) },
-                          ].filter(d=>d.show)
-                          // itens do menu Criar
+                            { label:'Proposta', icon:'ti-file-invoice', color:'#1A56DB', onClick:()=>openProposalPDF(pWithPhones,false) },
+                            { label:'Proposta — visão admin', icon:'ti-shield', color:'#7C3AED', onClick:()=>openProposalPDF(pWithPhones,true) },
+                            ...(p.exec_doc?[{ label:'Projeto Executivo', icon:'ti-file-text', color:'#0369A1', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc, p.client_name, p.code), `executivo-${safeFileName(p.code||p.id)}.html`) }]:[]),
+                            ...(p.exec_doc_obra?[{ label:'Projeto de Obra', icon:'ti-tools', color:'#B45309', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc_obra, p.client_name, p.code), `obra-${safeFileName(p.code||p.id)}.html`) }]:[]),
+                            ...(p.exec_doc_eletrica?[{ label:'Planta Elétrica', icon:'ti-bolt', color:'#16A34A', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc_eletrica, p.client_name, p.code), `eletrica-${safeFileName(p.code||p.id)}.html`) }]:[]),
+                            ...(!cancelled?[{ label:'Contrato (última proposta)', icon:'ti-license', color:'#059669', onClick:()=>setContractProposal(p) }]:[]),
+                          ]
                           const criarItems = [
-                            { label:'Proposta de venda/instalação', icon:'ti-currency-dollar', color:'#16A34A', show:true, onClick:()=>onEdit(p) },
-                            { label:'Projeto Executivo (IA ou manual)', icon:'ti-brain', color:'#7C3AED', show:!!onGenerateExec && !cancelled, onClick:()=>onGenerateExec(p) },
-                            { label:'Projeto de Obra / Pedreiro', icon:'ti-tools', color:'#B45309', show:!!onGenerateExec && !cancelled, onClick:()=>onGenerateExec(p), hint:'gerado junto no editor do executivo' },
-                            { label:'Planta Elétrica (NBR 5444)', icon:'ti-bolt', color:'#16A34A', show:!!onGenerateExec && !cancelled, onClick:()=>onGenerateExec(p), hint:'gerada junto no editor do executivo' },
-                            { label:'Contrato', icon:'ti-license', color:'#059669', show:!cancelled, onClick:()=>setContractProposal(p) },
-                          ].filter(d=>d.show)
-                          const menuWrap = { position:'absolute', zIndex:50, top:'100%', left:0, marginTop:4, background:'#fff', border:'1px solid var(--border)', borderRadius:8, boxShadow:'0 6px 24px rgba(0,0,0,0.15)', minWidth:220, padding:4 }
-                          const menuItem = (color)=>({display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px 10px',border:'none',background:'transparent',cursor:'pointer',fontSize:12,color:'var(--text)',borderRadius:6,textAlign:'left',fontFamily:'inherit'})
+                            { label:'Proposta de venda/instalação', icon:'ti-currency-dollar', color:'#16A34A', onClick:()=>onEdit(p) },
+                            ...(onGenerateExec&&!cancelled?[{ label:'Projeto Executivo', icon:'ti-brain', color:'#7C3AED', hint:'planta, obra e elétrica saem juntos', onClick:()=>onGenerateExec(p) }]:[]),
+                            ...(!cancelled?[{ label:'Contrato', icon:'ti-license', color:'#059669', onClick:()=>setContractProposal(p) }]:[]),
+                          ]
+                          const toggle=(kind,items)=>(e)=>{
+                            if(openMenu?.id===p.id && openMenu?.kind===kind){ setOpenMenu(null); return }
+                            const r=e.currentTarget.getBoundingClientRect()
+                            setOpenMenu({ id:p.id, kind, items, rect:{ left:r.left, right:r.right, bottom:r.bottom, top:r.top } })
+                          }
                           return <>
                             <button className="btn" style={btn()} onClick={()=>onEdit(p)} title="Editar orçamento"><i className="ti ti-edit" aria-hidden/></button>
-
-                            {/* DOCUMENTAÇÃO (ver documentos salvos) */}
-                            <div style={{position:'relative',display:'inline-block'}}>
-                              <button className="btn" style={btn({borderColor:'var(--accent)',color:'var(--accent)'})}
-                                onClick={()=>setOpenMenu(docMenuOpen?null:{id:p.id,kind:'doc'})} title="Ver documentos salvos">
-                                <i className="ti ti-folder" aria-hidden/> Docs <i className="ti ti-chevron-down" style={{fontSize:10}} aria-hidden/>
-                              </button>
-                              {docMenuOpen && <>
-                                <div onClick={()=>setOpenMenu(null)} style={{position:'fixed',inset:0,zIndex:49}}/>
-                                <div style={menuWrap}>
-                                  <div style={{fontSize:9,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:.5,padding:'4px 10px'}}>Documentos salvos</div>
-                                  {docItems.map((d,i)=>(
-                                    <button key={i} style={menuItem(d.color)} onClick={()=>{setOpenMenu(null);d.onClick()}}
-                                      onMouseEnter={e=>e.currentTarget.style.background='var(--surf)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                      <i className={`ti ${d.icon}`} style={{color:d.color,fontSize:15}} aria-hidden/>{d.label}
-                                    </button>
-                                  ))}
-                                </div>
-                              </>}
-                            </div>
-
-                            {/* CRIAR (gerar documentos) */}
-                            {!cancelled && <div style={{position:'relative',display:'inline-block'}}>
-                              <button className="btn" style={btn({borderColor:'#7C3AED',color:'#7C3AED'})}
-                                onClick={()=>setOpenMenu(criarMenuOpen?null:{id:p.id,kind:'criar'})} title="Criar documentos">
-                                <i className="ti ti-plus" aria-hidden/> Criar <i className="ti ti-chevron-down" style={{fontSize:10}} aria-hidden/>
-                              </button>
-                              {criarMenuOpen && <>
-                                <div onClick={()=>setOpenMenu(null)} style={{position:'fixed',inset:0,zIndex:49}}/>
-                                <div style={menuWrap}>
-                                  <div style={{fontSize:9,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:.5,padding:'4px 10px'}}>Criar documento</div>
-                                  {criarItems.map((d,i)=>(
-                                    <button key={i} style={{...menuItem(d.color),flexDirection:'column',alignItems:'flex-start',gap:2}} onClick={()=>{setOpenMenu(null);d.onClick()}}
-                                      onMouseEnter={e=>e.currentTarget.style.background='var(--surf)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                      <span style={{display:'flex',alignItems:'center',gap:8}}><i className={`ti ${d.icon}`} style={{color:d.color,fontSize:15}} aria-hidden/>{d.label}</span>
-                                      {d.hint && <span style={{fontSize:9.5,color:'var(--text3)',paddingLeft:23}}>{d.hint}</span>}
-                                    </button>
-                                  ))}
-                                </div>
-                              </>}
-                            </div>}
-
-                            {/* ENVIAR (standalone) */}
+                            <button className="btn" style={btn({borderColor:'#1A56DB',color:'#1A56DB'})} onClick={toggle('doc',docItems)} title="Ver documentos salvos">
+                              <i className="ti ti-folder" aria-hidden/> Docs <i className="ti ti-chevron-down" style={{fontSize:10}} aria-hidden/>
+                            </button>
+                            {!cancelled && <button className="btn" style={btn({borderColor:'#7C3AED',color:'#7C3AED'})} onClick={toggle('criar',criarItems)} title="Criar documentos">
+                              <i className="ti ti-plus" aria-hidden/> Criar <i className="ti ti-chevron-down" style={{fontSize:10}} aria-hidden/>
+                            </button>}
                             {!cancelled && <button className="btn" style={btn({color:'#16A34A',borderColor:'#16A34A'})} title="Enviar proposta, projeto executivo ou contrato"
-                              onClick={()=>setEnviarDoc(p)}>
-                              <i className="ti ti-send" aria-hidden/></button>}
-
-                            {/* APAGAR (standalone) */}
+                              onClick={()=>setEnviarDoc(p)}><i className="ti ti-send" aria-hidden/></button>}
                             <button className="btn danger" style={btn()} onClick={()=>setChangeReq({proposal:p,newStatus:'__delete__'})} title="Cancelar/Excluir"><i className="ti ti-trash" aria-hidden/></button>
                           </>
                         })()}
@@ -1045,6 +1010,49 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
         onDone={()=>{ setShowImport(false); onRefresh() }}
         onClose={()=>setShowImport(false)}
       />}
+      {/* ── Menu de ações flutuante (Docs / Criar) — overlay acima de tudo ── */}
+      {openMenu && (()=>{
+        const isMobile = typeof window!=='undefined' && window.innerWidth < 640
+        const title = openMenu.kind==='doc' ? 'Documentos salvos' : 'Criar documento'
+        const items = openMenu.items||[]
+        const list = (
+          <div style={{padding:isMobile?'4px 0 8px':4}}>
+            <div style={{fontSize:isMobile?11:9,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:.5,padding:isMobile?'10px 16px 8px':'4px 10px'}}>{title}</div>
+            {items.length===0 && <div style={{padding:'10px 14px',fontSize:12,color:'var(--text3)'}}>Nenhum documento disponível.</div>}
+            {items.map((d,i)=>(
+              <button key={i} onClick={()=>{ const fn=d.onClick; setOpenMenu(null); setTimeout(fn,0) }}
+                style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:2,width:'100%',
+                  padding:isMobile?'13px 16px':'9px 10px',border:'none',background:'transparent',cursor:'pointer',
+                  fontSize:isMobile?14:12.5,color:'var(--text)',borderRadius:8,textAlign:'left',fontFamily:'inherit'}}
+                onMouseEnter={e=>e.currentTarget.style.background='var(--surf)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                <span style={{display:'flex',alignItems:'center',gap:10}}><i className={`ti ${d.icon}`} style={{color:d.color,fontSize:isMobile?18:15}} aria-hidden/>{d.label}</span>
+                {d.hint && <span style={{fontSize:isMobile?11:9.5,color:'var(--text3)',paddingLeft:isMobile?28:25}}>{d.hint}</span>}
+              </button>
+            ))}
+          </div>
+        )
+        if(isMobile){
+          // bottom sheet no celular
+          return <div onClick={()=>setOpenMenu(null)} style={{position:'fixed',inset:0,zIndex:1000,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'flex-end'}}>
+            <div onClick={e=>e.stopPropagation()} style={{width:'100%',background:'#fff',borderRadius:'16px 16px 0 0',padding:'8px 0 max(8px,env(safe-area-inset-bottom))',boxShadow:'0 -4px 24px rgba(0,0,0,0.2)',maxHeight:'70vh',overflowY:'auto'}}>
+              <div style={{width:40,height:4,background:'var(--border2)',borderRadius:2,margin:'8px auto 4px'}}/>
+              {list}
+            </div>
+          </div>
+        }
+        // desktop/tablet: ancorado ao botão, alinhado à direita, acima de tudo
+        const r=openMenu.rect, W=240
+        const left=Math.max(8, Math.min(r.right-W, window.innerWidth-W-8))
+        const openUp = r.bottom > window.innerHeight-240
+        const style={ position:'fixed', zIndex:1000, width:W, left,
+          ...(openUp ? {bottom: window.innerHeight - r.top + 6} : {top: r.bottom+6}),
+          background:'#fff', border:'1px solid var(--border)', borderRadius:10, boxShadow:'0 8px 30px rgba(0,0,0,0.18)', maxHeight:300, overflowY:'auto' }
+        return <>
+          <div onClick={()=>setOpenMenu(null)} style={{position:'fixed',inset:0,zIndex:999}}/>
+          <div style={style}>{list}</div>
+        </>
+      })()}
+
       {enviarDoc && <EnviarDocumentoModal
         proposal={enviarDoc}
         clients={clients}
