@@ -99,7 +99,14 @@ function classifyEle(m){
   if(/quadro|qdl|qd |distribui/.test(n)) return {sym:'quadro', label:'QDL', tipo:'Quadro de Distribuição'}
   if(/interruptor.*(intermedi|four)/.test(n)) return {sym:'interruptor_intermediario', label:'S₄', tipo:'Interruptor intermediário'}
   if(/interruptor.*(paralel|three|hotel)|paralelo/.test(n)) return {sym:'interruptor_paralelo', label:'S₃', tipo:'Interruptor paralelo'}
-  if(/interruptor|keypad|botão/.test(n)) return {sym:'interruptor_simples', label:'S', tipo:'Interruptor / Keypad'}
+  // keypad: detecta nº de botões/teclas (ex: "Keypad 2 botões" → interruptor 2 teclas)
+  if(/keypad|botão|botões|botoes|tecla|interruptor/.test(n)){
+    const mb=n.match(/(\d+)\s*(bot|tecla|gang|x)/)
+    const nb=mb?parseInt(mb[1]):1
+    if(nb>=3) return {sym:'interruptor_intermediario', label:`S${nb}`, tipo:`Interruptor/Keypad ${nb} teclas`}
+    if(nb===2) return {sym:'interruptor_paralelo', label:'S2', tipo:'Interruptor/Keypad 2 teclas'}
+    return {sym:'interruptor_simples', label:'S', tipo:'Interruptor / Keypad'}
+  }
   if(/tomada.*teto|tomada de teto/.test(n)) return {sym:'tomada_teto', label:'TUG-T', tipo:'Tomada de teto'}
   if(/tomada.*piso|piso/.test(n)) return {sym:'tomada_piso', label:'TUG-P', tipo:'Tomada de piso'}
   if(/tomada.*(alta|1,30|bancada|0,90|média|media)/.test(n)) return {sym:'tomada_alta', label:'TUG-A', tipo:'Tomada média/alta'}
@@ -404,8 +411,10 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [execDoc, setExecDoc] = useState(()=> fromProposal?.exec_doc || null)         // versão Completa (HTML)
   const [execDocObra, setExecDocObra] = useState(()=> fromProposal?.exec_doc_obra || null) // versão Obra/Pedreiro (HTML)
   const [execDocEletrica, setExecDocEletrica] = useState(()=> fromProposal?.exec_doc_eletrica || null) // versão Elétrica (HTML)
+  const [execDocConduites, setExecDocConduites] = useState(()=> fromProposal?.exec_doc_conduites || null) // relatório de conduítes (HTML)
   const [execMode, setExecMode] = useState('completo') // 'completo' | 'obra' | 'eletrica'
-  const [showHeatmap, setShowHeatmap] = useState(true)  // mostrar mapa de calor de Wi-Fi na planta elétrica
+  const [showHeatmap, setShowHeatmap] = useState(true)  // mostrar mapa de calor de Wi-Fi no executivo
+  const [showIds, setShowIds] = useState(false)  // mostrar os códigos/IDs nos pinos da planta (default: limpo)
   const [execData, setExecData] = useState(null)       // dados crus da IA (p/ re-render das 2 versões)
   const [execProgress, setExecProgress] = useState('')
   const [zoom, setZoom] = useState(1)
@@ -1179,12 +1188,13 @@ Responda APENAS JSON válido:
       const full = buildExecHtml(data,'completo')
       const obra = buildExecHtml(data,'obra')
       const eletrica = buildExecHtml(data,'eletrica')
-      setExecDoc(full); setExecDocObra(obra); setExecDocEletrica(eletrica)
+      const conduites = buildExecHtml(data,'conduites')
+      setExecDoc(full); setExecDocObra(obra); setExecDocEletrica(eletrica); setExecDocConduites(conduites)
       setExecMode('completo')
       setStep('exec')
       if(fromProposal?.id){
         import('../db/supabase.js').then(({saveProposal})=>{
-          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
+          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
         })
       }
     } catch(err){
@@ -1270,9 +1280,11 @@ Responda APENAS JSON válido:
       const full=buildExecHtml(data,'completo')
       const obra=buildExecHtml(data,'obra')
       const eletrica=buildExecHtml(data,'eletrica')
+      const conduites=buildExecHtml(data,'conduites')
       setExecDoc(full)
       setExecDocObra(obra)
       setExecDocEletrica(eletrica)
+      setExecDocConduites(conduites)
       setStep('exec')
       setExecProgress('')
 
@@ -1280,7 +1292,7 @@ Responda APENAS JSON válido:
       if(fromProposal?.id){
         try{
           const { saveProposal } = await import('../db/supabase.js')
-          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct} }
+          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct} }
           await saveProposal(updated)
         }catch(e){ console.warn('Auto-save falhou:', e.message) }
       }
@@ -1524,12 +1536,12 @@ Responda APENAS JSON válido:
     <span style="color:rgba(255,255,255,0.5);font-size:9px;font-weight:400">${totalPoe} disp. PoE · ${precisaSwitch?'+ Switch':'DM SE'}</span>
   </div>
   <div style="background:linear-gradient(180deg,#1e293b,#0f172a);padding:10px;border:3px solid #334155;border-top:none;border-radius:0 0 8px 8px;box-shadow:inset 0 2px 12px rgba(0,0,0,0.6)">
-    ${rackItems.map((r,i)=>{const h=uHeight(r.u); return `
+    ${rackItems.flatMap((r)=>{ const q=parseInt(r.qty)||1; return Array.from({length:q},(_,k)=>({...r,_dup:q>1?` (${k+1}/${q})`:''})) }).map((r,i)=>{const h=uHeight(r.u); return `
     <div style="display:flex;align-items:stretch;margin-bottom:5px;height:${22*h}px">
       <div style="width:20px;background:#0b1220;color:#475569;font-size:7px;font-family:monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:2px 0 0 2px;flex-shrink:0;letter-spacing:-1px">${esc((''+(r.u||'')).replace(/[^\dU\-–]/g,''))}</div>
       <div style="flex:1;background:linear-gradient(180deg,#27272a,#18181b);border:1px solid #3f3f46;border-left:none;border-radius:0 3px 3px 0;display:flex;align-items:center;position:relative;overflow:hidden">
         <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#52525b,#27272a)"></div>
-        <div style="position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:8.5px;font-weight:700;color:#e4e4e7;font-family:'DM Sans',sans-serif;text-shadow:0 1px 1px #000;max-width:38%;line-height:1.1;z-index:2">${esc(r.equip)}</div>
+        <div style="position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:8.5px;font-weight:700;color:#e4e4e7;font-family:'DM Sans',sans-serif;text-shadow:0 1px 1px #000;max-width:38%;line-height:1.1;z-index:2">${esc(r.equip)}${r._dup}</div>
         <div style="position:absolute;right:0;top:0;bottom:0;left:42%;display:flex;align-items:center">${faceFor(r.equip)}</div>
         <div style="position:absolute;right:4px;top:3px;width:3px;height:3px;border-radius:50%;background:#52525b"></div>
         <div style="position:absolute;right:4px;bottom:3px;width:3px;height:3px;border-radius:50%;background:#52525b"></div>
@@ -2058,6 +2070,67 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // VERSÃO ELÉTRICA — documento separado: planta elétrica (NBR 5444),
     // cobertura Wi-Fi (mapa de calor, opcional) e quadro de cargas.
     // ══════════════════════════════════════════════════════════════════
+    if (mode==='conduites') {
+      // RELATÓRIO DE CONDUÍTES — uma planta por tipo (dados/som/elétrica) + uma com todos.
+      if(!bgImage) return `<div class="ex-sec"><p class="ex-p" style="color:#B45309">Carregue a planta e trace os conduítes no editor.</p></div>`
+      const ratio=imgRatio||0.66
+      // agrupa por "família" de conduíte: usa o tipo do cabo; conduite_* e os tipos normais entram
+      const fam = c => {
+        const t=c.type||'dados'
+        if(t==='conduite_eletrica'||t==='eletrica') return 'Elétrica'
+        if(t==='som') return 'Som'
+        if(t==='conduite_dados'||t==='dados'||t==='ap'||t==='camera'||t==='uplink'||t==='hdmi'||t==='fibra') return 'Dados'
+        return 'Dados'
+      }
+      const famColor = { 'Elétrica':'#EAB308','Som':'#BE185D','Dados':'#1E3A8A' }
+      const todos = (cables||[])
+      const porFam={}; todos.forEach(c=>{ const f=fam(c); (porFam[f]=porFam[f]||[]).push(c) })
+      const desenhaPlanta = (arr, corLinha)=>{
+        const uids=new Set(); arr.forEach(c=>{ uids.add(c.fromUid); uids.add(c.toUid) })
+        const dots = markers.filter(m=>uids.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
+          const isR=isRackItem(m.name||'',m.code||'')
+          return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
+            <div style="width:18px;height:18px;border-radius:50%;background:${isR?'#4C1D95':'#0EA5E9'};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
+          </div>`}).join('')
+        const lines = arr.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
+          const col = c.color || CABLE_PALETTE[c.type] || corLinha
+          const w = CABLE_CONDUITE[c.type]?4.5:2.6
+          return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:${w}px" vector-effect="non-scaling-stroke"/>` }).join('')
+        return `<div style="position:relative;width:100%;padding-bottom:${(ratio*100).toFixed(1)}%;border:1px solid #CBD5E1;border-radius:8px;overflow:hidden;margin-top:8px">
+          <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.3)"/>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${lines}</svg>${dots}
+        </div>`
+      }
+      const tabela = arr=>{ const grupos={}; arr.forEach(c=>{ const k=c.conduite||'(sem grupo)'; (grupos[k]=grupos[k]||[]).push(c) })
+        const rows=Object.entries(grupos).map(([nome,g])=>{ const n=g.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
+          const tipos=[...new Set(g.map(c=>CABLE_LABELS[c.type]||c.type))].join(', ')
+          const mt=Math.max(...g.map(c=>cableMeters(c)||0))
+          return `<tr><td><b>${esc(nome)}</b></td><td style="text-align:center">${n}</td><td style="font-size:11px">${esc(tipos)}</td><td style="text-align:center;font-weight:700">${nome==='(sem grupo)'?'—':bitola}</td><td style="text-align:right">${mt>0?Math.round(mt)+'m':'—'}</td></tr>` }).join('')
+        return T(rows,['Conduíte','Nº cabos','Tipos','Eletroduto','Trajeto']) }
+      const paginas = Object.entries(porFam).map(([f,arr],i)=>`
+        <div class="ex-obra-page" style="page-break-before:${i===0?'auto':'always'}">
+          <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid ${famColor[f]};padding-bottom:8px;margin-bottom:6px">
+            <div style="width:30px;height:30px;border-radius:8px;background:${famColor[f]};display:flex;align-items:center;justify-content:center"><span style="width:18px;height:5px;background:#fff;border-radius:3px"></span></div>
+            <div><div style="font-size:20px;font-weight:800;color:#0D1420">Conduítes — ${f}</div>
+            <div style="font-size:12px;color:#64748B">${arr.length} trecho(s)</div></div>
+          </div>
+          ${desenhaPlanta(arr, famColor[f])}
+          <h3 class="ex-amb" style="color:${famColor[f]}">Conduítes ${f}</h3>${tabela(arr)}
+        </div>`).join('')
+      const paginaTodos = todos.length ? `
+        <div class="ex-obra-page" style="page-break-before:always">
+          <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid #0D1420;padding-bottom:8px;margin-bottom:6px">
+            <div style="width:30px;height:30px;border-radius:8px;background:#0D1420;display:flex;align-items:center;justify-content:center"><i class="ti ti-stack-2" style="color:#fff"></i></div>
+            <div><div style="font-size:20px;font-weight:800;color:#0D1420">Todos os Conduítes</div>
+            <div style="font-size:12px;color:#64748B">${todos.length} trecho(s) — visão geral</div></div>
+          </div>
+          ${desenhaPlanta(todos,'#0D1420')}
+        </div>` : ''
+      const corpo = (Object.keys(porFam).length?paginas:`<p class="ex-p" style="color:#B45309">Nenhum conduíte/cabo traçado. Use o modo "Cabos" no editor.</p>`)
+      return `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Relatório de Conduítes</h2>
+        <p class="ex-p" style="color:#6B7280">Caminhos de eletrodutos por família (Dados, Som, Elétrica) e uma visão com todos juntos. Para o pedreiro saber onde passar cada conduíte.</p></div>
+        ${corpo}${paginaTodos}</div>`
+    }
     if (mode==='eletrica') {
       let _ne=0
       const hasQuadro = markers.some(m=>classifyEle(m)?.sym==='quadro')
@@ -2189,18 +2262,29 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const w=window.open('','_blank')
     const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
     const codigo=(fromProposal?.code||'').replace(/[\\/:*?"<>|]/g,'')
-    // item 10: nome do PDF conforme o tipo de documento
-    const nomeDoc = execMode==='obra' ? 'Plano de Obra' : execMode==='eletrica' ? 'Planta Elétrica' : 'Projeto Executivo'
+    const nomeDoc = execMode==='obra' ? 'Plano de Obra' : execMode==='eletrica' ? 'Planta Elétrica' : execMode==='conduites' ? 'Conduites' : 'Projeto Executivo'
     const tituloPdf=`${nomeDoc} — RARO Home — ${cliNome}${codigo?' — '+codigo:''}`
-    const docHtml = (execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execDoc)||''
-    // obra e elétrica saem em A3 paisagem (impressora grande); executivo em A4
-    const pageCss = (execMode==='obra'||execMode==='eletrica')
-      ? '@page{size:A3 landscape;margin:10mm}'
-      : '@page{size:A4;margin:12mm}'
+    const capa=(titulo,sub,cor)=>`<div class="ex-doc-cover" style="page-break-after:always;break-after:page;min-height:90vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:${cor};color:#fff;border-radius:0">
+      <div style="font-size:13px;letter-spacing:4px;text-transform:uppercase;opacity:0.7">RARO Home</div>
+      <div style="font-size:40px;font-weight:800;margin:18px 0 8px">${titulo}</div>
+      <div style="font-size:15px;opacity:0.85">${sub}</div>
+      <div style="font-size:13px;opacity:0.6;margin-top:30px">${cliNome}${codigo?' · '+codigo:''}</div>
+    </div>`
+    let body, pageCss
+    if(execMode==='completo'){
+      // item 7: TUDO em 1 PDF — Executivo + Plano de Obra + Planta Elétrica, separados por capa
+      pageCss='@page{size:A4;margin:12mm} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}'
+      body = (execDoc||'')
+        + (execDocObra ? capa('Plano de Obra','Infraestrutura · cabos · conduítes','#0D1420')+execDocObra : '')
+        + (execDocEletrica ? capa('Planta Elétrica','Pontos · circuitos · NBR 5444','#16A34A')+execDocEletrica : '')
+    } else {
+      pageCss = (execMode==='obra'||execMode==='eletrica'||execMode==='conduites') ? '@page{size:A3 landscape;margin:10mm}' : '@page{size:A4;margin:12mm}'
+      body = (execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execMode==='conduites'?execDocConduites:execDoc)||''
+    }
     w.document.write(`<html><head><title>${tituloPdf}</title><meta charset="utf-8">
       <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
       <style>${pageCss} body{margin:0}${EXEC_CSS}</style></head><body>
-      ${docHtml}
+      ${body}
       </body></html>`)
     w.document.close(); setTimeout(()=>w.print(),700)
   }
@@ -2225,7 +2309,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(fromProposal?.id){
       try{
         const { saveProposal } = await import('../db/supabase.js')
-        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct}, exec_api_cost:apiCost }
+        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct}, exec_api_cost:apiCost }
         await saveProposal(updated)
         alert(`✅ Salvo no orçamento! A página vai atualizar.`)
         onClose && onClose()
@@ -2233,7 +2317,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         return
       }catch(e){ alert('Erro ao salvar: '+e.message); return }
     }
-    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_api_cost:apiCost })
+    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, exec_api_cost:apiCost })
   }
 
   const catGroups={}
@@ -2775,6 +2859,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 }} style={{height:32,borderRadius:6,border:`1px solid ${calibMode?'#0EA5E9':(plantScale?'#16A34A88':'rgba(255,255,255,0.2)')}`,background:calibMode?'#0EA5E9':(plantScale?'rgba(22,163,74,0.15)':'rgba(255,255,255,0.08)'),color:calibMode?'#fff':(plantScale?'#6EE7B7':'#fff'),cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Definir a escala em metros para calcular a metragem dos cabos">
                   <i className="ti ti-ruler-2" aria-hidden/>{calibMode?'Clique 2 pontos...':(plantScale?`Escala ✓ ${(plantScale).toFixed(1)}m`:'Escala')}
                 </button>
+                <button onClick={()=>setShowIds(v=>!v)} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:showIds?'rgba(255,255,255,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={showIds?'Ocultar os códigos (planta limpa)':'Mostrar os códigos dos pontos'}>
+                  <i className={showIds?'ti ti-tag':'ti ti-tag-off'} aria-hidden/>{showIds?'IDs visíveis':'IDs ocultos'}
+                </button>
+                {(()=>{ const temEle=markers.some(m=>classifyEle(m)); const temQDL=markers.some(m=>classifyEle(m)?.sym==='quadro')
+                  return temEle && !temQDL ? <span style={{height:32,borderRadius:6,border:'1px solid #DC2626',background:'rgba(220,38,38,0.18)',color:'#FCA5A5',fontSize:11,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontWeight:600}} title="Use o atalho elétrico 'Quadro QDL' e posicione na planta">
+                    <i className="ti ti-alert-triangle" aria-hidden/>Falta o Quadro de Luz (QDL)
+                  </span> : null })()}
                 {cables.length>0 && <button onClick={()=>setHideCables(h=>!h)} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:hideCables?'rgba(255,255,255,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={hideCables?'Mostrar cabos':'Ocultar cabos (só itens)'}>
                   <i className={hideCables?'ti ti-eye-off':'ti ti-eye'} aria-hidden/>{hideCables?'Cabos ocultos':'Ocultar cabos'}
                 </button>}
@@ -2898,7 +2989,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   const matchC=filterCateg.size===0||filterCateg.has(inferCategory(m.name||'').cat||'Outros')
                   const matchI=!filterItem||m.name===filterItem
                   const isRack = isRackItem(m.name||'', m.code||'')
-                  const visible = isRack ? (matchS&&matchR&&matchI) : (matchS&&matchR&&matchC&&matchI)  // CPD/rack nunca some por categoria
+                  const isQuadro = classifyEle(m)?.sym==='quadro'
+                  const visible = (isRack||isQuadro) ? (matchS&&matchR&&matchI) : (matchS&&matchR&&matchC&&matchI)  // CPD/rack e QDL nunca somem por categoria
                   const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
                   const sel=selected===m.uid
                   const isCableOrigin = cableDraft?.fromUid===m.uid
@@ -2908,10 +3000,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     onClick={e=>{ if(cableMode){ e.stopPropagation(); onCableItemClick(m.uid) } }}>
                     {isCableOrigin && <div style={{position:'absolute',inset:-7,borderRadius:'50%',border:'3px dashed #F59E0B',pointerEvents:'none'}}/>}
                     {isRack
-                      ? <div style={{width:sel?36:30,height:sel?36:30,borderRadius:6,background:'#4C1D95',color:'#C4B5FD',fontSize:14,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #7C3AED',boxShadow:sel?`0 0 0 3px #7C3AED`:'0 2px 6px rgba(0,0,0,0.6)'}}><i className="ti ti-server" aria-hidden style={{fontSize:16}}/></div>
-                      : <div style={{width:sel?28:24,height:sel?28:24,borderRadius:'50%',background:st.c,color:'#fff',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #fff',boxShadow:sel?`0 0 0 3px ${st.c}`:'0 1px 4px rgba(0,0,0,0.5)'}}>{m.n}</div>}
-                    <div style={{position:'absolute',left:'50%',top:-9,transform:'translateX(-50%)',background:isRack?'#4C1D95':st.c,color:'#fff',borderRadius:'50%',width:13,height:13,fontSize:7,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'1px solid #fff',pointerEvents:'none'}}>{isRack?'R':st.s}</div>
-                    <div style={{position:'absolute',left:'50%',top:sel?34:30,transform:'translateX(-50%)',background:'rgba(0,0,0,0.75)',color:isRack?'#C4B5FD':'#fff',borderRadius:3,padding:'1px 4px',fontSize:7.5,whiteSpace:'nowrap',fontFamily:'monospace',fontWeight:600,pointerEvents:'none'}}>{isRack?'RACK CPD':m.code}</div>
+                      ? <div style={{width:sel?30:24,height:sel?30:24,borderRadius:5,background:'#4C1D95',color:'#C4B5FD',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #7C3AED',boxShadow:sel?`0 0 0 3px #7C3AED`:'0 2px 6px rgba(0,0,0,0.6)'}}><i className="ti ti-server" aria-hidden style={{fontSize:13}}/></div>
+                      : <div style={{width:sel?22:18,height:sel?22:18,borderRadius:'50%',background:st.c,color:'#fff',fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'1.5px solid #fff',boxShadow:sel?`0 0 0 3px ${st.c}`:'0 1px 3px rgba(0,0,0,0.5)'}}>{m.n}</div>}
+                    {/* rótulo de código só quando selecionado ou no modo "ver IDs" — planta mais limpa */}
+                    {(sel||showIds) && <div style={{position:'absolute',left:'50%',top:sel?28:24,transform:'translateX(-50%)',background:'rgba(0,0,0,0.75)',color:isRack?'#C4B5FD':'#fff',borderRadius:3,padding:'1px 4px',fontSize:7.5,whiteSpace:'nowrap',fontFamily:'monospace',fontWeight:600,pointerEvents:'none'}}>{isRack?'RACK CPD':m.code}</div>}
                   </div>})}
               </div>
             </div>
@@ -2926,7 +3018,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   {/* If this is a rack item, show rack config button */}
                   {isRackItem(m.name,m.code) && <button onClick={()=>{setRackEquip(m.rackEquip||[]); setShowRackModal(true)}}
                     style={{width:'100%',background:'rgba(124,58,237,0.2)',border:'1px solid #7C3AED',borderRadius:5,color:'#C4B5FD',cursor:'pointer',padding:'7px',fontSize:11,marginBottom:10,fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-                    <i className="ti ti-server" aria-hidden/>{(m.rackEquip||[]).length} equipamentos no rack — editar
+                    <i className="ti ti-server" aria-hidden/>{(m.rackEquip||[]).reduce((s,e)=>s+(parseInt(e.qty)||1),0)} equipamentos no rack — editar
                   </button>}
                   <label style={lbl}>Ambiente</label>
                   <select value={rNames.includes(m.room)?m.room:(m.room?'__custom__':'')} onChange={e=>{
@@ -3005,8 +3097,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             {/* Seletor de versão do documento (Completo · Obra · Elétrica) */}
             <div style={{maxWidth:820,margin:'0 auto 14px',display:'flex',gap:8,alignItems:'center',padding:'0 4px',flexWrap:'wrap'}}>
               <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:4}}>Versão do documento:</span>
-              {[['completo','Completo','ti-file-text'],['obra','Obra / Pedreiro','ti-tools'],['eletrica','Elétrica','ti-bolt']].map(([m,label,icon])=>{
-                const doc = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:execDoc
+              {[['completo','Completo','ti-file-text'],['obra','Obra / Pedreiro','ti-tools'],['eletrica','Elétrica','ti-bolt'],['conduites','Conduítes','ti-route']].map(([m,label,icon])=>{
+                const doc = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:m==='conduites'?execDocConduites:execDoc
                 return (
                 <button key={m} onClick={()=>setExecMode(m)}
                   style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,fontSize:12.5,fontWeight:execMode===m?700:500,cursor:'pointer',opacity:doc?1:0.55,
@@ -3015,19 +3107,19 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 </button>
               )})}
               <div style={{flex:1}}/>
-              {/* Toggle do mapa de calor — só na versão elétrica */}
-              {execMode==='eletrica' && <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569',cursor:'pointer',userSelect:'none'}}>
+              {/* Toggle do mapa de calor — só na versão completa (executivo) */}
+              {execMode==='completo' && <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569',cursor:'pointer',userSelect:'none'}}>
                 <input type="checkbox" checked={showHeatmap} onChange={e=>{
                   const v=e.target.checked; setShowHeatmap(v)
-                  // regera a elétrica com/sem o mapa de calor (sem IA)
+                  // regera o executivo com/sem o mapa de calor (sem IA)
                   const data = execData || buildExecDataFromMarkers()
-                  setTimeout(()=>{ const eletrica=buildExecHtml(data,'eletrica'); setExecDocEletrica(eletrica) },0)
+                  setTimeout(()=>{ const full=buildExecHtml(data,'completo'); setExecDoc(full) },0)
                 }}/>
                 Mostrar mapa de calor Wi-Fi
               </label>}
             </div>
-            <div style={{maxWidth:(execMode==='obra'||execMode==='eletrica')?1180:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)',transition:'max-width 0.2s'}}>
-              {(()=>{ const cur = execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execDoc
+            <div style={{maxWidth:(execMode==='obra'||execMode==='eletrica'||execMode==='conduites')?1180:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)',transition:'max-width 0.2s'}}>
+              {(()=>{ const cur = execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execMode==='conduites'?execDocConduites:execDoc
                 const nome = execMode==='obra'?'Obra / Pedreiro':execMode==='eletrica'?'Elétrica':'Completa'
                 return cur
                 ? <div dangerouslySetInnerHTML={{__html:cur}}/>

@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v132 — (1)mapa de calor Wi-Fi voltou para o Projeto Executivo completo (saiu da Eletrica/Obra); (2)painel Modo cabos compactado (instrucao curta, botoes menores, metros+conduite juntos); (3)Ambiente do item puxa TODOS os comodos existentes (rooms+markers) no dropdown, ordenados, +novo; (4)Tipo do ponto mais inteligente: mostra a deteccao automatica ao vivo, agrupado por categoria, + novo campo "Cabo que chega" com todos os tipos (dados/ap/camera/som/fibra/hdmi/eletrica/conduites) que melhora o auto-tracado
+// v134 — (7)Completo agora gera os 3 documentos num PDF unico, separados por CAPA (Executivo + Plano de Obra + Planta Eletrica); (8)novo Relatorio de CONDUITES: uma planta por familia (Dados/Som/Eletrica) + uma com todos os conduites tracados, com tabela de bitola do eletroduto. (continua itens 1-6 da v133)
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v132 · build 2026-06
+          v134 · build 2026-06
         </div>
       </div>
     </div>
