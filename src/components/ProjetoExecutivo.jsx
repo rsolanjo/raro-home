@@ -6,7 +6,12 @@ const EQUIP_STYLE = {
   'Gateway':{c:'#0EA5E9',s:'G'},'NVR':{c:'#7C3AED',s:'N'},'Câmera':{c:'#DC2626',s:'C'},
   'Keypad':{c:'#059669',s:'K'},'Hub IR':{c:'#D97706',s:'I'},'Módulo':{c:'#6366F1',s:'M'},
   'Som':{c:'#BE185D',s:'S'},'Wi-Fi':{c:'#0E7490',s:'W'},'Sensor':{c:'#16A34A',s:'P'},
-  'Tomada':{c:'#475569',s:'T'},'Outro':{c:'#374151',s:'?'},
+  'Tomada':{c:'#475569',s:'T'},
+  'Switch':{c:'#2563EB',s:'SW'},'Patch':{c:'#0891B2',s:'PP'},'Keystone':{c:'#0284C7',s:'KS'},
+  'Nobreak':{c:'#B45309',s:'NB'},'Organizador':{c:'#64748B',s:'OR'},'Rack':{c:'#4C1D95',s:'R'},
+  'Quadro':{c:'#92540B',s:'QD'},'Interruptor':{c:'#0D9488',s:'S'},'Luz':{c:'#CA8A04',s:'L'},
+  'TV':{c:'#7C3AED',s:'TV'},'Fonte':{c:'#9333EA',s:'F'},'Roteador':{c:'#0EA5E9',s:'RT'},
+  'Outro':{c:'#374151',s:'•'},
 }
 
 function isRackItem(name='', code='') {
@@ -17,15 +22,27 @@ function isRackItem(name='', code='') {
 
 function equipType(name='') {
   const n=name.toLowerCase()
-  if(n.includes('gateway')) return 'Gateway'
-  if(n.includes('nvr')||n.includes('gravador')) return 'NVR'
-  if(n.includes('câmera')||n.includes('camera')||n.includes('dome')) return 'Câmera'
+  if(n.includes('gateway')||n.includes('dream machine')||n.includes('udm')) return 'Gateway'
+  if(n.includes('nvr')||n.includes('gravador')||n.includes('dvr')) return 'NVR'
+  if(n.includes('câmera')||n.includes('camera')||n.includes('dome')||n.includes('bullet')) return 'Câmera'
   if(n.includes('hub ir')||n.includes('qair')) return 'Hub IR'
   if(n.includes('keypad')||n.includes('botão')) return 'Keypad'
-  if(n.includes('módulo')||n.includes('qarz')) return 'Módulo'
-  if(n.includes('som')||n.includes('caixa')||n.includes('amplificador')) return 'Som'
-  if(n.includes('wi-fi')||n.includes('wifi')||n.includes('access point')||n.includes('ap ')) return 'Wi-Fi'
+  if(n.includes('interruptor')) return 'Interruptor'
+  if(n.includes('módulo')||n.includes('modulo')||n.includes('qarz')||n.includes('cortina')||n.includes('persiana')) return 'Módulo'
+  if(n.includes('subwoofer')||n.includes('amplificador')||n.includes('som')||n.includes('caixa ac')||n.includes('caixa de som')||n.includes('receiver')||n.includes('soundbar')) return 'Som'
+  if(n.includes('access point')||/\bap\b/.test(n)||n.includes('wi-fi')||n.includes('wifi')||n.includes('u6')) return 'Wi-Fi'
+  if(n.includes('roteador')||n.includes('router')) return 'Roteador'
+  if(n.includes('switch')) return 'Switch'
+  if(n.includes('patch panel')||n.includes('patch')) return 'Patch'
+  if(n.includes('keystone')) return 'Keystone'
+  if(n.includes('nobreak')||n.includes('no-break')||n.includes('ups')) return 'Nobreak'
+  if(n.includes('organizador')||n.includes('passa cabo')||n.includes('passa-cabo')||n.includes('guia de cabo')) return 'Organizador'
+  if((n.includes('rack')||n.includes('cpd'))&&!n.includes('keypad')) return 'Rack'
+  if(n.includes('quadro')||n.includes('qdl')||n.includes('disjuntor')||n.includes('dr ')||n.includes('dps')) return 'Quadro'
   if(n.includes('sensor')||n.includes('presença')) return 'Sensor'
+  if(n.includes('arandela')||n.includes('luminária')||n.includes('luminaria')||n.includes('spot')||n.includes('lustre')||n.includes('plafon')||n.includes('ponto de luz')||n.includes('fita led')) return 'Luz'
+  if(n.includes('tv')||n.includes('telão')||n.includes('televis')||n.includes('projetor')) return 'TV'
+  if(n.includes('fonte')) return 'Fonte'
   if(n.includes('tomada')) return 'Tomada'
   return 'Outro'
 }
@@ -51,6 +68,7 @@ const ELE_SYMBOLS = {
   ponto_luz: `<circle r="6.5" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="0" x2="-6.5" y2="0" stroke="#111" stroke-width="1.1"/><line x1="6.5" y1="0" x2="9" y2="0" stroke="#111" stroke-width="1.1"/><line x1="0" y1="-9" x2="0" y2="-6.5" stroke="#111" stroke-width="1.1"/><line x1="0" y1="6.5" x2="0" y2="9" stroke="#111" stroke-width="1.1"/><circle r="2" fill="#111"/>`,
   // Arandela (luz de parede) — meio círculo
   arandela: `<path d="M-7 6 A7 7 0 0 1 7 6 Z" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="6" x2="9" y2="6" stroke="#111" stroke-width="1.3"/>`,
+  arandela_teto: `<circle r="6.5" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="0" x2="-6.5" y2="0" stroke="#111" stroke-width="1.1"/><line x1="6.5" y1="0" x2="9" y2="0" stroke="#111" stroke-width="1.1"/><circle r="2" fill="#fff" stroke="#111" stroke-width="1"/>`,
   // Quadro de distribuição (QDL)
   quadro: `<rect x="-10" y="-7" width="20" height="14" fill="#fff" stroke="#111" stroke-width="1.5"/><line x1="-10" y1="-2.5" x2="10" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="-5" y1="-7" x2="-5" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="0" y1="-7" x2="0" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="5" y1="-7" x2="5" y2="-2.5" stroke="#111" stroke-width="1"/>`,
   // Genérico
@@ -65,7 +83,8 @@ const ELE_TYPE_INFO = {
   interruptor_paralelo:{label:'S₃', tipo:'Interruptor paralelo'},
   interruptor_intermediario:{label:'S₄', tipo:'Interruptor intermediário'},
   ponto_luz:{label:'L', tipo:'Ponto de luz'},
-  arandela:{label:'L', tipo:'Arandela'},
+  arandela:{label:'L', tipo:'Arandela de parede'},
+  arandela_teto:{label:'L', tipo:'Arandela de teto'},
   quadro:{label:'QDL', tipo:'Quadro de Distribuição'},
 }
 function classifyEle(m){
@@ -81,7 +100,8 @@ function classifyEle(m){
   if(/tomada.*piso|piso/.test(n)) return {sym:'tomada_piso', label:'TUG-P', tipo:'Tomada de piso'}
   if(/tomada.*(alta|1,30|bancada|0,90|média|media)/.test(n)) return {sym:'tomada_alta', label:'TUG-A', tipo:'Tomada média/alta'}
   if(/tomada/.test(n)) return {sym:'tomada_baixa', label:'TUG', tipo:'Tomada baixa (0,30m)'}
-  if(/arandela/.test(n)) return {sym:'arandela', label:'L', tipo:'Arandela'}
+  if(/arandela.*teto|arandela de teto/.test(n)) return {sym:'arandela_teto', label:'L', tipo:'Arandela de teto'}
+  if(/arandela/.test(n)) return {sym:'arandela', label:'L', tipo:'Arandela de parede'}
   if(/luz|luminária|luminaria|spot|lustre|plafon|ponto de luz/.test(n)) return {sym:'ponto_luz', label:'L', tipo:'Ponto de luz'}
   return null  // não é elétrico → não entra na planta elétrica
 }
@@ -1231,7 +1251,7 @@ Responda APENAS JSON válido:
     // então o raio "bom" é curto. Gera mancha verde→amarelo→vermelho + aviso de zonas mortas.
     function buildHeatmap(numFn){
       const aps = markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
-      if(!bgImage) return ''
+      if(!bgImage || aps.length===0) return ''  // sem AP no projeto → não mostra mapa de calor
       // raios em % da largura da planta (aprox.). Concreto: cobertura útil menor.
       // forte ~ até 14%, médio ~ 22%, fraco ~ 30% do lado da imagem.
       const R_FORTE=14, R_MEDIO=22, R_FRACO=30
@@ -2439,7 +2459,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       {label:'Interruptor',sub:'1,10m',eleType:'interruptor_simples',name:'Interruptor simples',note:'H=1,10m'},
                       {label:'Interr. paralelo',sub:'1,10m',eleType:'interruptor_paralelo',name:'Interruptor paralelo',note:'H=1,10m'},
                       {label:'Ponto de luz',sub:'teto',eleType:'ponto_luz',name:'Ponto de luz',note:'teto'},
-                      {label:'Arandela',sub:'parede',eleType:'arandela',name:'Arandela',note:'H=2,20m'},
+                      {label:'Arandela parede',sub:'2,20m',eleType:'arandela',name:'Arandela de parede',note:'H=2,20m'},
+                      {label:'Arandela teto',sub:'teto',eleType:'arandela_teto',name:'Arandela de teto',note:'teto'},
                       {label:'Quadro QDL',sub:'1,50m',eleType:'quadro',name:'Quadro de luz QDL',note:'H=1,50m'},
                     ].map(b=>{
                       const active = addMode && addItem?.eleType===b.eleType && addItem?.name===b.name
@@ -2767,6 +2788,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <option value="interruptor_intermediario">💡 Interruptor 3+ lugares</option>
                     <option value="ponto_luz">⭘ Ponto de luz (teto)</option>
                     <option value="arandela">⭘ Arandela (luz de parede)</option>
+                    <option value="arandela_teto">⭘ Arandela / luz de teto</option>
                     <option value="quadro">▦ Quadro de luz (QDL)</option>
                     <option value="nenhum">— Não é elétrico</option>
                   </select>

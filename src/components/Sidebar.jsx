@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v122 — Metragem automatica dos cabos: botao "Escala" calibra por 2 pontos numa parede (digita metros) OU largura total da planta; comprimento real calculado pela polilinha (corrige proporcao da imagem) + 3m subida/descida + 15% folga; editavel por cabo; metros entram nas tabelas dos documentos + total por tipo; escala salva no planta_data
+// v123 — Fim dos "?": equipType reconhece Keystone/Patch/Switch/Nobreak/Organizador/Quadro/Rack/Roteador/TV/Luz/Fonte (fallback virou "•"); mapa de calor SO aparece se houver AP no projeto (sem AP, nada de aviso); planta eletrica/tomadas so com pontos reais; adicionado "Arandela de teto" (alem da de parede) nos atalhos, dropdown e simbolos
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v122 · build 2026-06
+          v123 · build 2026-06
         </div>
       </div>
     </div>
