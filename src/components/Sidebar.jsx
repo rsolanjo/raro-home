@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v130 — Lote de 12 ajustes: (1)CPD sempre visivel (2)Obra A3 uma categoria/pagina com planta+tabela (3)Eletrica so itens eletricos+fios+pede quadro (4)Rack com qtd e tabela limpa (5)salvar da refresh (6)docs so mostram o que existe (7)ocultar categoria oculta cabos (8)tomada teto (9)conduites grossos dados/eletrica (10)nome dos PDFs por tipo (11)mapa de calor na eletrica com capa (12)plantas grandes e legiveis
+// v132 — (1)mapa de calor Wi-Fi voltou para o Projeto Executivo completo (saiu da Eletrica/Obra); (2)painel Modo cabos compactado (instrucao curta, botoes menores, metros+conduite juntos); (3)Ambiente do item puxa TODOS os comodos existentes (rooms+markers) no dropdown, ordenados, +novo; (4)Tipo do ponto mais inteligente: mostra a deteccao automatica ao vivo, agrupado por categoria, + novo campo "Cabo que chega" com todos os tipos (dados/ap/camera/som/fibra/hdmi/eletrica/conduites) que melhora o auto-tracado
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v130 · build 2026-06
+          v132 · build 2026-06
         </div>
       </div>
     </div>

@@ -565,7 +565,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
       { label:'Proposta — visão admin', icon:'ti-shield', color:'#7C3AED', onClick:()=>openProposalPDF(pWithPhones,true) },
       { label:'Apresentação comercial', icon:'ti-presentation', color:'#DB2777', hint:'abre no editor para gerar/baixar', onClick:()=>onEdit(p,'apres') },
       ...(p.exec_doc?[{ label:'Projeto Executivo', icon:'ti-file-text', color:'#0369A1', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc, p.client_name, p.code), `executivo-${safeFileName(p.code||p.id)}.html`) }]:[]),
-      ...(p.exec_doc_obra?[{ label:'Planta de Obra', icon:'ti-tools', color:'#B45309', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc_obra, p.client_name, p.code), `obra-${safeFileName(p.code||p.id)}.html`) }]:[]),
+      ...(p.exec_doc_obra?[{ label:'Plano de Obra', icon:'ti-tools', color:'#B45309', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc_obra, p.client_name, p.code), `obra-${safeFileName(p.code||p.id)}.html`) }]:[]),
       ...(p.exec_doc_eletrica?[{ label:'Planta Elétrica', icon:'ti-bolt', color:'#16A34A', onClick:()=>openHtmlDoc(wrapExecDoc(p.exec_doc_eletrica, p.client_name, p.code), `eletrica-${safeFileName(p.code||p.id)}.html`) }]:[]),
       ...(!cancelled?[{ label:'Contrato (última proposta)', icon:'ti-license', color:'#059669', onClick:()=>setContractProposal(p) }]:[]),
     ]
@@ -575,7 +575,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
       { label:'Apresentação comercial', icon:'ti-presentation', color:'#DB2777', hint:'gerada no editor da proposta', onClick:()=>onEdit(p,'apres') },
       ...(onGenerateExec&&!cancelled?[
         { label:'Projeto Executivo', icon:'ti-brain', color:'#0369A1', onClick:()=>onGenerateExec(p) },
-        { label:'Planta de Obra / Pedreiro', icon:'ti-tools', color:'#B45309', hint:'sai junto do executivo', onClick:()=>onGenerateExec(p) },
+        { label:'Plano de Obra / Pedreiro', icon:'ti-tools', color:'#B45309', hint:'sai junto do executivo', onClick:()=>onGenerateExec(p) },
         { label:'Planta Elétrica (NBR 5444)', icon:'ti-bolt', color:'#16A34A', hint:'sai junto do executivo', onClick:()=>onGenerateExec(p) },
       ]:[]),
       ...(!cancelled?[{ label:'Contrato', icon:'ti-license', color:'#059669', onClick:()=>setContractProposal(p) }]:[]),
@@ -1082,12 +1082,15 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
           </div>
         }
         // desktop/tablet: ancorado ao botão, alinhado à direita, acima de tudo
-        const r=openMenu.rect, W=240
+        const r=openMenu.rect, W=250, vh=window.innerHeight
         const left=Math.max(8, Math.min(r.right-W, window.innerWidth-W-8))
-        const openUp = r.bottom > window.innerHeight-240
+        const espacoAbaixo = vh - r.bottom - 12
+        const espacoAcima = r.top - 12
+        const abrirCima = espacoAbaixo < 260 && espacoAcima > espacoAbaixo
+        const maxH = Math.max(180, Math.min(440, abrirCima ? espacoAcima : espacoAbaixo))
         const style={ position:'fixed', zIndex:1000, width:W, left,
-          ...(openUp ? {bottom: window.innerHeight - r.top + 6} : {top: r.bottom+6}),
-          background:'#fff', border:'1px solid var(--border)', borderRadius:10, boxShadow:'0 8px 30px rgba(0,0,0,0.18)', maxHeight:300, overflowY:'auto' }
+          ...(abrirCima ? {bottom: vh - r.top + 6} : {top: r.bottom+6}),
+          background:'#fff', border:'1px solid var(--border)', borderRadius:10, boxShadow:'0 8px 30px rgba(0,0,0,0.18)', maxHeight:maxH, overflowY:'auto', overscrollBehavior:'contain' }
         return <>
           <div onClick={()=>setOpenMenu(null)} style={{position:'fixed',inset:0,zIndex:999}}/>
           <div style={style}>{list}</div>

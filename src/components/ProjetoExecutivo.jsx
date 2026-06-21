@@ -10,7 +10,7 @@ const EQUIP_STYLE = {
   'Switch':{c:'#2563EB',s:'SW'},'Patch':{c:'#0891B2',s:'PP'},'Keystone':{c:'#0284C7',s:'KS'},
   'Nobreak':{c:'#B45309',s:'NB'},'Organizador':{c:'#64748B',s:'OR'},'Rack':{c:'#4C1D95',s:'R'},
   'Quadro':{c:'#92540B',s:'QD'},'Interruptor':{c:'#0D9488',s:'S'},'Luz':{c:'#CA8A04',s:'L'},
-  'TV':{c:'#7C3AED',s:'TV'},'Fonte':{c:'#9333EA',s:'F'},'Roteador':{c:'#0EA5E9',s:'RT'},
+  'TV':{c:'#7C3AED',s:'TV'},'Fonte':{c:'#9333EA',s:'F'},'Roteador':{c:'#0EA5E9',s:'RT'},'Modem':{c:'#0D9488',s:'ON'},
   'Outro':{c:'#374151',s:'•'},
 }
 
@@ -31,6 +31,7 @@ function equipType(name='') {
   if(n.includes('módulo')||n.includes('modulo')||n.includes('qarz')||n.includes('cortina')||n.includes('persiana')) return 'Módulo'
   if(n.includes('subwoofer')||n.includes('amplificador')||n.includes('som')||n.includes('caixa ac')||n.includes('caixa de som')||n.includes('receiver')||n.includes('soundbar')) return 'Som'
   if(n.includes('access point')||/\bap\b/.test(n)||n.includes('wi-fi')||n.includes('wifi')||n.includes('u6')) return 'Wi-Fi'
+  if(n.includes('ont')||n.includes('modem')||n.includes('fibra')||n.includes('onu')||n.includes('operadora')) return 'Modem'
   if(n.includes('roteador')||n.includes('router')) return 'Roteador'
   if(n.includes('switch')) return 'Switch'
   if(n.includes('patch panel')||n.includes('patch')) return 'Patch'
@@ -214,16 +215,18 @@ function FilterSection({ title, badge, onClear, defaultOpen=false, children }){
 // ── Rack Modal: seleciona equipamentos dentro do rack ─────────────────────────
 function RackModal({ catalog, rackEquip, onChange, markers, onClose, onApply }){
   const [equip, setEquip] = React.useState(rackEquip.length ? rackEquip : [
-    {code:'UDM-SE',name:'Dream Machine SE',qty:1,u:'U1-U2',funcao:'Roteador/Gateway'},
-    {code:'PP-24',name:'Patch Panel 24 portas CAT6',qty:1,u:'U3-U4',funcao:'Organização cabos'},
-    {code:'ORG-1U',name:'Organizador horizontal 1U',qty:2,u:'U5,U6',funcao:'Gestão de cabos'},
-    {code:'PDU-8',name:'Régua 8 tomadas filtrada',qty:1,u:'U7',funcao:'Alimentação'},
+    {code:'ONT',name:'ONT / Modem da operadora',qty:1,u:'U1',funcao:'Fibra → Internet'},
+    {code:'UDM-SE',name:'Dream Machine SE',qty:1,u:'U2-U3',funcao:'Roteador/Gateway'},
+    {code:'PP-24',name:'Patch Panel 24 portas CAT6',qty:1,u:'U4-U5',funcao:'Organização cabos'},
+    {code:'ORG-1U',name:'Organizador horizontal 1U',qty:2,u:'U6,U7',funcao:'Gestão de cabos'},
+    {code:'PDU-8',name:'Régua 8 tomadas filtrada',qty:1,u:'U8',funcao:'Alimentação'},
   ])
   const [catFilter, setCatFilter] = React.useState('Todos')
   function isRackCandidate(c){
     const n=(c.name||'').toLowerCase(), sub=(c.subcategory||'').toLowerCase(), cat=(c.category||'').toLowerCase()
     return n.includes('rack')||n.includes('patch panel')||n.includes('patch cord')||n.includes('organizador')||n.includes('régua')||
       n.includes('switch')||n.includes('dream machine')||n.includes('amplificador')||n.includes('receiver')||n.includes('udm')||
+      n.includes('ont')||n.includes('modem')||n.includes('fibra')||n.includes('onu')||n.includes('nobreak')||
       sub==='rack'||sub==='switch'||sub==='patch panel'||sub==='patch cord'||sub==='amplificador'||sub==='receiver'||
       cat==='redes'||cat==='sonorização'
   }
@@ -926,8 +929,8 @@ Responda APENAS JSON válido:
 
   // ── Roteamento de cabos ──
   // Legenda de cores dos cabos (segue o padrão da planta)
-  const CABLE_PALETTE = { dados:'#2563EB', ap:'#F59E0B', camera:'#92400E', uplink:'#DC2626', hdmi:'#7C3AED', som:'#BE185D', eletrica:'#16A34A', conduite_dados:'#1E3A8A', conduite_eletrica:'#EAB308' }
-  const CABLE_LABELS  = { dados:'Dados', ap:'AP / Access Point', camera:'Câmera', uplink:'Uplink', hdmi:'HDMI', som:'Som', eletrica:'Elétrica', conduite_dados:'Conduíte DADOS', conduite_eletrica:'Conduíte ELÉTRICA' }
+  const CABLE_PALETTE = { dados:'#2563EB', ap:'#F59E0B', camera:'#92400E', uplink:'#DC2626', hdmi:'#7C3AED', som:'#BE185D', eletrica:'#16A34A', fibra:'#0D9488', conduite_dados:'#1E3A8A', conduite_eletrica:'#EAB308' }
+  const CABLE_LABELS  = { dados:'Dados', ap:'AP / Access Point', camera:'Câmera', uplink:'Uplink', hdmi:'HDMI', som:'Som', eletrica:'Elétrica', fibra:'Fibra Óptica', conduite_dados:'Conduíte DADOS', conduite_eletrica:'Conduíte ELÉTRICA' }
   // tipos de "conduíte" são eletrodutos compartilhados — desenhados grossos para o pedreiro
   const CABLE_CONDUITE = { conduite_dados:true, conduite_eletrica:true }
   const CABLE_SPEC = {
@@ -938,6 +941,7 @@ Responda APENAS JSON válido:
     hdmi:     { spec:'HDMI 2.0 / HDBaseT', uso:'Vídeo / TV', conector:'HDMI' },
     som:      { spec:'2×1,5mm² (paralelo)', uso:'Áudio / caixas', conector:'Borne / banana' },
     eletrica: { spec:'3×2,5mm² (F+N+T)', uso:'Energia / 110-220V', conector:'Direto / caixa 4×4' },
+    fibra:    { spec:'Fibra óptica (drop/ONT)', uso:'Internet operadora → ONT/Modem', conector:'SC/APC' },
     conduite_dados:    { spec:'Eletroduto 3/4" (dados)', uso:'Conduíte compartilhado de DADOS', conector:'Caixa 4×4 / 4×2' },
     conduite_eletrica: { spec:'Eletroduto 3/4"–1" (elétrica)', uso:'Conduíte compartilhado de ELÉTRICA', conector:'Caixa 4×4' },
   }
@@ -964,7 +968,7 @@ Responda APENAS JSON válido:
         x:+(from.x + (to.x-from.x)*(i/4)).toFixed(1),
         y:+(from.y + (to.y-from.y)*(i/4)).toFixed(1)
       }))
-      const type=guessCableType(from,to)
+      const type = to?.cableType || from?.cableType || guessCableType(from,to)
       const newCable={ id:Date.now(), fromUid:cableDraft.fromUid, toUid:uid,
         points:pts, color:CABLE_PALETTE[type], type }
       setCables(cs=>[...cs,newCable]); setSelCable(newCable.id)
@@ -1008,6 +1012,14 @@ Responda APENAS JSON válido:
     return Math.round(comFolga*10)/10
   }
   function setCableMetersManual(id, val){ setCables(cs=>cs.map(c=>c.id===id?{...c, meters: val===''?undefined:val}:c)) }
+  // ── Conduíte compartilhado (MANUAL) ──
+  // capacidade aproximada de cabos CAT6 por bitola de eletroduto (40% de ocupação NBR)
+  const CONDUITE_CAP = { '3/4"':6, '1"':10, '1.1/4"':16, '1.1/2"':22 }
+  function setCableConduite(id, grupo){ setCables(cs=>cs.map(c=>c.id===id?{...c, conduite: grupo||undefined}:c)) }
+  // lista de grupos de conduíte já criados
+  function conduiteGroups(){
+    const g={}; (cables||[]).forEach(c=>{ if(c.conduite){ (g[c.conduite]=g[c.conduite]||[]).push(c) } }); return g
+  }
   // arrastar um ponto intermediário do cabo
   const onPointMove = useCallback((e)=>{
     if(!dragPoint||!containerRef.current) return
@@ -1286,54 +1298,93 @@ Responda APENAS JSON válido:
       const eleMarks = markers.map(m=>({m, cls:classifyEle(m)})).filter(x=>x.cls)
       if(!bgImage || !eleMarks.length) return ''
       const qdl = eleMarks.find(x=>x.cls.sym==='quadro')
-      // símbolos posicionados
+      const ratio = imgRatio || 0.66   // altura/largura real da planta
+      // alturas padrão por tipo (para a tabela)
+      const altPadrao = sym => ({tomada_baixa:'0,30m',tomada_alta:'1,30m',tomada_piso:'piso',tomada_teto:'teto',
+        interruptor_simples:'1,10m',interruptor_paralelo:'1,10m',interruptor_intermediario:'1,10m',
+        ponto_luz:'teto',arandela:'2,20m',arandela_teto:'teto',quadro:'1,50m'})[sym]||'—'
+      // bitola/fios por tipo
+      const fiosDe = sym => /tomada/.test(sym)?'3×2,5mm² (F+N+T)':/interruptor/.test(sym)?'2×1,5mm² (retorno)':/luz|arandela/.test(sym)?'2×1,5mm²':sym==='quadro'?'alimentação geral':'—'
+      // ── símbolos como SVG individuais (cada um num quadradinho que NÃO distorce) ──
+      const SYM_PX = 30
       const syms = eleMarks.map(({m,cls})=>`
-        <g transform="translate(${m.x},${m.y}) scale(0.34)">
-          ${ELE_SYMBOLS[cls.sym]||ELE_SYMBOLS.generico}
-          <circle cx="11" cy="-9" r="6" fill="#0EA5E9" stroke="#fff" stroke-width="1"/>
-          <text x="11" y="-6.5" font-size="7" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" fill="#fff">${m.n}</text>
-          <text x="0" y="16" font-size="6.5" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="700" fill="#0D1420">${esc(cls.label)}</text>
-        </g>`).join('')
-      // eletrodutos: liga cada ponto ao QDL (se houver) com curva pontilhada
+        <div style="position:absolute;left:${m.x}%;top:${m.y}%;width:${SYM_PX}px;height:${SYM_PX}px;transform:translate(-50%,-50%);z-index:3">
+          <svg viewBox="-12 -14 24 30" width="${SYM_PX}" height="${SYM_PX}" style="overflow:visible">
+            ${ELE_SYMBOLS[cls.sym]||ELE_SYMBOLS.generico}
+            <circle cx="10" cy="-10" r="6.5" fill="#0EA5E9" stroke="#fff" stroke-width="1.2"/>
+            <text x="10" y="-7.5" font-size="8" text-anchor="middle" font-weight="800" fill="#fff">${m.n}</text>
+          </svg>
+          <div style="position:absolute;left:50%;top:${SYM_PX-2}px;transform:translateX(-50%);font-size:8px;font-weight:700;color:#0D1420;white-space:nowrap;background:rgba(255,255,255,0.8);padding:0 2px;border-radius:2px">${esc(cls.label)}</div>
+        </div>`).join('')
+      // eletrodutos (SVG fino, só linhas — distorção não importa em linha)
       const dutos = qdl ? eleMarks.filter(x=>x!==qdl).map(({m})=>{
         const mx=(m.x+qdl.m.x)/2, my=Math.min(m.y,qdl.m.y)-6
-        return `<path d="M${m.x} ${m.y} Q ${mx} ${my} ${qdl.m.x} ${qdl.m.y}" fill="none" stroke="#16A34A" stroke-width="0.5" stroke-dasharray="1.5,1.2" vector-effect="non-scaling-stroke" style="stroke-width:1.4px" opacity="0.7"/>`
+        return `<path d="M${m.x} ${m.y} Q ${mx} ${my} ${qdl.m.x} ${qdl.m.y}" fill="none" stroke="#16A34A" stroke-dasharray="1.5,1.2" vector-effect="non-scaling-stroke" style="stroke-width:1.6px" opacity="0.65"/>`
       }).join('') : ''
-      // legenda dos símbolos presentes
+      // legenda
       const usados = [...new Map(eleMarks.map(x=>[x.cls.sym,x.cls])).values()]
       const legenda = `<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;padding:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px">
-        ${usados.map(c=>`<div style="display:flex;align-items:center;gap:7px;font-size:10.5px;color:#334155">
-          <svg viewBox="-12 -14 24 32" width="22" height="29">${ELE_SYMBOLS[c.sym]||ELE_SYMBOLS.generico}</svg>
+        ${usados.map(c=>`<div style="display:flex;align-items:center;gap:7px;font-size:11px;color:#334155">
+          <svg viewBox="-12 -14 24 32" width="24" height="32">${ELE_SYMBOLS[c.sym]||ELE_SYMBOLS.generico}</svg>
           <span><b>${esc(c.label)}</b> — ${esc(c.tipo)}</span></div>`).join('')}
-        <div style="display:flex;align-items:center;gap:7px;font-size:10.5px;color:#334155"><span style="width:20px;height:0;border-top:2px dashed #16A34A;display:inline-block"></span> Eletroduto / circuito até o QDL</div>
+        <div style="display:flex;align-items:center;gap:7px;font-size:11px;color:#334155"><span style="width:20px;height:0;border-top:2px dashed #16A34A;display:inline-block"></span> Eletroduto até o QDL</div>
       </div>`
-      // quadro de cargas por cômodo (contagem de pontos por tipo)
+      // ── LISTA GERAL de todos os pontos elétricos (item 1) ──
+      const ELETR_T = new Set(['eletrica','conduite_eletrica'])
+      const listaGeral = T(eleMarks.map(({m,cls})=>{
+        const cab=(cables||[]).find(c=>(c.toUid===m.uid||c.fromUid===m.uid) && ELETR_T.has(c.type||''))
+        const cond = cab ? (CABLE_CONDUITE[cab.type] ? 'compartilhado' : 'exclusivo') : '—'
+        const mt = cab?cableMeters(cab):null
+        const origem = cab ? (markers.find(x=>x.uid===(cab.fromUid===m.uid?cab.toUid:cab.fromUid))?.name||'Quadro') : (qdl?'Quadro QDL':'—')
+        return `<tr>
+          <td style="text-align:center">${pin(m.n)}</td>
+          <td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td>
+          <td>${esc(cls.tipo)}</td>
+          <td style="font-size:11px">${esc(m.room||'—')}</td>
+          <td style="font-weight:700">${esc(m.note&&/\d/.test(m.note)?m.note:altPadrao(cls.sym))}</td>
+          <td style="font-size:10.5px">${esc(fiosDe(cls.sym))}</td>
+          <td>${esc(origem)}</td>
+          <td style="font-size:10.5px">${esc(cond)}</td>
+          <td style="text-align:right">${mt!=null?mt+'m':'—'}</td>
+        </tr>`
+      }).join(''),['Nº','ID','Tipo','Cômodo','Altura','Fios/Bitola','Origem','Conduíte','Dist.'])
+      // quadro de cargas
       const byRoomCarga={}
-      eleMarks.forEach(({m,cls})=>{ if(cls.sym==='quadro')return; const r=m.room||'Geral'; (byRoomCarga[r]=byRoomCarga[r]||{tug:0,tomA:0,piso:0,int:0,luz:0}); 
-        if(cls.sym==='tomada_baixa')byRoomCarga[r].tug++; else if(cls.sym==='tomada_alta')byRoomCarga[r].tomA++; else if(cls.sym==='tomada_piso')byRoomCarga[r].piso++;
-        else if(cls.sym.startsWith('interruptor'))byRoomCarga[r].int++; else if(cls.sym==='ponto_luz'||cls.sym==='arandela')byRoomCarga[r].luz++ })
+      eleMarks.forEach(({m,cls})=>{ if(cls.sym==='quadro')return; const r=m.room||'Geral'; (byRoomCarga[r]=byRoomCarga[r]||{tom:0,int:0,luz:0});
+        if(/tomada/.test(cls.sym))byRoomCarga[r].tom++; else if(cls.sym.startsWith('interruptor'))byRoomCarga[r].int++; else if(/luz|arandela/.test(cls.sym))byRoomCarga[r].luz++ })
       const VA_TUG=100, VA_LUZ=60
       const cargaRows = Object.entries(byRoomCarga).map(([r,c])=>{
-        const totTom=c.tug+c.tomA+c.piso
-        const va = totTom*VA_TUG + c.luz*VA_LUZ
-        return `<tr><td><b>${esc(r)}</b></td><td style="text-align:center">${totTom||'—'}</td><td style="text-align:center">${c.int||'—'}</td><td style="text-align:center">${c.luz||'—'}</td><td style="text-align:right">${va} VA</td></tr>`
+        const va=c.tom*VA_TUG+c.luz*VA_LUZ
+        return `<tr><td><b>${esc(r)}</b></td><td style="text-align:center">${c.tom||'—'}</td><td style="text-align:center">${c.int||'—'}</td><td style="text-align:center">${c.luz||'—'}</td><td style="text-align:right">${va} VA</td></tr>`
       }).join('')
-      const totalVA = Object.values(byRoomCarga).reduce((s,c)=>s+((c.tug+c.tomA+c.piso)*VA_TUG+c.luz*VA_LUZ),0)
+      const totalVA = Object.values(byRoomCarga).reduce((s,c)=>s+(c.tom*VA_TUG+c.luz*VA_LUZ),0)
       const cargaTbl = cargaRows ? `<table class="ex-tbl"><thead><tr><th>Cômodo</th><th style="text-align:center">Tomadas</th><th style="text-align:center">Interrup.</th><th style="text-align:center">Pts Luz</th><th style="text-align:right">Carga estimada</th></tr></thead><tbody>${cargaRows}<tr style="background:#0D1420;color:#fff"><td colspan="4"><b>Demanda total estimada</b></td><td style="text-align:right"><b>${totalVA} VA</b></td></tr></tbody></table>
-        <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin-top:4px">Estimativa simplificada (TUG ${VA_TUG}VA · ponto de luz ${VA_LUZ}VA). O dimensionamento final de circuitos, disjuntores e bitolas deve ser feito por engenheiro eletricista responsável (ART/NBR 5410).</p>` : ''
-
-      const head = `<div style="background:#0D1420;color:#38BDF8;font-size:11px;font-weight:700;padding:8px 14px;letter-spacing:1px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
-        <span>PLANTA ELÉTRICA — Símbolos ABNT NBR 5444</span><span style="color:rgba(255,255,255,0.5);font-size:9px;font-weight:400">${eleMarks.length} pontos${qdl?' · QDL':''}</span></div>`
+        <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin-top:4px">Estimativa simplificada (TUG ${VA_TUG}VA · ponto de luz ${VA_LUZ}VA). Dimensionamento final por engenheiro eletricista (ART/NBR 5410).</p>` : ''
+      // checklist elétrico
+      const checklistEle = `<ul class="ex-ul">
+        <li>Conferir NEUTRO chegando em 100% das caixas de interruptor/keypad.</li>
+        <li>Circuitos de tomada e iluminação SEPARADOS no quadro QDL.</li>
+        <li>Aterramento (fio terra verde) em todas as tomadas.</li>
+        <li>Eletroduto de dados e de elétrica em conduítes SEPARADOS (nunca no mesmo).</li>
+        <li>Identificar cada disjuntor no QDL conforme a lista geral acima.</li>
+        <li>Testar todos os pontos antes do fechamento das paredes.</li>
+      </ul>`
+      const head = `<div style="background:#0D1420;color:#38BDF8;font-size:12px;font-weight:700;padding:9px 14px;letter-spacing:1px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
+        <span>PLANTA ELÉTRICA — Símbolos ABNT NBR 5444</span><span style="color:rgba(255,255,255,0.5);font-size:10px;font-weight:400">${eleMarks.length} pontos${qdl?' · QDL':''}</span></div>`
+      // imagem com proporção REAL (padding-bottom = ratio), símbolos como HTML que NÃO distorcem
       const fig = `<div style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
-        <div style="position:relative;width:100%">
-          <img src="${bgImage}" style="width:100%;display:block;filter:grayscale(0.35) contrast(0.92) brightness(1.05)"/>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${dutos}${syms}</svg>
+        <div style="position:relative;width:100%;padding-bottom:${(ratio*100).toFixed(1)}%">
+          <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.3) contrast(0.95) brightness(1.04)"/>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${dutos}</svg>
+          ${syms}
         </div></div>`
       const titulo = numFn ? `<h2><span class="ex-sec-num">${numFn()}</span>Planta Elétrica (ABNT NBR 5444)</h2>` : `<h2>Planta Elétrica (ABNT NBR 5444)</h2>`
       return `<div class="ex-sec ex-breakable">${titulo}
-        <p class="ex-p" style="margin-bottom:10px">Representação técnica dos pontos elétricos com símbolos normalizados. Tomadas, interruptores, pontos de luz e quadro de distribuição posicionados conforme a planta. As linhas pontilhadas indicam o encaminhamento de eletrodutos até o QDL.</p>
+        <p class="ex-p" style="margin-bottom:10px">Pontos elétricos com símbolos normalizados, em proporção real da planta. Linhas pontilhadas verdes = encaminhamento de eletroduto até o QDL.</p>
         ${head}${fig}${legenda}
-        <h3 class="ex-amb" style="margin-top:18px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}
+        <h3 class="ex-amb" style="margin-top:18px">Lista Geral — Todos os Pontos Elétricos</h3>${listaGeral}
+        <h3 class="ex-amb" style="margin-top:16px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}
+        <h3 class="ex-amb" style="margin-top:16px">Checklist Elétrico</h3>${checklistEle}
       </div>`
     }
 
@@ -1712,7 +1763,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     <div class="ex-cover-top">${_eletr?'DOCUMENTO TÉCNICO · ELÉTRICA E Wi-Fi':isObra?'DOCUMENTO DE OBRA · INFRAESTRUTURA':'DOCUMENTO TÉCNICO · PROJETO EXECUTIVO'}</div>
     <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:160px;max-width:50%;margin:0 auto 8px;display:block"/>
     <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
-    <div class="ex-cover-title">${_eletr?'Planta Elétrica e Cobertura Wi-Fi':isObra?'Projeto de Obra — Cabos e Infraestrutura':'Projeto Executivo de Automação'}</div>
+    <div class="ex-cover-title">${_eletr?'Planta Elétrica e Cobertura Wi-Fi':isObra?'Plano de Obra — Cabos e Infraestrutura':'Projeto Executivo de Automação'}</div>
     <div class="ex-cover-sub">${_eletr?'Símbolos ABNT NBR 5444 · Quadro de cargas · Mapa de calor Wi-Fi<br>Pontos elétricos e cobertura aproximada':isObra?'Caminho dos cabos · Metragens · Alturas · Caixas 4×4<br>Guia direto para o eletricista e o pedreiro':'Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto'}</div>
     <div class="ex-cover-client"><div class="ex-cc-name">${esc(cliente)}</div><div class="ex-cc-meta">${hoje} · RARO Home</div></div>
     <div class="ex-cover-foot">RARO Home · contato@rarohome.com.br · (21) 98170-9009</div>
@@ -2033,16 +2084,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       ].filter(Boolean)
       const eleBody = eleSecs.join('\n')
       const semEle = !bgImage || !eleMarks.length
-      // item 11: mapa de calor com CAPA separando (vive na elétrica+obra, não só no executivo)
-      const aps = markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
-      const heatCover = (showHeatmap && aps.length) ? `
-        <div class="ex-obra-page" style="page-break-before:always;text-align:center;padding:60px 30px;background:#0D1420;color:#fff;border-radius:10px;margin-top:20px">
-          <div style="font-size:11px;letter-spacing:3px;color:#38BDF8;text-transform:uppercase">Anexo</div>
-          <div style="font-size:28px;font-weight:800;margin:14px 0 6px">Cobertura Wi-Fi</div>
-          <div style="font-size:13px;color:#94A3B8">Mapa de calor da propagação dos Access Points<br>${aps.length} AP${aps.length!==1?'s':''} · paredes de concreto</div>
-        </div>` : ''
-      const heat = (showHeatmap && aps.length) ? buildHeatmap(()=>++_ne) : ''
-      return eleBody + (semEle?`<div class="ex-sec"><p class="ex-p" style="color:#B45309">Adicione pontos elétricos (tomadas, interruptores, luz, QDL) na planta para gerar este documento.</p></div>`:'') + heatCover + heat + '</div>'
+      return eleBody + (semEle?`<div class="ex-sec"><p class="ex-p" style="color:#B45309">Adicione pontos elétricos (tomadas, interruptores, luz, QDL) na planta para gerar este documento.</p></div>`:'') + '</div>'
     }
 
     if (isObra) {
@@ -2095,11 +2137,20 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       })
       // página de conduítes compartilhados (caixas que recebem mais de um cabo)
       const eletrodutoNotas = (d.checklist_obra||[]).filter(x=>/eletroduto|caixa 4|4×4|4x4|sangria|passagem|fio-guia|condu/i.test(x))
+      // tabela de conduítes compartilhados (agrupamento manual feito no editor)
+      const grupos = {}; (cables||[]).forEach(c=>{ if(c.conduite){ (grupos[c.conduite]=grupos[c.conduite]||[]).push(c) } })
+      const tblConduites = Object.keys(grupos).length ? T(Object.entries(grupos).map(([nome,arr])=>{
+        const n=arr.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
+        const tipos=[...new Set(arr.map(c=>CABLE_LABELS[c.type]||c.type))].join(', ')
+        const mt=Math.max(...arr.map(c=>cableMeters(c)||0))
+        return `<tr><td><b>${esc(nome)}</b></td><td style="text-align:center">${n}</td><td style="font-size:11px">${esc(tipos)}</td><td style="text-align:center;font-weight:700">${bitola}</td><td style="text-align:right">${mt>0?Math.round(mt)+'m':'—'}</td></tr>`
+      }).join(''),['Conduíte','Nº cabos','Tipos','Eletroduto','Trajeto']) : ''
       const obraSections = [
-        `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Projeto de Obra — Guia do Eletricista / Pedreiro</h2>
+        `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Plano de Obra — Guia do Eletricista / Pedreiro</h2>
           <p class="ex-p" style="color:#6B7280">Documento de infraestrutura para impressão em prancha grande (A3). Cada página é uma categoria de cabeamento, com a planta e a tabela de cabos. A parte elétrica (tomadas, fios, quadro) está no documento <b>Planta Elétrica</b> separado.</p></div>`,
         ...(categoriaPaginas.length?categoriaPaginas:[`<p class="ex-p" style="color:#B45309">⚠ Nenhum cabo de dados/rede/som desenhado na planta. Use o modo "Cabos" no editor.</p>`]),
         `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Notas de Infraestrutura · Conduítes Compartilhados</h2>
+          ${tblConduites?`<h3 class="ex-amb">Conduítes compartilhados (agrupados manualmente)</h3>${tblConduites}<p class="ex-p" style="font-size:10px;color:#94A3B8">Bitola estimada a 40% de ocupação (NBR 5410). Confirme com o eletricista.</p>`:''}
           ${list(eletrodutoNotas.length?eletrodutoNotas:[
             'Usar eletroduto 3/4" para conduítes de dados; 3/4"–1" para conduítes elétricos.',
             'Conduítes compartilhados: passar cabos de DADOS e ELÉTRICA em eletrodutos SEPARADOS (nunca no mesmo).',
@@ -2117,6 +2168,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     secN(`Segurança — Câmeras e Sensores de Alarme`, tblSeguranca, true),
     secN(`Som Ambiente — Caixas, Amplificador e Zonas`, tblSom, true),
     secN(`Devices no Teto — Posição, Origem e Cabeamento`, tblTeto, true),
+    (()=>{ let _nh=0; const aps=markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase())); return (showHeatmap && aps.length) ? buildHeatmap(()=>'') : '' })(),
     secN(`Cabos de Som — Amplificador no RACK`, (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr>${pinCell(r.destino,r.etiqueta,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-size:10px">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['Nº','ID','Origem','Destino','Tipo','Metros','Etiqueta']):'', true),
     secN(`Automação — Interruptores, Tomadas, Sensores, Hub IR, Módulos`, tblAutomacao||pontosHtml, true),
     secN(`Alimentação dos Keypads (Fase + Neutro)`, (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr>${pinCell(r.destino,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x2,5mm²')}</td></tr>`).join(''),['Nº','ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m','Fios']):'', true),
@@ -2138,7 +2190,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
     const codigo=(fromProposal?.code||'').replace(/[\\/:*?"<>|]/g,'')
     // item 10: nome do PDF conforme o tipo de documento
-    const nomeDoc = execMode==='obra' ? 'Projeto de Obra' : execMode==='eletrica' ? 'Planta Elétrica' : 'Projeto Executivo'
+    const nomeDoc = execMode==='obra' ? 'Plano de Obra' : execMode==='eletrica' ? 'Planta Elétrica' : 'Projeto Executivo'
     const tituloPdf=`${nomeDoc} — RARO Home — ${cliNome}${codigo?' — '+codigo:''}`
     const docHtml = (execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execDoc)||''
     // obra e elétrica saem em A3 paisagem (impressora grande); executivo em A4
@@ -2756,34 +2808,40 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <span style={{color:'#fff',fontSize:11,display:'flex',alignItems:'center',padding:'0 4px'}}>{Math.round(zoom*100)}%</span>
                 <button onClick={()=>setZoom(z=>Math.min(3,z+0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>+</button>
               </div>
-              {cableMode && <div style={{position:'sticky',top:44,marginLeft:'auto',alignSelf:'flex-start',zIndex:29,background:'rgba(20,20,40,0.95)',border:'1px solid #F59E0B',borderRadius:8,padding:'8px 12px',maxWidth:340,fontSize:11,color:'#fff'}}>
-                <div style={{color:'#FBBf24',fontWeight:600,marginBottom:4}}><i className="ti ti-route" aria-hidden/> Modo cabos</div>
+              {cableMode && <div style={{position:'sticky',top:44,marginLeft:'auto',alignSelf:'flex-start',zIndex:29,background:'rgba(20,20,40,0.96)',border:'1px solid #F59E0B',borderRadius:8,padding:'7px 10px',maxWidth:selCable?290:230,fontSize:10.5,color:'#fff'}}>
+                <div style={{color:'#FBBf24',fontWeight:600,marginBottom:3,fontSize:11}}><i className="ti ti-route" aria-hidden/> Modo cabos</div>
                 {!cableDraft
-                  ? <div style={{color:'rgba(255,255,255,0.7)'}}>Clique no item de <b>origem</b>, depois no item de <b>destino</b>. Eu traço o cabo. Depois arraste os pontos para curvar/fazer 90°.</div>
-                  : <div style={{color:'#FBBf24'}}>Origem: <b>{mk(cableDraft.fromUid)?.name}</b> — agora clique no destino. <span onClick={()=>setCableDraft(null)} style={{textDecoration:'underline',cursor:'pointer'}}>cancelar</span></div>}
+                  ? <div style={{color:'rgba(255,255,255,0.6)',fontSize:9.5,lineHeight:1.3}}>Clique na <b>origem</b> e no <b>destino</b>.</div>
+                  : <div style={{color:'#FBBf24',fontSize:10}}>Origem: <b>{mk(cableDraft.fromUid)?.name}</b> → clique o destino. <span onClick={()=>setCableDraft(null)} style={{textDecoration:'underline',cursor:'pointer'}}>cancelar</span></div>}
                 {selCable && (()=>{ const c=cables.find(x=>x.id===selCable); if(!c) return null
-                  return <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid rgba(255,255,255,0.15)'}}>
-                    <div style={{marginBottom:5}}>Cabo: <b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b></div>
-                    <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap'}}>
-                      {[['dados','Dados','#2563EB'],['ap','AP','#F59E0B'],['camera','Câmera','#92400E'],['uplink','Uplink','#DC2626'],['hdmi','HDMI','#7C3AED'],['som','Som','#BE185D'],['eletrica','Elétrica','#16A34A'],['conduite_dados','Conduíte DADOS','#1E3A8A'],['conduite_eletrica','Conduíte ELÉTRICA','#EAB308']].map(([t,lb,col])=>(
-                        <button key={t} onClick={()=>setCableColor(c.id,t)} style={{fontSize:10,padding:'3px 8px',borderRadius:10,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.2)'}`,background:c.type===t?col+'33':'transparent',color:c.type===t?'#fff':'rgba(255,255,255,0.6)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:col}}/>{lb}</button>
+                  return <div style={{marginTop:7,paddingTop:7,borderTop:'1px solid rgba(255,255,255,0.15)'}}>
+                    <div style={{marginBottom:5,fontSize:10,color:'rgba(255,255,255,0.85)'}}><b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b></div>
+                    <div style={{display:'flex',gap:3,alignItems:'center',flexWrap:'wrap'}}>
+                      {[['dados','Dados','#2563EB'],['ap','AP','#F59E0B'],['camera','Câm','#92400E'],['uplink','Uplk','#DC2626'],['hdmi','HDMI','#7C3AED'],['som','Som','#BE185D'],['eletrica','Elét','#16A34A'],['fibra','Fibra','#0D9488'],['conduite_dados','C.DADOS','#1E3A8A'],['conduite_eletrica','C.ELÉT','#EAB308']].map(([t,lb,col])=>(
+                        <button key={t} onClick={()=>setCableColor(c.id,t)} title={CABLE_LABELS[t]} style={{fontSize:9,padding:'2px 6px',borderRadius:9,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.18)'}`,background:c.type===t?col+'33':'transparent',color:c.type===t?'#fff':'rgba(255,255,255,0.55)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:3}}><span style={{width:7,height:7,borderRadius:'50%',background:col}}/>{lb}</button>
                       ))}
-                      <button onClick={()=>deleteCable(c.id)} style={{fontSize:10,padding:'3px 8px',borderRadius:10,border:'1px solid #DC2626',background:'transparent',color:'#FCA5A5',cursor:'pointer',marginLeft:'auto'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
                     </div>
-                    {CABLE_SPEC[c.type] && <div style={{fontSize:10,color:'rgba(255,255,255,0.6)',marginTop:6,background:'rgba(255,255,255,0.05)',borderRadius:5,padding:'4px 8px'}}>
-                      <b style={{color:CABLE_PALETTE[c.type]}}>{CABLE_LABELS[c.type]}</b> · {CABLE_SPEC[c.type].spec} · {CABLE_SPEC[c.type].conector}
+                    {CABLE_SPEC[c.type] && <div style={{fontSize:9,color:'rgba(255,255,255,0.55)',marginTop:5,background:'rgba(255,255,255,0.05)',borderRadius:5,padding:'3px 7px'}}>
+                      <b style={{color:CABLE_PALETTE[c.type]}}>{CABLE_LABELS[c.type]}</b> · {CABLE_SPEC[c.type].spec}
                     </div>}
-                    <div style={{display:'flex',alignItems:'center',gap:6,marginTop:6,fontSize:11,color:'rgba(255,255,255,0.7)'}}>
-                      <i className="ti ti-ruler-measure" aria-hidden/>
-                      <span>Metragem:</span>
-                      <input type="number" step="0.5" value={c.meters??''} placeholder={plantScale? (cableMeters({...c,meters:undefined})??'auto') : 'defina a escala'}
+                    <div style={{display:'flex',alignItems:'center',gap:5,marginTop:5,fontSize:10,color:'rgba(255,255,255,0.7)'}}>
+                      <i className="ti ti-ruler-measure" aria-hidden/><span>Metros:</span>
+                      <input type="number" step="0.5" value={c.meters??''} placeholder={plantScale? (cableMeters({...c,meters:undefined})??'auto') : '—'}
                         onChange={e=>setCableMetersManual(c.id, e.target.value)}
-                        style={{width:70,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'3px 6px',color:'#fff',fontSize:11,fontFamily:'inherit'}}/>
-                      <span>m</span>
-                      {c.meters!=null && c.meters!=='' && <button onClick={()=>setCableMetersManual(c.id,'')} style={{fontSize:9,padding:'2px 6px',borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.5)',cursor:'pointer'}}>auto</button>}
-                      {!plantScale && <span style={{fontSize:9,color:'#FBBF24'}}>← clique "Escala" para automático</span>}
+                        style={{width:56,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'2px 5px',color:'#fff',fontSize:10,fontFamily:'inherit'}}/>
+                      {c.meters!=null && c.meters!=='' && <button onClick={()=>setCableMetersManual(c.id,'')} style={{fontSize:8.5,padding:'2px 5px',borderRadius:5,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.5)',cursor:'pointer'}}>auto</button>}
                     </div>
-                    <div style={{fontSize:9.5,color:'rgba(255,255,255,0.45)',marginTop:5}}>Arraste os pontos brancos para curvar. Clique no quadradinho do meio de um trecho para criar uma dobra (90°). Duplo-clique num ponto remove.</div>
+                    <div style={{display:'flex',alignItems:'center',gap:5,marginTop:5,fontSize:10,color:'rgba(255,255,255,0.7)'}}>
+                      <i className="ti ti-tournament" aria-hidden/><span>Conduíte:</span>
+                      <input value={c.conduite||''} onChange={e=>setCableConduite(c.id,e.target.value)} placeholder="ex: C1"
+                        style={{width:70,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'2px 5px',color:'#fff',fontSize:10,fontFamily:'inherit'}}/>
+                      {c.conduite && (()=>{ const g=conduiteGroups()[c.conduite]||[]; const n=g.length; const bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
+                        return <span style={{fontSize:8.5,color:'#6EE7B7'}}>{n}× → {bitola}</span> })()}
+                    </div>
+                    <div style={{display:'flex',gap:5,marginTop:7}}>
+                      <button onClick={()=>deleteCable(c.id)} style={{fontSize:9,padding:'3px 8px',borderRadius:6,border:'1px solid #DC2626',background:'transparent',color:'#FCA5A5',cursor:'pointer'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
+                      <button onClick={()=>setSelCable(null)} style={{fontSize:9,padding:'3px 8px',borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.6)',cursor:'pointer',marginLeft:'auto'}}>fechar</button>
+                    </div>
                   </div>
                 })()}
               </div>}
@@ -2860,7 +2918,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             {/* ── Painel direito ── */}
             <div className="pe-editor-side" style={{width:220,background:'#0f172a',borderLeft:'1px solid rgba(255,255,255,0.08)',overflowY:'auto'}}>
               {selected ? (()=>{const m=markers.find(x=>x.uid===selected); if(!m)return null
-                const rNames=rooms.map(r=>r.name)
+                const rNames=[...new Set([...rooms.map(r=>r.name), ...markers.map(x=>x.room).filter(Boolean)])].filter(Boolean).sort((a,b)=>a.localeCompare(b,'pt'))
                 return <div style={{padding:14}}>
                   <div style={{fontSize:11,color:'#38BDF8',fontWeight:600,marginBottom:10,textTransform:'uppercase'}}>Item {m.id}</div>
                   <div style={{fontSize:13,fontWeight:600,color:'#fff'}}>{m.name}</div>
@@ -2893,22 +2951,37 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   </select>
                   <label style={lbl}>ID único</label>
                   <input value={m.id} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,id:e.target.value}:x))} style={inputDark}/>
-                  <label style={lbl}>Tipo elétrico (planta elétrica)</label>
-                  <select value={m.eleType||'auto'} onChange={e=>{const v=e.target.value; setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,eleType:v==='auto'?undefined:v}:x))}} style={inputDark}>
-                    <option value="auto">Automático (pelo nome)</option>
-                    <option value="tomada_baixa">🔌 Tomada baixa (perto do chão)</option>
-                    <option value="tomada_alta">🔌 Tomada alta (bancada/mesa)</option>
-                    <option value="tomada_piso">🔌 Tomada de piso</option>
-                    <option value="tomada_teto">🔌 Tomada de teto (projetor/AP)</option>
-                    <option value="interruptor_simples">💡 Interruptor simples</option>
-                    <option value="interruptor_paralelo">💡 Interruptor paralelo (2 lugares)</option>
-                    <option value="interruptor_intermediario">💡 Interruptor 3+ lugares</option>
-                    <option value="ponto_luz">⭘ Ponto de luz (teto)</option>
-                    <option value="arandela">⭘ Arandela (luz de parede)</option>
-                    <option value="arandela_teto">⭘ Arandela / luz de teto</option>
-                    <option value="quadro">▦ Quadro de luz (QDL)</option>
-                    <option value="nenhum">— Não é elétrico</option>
-                  </select>
+                  <label style={lbl}>Tipo do ponto (planta elétrica)</label>
+                  {(()=>{ const det=classifyEle({...m,eleType:undefined}); const detLabel=det?det.tipo:'não-elétrico (rede/dados/som)'
+                    return <select value={m.eleType||'auto'} onChange={e=>{const v=e.target.value; setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,eleType:v==='auto'?undefined:v}:x))}} style={inputDark}>
+                    <option value="auto">✨ Automático → {detLabel}</option>
+                    <optgroup label="Tomadas">
+                      <option value="tomada_baixa">🔌 Tomada baixa (0,30m)</option>
+                      <option value="tomada_alta">🔌 Tomada alta / bancada (1,30m)</option>
+                      <option value="tomada_piso">🔌 Tomada de piso</option>
+                      <option value="tomada_teto">🔌 Tomada de teto (projetor/AP)</option>
+                    </optgroup>
+                    <optgroup label="Interruptores">
+                      <option value="interruptor_simples">💡 Interruptor simples</option>
+                      <option value="interruptor_paralelo">💡 Interruptor paralelo (2 lugares)</option>
+                      <option value="interruptor_intermediario">💡 Interruptor 3+ lugares</option>
+                    </optgroup>
+                    <optgroup label="Iluminação">
+                      <option value="ponto_luz">⭘ Ponto de luz (teto)</option>
+                      <option value="arandela">⭘ Arandela (parede)</option>
+                      <option value="arandela_teto">⭘ Arandela / luz de teto</option>
+                    </optgroup>
+                    <optgroup label="Quadro">
+                      <option value="quadro">▦ Quadro de luz (QDL)</option>
+                    </optgroup>
+                    <option value="nenhum">— Não é elétrico (rede/dados/som)</option>
+                  </select> })()}
+                  <label style={lbl}>Cabo que chega neste ponto</label>
+                  {(()=>{ const det=guessCableType(m,m); const detL=CABLE_LABELS[det]||det
+                    return <select value={m.cableType||'auto'} onChange={e=>{const v=e.target.value; setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,cableType:v==='auto'?undefined:v}:x))}} style={{...inputDark,marginBottom:8}}>
+                    <option value="auto">✨ Automático → {detL}</option>
+                    {Object.entries(CABLE_LABELS).map(([k,v])=><option key={k} value={k}>{v} · {CABLE_SPEC[k]?.spec||''}</option>)}
+                  </select> })()}
                   <label style={lbl}>Nota (posição/altura)</label>
                   <textarea value={m.note} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,note:e.target.value}:x))} rows={3} style={{...inputDark,resize:'vertical'}}/>
                   <button onClick={()=>{setMarkers(ms=>ms.filter(x=>x.uid!==m.uid).map((x,i)=>({...x,n:i+1})));setSelected(null)}} style={{...btnGhost,width:'100%',marginTop:10,color:'#FCA5A5',borderColor:'rgba(220,38,38,0.4)'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
