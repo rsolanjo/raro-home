@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v127 — Menus Docs e Criar do Orcamento completos: Proposta, Proposta Admin, Apresentacao comercial, Projeto Executivo, Planta de Obra, Planta Eletrica e Contrato nos dois. "Apresentacao" abre o editor ja com o modal de gerar apresentacao aberto (via editIntent)
+// v130 — Lote de 12 ajustes: (1)CPD sempre visivel (2)Obra A3 uma categoria/pagina com planta+tabela (3)Eletrica so itens eletricos+fios+pede quadro (4)Rack com qtd e tabela limpa (5)salvar da refresh (6)docs so mostram o que existe (7)ocultar categoria oculta cabos (8)tomada teto (9)conduites grossos dados/eletrica (10)nome dos PDFs por tipo (11)mapa de calor na eletrica com capa (12)plantas grandes e legiveis
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v127 · build 2026-06
+          v130 · build 2026-06
         </div>
       </div>
     </div>

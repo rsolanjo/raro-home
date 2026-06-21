@@ -58,6 +58,7 @@ const ELE_SYMBOLS = {
   tomada_alta: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="-2" y1="-11" x2="-2" y2="-7" stroke="#111" stroke-width="1.1"/><line x1="2" y1="-11" x2="2" y2="-7" stroke="#111" stroke-width="1.1"/>`,
   // Tomada de piso — círculo com X dentro
   tomada_piso: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-4.5" y1="-4.5" x2="4.5" y2="4.5" stroke="#111" stroke-width="1.2"/><line x1="-4.5" y1="4.5" x2="4.5" y2="-4.5" stroke="#111" stroke-width="1.2"/>`,
+  tomada_teto: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="0" y1="7" x2="0" y2="11" stroke="#111" stroke-width="1.3"/><text x="0" y="-2" font-size="5" text-anchor="middle" fill="#111">T</text>`,
   // Interruptor simples — letra S (representação usual em planta)
   interruptor_simples: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3.5" font-size="9" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S</text>`,
   // Interruptor paralelo (three-way) — S com traço
@@ -79,6 +80,7 @@ const ELE_TYPE_INFO = {
   tomada_baixa:{label:'TUG', tipo:'Tomada baixa (0,30m)'},
   tomada_alta:{label:'TUG-A', tipo:'Tomada média/alta'},
   tomada_piso:{label:'TUG-P', tipo:'Tomada de piso'},
+  tomada_teto:{label:'TUG-T', tipo:'Tomada de teto'},
   interruptor_simples:{label:'S', tipo:'Interruptor / Keypad'},
   interruptor_paralelo:{label:'S₃', tipo:'Interruptor paralelo'},
   interruptor_intermediario:{label:'S₄', tipo:'Interruptor intermediário'},
@@ -97,6 +99,7 @@ function classifyEle(m){
   if(/interruptor.*(intermedi|four)/.test(n)) return {sym:'interruptor_intermediario', label:'S₄', tipo:'Interruptor intermediário'}
   if(/interruptor.*(paralel|three|hotel)|paralelo/.test(n)) return {sym:'interruptor_paralelo', label:'S₃', tipo:'Interruptor paralelo'}
   if(/interruptor|keypad|botão/.test(n)) return {sym:'interruptor_simples', label:'S', tipo:'Interruptor / Keypad'}
+  if(/tomada.*teto|tomada de teto/.test(n)) return {sym:'tomada_teto', label:'TUG-T', tipo:'Tomada de teto'}
   if(/tomada.*piso|piso/.test(n)) return {sym:'tomada_piso', label:'TUG-P', tipo:'Tomada de piso'}
   if(/tomada.*(alta|1,30|bancada|0,90|média|media)/.test(n)) return {sym:'tomada_alta', label:'TUG-A', tipo:'Tomada média/alta'}
   if(/tomada/.test(n)) return {sym:'tomada_baixa', label:'TUG', tipo:'Tomada baixa (0,30m)'}
@@ -235,6 +238,9 @@ function RackModal({ catalog, rackEquip, onChange, markers, onClose, onApply }){
         </div>
         <div style={{flex:1,overflowY:'auto',padding:16}}>
           <div style={{fontSize:11,color:'var(--text2)',marginBottom:12}}>Configure os equipamentos dentro do rack. O rack aparece como um único pin na planta.</div>
+          <div style={{display:'flex',gap:6,alignItems:'center',padding:'0 0 4px',fontSize:9,fontWeight:700,color:'var(--text3)',textTransform:'uppercase'}}>
+            <span style={{width:54}}>Posição U</span><span style={{flex:1}}>Equipamento</span><span style={{flex:1}}>Função</span><span style={{width:54,textAlign:'center'}}>Qtd</span><span style={{width:20}}/>
+          </div>
           {/* Equipment list */}
           {equip.map((it,i)=>(
             <div key={i} style={{display:'flex',gap:6,alignItems:'center',padding:'5px 0',borderBottom:'1px solid var(--border)'}}>
@@ -244,9 +250,13 @@ function RackModal({ catalog, rackEquip, onChange, markers, onClose, onApply }){
                 style={{flex:1,fontSize:11}} placeholder="Equipamento"/>
               <input value={it.funcao||''} onChange={e=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,funcao:e.target.value}:x))}
                 style={{flex:1,fontSize:11}} placeholder="Função"/>
-              <input value={it.qty} type="number" min="1" onChange={e=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,qty:parseInt(e.target.value)||1}:x))}
-                style={{width:38,fontSize:11}} title="Qtd"/>
-              <button onClick={()=>setEquip(eq=>eq.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:14,flexShrink:0}}>✕</button>
+              <div style={{display:'flex',alignItems:'center',gap:2,width:54}}>
+                <button onClick={()=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,qty:Math.max(1,(parseInt(x.qty)||1)-1)}:x))} style={{width:18,height:22,border:'1px solid var(--border)',borderRadius:4,background:'var(--surf)',cursor:'pointer',fontSize:13,lineHeight:1,padding:0}}>−</button>
+                <input value={it.qty} type="number" min="1" onChange={e=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,qty:parseInt(e.target.value)||1}:x))}
+                  style={{width:28,fontSize:11,textAlign:'center',padding:'2px 0'}} title="Quantidade"/>
+                <button onClick={()=>setEquip(eq=>eq.map((x,j)=>j===i?{...x,qty:(parseInt(x.qty)||1)+1}:x))} style={{width:18,height:22,border:'1px solid var(--border)',borderRadius:4,background:'var(--surf)',cursor:'pointer',fontSize:13,lineHeight:1,padding:0}}>+</button>
+              </div>
+              <button onClick={()=>setEquip(eq=>eq.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:14,flexShrink:0,width:20}}>✕</button>
             </div>
           ))}
           {/* Add from catalog — filtrado por categoria */}
@@ -447,7 +457,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   // Gera markers a partir dos itens da proposta (distribuídos por cômodo na planta)
   function markersFromProposal(startN=1){
     const floors = typeof fromProposal?.floors==='string' ? (()=>{try{return JSON.parse(fromProposal.floors)}catch{return[]}})() : (fromProposal?.floors||[])
-    const rooms=[]; let n=startN
+    const grupos=[]; let n=startN
     floors.forEach(fl=>(fl.rooms||[]).forEach(r=>{
       const items=[]
       ;(r.items||[]).forEach(it=>{
@@ -460,25 +470,47 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
             cost:it.cost_price||cat?.cost_price||0, sale:it.sale_price||cat?.sale_price||0, category:it.category||cat?.category||''})
         }
       })
-      if(items.length) rooms.push({name:r.name||'', items})
+      if(items.length) grupos.push({name:r.name||'', items})
     }))
     const mk=[]
-    const cols=Math.ceil(Math.sqrt(rooms.length))||1
-    const rows=Math.ceil(rooms.length/cols)||1
-    rooms.forEach((room,ri)=>{
-      const cx=ri%cols, cy=Math.floor(ri/cols)
-      const cellW=92/cols, cellH=88/rows
-      const baseX=4+cellW*cx, baseY=6+cellH*cy
+    // mapa nome-do-cômodo -> posição real na planta (vinda da etapa "cômodos", se houver)
+    const norm = s => (s||'').toLowerCase().trim()
+    const roomPos = {}
+    ;(rooms||[]).forEach(r=>{ if(r && norm(r.name)) roomPos[norm(r.name)] = {x:Number(r.x)||50, y:Number(r.y)||50} })
+
+    // grade de fallback (quando o cômodo não tem posição conhecida)
+    const semPos = grupos.filter(g=>!roomPos[norm(g.name)])
+    const cols=Math.ceil(Math.sqrt(semPos.length))||1
+    const rows=Math.ceil(semPos.length/cols)||1
+    let fbIdx=0
+
+    grupos.forEach((room)=>{
       const per=room.items.length
       const icols=Math.ceil(Math.sqrt(per))||1
+      const irows=Math.ceil(per/icols)||1
+      const pos = roomPos[norm(room.name)]
+      let baseX, baseY, spreadX, spreadY
+      if(pos){
+        // agrupa os itens em torno do CENTRO real do cômodo, num quadrante compacto
+        const clusterW=Math.min(22, 6+icols*3.2), clusterH=Math.min(20, 6+irows*3.2)
+        baseX = pos.x - clusterW/2
+        baseY = pos.y - clusterH/2
+        spreadX = icols>1 ? clusterW/(icols-1) : 0
+        spreadY = irows>1 ? clusterH/(irows-1) : 0
+      } else {
+        // fallback: grade arbitrária
+        const cx=fbIdx%cols, cy=Math.floor(fbIdx/cols); fbIdx++
+        const cellW=92/cols, cellH=88/rows
+        baseX = 4+cellW*cx+3; baseY = 6+cellH*cy+6
+        spreadX = (cellW-6)/Math.max(1,icols-0); spreadY = (cellH-10)/Math.max(1,irows)
+      }
       room.items.forEach((it,ii)=>{
         const ix=ii%icols, iy=Math.floor(ii/icols)
-        const stepX=(cellW-6)/Math.max(1,icols-0), stepY=(cellH-10)/Math.max(1,Math.ceil(per/icols))
         const sub = inferCategory(it.name, it.category||'').sub || ''
-        const newId = genItemId(it.room||'', sub, mk)   // ID único por cômodo+subcategoria
+        const newId = genItemId(it.room||'', sub, mk)
         mk.push({uid:Date.now()+Math.random(), n:n++, id:newId, code:it.code, name:it.name, room:it.room, note:'',
-          x:Math.min(96,Math.max(3, baseX+3+ix*stepX)),
-          y:Math.min(94,Math.max(5, baseY+6+iy*stepY)),
+          x:Math.min(96,Math.max(3, baseX+ix*spreadX)),
+          y:Math.min(94,Math.max(4, baseY+iy*spreadY)),
           cost:it.cost, sale:it.sale, category:it.category})
       })
     })
@@ -764,22 +796,70 @@ Responda APENAS JSON válido:
     if(!window.confirm('Apagar o projeto inteiro?\n\nRemove a planta, todos os itens e os cabos. Esta ação não pode ser desfeita depois de salvar.')) return
     pushHistory(); setMarkers([]); setCables([]); setBgImage(null)
   }
-  // Importa os itens da proposta e adiciona aos cômodos da planta atual
+  // Importa/sincroniza os itens da proposta. Mantém o que você já posicionou,
+  // adiciona o que é novo e avisa o que saiu da proposta — perguntando antes.
   function importarDaProposta(){
-    const novos = markersFromProposal((markers.length||0)+1)
-    // tenta trazer a planta (imagem) da proposta, se ainda não houver uma carregada
+    const desejados = markersFromProposal(1)   // itens que a proposta TEM agora (com IDs estáveis)
+    // planta (imagem) da proposta, se ainda não houver uma carregada
     let plantaImg = null
     if(!bgImage){
       const pd = initPlanta || (()=>{ let x=fromProposal?.planta_data; if(typeof x==='string'){try{x=JSON.parse(x)}catch{x=null}} return x })()
       const pc = initPlantaCliente || (()=>{ let x=fromProposal?.planta_cliente; if(typeof x==='string'){try{x=JSON.parse(x)}catch{x=null}} return x })()
       plantaImg = pd?.image || pc?.image || null
     }
-    if(!novos.length && !plantaImg){ alert('A proposta não tem itens nem planta para importar.'); return }
-    if((markers.length||plantaImg) && !window.confirm(`Importar da proposta?\n\n${novos.length?`• ${novos.length} itens serão adicionados aos cômodos\n`:''}${plantaImg?'• a planta da proposta será carregada\n':''}`)) return
+    if(!desejados.length && !plantaImg){ alert('A proposta não tem itens nem planta para importar.'); return }
+
+    // chave estável por item (cômodo+código+ocorrência) para casar proposta ↔ planta
+    const norm = s => (s||'').toString().toLowerCase().trim()
+    const keyOf = (m, occ) => `${norm(m.room)}|${norm(m.code||m.name)}|${occ}`
+    const withKeys = (arr) => { const seen={}; return arr.map(m=>{ const base=`${norm(m.room)}|${norm(m.code||m.name)}`; seen[base]=(seen[base]||0)+1; return {...m, _key:keyOf(m,seen[base])} }) }
+    const desKeyed = withKeys(desejados)
+    const existExec = markers.filter(m=>!isRackItem(m.name,m.code))
+    const exKeyed = withKeys(existExec)
+    const exByKey = new Map(exKeyed.map(m=>[m._key,m]))
+    const desByKey = new Map(desKeyed.map(m=>[m._key,m]))
+
+    const novos = desKeyed.filter(d=>!exByKey.has(d._key))         // estão na proposta, faltam na planta
+    const removidos = exKeyed.filter(e=>!desByKey.has(e._key))     // estão na planta, saíram da proposta
+    const mantidos = exKeyed.filter(e=>desByKey.has(e._key))       // já posicionados e ainda na proposta
+
+    const primeiraVez = existExec.length===0
+    if(primeiraVez){
+      if(!desejados.length && !plantaImg){ return }
+      if(!window.confirm(`Importar da proposta?\n\n${desejados.length?`• ${desejados.length} itens serão posicionados nos cômodos\n`:''}${plantaImg?'• a planta da proposta será carregada\n':''}`)) return
+      pushHistory()
+      if(plantaImg) setBgImage(plantaImg)
+      if(desejados.length) setMarkers(desejados)
+      if(step!=='editor' && (bgImage||plantaImg||initPlanta?.image)) setStep('editor')
+      return
+    }
+
+    // Re-sincronização: pergunta antes de mexer
+    if(novos.length===0 && removidos.length===0){
+      alert('Tudo certo! A planta já está igual à última proposta salva — mesmos itens.')
+      if(plantaImg && !bgImage) setBgImage(plantaImg)
+      return
+    }
+    const linhas = []
+    if(novos.length) linhas.push(`• ${novos.length} item(ns) NOVO(s) da proposta serão adicionados`)
+    if(removidos.length) linhas.push(`• ${removidos.length} item(ns) que saíram da proposta serão REMOVIDOS:\n   ${removidos.slice(0,8).map(m=>m.id||m.name).join(', ')}${removidos.length>8?'…':''}`)
+    linhas.push(`• ${mantidos.length} item(ns) que você já posicionou serão MANTIDOS no lugar`)
+    if(!window.confirm(`Sincronizar com a última proposta salva?\n\n${linhas.join('\n')}\n\nOK para aplicar · Cancelar para manter como está.`)) return
+
     pushHistory()
-    if(plantaImg) setBgImage(plantaImg)
-    if(novos.length) setMarkers(ms=>[...ms, ...novos])
-    if(step!=='editor' && (bgImage||plantaImg||initPlanta?.image)) setStep('editor')
+    // monta o novo conjunto: mantidos (na posição atual) + novos (na posição calculada). Remove os que saíram.
+    const rackKeep = markers.filter(m=>isRackItem(m.name,m.code))
+    let nn = 1
+    const resultado = [
+      ...mantidos.map(m=>{ const {_key,...rest}=m; return rest }),
+      ...novos.map(m=>{ const {_key,...rest}=m; return rest }),
+    ]
+    // renumera o pino sequencialmente para ficar limpo
+    resultado.forEach(m=>{ m.n = nn++ })
+    rackKeep.forEach(m=>{ m.n = nn++ })
+    setMarkers([...resultado, ...rackKeep])
+    if(plantaImg && !bgImage) setBgImage(plantaImg)
+    if(step!=='editor') setStep('editor')
   }
   // voltar uma etapa do fluxo
   const STEP_ORDER = ['upload','rooms','chat','editor','exec']
@@ -846,9 +926,10 @@ Responda APENAS JSON válido:
 
   // ── Roteamento de cabos ──
   // Legenda de cores dos cabos (segue o padrão da planta)
-  const CABLE_PALETTE = { dados:'#2563EB', ap:'#F59E0B', camera:'#92400E', uplink:'#DC2626', hdmi:'#7C3AED', som:'#BE185D', eletrica:'#16A34A' }
-  const CABLE_LABELS  = { dados:'Dados', ap:'AP / Access Point', camera:'Câmera', uplink:'Uplink', hdmi:'HDMI', som:'Som', eletrica:'Elétrica' }
-  // especificação técnica de cada tipo de cabo (vai nas tabelas e na legenda)
+  const CABLE_PALETTE = { dados:'#2563EB', ap:'#F59E0B', camera:'#92400E', uplink:'#DC2626', hdmi:'#7C3AED', som:'#BE185D', eletrica:'#16A34A', conduite_dados:'#1E3A8A', conduite_eletrica:'#EAB308' }
+  const CABLE_LABELS  = { dados:'Dados', ap:'AP / Access Point', camera:'Câmera', uplink:'Uplink', hdmi:'HDMI', som:'Som', eletrica:'Elétrica', conduite_dados:'Conduíte DADOS', conduite_eletrica:'Conduíte ELÉTRICA' }
+  // tipos de "conduíte" são eletrodutos compartilhados — desenhados grossos para o pedreiro
+  const CABLE_CONDUITE = { conduite_dados:true, conduite_eletrica:true }
   const CABLE_SPEC = {
     dados:    { spec:'CAT6 U/UTP', uso:'Dados / rede', conector:'RJ45 / Keystone' },
     ap:       { spec:'CAT6 U/UTP (PoE)', uso:'Access Point', conector:'RJ45 PoE' },
@@ -857,6 +938,8 @@ Responda APENAS JSON válido:
     hdmi:     { spec:'HDMI 2.0 / HDBaseT', uso:'Vídeo / TV', conector:'HDMI' },
     som:      { spec:'2×1,5mm² (paralelo)', uso:'Áudio / caixas', conector:'Borne / banana' },
     eletrica: { spec:'3×2,5mm² (F+N+T)', uso:'Energia / 110-220V', conector:'Direto / caixa 4×4' },
+    conduite_dados:    { spec:'Eletroduto 3/4" (dados)', uso:'Conduíte compartilhado de DADOS', conector:'Caixa 4×4 / 4×2' },
+    conduite_eletrica: { spec:'Eletroduto 3/4"–1" (elétrica)', uso:'Conduíte compartilhado de ELÉTRICA', conector:'Caixa 4×4' },
   }
   const mk = uid => markers.find(m=>m.uid===uid)
   // adivinha o tipo de cabo pela natureza dos itens conectados
@@ -1344,7 +1427,7 @@ Responda APENAS JSON válido:
     // itens do rack: prioriza o que VOCÊ configurou no rack da planta; só usa o da IA como apoio
     const rackItems = hasRack
       ? ((rackMarker.rackEquip||[]).length
-          ? rackMarker.rackEquip.map(e=>({u:e.u||'',equip:e.name||e.equip||'',funcao:e.funcao||'',watts:e.watts||'—'}))
+          ? rackMarker.rackEquip.map(e=>({u:e.u||'',equip:e.name||e.equip||'',funcao:e.funcao||'',qty:e.qty||1,watts:e.watts||'—'}))
           : (d.rack_items || d.rack || []))
       : []
     const aps = rackCfg.aps||0, cams = rackCfg.cameras||0
@@ -1412,7 +1495,14 @@ Responda APENAS JSON válido:
   </div>
 </div>`
 
-    // Tópico 4 — Módulos e caixas de teto por cômodo (formato tabela, igual ao resto)
+    const rackEquipTable = rackItems.length ? T(rackItems.map(r=>`<tr>
+      <td style="font-family:monospace;font-size:10px;font-weight:700;color:#7C3AED">${esc(r.u||'—')}</td>
+      <td><b>${esc(r.equip)}</b></td>
+      <td style="font-size:11px;color:#475569">${esc(r.funcao||'—')}</td>
+      <td style="text-align:center;font-weight:700">${esc(r.qty||1)}</td>
+      <td style="text-align:right;font-size:11px">${esc(r.watts||'—')}</td>
+    </tr>`).join(''),['Posição U','Equipamento','Função','Qtd','Consumo']) : ''
+
     const modulosTeto = d.modulos_teto || []
     const modulosTetoHtml = modulosTeto.length
       ? modulosTeto.map(mt=>`<h3 class="ex-amb">${esc(mt.ambiente)}</h3>${T((mt.itens||[]).map(it=>`<tr><td>${esc(it)}</td></tr>`).join(''),['Itens de teto / forro'])}`).join('')
@@ -1919,106 +2009,110 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // ══════════════════════════════════════════════════════════════════
     if (mode==='eletrica') {
       let _ne=0
+      const hasQuadro = markers.some(m=>classifyEle(m)?.sym==='quadro')
+      const eleMarks = markers.filter(m=>classifyEle(m))
+      const ELETR = new Set(['eletrica','conduite_eletrica'])
+      const cabosEle = (cables||[]).filter(c=>ELETR.has(c.type||''))
+      // tabela de fios elétricos (cabos elétricos desenhados) origem→destino
+      const tblFios = cabosEle.length ? (()=>{
+        const rows=cabosEle.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid); const mt=cableMeters(c)
+          const sp=CABLE_SPEC[c.type]||{spec:'3×2,5mm²'}
+          return `<tr>${pinCell(to?.id,to?.code,to?.n)}<td>${f?`<b>#${f.n}</b> ${esc(f.name)}`:'Quadro'}</td><td>${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td><td style="font-size:11px">${esc(to?.room||'—')}</td><td style="font-size:11px">${esc(sp.spec)}</td><td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td></tr>` }).join('')
+        const totM=cabosEle.reduce((s,c)=>s+(cableMeters(c)||0),0)
+        return `<h3 class="ex-amb" style="color:#16A34A">Fios elétricos traçados${totM>0?` · total ~${Math.round(totM)}m`:''}</h3>${T(rows,['Nº','Origem','Destino','Cômodo','Bitola','Metros'])}`
+      })() : ''
+      const avisoQuadro = !hasQuadro && eleMarks.length
+        ? `<div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;padding:12px 14px;font-size:12.5px;color:#92400E;margin:10px 0"><b>⚠ Falta posicionar o Quadro de Distribuição (QDL) na planta.</b><br>Volte ao editor, use o atalho elétrico <b>"Quadro QDL"</b> e posicione o quadro. Os fios partem dele.</div>`
+        : ''
       const eleSecs = [
-        `<div class="ex-sec"><h2 style="border:none;margin-bottom:4px">Planta Elétrica e Cobertura Wi-Fi</h2>
-          <p class="ex-p" style="color:#6B7280">Documento técnico de pontos elétricos (símbolos ABNT NBR 5444) e estimativa de cobertura Wi-Fi. As paredes são consideradas de concreto para o cálculo de propagação.</p></div>`,
+        `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Planta Elétrica — ABNT NBR 5444</h2>
+          <p class="ex-p" style="color:#6B7280">Apenas pontos que usam elétrica (tomadas, interruptores, luz, quadro) e os fios elétricos traçados. Paredes consideradas de concreto.</p></div>`,
+        avisoQuadro,
         buildPlantaEletrica(()=>++_ne),
-        showHeatmap ? buildHeatmap(()=>++_ne) : '',
+        tblFios,
       ].filter(Boolean)
       const eleBody = eleSecs.join('\n')
-      const semNada = !bgImage || (!markers.some(m=>classifyEle(m)) && !markers.some(m=>/access point|\bap\b|wi-?fi/.test(((m.name||'')+' '+(m.code||'')).toLowerCase())))
-      return eleBody + (semNada?`<div class="ex-sec"><p class="ex-p" style="color:#B45309">Adicione pontos elétricos (tomadas, interruptores, luz, QDL) e/ou Access Points na planta para gerar este documento.</p></div>`:'') + '</div>'
+      const semEle = !bgImage || !eleMarks.length
+      // item 11: mapa de calor com CAPA separando (vive na elétrica+obra, não só no executivo)
+      const aps = markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
+      const heatCover = (showHeatmap && aps.length) ? `
+        <div class="ex-obra-page" style="page-break-before:always;text-align:center;padding:60px 30px;background:#0D1420;color:#fff;border-radius:10px;margin-top:20px">
+          <div style="font-size:11px;letter-spacing:3px;color:#38BDF8;text-transform:uppercase">Anexo</div>
+          <div style="font-size:28px;font-weight:800;margin:14px 0 6px">Cobertura Wi-Fi</div>
+          <div style="font-size:13px;color:#94A3B8">Mapa de calor da propagação dos Access Points<br>${aps.length} AP${aps.length!==1?'s':''} · paredes de concreto</div>
+        </div>` : ''
+      const heat = (showHeatmap && aps.length) ? buildHeatmap(()=>++_ne) : ''
+      return eleBody + (semEle?`<div class="ex-sec"><p class="ex-p" style="color:#B45309">Adicione pontos elétricos (tomadas, interruptores, luz, QDL) na planta para gerar este documento.</p></div>`:'') + heatCover + heat + '</div>'
     }
 
     if (isObra) {
-      // 1) Planta com o CAMINHO DOS CABOS desenhado por cima
-      let plantaCabos = ''
-      if (bgImage) {
-        const dots = markers.map(m=>{
-          const isR = isRackItem(m.name||'', m.code||'')
-          const st = EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
-          const col = isR ? '#4C1D95' : st.c
+      // PROJETO DE OBRA — uma PÁGINA por categoria de cabo (formato impressora grande/A3).
+      // NADA de elétrica aqui (vai tudo na Planta Elétrica). Conduítes de DADOS entram.
+      const ELETR = new Set(['eletrica','conduite_eletrica'])
+      const usados = (cables||[]).filter(c=>!ELETR.has(c.type||''))
+      // agrupa cabos por tipo (categoria), cada um vira uma página
+      const byType={}
+      usados.forEach(c=>{ const t=c.type||'dados'; (byType[t]=byType[t]||[]).push(c) })
+      const ordem=['conduite_dados','dados','ap','camera','uplink','hdmi','som']
+      const tipos = Object.keys(byType).sort((a,b)=>(ordem.indexOf(a)+99)-(ordem.indexOf(b)+99))
+
+      const pagePlanta = (t, arr, col, lb, sp)=>{
+        if(!bgImage) return ''
+        const condW = CABLE_CONDUITE[t] ? 4.2 : 2.4
+        // só os pontos ligados por esta categoria + o rack/quadro
+        const uids = new Set(); arr.forEach(c=>{ uids.add(c.fromUid); uids.add(c.toUid) })
+        const dots = markers.filter(m=>uids.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
+          const isR=isRackItem(m.name||'',m.code||''); const c2= isR?'#4C1D95':col
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:18px;height:18px;border-radius:50%;background:${col};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
-            <div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:7.5px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>
+            <div style="width:20px;height:20px;border-radius:50%;background:${c2};color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
+            <div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>
           </div>`
         }).join('')
-        const cableSvg = (cables||[]).map(c=>{
-          const pts = cablePolyPoints(c)
-          if (pts.length<2) return ''
-          const poly = pts.map(p=>`${p.x},${p.y}`).join(' ')
-          const col = c.color || '#2563EB'
-          return `<polyline points="${poly}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:2.2px" vector-effect="non-scaling-stroke"/>`
-        }).join('')
-        const legenda = Object.entries(CABLE_PALETTE).map(([k,v])=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;color:#374151;margin-right:14px"><span style="width:16px;height:3px;border-radius:2px;background:${v};display:inline-block"></span>${CABLE_LABELS[k]||k}</span>`).join('')
-        plantaCabos = `<div class="ex-sec ex-breakable"><h2><span class="ex-sec-num">${++_n}</span>Planta — Caminho dos Cabos</h2>
-          <p class="ex-p" style="margin-bottom:8px">Cada linha colorida é um cabo: parte da origem (rack/quadro) até o destino. Siga o caminho desenhado e use a tabela abaixo para metragem e tipo.</p>
-          <div style="position:relative;display:inline-block;max-width:100%;width:100%">
-            <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${cableSvg}</svg>
-            ${dots}
-          </div>
-          <div style="margin-top:10px;display:flex;flex-wrap:wrap;align-items:center">${legenda}</div>
-          ${(cables||[]).length===0?'<p class="ex-p" style="color:#B45309;margin-top:8px">⚠ Nenhum cabo foi desenhado na planta. Volte ao editor e use o modo "Cabos" para traçar os caminhos.</p>':''}
+        const lines = arr.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
+          return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:${condW}px" vector-effect="non-scaling-stroke"/>` }).join('')
+        return `<div style="position:relative;display:inline-block;width:100%;margin-top:8px">
+          <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}
         </div>`
       }
-      const tblRedeObra = (d.rack_cable_table||[]).length
-        ? T(d.rack_cable_table.map(r=>`<tr>
-            ${pinCell(r.destino,r.etiqueta)}
-            <td style="font-family:monospace;font-size:10px"><b>${esc(r.etiqueta||r.porta_patch||'—')}</b></td>
-            <td>${esc(r.device_origem||'Rack')} ${r.porta_origem?`<span style="color:#6B7280">(${esc(r.porta_origem)})</span>`:''}</td>
-            <td>${esc(r.destino||'—')}</td>
-            <td style="font-size:10px">${esc(r.tipo||'CAT6')}</td>
-            <td style="text-align:right">${esc(r.metros||'—')}m</td>
-          </tr>`).join(''), ['Nº','Etiqueta','Origem','Destino','Tipo','Metros'])
-        : ''
-      const tblSomObra = (d.cabos_som||[]).length
-        ? T(d.cabos_som.map(r=>`<tr>${pinCell(r.destino,r.etiqueta,r.id)}<td style="font-family:monospace;font-size:10px"><b>${esc(r.etiqueta||r.id||'—')}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td style="font-size:10px">${esc(r.tipo||'2×1,5mm²')}</td><td style="text-align:right">${esc(r.metros||'—')}m</td></tr>`).join(''), ['Nº','Etiqueta','Origem','Destino','Tipo','Metros'])
-        : ''
-      const tblEletObra = (d.cabos_eletricos_por_comodo||[]).length
-        ? d.cabos_eletricos_por_comodo.map(c=>`<h3 class="ex-amb">${esc(c.comodo)}</h3>${T((c.itens||[]).map(it=>`<tr>${pinCell(it.id,it.equip)}<td style="font-family:monospace;font-size:10px"><b>${esc(it.id)}</b></td><td>${esc(it.equip)}</td><td>${esc(it.origem)}</td><td>${esc(it.destino)}</td><td style="font-size:10px">${esc(it.fios||it.tipo||'')}</td><td style="text-align:right">${esc(it.metros||'—')}m</td><td style="font-size:9.5px;color:#B45309">${esc(it.obs||'')}</td></tr>`).join(''),['Nº','ID','Equip.','Origem (quadro)','Destino','Fios','Metros','Obs'])}`).join('')
-        : (cabosEletConsolidado || '')
-      const tblPontosObra = (d.pontos||[]).length
-        ? (d.pontos||[]).map(a=>`<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T((a.linhas||[]).map(l=>`<tr>${pinCell(l.ponto,l.equip)}<td><b>${esc(l.ponto)}</b></td><td>${esc(l.equip)}</td><td>${esc(l.parede)}</td><td>${esc(l.dist)}</td><td style="font-weight:700;color:#0F172A">${esc(l.alt)}</td><td>${esc(l.caixa)}</td><td style="font-size:10px">${esc(l.virado||l.orientacao||'frente p/ ambiente')}</td></tr>`).join(''),['Nº','Ponto','Equip.','Parede ref.','Distância','Altura','Caixa','Virado p/'])}`).join('')
-        : ''
-      const caixasPorComodo = (d.pontos||[]).map(a=>{
-        const linhas=(a.linhas||[]).filter(l=>(l.caixa||'').trim())
-        if(!linhas.length) return ''
-        return `<h3 class="ex-amb">${esc(a.ambiente)}</h3>${T(linhas.map(l=>`<tr>${pinCell(l.ponto,l.equip)}<td><b>${esc(l.ponto)}</b></td><td>${esc(l.parede)}</td><td>${esc(l.caixa)}</td><td style="font-weight:700">${esc(l.alt)}</td><td style="font-size:10px">${esc(l.cabo||'')}</td></tr>`).join(''),['Nº','Ponto','Parede','Caixa','Altura','Eletroduto/Cabo'])}`
-      }).filter(Boolean).join('')
-      const eletrodutoNotas = (d.checklist_obra||[]).filter(x=>/eletroduto|caixa 4|4×4|4x4|sangria|passagem|fio-guia/i.test(x))
-      // tabela dos cabos efetivamente desenhados na planta, agrupados por tipo + especificação
-      const tblCabosDesenhados = (cables||[]).length ? (()=>{
-        const byType={}
-        ;(cables||[]).forEach(c=>{ const t=c.type||'dados'; (byType[t]=byType[t]||[]).push(c) })
-        return Object.entries(byType).map(([t,arr])=>{
-          const col=CABLE_PALETTE[t]||'#374151', lb=CABLE_LABELS[t]||t, sp=CABLE_SPEC[t]||{spec:'—',conector:'—'}
-          const rows = arr.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid); const mt=cableMeters(c)
-            return `<tr>${pinCell(to?.id,to?.code,to?.n)}<td>${f?`<b>#${f.n}</b> ${esc(f.name)}`:'—'}</td><td>${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td><td style="font-size:10px">${esc(to?.room||'—')}</td><td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td></tr>` }).join('')
-          const totM = arr.reduce((s,c)=>{ const m=cableMeters(c); return s+(m||0) },0)
-          return `<div style="font-size:10px;font-weight:700;color:${col};text-transform:uppercase;letter-spacing:.5px;padding:8px 0 3px;border-bottom:2px solid ${col};margin:14px 0 6px">
-            ${lb} — ${arr.length} cabo${arr.length!==1?'s':''} · <span style="font-weight:500;text-transform:none">${sp.spec} · ${sp.conector}</span>${totM>0?` · <span style="color:#0F172A;background:#F1F5F9;padding:1px 6px;border-radius:6px">total ~${Math.round(totM)}m</span>`:''}</div>
-            ${T(rows,['Nº destino','Origem','Destino','Cômodo','Metros'])}`
-        }).join('')
-      })() : ''
+      // uma seção (página) por categoria
+      const categoriaPaginas = tipos.map((t,idx)=>{
+        const arr=byType[t], col=CABLE_PALETTE[t]||'#374151', lb=CABLE_LABELS[t]||t, sp=CABLE_SPEC[t]||{spec:'—',conector:'—'}
+        const rows=arr.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid); const mt=cableMeters(c)
+          return `<tr>${pinCell(to?.id,to?.code,to?.n)}<td>${f?`<b>#${f.n}</b> ${esc(f.name)}`:'—'}</td><td>${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td><td style="font-size:11px">${esc(to?.room||'—')}</td><td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td></tr>` }).join('')
+        const totM=arr.reduce((s,c)=>s+(cableMeters(c)||0),0)
+        const isCond=CABLE_CONDUITE[t]
+        return `<div class="ex-obra-page" style="page-break-before:${idx===0?'auto':'always'}">
+          <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid ${col};padding-bottom:8px;margin-bottom:6px">
+            <div style="width:30px;height:30px;border-radius:8px;background:${col};display:flex;align-items:center;justify-content:center"><span style="width:18px;height:4px;background:#fff;border-radius:2px"></span></div>
+            <div><div style="font-size:20px;font-weight:800;color:#0D1420">${lb}${isCond?' (conduíte)':''}</div>
+            <div style="font-size:12px;color:#64748B">${arr.length} ${isCond?'conduíte(s)':'cabo(s)'} · ${sp.spec} · ${sp.conector}${totM>0?` · total ~${Math.round(totM)}m`:''}</div></div>
+          </div>
+          ${pagePlanta(t,arr,col,lb,sp)}
+          <h3 class="ex-amb" style="margin-top:14px;color:${col}">Tabela — ${lb}</h3>
+          ${T(rows,['Nº destino','Origem','Destino','Cômodo','Metros'])}
+        </div>`
+      })
+      // página de conduítes compartilhados (caixas que recebem mais de um cabo)
+      const eletrodutoNotas = (d.checklist_obra||[]).filter(x=>/eletroduto|caixa 4|4×4|4x4|sangria|passagem|fio-guia|condu/i.test(x))
       const obraSections = [
-        `<div class="ex-sec"><h2 style="border:none;margin-bottom:4px">Projeto de Obra — Guia do Eletricista / Pedreiro</h2>
-          <p class="ex-p" style="color:#6B7280">Documento simplificado: só infraestrutura. Caminho dos cabos, metragem, alturas, orientação dos pontos e caixas 4×4 por parede. Sem listas comerciais.</p></div>`,
-        plantaCabos,
-        secN(`Cabos Desenhados — por Tipo e Especificação`, tblCabosDesenhados, true),
-        secN(`Cabos de Rede — Origem → Destino`, tblRedeObra, true),
-        secN(`Cabos de Som — Origem → Destino`, tblSomObra, true),
-        secN(`Cabos Elétricos — por Cômodo`, tblEletObra, true),
-        secN(`Pontos — Altura, Parede e Orientação`, tblPontosObra, true),
-        secN(`Caixas 4×4 e Eletrodutos — por Cômodo`, caixasPorComodo, true),
-        secN(`Notas de Infraestrutura (Eletrodutos · Sangrias · Caixas)`, list(eletrodutoNotas.length?eletrodutoNotas:d.checklist_obra), true),
+        `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Projeto de Obra — Guia do Eletricista / Pedreiro</h2>
+          <p class="ex-p" style="color:#6B7280">Documento de infraestrutura para impressão em prancha grande (A3). Cada página é uma categoria de cabeamento, com a planta e a tabela de cabos. A parte elétrica (tomadas, fios, quadro) está no documento <b>Planta Elétrica</b> separado.</p></div>`,
+        ...(categoriaPaginas.length?categoriaPaginas:[`<p class="ex-p" style="color:#B45309">⚠ Nenhum cabo de dados/rede/som desenhado na planta. Use o modo "Cabos" no editor.</p>`]),
+        `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Notas de Infraestrutura · Conduítes Compartilhados</h2>
+          ${list(eletrodutoNotas.length?eletrodutoNotas:[
+            'Usar eletroduto 3/4" para conduítes de dados; 3/4"–1" para conduítes elétricos.',
+            'Conduítes compartilhados: passar cabos de DADOS e ELÉTRICA em eletrodutos SEPARADOS (nunca no mesmo).',
+            'Deixar fio-guia em todos os conduítes.',
+            'Caixa 4×4 em todos os pontos com mais de um cabo chegando.',
+          ])}</div>`,
       ].filter(Boolean)
       return obraSections.join('\n') + '</div>'
     }
 
     return [
     secN(`Premissas Confirmadas`, list(d.premissas)),
-    secN(`Detalhe do RACK / CPD`, hasRack && (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Todos os Cabos de Rede (APs · Câmeras · Keystones · Uplinks)</h3>${rackCableTableHtml}`:'')):'', true),
+    secN(`Detalhe do RACK / CPD`, hasRack && (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+(rackEquipTable?`<h3 class="ex-amb">Equipamentos do Rack (com quantidades)</h3>${rackEquipTable}`:'')+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Todos os Cabos de Rede (APs · Câmeras · Keystones · Uplinks)</h3>${rackCableTableHtml}`:'')):'', true),
     secN(`Cabos de Rede — Patch Panel e Etiquetas`, cabosRedeHtml, true),
     secN(`Segurança — Câmeras e Sensores de Alarme`, tblSeguranca, true),
     secN(`Som Ambiente — Caixas, Amplificador e Zonas`, tblSom, true),
@@ -2043,12 +2137,17 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const w=window.open('','_blank')
     const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
     const codigo=(fromProposal?.code||'').replace(/[\\/:*?"<>|]/g,'')
-    const sufixo = execMode==='obra' ? ' — OBRA' : execMode==='eletrica' ? ' — ELETRICA' : ''
-    const tituloPdf=`Projeto Executivo RARO Home — ${cliNome}${codigo?' — '+codigo:''}${sufixo}`
+    // item 10: nome do PDF conforme o tipo de documento
+    const nomeDoc = execMode==='obra' ? 'Projeto de Obra' : execMode==='eletrica' ? 'Planta Elétrica' : 'Projeto Executivo'
+    const tituloPdf=`${nomeDoc} — RARO Home — ${cliNome}${codigo?' — '+codigo:''}`
     const docHtml = (execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execDoc)||''
+    // obra e elétrica saem em A3 paisagem (impressora grande); executivo em A4
+    const pageCss = (execMode==='obra'||execMode==='eletrica')
+      ? '@page{size:A3 landscape;margin:10mm}'
+      : '@page{size:A4;margin:12mm}'
     w.document.write(`<html><head><title>${tituloPdf}</title><meta charset="utf-8">
       <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-      <style>body{margin:0}${EXEC_CSS}</style></head><body>
+      <style>${pageCss} body{margin:0}${EXEC_CSS}</style></head><body>
       ${docHtml}
       </body></html>`)
     w.document.close(); setTimeout(()=>w.print(),700)
@@ -2076,8 +2175,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const { saveProposal } = await import('../db/supabase.js')
         const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct}, exec_api_cost:apiCost }
         await saveProposal(updated)
-        alert(`✅ Projeto Executivo salvo no orçamento!\n\n💸 Custo de IA na geração: R$ ${apiCost.brl.toFixed(2)} (${apiCost.calls} chamadas)`)
+        alert(`✅ Salvo no orçamento! A página vai atualizar.`)
         onClose && onClose()
+        setTimeout(()=>{ try{ window.location.reload() }catch{} }, 200)  // item 5: refresh automático
         return
       }catch(e){ alert('Erro ao salvar: '+e.message); return }
     }
@@ -2464,6 +2564,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       {label:'Tomada média',sub:'1,30m',eleType:'tomada_alta',name:'Tomada média',note:'H=1,30m (bancada)'},
                       {label:'Tomada alta',sub:'2,00m',eleType:'tomada_alta',name:'Tomada alta',note:'H=2,00m'},
                       {label:'Tomada piso',sub:'piso',eleType:'tomada_piso',name:'Tomada de piso',note:'caixa de piso'},
+                      {label:'Tomada teto',sub:'teto',eleType:'tomada_teto',name:'Tomada de teto',note:'teto (projetor/AP)'},
                       {label:'Interruptor',sub:'1,10m',eleType:'interruptor_simples',name:'Interruptor simples',note:'H=1,10m'},
                       {label:'Interr. paralelo',sub:'1,10m',eleType:'interruptor_paralelo',name:'Interruptor paralelo',note:'H=1,10m'},
                       {label:'Ponto de luz',sub:'teto',eleType:'ponto_luz',name:'Ponto de luz',note:'teto'},
@@ -2664,7 +2765,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   return <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid rgba(255,255,255,0.15)'}}>
                     <div style={{marginBottom:5}}>Cabo: <b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b></div>
                     <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap'}}>
-                      {[['dados','Dados','#2563EB'],['ap','AP','#F59E0B'],['camera','Câmera','#92400E'],['uplink','Uplink','#DC2626'],['hdmi','HDMI','#7C3AED'],['som','Som','#BE185D'],['eletrica','Elétrica','#16A34A']].map(([t,lb,col])=>(
+                      {[['dados','Dados','#2563EB'],['ap','AP','#F59E0B'],['camera','Câmera','#92400E'],['uplink','Uplink','#DC2626'],['hdmi','HDMI','#7C3AED'],['som','Som','#BE185D'],['eletrica','Elétrica','#16A34A'],['conduite_dados','Conduíte DADOS','#1E3A8A'],['conduite_eletrica','Conduíte ELÉTRICA','#EAB308']].map(([t,lb,col])=>(
                         <button key={t} onClick={()=>setCableColor(c.id,t)} style={{fontSize:10,padding:'3px 8px',borderRadius:10,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.2)'}`,background:c.type===t?col+'33':'transparent',color:c.type===t?'#fff':'rgba(255,255,255,0.6)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:col}}/>{lb}</button>
                       ))}
                       <button onClick={()=>deleteCable(c.id)} style={{fontSize:10,padding:'3px 8px',borderRadius:10,border:'1px solid #DC2626',background:'transparent',color:'#FCA5A5',cursor:'pointer',marginLeft:'auto'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
@@ -2694,12 +2795,19 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 {/* ── Camada de CABOS (planta elétrica) ── */}
                 {!hideCables && <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:4,overflow:'visible'}} preserveAspectRatio="none" viewBox="0 0 100 100">
                   {cables.map(c=>{
+                    // oculta o cabo se a categoria de algum dos pontos estiver filtrada (item 7)
+                    if(filterCateg.size>0){
+                      const a=mk(c.fromUid), b=mk(c.toUid)
+                      const visCat=x=> !x || isRackItem(x.name,x.code) || filterCateg.has(inferCategory(x.name||'').cat||'Outros')
+                      if(!visCat(a) || !visCat(b)) return null
+                    }
                     const pts=cablePolyPoints(c); if(pts.length<2) return null
                     const d=pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')
                     const sel=selCable===c.id
+                    const isCond=CABLE_CONDUITE[c.type]
                     return <path key={c.id} d={d} fill="none" stroke={c.color}
                       strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke"
-                      style={{pointerEvents:cableMode?'stroke':'none',cursor:'pointer',filter:sel?'drop-shadow(0 0 2px '+c.color+')':'none',strokeWidth:sel?3:2}}
+                      style={{pointerEvents:cableMode?'stroke':'none',cursor:'pointer',filter:sel?'drop-shadow(0 0 2px '+c.color+')':'none',strokeWidth:sel?(isCond?6:3):(isCond?5:2)}}
                       onClick={e=>{e.stopPropagation(); setSelCable(c.id)}}/>
                   })}
                 </svg>}
@@ -2731,8 +2839,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   const matchR=filterRooms.size===0||filterRooms.has(m.room||'Sem cômodo')
                   const matchC=filterCateg.size===0||filterCateg.has(inferCategory(m.name||'').cat||'Outros')
                   const matchI=!filterItem||m.name===filterItem
-                  const visible=matchS&&matchR&&matchC&&matchI
                   const isRack = isRackItem(m.name||'', m.code||'')
+                  const visible = isRack ? (matchS&&matchR&&matchI) : (matchS&&matchR&&matchC&&matchI)  // CPD/rack nunca some por categoria
                   const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
                   const sel=selected===m.uid
                   const isCableOrigin = cableDraft?.fromUid===m.uid
@@ -2791,6 +2899,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <option value="tomada_baixa">🔌 Tomada baixa (perto do chão)</option>
                     <option value="tomada_alta">🔌 Tomada alta (bancada/mesa)</option>
                     <option value="tomada_piso">🔌 Tomada de piso</option>
+                    <option value="tomada_teto">🔌 Tomada de teto (projetor/AP)</option>
                     <option value="interruptor_simples">💡 Interruptor simples</option>
                     <option value="interruptor_paralelo">💡 Interruptor paralelo (2 lugares)</option>
                     <option value="interruptor_intermediario">💡 Interruptor 3+ lugares</option>
@@ -2844,7 +2953,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 Mostrar mapa de calor Wi-Fi
               </label>}
             </div>
-            <div style={{maxWidth:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)'}}>
+            <div style={{maxWidth:(execMode==='obra'||execMode==='eletrica')?1180:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)',transition:'max-width 0.2s'}}>
               {(()=>{ const cur = execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execDoc
                 const nome = execMode==='obra'?'Obra / Pedreiro':execMode==='eletrica'?'Elétrica':'Completa'
                 return cur
@@ -2973,20 +3082,28 @@ const EXEC_CSS=`
 .ex-ul li{margin-bottom:4px;line-height:1.5}
 .ex-p{font-size:11.5px;line-height:1.65;color:#374151;margin:0 0 8px}
 
+/* ── Páginas de OBRA / ELÉTRICA (impressora grande A3) ─────────────────────── */
+.ex-obra-page{padding:18px 28px 26px;background:#fff;border-bottom:2px solid #E8F0F8}
+.ex-obra-page h2{font-family:'DM Serif Display',Georgia,serif;font-size:20px;color:#060B1A;margin:0 0 10px}
+.ex-obra-page img{width:100%;display:block;border:1px solid #ccc;border-radius:8px}
+/* plantas grandes e legíveis: imagem ocupa a largura toda, com altura mínima generosa */
+.ex-plant-wrap{position:relative;width:100%;margin:8px 0}
+.ex-plant-wrap img{width:100%;display:block}
+
 /* ── Print ───────────────────────────────────────────────────────────────── */
 @media print{
-  @page{size:A4;margin:16mm 18mm 18mm}
   .no-print{display:none!important}
   .ex-cover{page-break-after:always;break-after:page}
   .ex-sec{page-break-inside:avoid;break-inside:avoid;padding:16px 28px 20px}
   /* Seções longas PODEM quebrar — desativa avoid nelas */
   .ex-sec.ex-breakable{page-break-inside:auto;break-inside:auto}
+  .ex-obra-page{page-break-inside:avoid;break-inside:avoid}
   .ex-tbl thead{display:table-header-group}
-  .ex-tbl{font-size:9.5px}
-  .ex-tbl th{padding:4px 6px;font-size:8.5px}
-  .ex-tbl td{padding:4px 6px}
-  h2{font-size:15px}
-  .ex-amb{font-size:11px}
+  .ex-tbl{font-size:10px}
+  .ex-tbl th{padding:5px 7px;font-size:9px}
+  .ex-tbl td{padding:5px 7px}
+  h2{font-size:16px}
+  .ex-amb{font-size:11.5px}
 }
 `
 
