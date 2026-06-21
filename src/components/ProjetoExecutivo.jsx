@@ -474,7 +474,9 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
       room.items.forEach((it,ii)=>{
         const ix=ii%icols, iy=Math.floor(ii/icols)
         const stepX=(cellW-6)/Math.max(1,icols-0), stepY=(cellH-10)/Math.max(1,Math.ceil(per/icols))
-        mk.push({uid:Date.now()+Math.random(), n:n++, id:'', code:it.code, name:it.name, room:it.room, note:'',
+        const sub = inferCategory(it.name, it.category||'').sub || ''
+        const newId = genItemId(it.room||'', sub, mk)   // ID único por cômodo+subcategoria
+        mk.push({uid:Date.now()+Math.random(), n:n++, id:newId, code:it.code, name:it.name, room:it.room, note:'',
           x:Math.min(96,Math.max(3, baseX+3+ix*stepX)),
           y:Math.min(94,Math.max(5, baseY+6+iy*stepY)),
           cost:it.cost, sale:it.sale, category:it.category})
@@ -676,13 +678,19 @@ Responda APENAS JSON válido:
         }
       }
       let cid=Date.now()
+      const _mkAcc=[]
       const mk=(parsed.itens||[])
         .filter(it=>{ const cat=catalog.find(c=>c.code===it.code); return !isRackItem(cat?.name||it.name||'', it.code||'') })
         .map(it=>{
         const cat=catalog.find(c=>c.code===it.code) || catalog.find(c=>(c.name||'').toLowerCase()===(it.name||'').toLowerCase())
-        return {uid:cid++, id:it.id||('?'+(cid%1000)), code:it.code||cat?.code||'', name:cat?.name||it.name||it.code||'Item',
+        const nm=cat?.name||it.name||it.code||'Item'
+        const sub=inferCategory(nm, cat?.category||'').sub||''
+        const idFinal = it.id || genItemId(it.room||'', sub, _mkAcc)
+        const obj = {uid:cid++, id:idFinal, code:it.code||cat?.code||'', name:nm,
           room:it.room||'', x:Math.max(2,Math.min(98,Number(it.x)||50)), y:Math.max(2,Math.min(96,Number(it.y)||50)),
           note:it.nota||it.note||'', cost:cat?.cost_price||0, sale:cat?.sale_price||0, category:cat?.category||''}
+        _mkAcc.push(obj)
+        return obj
       })
       if(!mk.length) throw new Error('A IA não sugeriu itens. Verifique se há equipamentos no catálogo e tente novamente.')
       mk.forEach((m,i)=>{ m.n = i+1 })

@@ -11,7 +11,9 @@ export function buildContract(proposal, client) {
     : (typeof proposal.floors==='string' ? JSON.parse(proposal.floors||'[]') : proposal.floors||[])
   const equipTotal = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)
   const labor = Number(proposal.labor)||0
-  const total = equipTotal + labor
+  // valor do contrato = valor aprovado da última proposta salva, se houver; senão o total calculado
+  const computed = equipTotal + labor
+  const total = Number(proposal.approved_value)>0 ? Number(proposal.approved_value) : computed
   const today = new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})
   const name1 = client?.full_name1 || client?.name1 || '—'
   const name2 = client?.full_name2 || client?.name2 || ''

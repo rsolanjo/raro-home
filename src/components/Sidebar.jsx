@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v123 — Fim dos "?": equipType reconhece Keystone/Patch/Switch/Nobreak/Organizador/Quadro/Rack/Roteador/TV/Luz/Fonte (fallback virou "•"); mapa de calor SO aparece se houver AP no projeto (sem AP, nada de aviso); planta eletrica/tomadas so com pontos reais; adicionado "Arandela de teto" (alem da de parede) nos atalhos, dropdown e simbolos
+// v124 — Acoes do Orcamento reorganizadas: menu "Docs" (ver Proposta/Admin/Executivo/Obra/Eletrica/Contrato) e menu "Criar"; Enviar e Apagar como botoes soltos; contrato puxa valor aprovado da ultima proposta salva. FIX: itens importados da proposta (e da IA) vinham com ID vazio/"?" — agora geram ID unico por comodo+subcategoria
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v123 · build 2026-06
+          v124 · build 2026-06
         </div>
       </div>
     </div>
