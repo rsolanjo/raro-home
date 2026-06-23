@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v144 — FIX (QA): erro "esc is not defined" ao abrir o painel da prumada pareada / tentar cabo na prumada. Causa: chamada esc() no JSX do componente (escopo onde esc nao existe — ele so vive dentro de buildExecHtml). Removido (React ja escapa). Painel da prumada volta a funcionar.
+// v145 — (1)FIX: cabos da 2a planta sumiam ao filtrar Redes — agora filtra pela categoria do TIPO do cabo e trata prumada/quadro/rack como neutros (nao escondem o cabo); (2)aviso de QDL ciente de multi-pavimento (prumada pareada => sugere 1 quadro por andar); (3)Planta eletrica + profissional: tomadas menores na planta, badge de tensao 110/220V (toggle no painel), novo Modulo de cabeceira (tomada+interruptor+2 USB) com simbolo proprio
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v144 · build 2026-06
+          v145 · build 2026-06
         </div>
       </div>
     </div>

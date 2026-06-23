@@ -72,6 +72,7 @@ const ELE_SYMBOLS = {
   arandela: `<path d="M-7 6 A7 7 0 0 1 7 6 Z" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="6" x2="9" y2="6" stroke="#111" stroke-width="1.3"/>`,
   arandela_teto: `<circle r="6.5" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="0" x2="-6.5" y2="0" stroke="#111" stroke-width="1.1"/><line x1="6.5" y1="0" x2="9" y2="0" stroke="#111" stroke-width="1.1"/><circle r="2" fill="#fff" stroke="#111" stroke-width="1"/>`,
   prumada: `<circle r="8" fill="#fff" stroke="#7C3AED" stroke-width="1.6"/><path d="M0 -5 L0 5 M-3 -2 L0 -5 L3 -2 M-3 2 L0 5 L3 2" fill="none" stroke="#7C3AED" stroke-width="1.4" stroke-linecap="round"/>`,
+  modulo_cabeceira: `<rect x="-11" y="-7" width="22" height="14" rx="2" fill="#fff" stroke="#111" stroke-width="1.2"/><circle cx="-6" cy="0" r="3" fill="none" stroke="#111" stroke-width="1"/><line x1="-7.5" y1="-1.5" x2="-4.5" y2="1.5" stroke="#111" stroke-width="0.9"/><line x1="-7.5" y1="1.5" x2="-4.5" y2="-1.5" stroke="#111" stroke-width="0.9"/><rect x="-1" y="-3" width="3" height="6" rx="1" fill="none" stroke="#111" stroke-width="0.9"/><text x="7" y="2.5" font-size="5.5" text-anchor="middle" font-weight="700" fill="#0891B2">USB</text>`,
   // Quadro de distribuição (QDL)
   quadro: `<rect x="-10" y="-7" width="20" height="14" fill="#fff" stroke="#111" stroke-width="1.5"/><line x1="-10" y1="-2.5" x2="10" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="-5" y1="-7" x2="-5" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="0" y1="-7" x2="0" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="5" y1="-7" x2="5" y2="-2.5" stroke="#111" stroke-width="1"/>`,
   // Genérico
@@ -90,6 +91,7 @@ const ELE_TYPE_INFO = {
   arandela:{label:'L', tipo:'Arandela de parede'},
   arandela_teto:{label:'L', tipo:'Arandela de teto'},
   prumada:{label:'⇵', tipo:'Prumada (descida entre pavimentos)'},
+  modulo_cabeceira:{label:'MOD', tipo:'Módulo cabeceira (tomada+interruptor+2 USB)'},
   quadro:{label:'QDL', tipo:'Quadro de Distribuição'},
 }
 function classifyEle(m){
@@ -98,6 +100,7 @@ function classifyEle(m){
   if(m.eleType==='nenhum') return null  // marcado explicitamente como "não é elétrico"
   // 2) senão, infere pelo nome/nota
   const n=((m.name||'')+' '+(m.note||'')).toLowerCase()
+  if(/m[óo]dulo.*cabeceira|cabeceira|tomada.*usb|usb.*tomada/.test(n)) return {sym:'modulo_cabeceira', label:'MOD', tipo:'Módulo cabeceira (tomada+interruptor+2 USB)'}
   if(/prumada|shaft|descida.*andar|descida.*pavimento|coluna.*vertical/.test(n)) return {sym:'prumada', label:'⇵', tipo:'Prumada (descida entre pavimentos)'}
   if(/quadro|qdl|qd |distribui/.test(n)) return {sym:'quadro', label:'QDL', tipo:'Quadro de Distribuição'}
   if(/interruptor.*(intermedi|four)/.test(n)) return {sym:'interruptor_intermediario', label:'S₄', tipo:'Interruptor intermediário'}
@@ -1407,16 +1410,22 @@ Responda APENAS JSON válido:
       // bitola/fios por tipo
       const fiosDe = sym => /tomada/.test(sym)?'3×2,5mm² (F+N+T)':/interruptor/.test(sym)?'2×1,5mm² (retorno)':/luz|arandela/.test(sym)?'2×1,5mm²':sym==='quadro'?'alimentação geral':'—'
       // ── símbolos como SVG individuais (cada um num quadradinho que NÃO distorce) ──
-      const SYM_PX = 30
-      const syms = eleMarks.map(({m,cls})=>`
+      // tomadas ficam menores (costumam ser muitas); demais maiores
+      const symPxDe = sym => /tomada/.test(sym) ? 21 : 30
+      const syms = eleMarks.map(({m,cls})=>{
+        const SYM_PX = symPxDe(cls.sym)
+        // tensão: 110/220 a partir da nota do ponto
+        const volt = /tomada/.test(cls.sym) ? ((/220/.test(m.note||'')?'220V':/110|127/.test(m.note||'')?'110V':'')) : ''
+        return `
         <div style="position:absolute;left:${m.x}%;top:${m.y}%;width:${SYM_PX}px;height:${SYM_PX}px;transform:translate(-50%,-50%);z-index:3">
           <svg viewBox="-12 -14 24 30" width="${SYM_PX}" height="${SYM_PX}" style="overflow:visible">
             ${ELE_SYMBOLS[cls.sym]||ELE_SYMBOLS.generico}
             <circle cx="10" cy="-10" r="6.5" fill="#0EA5E9" stroke="#fff" stroke-width="1.2"/>
             <text x="10" y="-7.5" font-size="8" text-anchor="middle" font-weight="800" fill="#fff">${m.n}</text>
           </svg>
-          <div style="position:absolute;left:50%;top:${SYM_PX-2}px;transform:translateX(-50%);font-size:8px;font-weight:700;color:#0D1420;white-space:nowrap;background:rgba(255,255,255,0.8);padding:0 2px;border-radius:2px">${esc(cls.label)}</div>
-        </div>`).join('')
+          ${volt?`<div style="position:absolute;left:50%;top:-7px;transform:translateX(-50%);font-size:6.5px;font-weight:800;color:#fff;background:${volt==='220V'?'#DC2626':'#0891B2'};padding:0 3px;border-radius:5px;white-space:nowrap">${volt}</div>`:''}
+          <div style="position:absolute;left:50%;top:${SYM_PX-3}px;transform:translateX(-50%);font-size:7.5px;font-weight:700;color:#0D1420;white-space:nowrap;background:rgba(255,255,255,0.8);padding:0 2px;border-radius:2px">${esc(cls.label)}</div>
+        </div>`}).join('')
       // eletrodutos (SVG fino, só linhas — distorção não importa em linha)
       const dutos = qdl ? eleMarks.filter(x=>x!==qdl).map(({m})=>{
         const mx=(m.x+qdl.m.x)/2, my=Math.min(m.y,qdl.m.y)-6
@@ -2815,6 +2824,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       {label:'Tomada alta',sub:'2,00m',eleType:'tomada_alta',name:'Tomada alta',note:'H=2,00m'},
                       {label:'Tomada piso',sub:'piso',eleType:'tomada_piso',name:'Tomada de piso',note:'caixa de piso'},
                       {label:'Tomada teto',sub:'teto',eleType:'tomada_teto',name:'Tomada de teto',note:'teto (projetor/AP)'},
+                      {label:'Módulo cabeceira',sub:'2 USB + tom + int',eleType:'modulo_cabeceira',name:'Módulo de cabeceira (tomada + interruptor + 2 USB)',note:'cabeceira da cama'},
                       {label:'Interruptor',sub:'1,10m',eleType:'interruptor_simples',name:'Interruptor simples',note:'H=1,10m'},
                       {label:'Interr. paralelo',sub:'1,10m',eleType:'interruptor_paralelo',name:'Interruptor paralelo',note:'H=1,10m'},
                       {label:'Ponto de luz',sub:'teto',eleType:'ponto_luz',name:'Ponto de luz',note:'teto'},
@@ -2980,10 +2990,18 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <button onClick={()=>setShowIds(v=>!v)} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:showIds?'rgba(255,255,255,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={showIds?'Ocultar os códigos (planta limpa)':'Mostrar os códigos dos pontos'}>
                   <i className={showIds?'ti ti-tag':'ti ti-tag-off'} aria-hidden/>{showIds?'IDs visíveis':'IDs ocultos'}
                 </button>
-                {(()=>{ const temEle=markers.some(m=>classifyEle(m)); const temQDL=markers.some(m=>classifyEle(m)?.sym==='quadro')
-                  return temEle && !temQDL ? <span style={{height:32,borderRadius:6,border:'1px solid #DC2626',background:'rgba(220,38,38,0.18)',color:'#FCA5A5',fontSize:11,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontWeight:600}} title="Use o atalho elétrico 'Quadro QDL' e posicione na planta">
+                {(()=>{ const temEle=markers.some(m=>classifyEle(m)); const qdls=markers.filter(m=>classifyEle(m)?.sym==='quadro').length
+                  // prumadas pareadas indicam que há mais de um pavimento na planta
+                  const pares=new Set(markers.filter(m=>classifyEle(m)?.sym==='prumada'&&(m.prumadaCode||'').trim()).map(m=>(m.prumadaCode||'').trim().toLowerCase()))
+                  const multiPav = pares.size>0
+                  if(!temEle) return null
+                  if(qdls===0) return <span style={{height:32,borderRadius:6,border:'1px solid #DC2626',background:'rgba(220,38,38,0.18)',color:'#FCA5A5',fontSize:11,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontWeight:600}} title="Use o atalho 'Quadro QDL' e posicione na planta">
                     <i className="ti ti-alert-triangle" aria-hidden/>Falta o Quadro de Luz (QDL)
-                  </span> : null })()}
+                  </span>
+                  if(multiPav && qdls<2) return <span style={{height:32,borderRadius:6,border:'1px solid #F59E0B',background:'rgba(245,158,11,0.18)',color:'#FBBF24',fontSize:11,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontWeight:600}} title="Há prumada (2 pavimentos). Cada andar costuma ter seu próprio QDL.">
+                    <i className="ti ti-alert-triangle" aria-hidden/>{qdls} QDL — 2 pavimentos? coloque 1 por andar
+                  </span>
+                  return null })()}
                 {cables.length>0 && <button onClick={()=>setHideCables(h=>!h)} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:hideCables?'rgba(255,255,255,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={hideCables?'Mostrar cabos':'Ocultar cabos (só itens)'}>
                   <i className={hideCables?'ti ti-eye-off':'ti ti-eye'} aria-hidden/>{hideCables?'Cabos ocultos':'Ocultar cabos'}
                 </button>}
@@ -3087,11 +3105,25 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 {/* ── Camada de CABOS (planta elétrica) ── */}
                 {!hideCables && <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:4,overflow:'visible'}} preserveAspectRatio="none" viewBox="0 0 100 100">
                   {cables.map(c=>{
-                    // oculta o cabo se a categoria de algum dos pontos estiver filtrada (item 7) — conduíte livre não tem itens, sempre mostra
+                    // oculta o cabo conforme a categoria FILTRADA. Usa o tipo do cabo (não os itens),
+                    // assim cabos que tocam prumada/quadro/rack (estruturais) não somem indevidamente.
                     if(filterCateg.size>0 && !c.free){
+                      // categoria a que o cabo pertence, pelo seu tipo
+                      const catDoCabo = (t=>{
+                        if(['dados','ap','uplink','hdmi','fibra','conduite_dados'].includes(t)) return 'Redes'
+                        if(['camera'].includes(t)) return 'Segurança'
+                        if(['som'].includes(t)) return 'Sonorização'
+                        if(['eletrica','conduite_eletrica'].includes(t)) return 'Automação'
+                        return null
+                      })(c.type)
+                      // também considera a categoria dos itens das pontas (ignorando estruturais)
+                      const estrut = x=> !x || isRackItem(x.name,x.code) || ['prumada','quadro'].includes(classifyEle(x)?.sym)
                       const a=mk(c.fromUid), b=mk(c.toUid)
-                      const visCat=x=> !x || isRackItem(x.name,x.code) || filterCateg.has(inferCategory(x.name||'').cat||'Outros')
-                      if(!visCat(a) || !visCat(b)) return null
+                      const catItem = x=> estrut(x)? null : (inferCategory(x.name||'').cat||null)
+                      const cats = [catDoCabo, catItem(a), catItem(b)].filter(Boolean)
+                      // visível se QUALQUER categoria associada ao cabo estiver entre as filtradas
+                      const visivel = cats.length===0 ? true : cats.some(cat=>filterCateg.has(cat))
+                      if(!visivel) return null
                     }
                     const pts=cablePolyPoints(c); if(pts.length<2) return null
                     const d=pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')
@@ -3209,6 +3241,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       <option value="tomada_alta">🔌 Tomada alta / bancada (1,30m)</option>
                       <option value="tomada_piso">🔌 Tomada de piso</option>
                       <option value="tomada_teto">🔌 Tomada de teto (projetor/AP)</option>
+                      <option value="modulo_cabeceira">🛏 Módulo cabeceira (tomada+int+2 USB)</option>
                     </optgroup>
                     <optgroup label="Interruptores">
                       <option value="interruptor_simples">💡 Interruptor simples</option>
@@ -3232,7 +3265,18 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <option value="auto">✨ Automático → {detL}</option>
                     {Object.entries(CABLE_LABELS).map(([k,v])=><option key={k} value={k}>{v} · {CABLE_SPEC[k]?.spec||''}</option>)}
                   </select> })()}
-                  {classifyEle(m)?.sym==='prumada' && (()=>{
+                  {/tomada|modulo_cabeceira/.test(classifyEle(m)?.sym||'') && (()=>{
+                    const volt = /220/.test(m.note||'')?'220':/110|127/.test(m.note||'')?'110':''
+                    const setVolt=v=>{ const base=(m.note||'').replace(/\b(110|127|220)\s*V?\b/gi,'').replace(/\s{2,}/g,' ').trim()
+                      setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,note:(base?base+' ':'')+(v?v+'V':'')}:x)) }
+                    return <div style={{marginBottom:8}}>
+                      <label style={{...lbl,marginTop:0}}>Tensão</label>
+                      <div style={{display:'flex',gap:5}}>
+                        {[['','—'],['110','110V'],['220','220V']].map(([v,lb])=>(
+                          <button key={v} onClick={()=>setVolt(v)} style={{flex:1,fontSize:11,padding:'5px 0',borderRadius:6,cursor:'pointer',border:`1px solid ${volt===v?(v==='220'?'#DC2626':v==='110'?'#0891B2':'rgba(255,255,255,0.25)'):'rgba(255,255,255,0.15)'}`,background:volt===v?(v==='220'?'rgba(220,38,38,0.25)':v==='110'?'rgba(8,145,178,0.25)':'rgba(255,255,255,0.1)'):'transparent',color:'#fff',fontFamily:'inherit'}}>{lb}</button>
+                        ))}
+                      </div>
+                    </div> })()}
                     const par = markers.filter(x=>x.uid!==m.uid && classifyEle(x)?.sym==='prumada' && (x.prumadaCode||'').trim() && (x.prumadaCode||'').trim().toLowerCase()===(m.prumadaCode||'').trim().toLowerCase())
                     const altPar = parseFloat(m.prumadaAltura) || (par.find(x=>parseFloat(x.prumadaAltura))?.prumadaAltura) || 0
                     return <div style={{background:'rgba(124,58,237,0.12)',border:'1px solid rgba(124,58,237,0.4)',borderRadius:6,padding:'8px 10px',marginBottom:8}}>
