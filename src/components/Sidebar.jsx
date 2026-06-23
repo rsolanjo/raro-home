@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v141 — Prumada criada JA EM PAR: ao posicionar a 1a prumada o sistema gera o codigo (PR1, PR2...), pergunta a altura uma vez, e ja re-arma para voce clicar a 2a (mesmo furo no outro andar) com o mesmo codigo automaticamente. Sem precisar digitar codigo manualmente.
+// v142 — Inteligencia da prumada: ao desenhar o trecho prumada->CPD, o sistema LISTA os cabos que chegaram na prumada (ex: AP-25, AP-26...) e pergunta de qual item vem; ao escolher, casa os 2 trechos como o MESMO cabo logico (runId), mantendo a identidade do AP rastreavel ate o CPD mesmo com varios APs descendo pela mesma prumada. Painel mostra a ligacao.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v141 · build 2026-06
+          v142 · build 2026-06
         </div>
       </div>
     </div>

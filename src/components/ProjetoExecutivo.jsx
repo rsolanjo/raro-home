@@ -1012,6 +1012,35 @@ Responda APENAS JSON válido:
       const type = to?.cableType || from?.cableType || guessCableType(from,to)
       const newCable={ id:Date.now(), fromUid:cableDraft.fromUid, toUid:uid,
         points:pts, color:CABLE_PALETTE[type], type }
+
+      // ── INTELIGÊNCIA DA PRUMADA ──
+      // Se este trecho SAI de uma prumada (ex: prumada de baixo → CPD), pergunta de qual item
+      // do outro andar ele vem, e casa os dois trechos como o MESMO cabo lógico.
+      const fromEhPrumada = classifyEle(from)?.sym==='prumada'
+      const toEhPrumada   = classifyEle(to)?.sym==='prumada'
+      const prumadaUid = fromEhPrumada ? from.uid : null
+      if(prumadaUid){
+        const cod=(from.prumadaCode||'').trim().toLowerCase()
+        // prumadas do mesmo par (mesmo código), incluindo a do outro andar
+        const parUids = new Set(markers.filter(m=>classifyEle(m)?.sym==='prumada' && (cod? (m.prumadaCode||'').trim().toLowerCase()===cod : m.uid===from.uid)).map(m=>m.uid))
+        // cabos que CHEGAM em qualquer prumada do par e ainda não foram casados
+        const candidatos = (cables||[]).filter(c=>!c.free && !c.runId && (parUids.has(c.toUid)||parUids.has(c.fromUid)))
+          .map(c=>{ const outroUid = parUids.has(c.toUid)? c.fromUid : c.toUid; return {cabo:c, item:mk(outroUid)} })
+          .filter(o=>o.item && classifyEle(o.item)?.sym!=='prumada')
+        if(candidatos.length){
+          const lista = candidatos.map((o,i)=>`${i+1}) #${o.item.n} ${o.item.name}${o.item.room?' ('+o.item.room+')':''}`).join('\n')
+          const resp = window.prompt(`Este cabo sai da prumada ${from.prumadaCode||''} indo para ${to.name}.\n\nDe QUAL item do outro andar ele vem? Digite o número:\n\n${lista}\n\n(deixe vazio se for um cabo novo, sem par)`)
+          const idx = parseInt(resp)-1
+          if(idx>=0 && candidatos[idx]){
+            const orig = candidatos[idx]
+            const runId = orig.cabo.runId || ('run'+Date.now())
+            // marca os dois trechos com o mesmo runId e a identidade do item de origem
+            newCable.runId = runId; newCable.runFromUid = orig.item.uid; newCable.type = orig.cabo.type; newCable.color = orig.cabo.color
+            setCables(cs=>cs.map(c=>c.id===orig.cabo.id?{...c, runId, runToUid:uid}:c).concat(newCable))
+            setSelCable(newCable.id); setCableDraft(null); return true
+          }
+        }
+      }
       setCables(cs=>[...cs,newCable]); setSelCable(newCable.id)
     }
     setCableDraft(null); return true
@@ -3014,7 +3043,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                           <input value={c.label||''} onChange={e=>setCables(cs=>cs.map(x=>x.id===c.id?{...x,label:e.target.value}:x))} placeholder="ex: Sala → Rack"
                             style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'4px 7px',color:'#fff',fontSize:11,fontFamily:'inherit',boxSizing:'border-box'}}/>
                         </div>
-                      : <div style={{marginBottom:5,fontSize:10,color:'rgba(255,255,255,0.85)'}}><b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b></div>}
+                      : <div style={{marginBottom:5,fontSize:10,color:'rgba(255,255,255,0.85)'}}><b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b>
+                          {c.runFromUid && <div style={{marginTop:3,fontSize:9,color:'#6EE7B7',background:'rgba(16,163,74,0.12)',borderRadius:4,padding:'2px 6px'}}>↳ continuação do cabo do item <b>#{mk(c.runFromUid)?.n} {mk(c.runFromUid)?.name}</b> (mesmo cabo descendo pela prumada)</div>}
+                          {c.runToUid && <div style={{marginTop:3,fontSize:9,color:'#6EE7B7',background:'rgba(16,163,74,0.12)',borderRadius:4,padding:'2px 6px'}}>↳ este cabo desce pela prumada e chega em <b>{(()=>{const d=cables.find(x=>x.runId===c.runId&&x.id!==c.id);return d?mk(d.toUid)?.name:'—'})()}</b></div>}
+                        </div>}
                     <div style={{display:'flex',gap:3,alignItems:'center',flexWrap:'wrap'}}>
                       {[['dados','Dados','#2563EB'],['ap','AP','#F59E0B'],['camera','Câm','#92400E'],['uplink','Uplk','#DC2626'],['hdmi','HDMI','#7C3AED'],['som','Som','#BE185D'],['eletrica','Elét','#16A34A'],['fibra','Fibra','#0D9488'],['conduite_dados','C.DADOS','#1E3A8A'],['conduite_eletrica','C.ELÉT','#EAB308']].map(([t,lb,col])=>(
                         <button key={t} onClick={()=>setCableColor(c.id,t)} title={CABLE_LABELS[t]} style={{fontSize:9,padding:'2px 6px',borderRadius:9,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.18)'}`,background:c.type===t?col+'33':'transparent',color:c.type===t?'#fff':'rgba(255,255,255,0.55)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:3}}><span style={{width:7,height:7,borderRadius:'50%',background:col}}/>{lb}</button>
