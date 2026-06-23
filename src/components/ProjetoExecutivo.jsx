@@ -3241,7 +3241,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <input value={m.prumadaCode||''} placeholder="ex: PR1"
                       onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,prumadaCode:e.target.value}:x))} style={inputDark}/>
                     {par.length>0
-                      ? <div style={{fontSize:9.5,color:'#6EE7B7',marginTop:4,background:'rgba(16,163,74,0.12)',borderRadius:5,padding:'4px 7px'}}>✓ Pareada com a prumada #{par[0].n} ({esc(par[0].room||'outro andar')}). Os cabos que entram numa saem na outra.</div>
+                      ? <div style={{fontSize:9.5,color:'#6EE7B7',marginTop:4,background:'rgba(16,163,74,0.12)',borderRadius:5,padding:'4px 7px'}}>✓ Pareada com a prumada #{par[0].n} ({par[0].room||'outro andar'}). Os cabos que entram numa saem na outra.</div>
                       : <div style={{fontSize:9,color:'#FBBF24',marginTop:4}}>⚠ Crie outra prumada com o MESMO código no outro andar para fechar o par.</div>}
                     <label style={lbl}>Altura do par (pé-direito, em metros)</label>
                     <input type="number" step="0.1" value={m.prumadaAltura||''} placeholder={altPar?`${altPar} (definida no par)`:'ex: 3'}

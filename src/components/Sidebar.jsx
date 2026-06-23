@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v143 — FIX (QA): cabos/itens sumiam ao passar varios para a mesma prumada. Causa: id por Date.now() colidia em cliques rapidos (mesmo ms) -> React descartava os duplicados. Agora id unico monotonico (uniqId) para cabos, conduites livres, markers e runId. Varios cabos acumulam na prumada sem apagar o anterior.
+// v144 — FIX (QA): erro "esc is not defined" ao abrir o painel da prumada pareada / tentar cabo na prumada. Causa: chamada esc() no JSX do componente (escopo onde esc nao existe — ele so vive dentro de buildExecHtml). Removido (React ja escapa). Painel da prumada volta a funcionar.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v143 · build 2026-06
+          v144 · build 2026-06
         </div>
       </div>
     </div>
