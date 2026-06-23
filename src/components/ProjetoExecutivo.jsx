@@ -1041,9 +1041,18 @@ Responda APENAS JSON válido:
     const pts=cablePolyPoints(c); if(pts.length<2) return null
     const base = polyLenWidthUnits(pts)*plantScale            // metros do caminho na planta
     const subidaDescida = 3.0                                  // ~3m de subida ao forro/descida à caixa
-    // se o cabo conecta a uma PRUMADA, soma a altura do pé-direito (descida entre andares)
+    // PRUMADA: soma a altura (pé-direito) tanto se o cabo TERMINA na prumada
+    // quanto se ele PASSA por uma (cabo de rede contínuo cruzando andares, sem emenda).
     let prumadaH = 0
-    if(!c.free){ for(const uid of [c.fromUid,c.toUid]){ const m=mk(uid); if(m && classifyEle(m)?.sym==='prumada'){ prumadaH += parseFloat(m.prumadaAltura)||0 } } }
+    const prumadas = markers.filter(m=>classifyEle(m)?.sym==='prumada')
+    const contadas = new Set()
+    // 1) endpoints que são prumada
+    if(!c.free){ for(const uid of [c.fromUid,c.toUid]){ const m=mk(uid); if(m && classifyEle(m)?.sym==='prumada' && !contadas.has(m.uid)){ prumadaH += parseFloat(m.prumadaAltura)||0; contadas.add(m.uid) } } }
+    // 2) prumada próxima de qualquer vértice do caminho (cabo passa por ela) — tolerância ~4% da planta
+    for(const p of prumadas){ if(contadas.has(p.uid)) continue
+      const perto = pts.some(pt=>{ const dx=(pt.x-p.x), dy=(pt.y-p.y)*imgRatio; return Math.sqrt(dx*dx+dy*dy) < 4 })
+      if(perto){ prumadaH += parseFloat(p.prumadaAltura)||0; contadas.add(p.uid) }
+    }
     const comFolga = (base+subidaDescida+prumadaH) * (1+folgaPct/100)
     return Math.round(comFolga*10)/10
   }
@@ -3168,7 +3177,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <label style={lbl}>Liga os pavimentos</label>
                     <input value={m.prumadaPav||''} placeholder="ex: Pav 2 → Pav 1 (CPD)"
                       onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,prumadaPav:e.target.value}:x))} style={inputDark}/>
-                    <div style={{fontSize:9,color:'rgba(196,181,253,0.7)',marginTop:5,lineHeight:1.3}}>Os cabos que chegam nesta prumada somam automaticamente esta altura na metragem. Posicione uma prumada em cada andar, no mesmo ponto de descida.</div>
+                    <div style={{fontSize:9,color:'rgba(196,181,253,0.7)',marginTop:5,lineHeight:1.3}}>Os cabos que <b>passam ou terminam</b> nesta prumada somam esta altura na metragem.<br/><b>Rede (CAT6):</b> trace UM cabo contínuo do ponto até o Rack passando pela prumada (sem emenda).<br/><b>Elétrica:</b> pode emendar na prumada.</div>
                   </div>}
                   <label style={lbl}>Nota (posição/altura)</label>
                   <textarea value={m.note} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,note:e.target.value}:x))} rows={3} style={{...inputDark,resize:'vertical'}}/>
