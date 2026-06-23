@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v135 — Conduite LIVRE: novo botao "Conduite" desenha o eletroduto direto na parede clicando pontos na planta, SEM precisar ligar item origem/destino. Escolhe tipo (DADOS/ELETRICA/SOM), preview ao vivo, calcula metragem, e entra no Relatorio de Conduites por familia + visao geral
+// v137 — PRUMADA (descida de cabos entre pavimentos): novo ponto "Prumada" (atalho + dropdown + simbolo roxo), sempre visivel; campos altura(pe-direito) e pavimentos que liga; cabos que chegam na prumada SOMAM a altura automaticamente na metragem; nova pagina "Prumadas — descidas entre pavimentos" no Relatorio de Conduites (quantos cabos descem + bitola do eletroduto vertical)
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v135 · build 2026-06
+          v137 · build 2026-06
         </div>
       </div>
     </div>

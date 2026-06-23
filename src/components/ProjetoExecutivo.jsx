@@ -71,6 +71,7 @@ const ELE_SYMBOLS = {
   // Arandela (luz de parede) — meio círculo
   arandela: `<path d="M-7 6 A7 7 0 0 1 7 6 Z" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="6" x2="9" y2="6" stroke="#111" stroke-width="1.3"/>`,
   arandela_teto: `<circle r="6.5" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="0" x2="-6.5" y2="0" stroke="#111" stroke-width="1.1"/><line x1="6.5" y1="0" x2="9" y2="0" stroke="#111" stroke-width="1.1"/><circle r="2" fill="#fff" stroke="#111" stroke-width="1"/>`,
+  prumada: `<circle r="8" fill="#fff" stroke="#7C3AED" stroke-width="1.6"/><path d="M0 -5 L0 5 M-3 -2 L0 -5 L3 -2 M-3 2 L0 5 L3 2" fill="none" stroke="#7C3AED" stroke-width="1.4" stroke-linecap="round"/>`,
   // Quadro de distribuição (QDL)
   quadro: `<rect x="-10" y="-7" width="20" height="14" fill="#fff" stroke="#111" stroke-width="1.5"/><line x1="-10" y1="-2.5" x2="10" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="-5" y1="-7" x2="-5" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="0" y1="-7" x2="0" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="5" y1="-7" x2="5" y2="-2.5" stroke="#111" stroke-width="1"/>`,
   // Genérico
@@ -88,6 +89,7 @@ const ELE_TYPE_INFO = {
   ponto_luz:{label:'L', tipo:'Ponto de luz'},
   arandela:{label:'L', tipo:'Arandela de parede'},
   arandela_teto:{label:'L', tipo:'Arandela de teto'},
+  prumada:{label:'⇵', tipo:'Prumada (descida entre pavimentos)'},
   quadro:{label:'QDL', tipo:'Quadro de Distribuição'},
 }
 function classifyEle(m){
@@ -96,6 +98,7 @@ function classifyEle(m){
   if(m.eleType==='nenhum') return null  // marcado explicitamente como "não é elétrico"
   // 2) senão, infere pelo nome/nota
   const n=((m.name||'')+' '+(m.note||'')).toLowerCase()
+  if(/prumada|shaft|descida.*andar|descida.*pavimento|coluna.*vertical/.test(n)) return {sym:'prumada', label:'⇵', tipo:'Prumada (descida entre pavimentos)'}
   if(/quadro|qdl|qd |distribui/.test(n)) return {sym:'quadro', label:'QDL', tipo:'Quadro de Distribuição'}
   if(/interruptor.*(intermedi|four)/.test(n)) return {sym:'interruptor_intermediario', label:'S₄', tipo:'Interruptor intermediário'}
   if(/interruptor.*(paralel|three|hotel)|paralelo/.test(n)) return {sym:'interruptor_paralelo', label:'S₃', tipo:'Interruptor paralelo'}
@@ -1038,7 +1041,10 @@ Responda APENAS JSON válido:
     const pts=cablePolyPoints(c); if(pts.length<2) return null
     const base = polyLenWidthUnits(pts)*plantScale            // metros do caminho na planta
     const subidaDescida = 3.0                                  // ~3m de subida ao forro/descida à caixa
-    const comFolga = (base+subidaDescida) * (1+folgaPct/100)
+    // se o cabo conecta a uma PRUMADA, soma a altura do pé-direito (descida entre andares)
+    let prumadaH = 0
+    if(!c.free){ for(const uid of [c.fromUid,c.toUid]){ const m=mk(uid); if(m && classifyEle(m)?.sym==='prumada'){ prumadaH += parseFloat(m.prumadaAltura)||0 } } }
+    const comFolga = (base+subidaDescida+prumadaH) * (1+folgaPct/100)
     return Math.round(comFolga*10)/10
   }
   function setCableMetersManual(id, val){ setCables(cs=>cs.map(c=>c.id===id?{...c, meters: val===''?undefined:val}:c)) }
@@ -2122,12 +2128,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${lines}</svg>${dots}
         </div>`
       }
-      const tabela = arr=>{ const grupos={}; arr.forEach(c=>{ const k=c.conduite||'(sem grupo)'; (grupos[k]=grupos[k]||[]).push(c) })
+      const tabela = arr=>{ const grupos={}; arr.forEach(c=>{ const k=c.conduite||c.label||'(sem grupo)'; (grupos[k]=grupos[k]||[]).push(c) })
         const rows=Object.entries(grupos).map(([nome,g])=>{ const n=g.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
           const tipos=[...new Set(g.map(c=>CABLE_LABELS[c.type]||c.type))].join(', ')
           const mt=Math.max(...g.map(c=>cableMeters(c)||0))
-          return `<tr><td><b>${esc(nome)}</b></td><td style="text-align:center">${n}</td><td style="font-size:11px">${esc(tipos)}</td><td style="text-align:center;font-weight:700">${nome==='(sem grupo)'?'—':bitola}</td><td style="text-align:right">${mt>0?Math.round(mt)+'m':'—'}</td></tr>` }).join('')
-        return T(rows,['Conduíte','Nº cabos','Tipos','Eletroduto','Trajeto']) }
+          const lbls=[...new Set(g.map(c=>c.label).filter(Boolean))].join(' · ')
+          return `<tr><td><b>${esc(nome)}</b>${lbls&&lbls!==nome?`<br><span style="font-size:9.5px;color:#64748B">${esc(lbls)}</span>`:''}</td><td style="text-align:center">${n}</td><td style="font-size:11px">${esc(tipos)}</td><td style="text-align:center;font-weight:700">${(nome==='(sem grupo)'&&!g[0].conduite)?'—':bitola}</td><td style="text-align:right">${mt>0?Math.round(mt)+'m':'—'}</td></tr>` }).join('')
+        return T(rows,['Conduíte / Trecho','Nº','Tipos','Eletroduto','Metros']) }
       const paginas = Object.entries(porFam).map(([f,arr],i)=>`
         <div class="ex-obra-page" style="page-break-before:${i===0?'auto':'always'}">
           <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid ${famColor[f]};padding-bottom:8px;margin-bottom:6px">
@@ -2138,6 +2145,23 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           ${desenhaPlanta(arr, famColor[f])}
           <h3 class="ex-amb" style="color:${famColor[f]}">Conduítes ${f}</h3>${tabela(arr)}
         </div>`).join('')
+      // página de prumadas (descidas entre pavimentos)
+      const prumadas = markers.filter(m=>classifyEle(m)?.sym==='prumada')
+      const paginaPrumadas = prumadas.length ? `
+        <div class="ex-obra-page" style="page-break-before:always">
+          <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid #7C3AED;padding-bottom:8px;margin-bottom:6px">
+            <div style="width:30px;height:30px;border-radius:8px;background:#7C3AED;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px">⇵</div>
+            <div><div style="font-size:20px;font-weight:800;color:#0D1420">Prumadas — descidas entre pavimentos</div>
+            <div style="font-size:12px;color:#64748B">${prumadas.length} prumada(s)</div></div>
+          </div>
+          ${T(prumadas.map(p=>{
+            const ligados=(cables||[]).filter(c=>!c.free && (c.fromUid===p.uid||c.toUid===p.uid))
+            const n=ligados.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
+            const tipos=[...new Set(ligados.map(c=>CABLE_LABELS[c.type]||c.type))].join(', ')||'—'
+            return `<tr><td style="text-align:center">${pin(p.n,'#7C3AED')}</td><td><b>${esc(p.prumadaPav||p.room||'—')}</b></td><td style="text-align:center">${p.prumadaAltura?esc(p.prumadaAltura)+'m':'—'}</td><td style="text-align:center">${n}</td><td style="font-size:11px">${esc(tipos)}</td><td style="text-align:center;font-weight:700">${n?bitola:'—'}</td></tr>`
+          }).join(''),['Nº','Liga pavimentos','Altura','Nº cabos','Tipos','Eletroduto vertical'])}
+          <p class="ex-p" style="font-size:10px;color:#64748B;margin-top:6px">A altura do pé-direito é somada automaticamente na metragem dos cabos que passam pela prumada. Posicione uma prumada no mesmo ponto de cada pavimento.</p>
+        </div>` : ''
       const paginaTodos = todos.length ? `
         <div class="ex-obra-page" style="page-break-before:always">
           <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid #0D1420;padding-bottom:8px;margin-bottom:6px">
@@ -2150,7 +2174,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const corpo = (Object.keys(porFam).length?paginas:`<p class="ex-p" style="color:#B45309">Nenhum conduíte/cabo traçado. Use o modo "Cabos" no editor.</p>`)
       return `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Relatório de Conduítes</h2>
         <p class="ex-p" style="color:#6B7280">Caminhos de eletrodutos por família (Dados, Som, Elétrica) e uma visão com todos juntos. Para o pedreiro saber onde passar cada conduíte.</p></div>
-        ${corpo}${paginaTodos}</div>`
+        ${corpo}${paginaPrumadas}${paginaTodos}</div>`
     }
     if (mode==='eletrica') {
       let _ne=0
@@ -2728,6 +2752,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       {label:'Arandela parede',sub:'2,20m',eleType:'arandela',name:'Arandela de parede',note:'H=2,20m'},
                       {label:'Arandela teto',sub:'teto',eleType:'arandela_teto',name:'Arandela de teto',note:'teto'},
                       {label:'Quadro QDL',sub:'1,50m',eleType:'quadro',name:'Quadro de luz QDL',note:'H=1,50m'},
+                      {label:'Prumada ↕',sub:'descida',eleType:'prumada',name:'Prumada (descida entre andares)',note:'shaft/laje'},
                     ].map(b=>{
                       const active = addMode && addItem?.eleType===b.eleType && addItem?.name===b.name
                       return <button key={b.label} onClick={()=>{ setAddItem({code:'',name:b.name,note:b.note,eleType:b.eleType,category:'Automação'}); setAddMode(true) }}
@@ -2946,7 +2971,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   : <div style={{color:'#FBBf24',fontSize:10}}>Origem: <b>{mk(cableDraft.fromUid)?.name}</b> → clique o destino. <span onClick={()=>setCableDraft(null)} style={{textDecoration:'underline',cursor:'pointer'}}>cancelar</span></div>}
                 {selCable && (()=>{ const c=cables.find(x=>x.id===selCable); if(!c) return null
                   return <div style={{marginTop:7,paddingTop:7,borderTop:'1px solid rgba(255,255,255,0.15)'}}>
-                    <div style={{marginBottom:5,fontSize:10,color:'rgba(255,255,255,0.85)'}}><b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b></div>
+                    {c.free
+                      ? <div style={{marginBottom:6}}>
+                          <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',marginBottom:3}}><i className="ti ti-vector" aria-hidden/> Conduíte livre — rótulo (opcional)</div>
+                          <input value={c.label||''} onChange={e=>setCables(cs=>cs.map(x=>x.id===c.id?{...x,label:e.target.value}:x))} placeholder="ex: Sala → Rack"
+                            style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'4px 7px',color:'#fff',fontSize:11,fontFamily:'inherit',boxSizing:'border-box'}}/>
+                        </div>
+                      : <div style={{marginBottom:5,fontSize:10,color:'rgba(255,255,255,0.85)'}}><b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b></div>}
                     <div style={{display:'flex',gap:3,alignItems:'center',flexWrap:'wrap'}}>
                       {[['dados','Dados','#2563EB'],['ap','AP','#F59E0B'],['camera','Câm','#92400E'],['uplink','Uplk','#DC2626'],['hdmi','HDMI','#7C3AED'],['som','Som','#BE185D'],['eletrica','Elét','#16A34A'],['fibra','Fibra','#0D9488'],['conduite_dados','C.DADOS','#1E3A8A'],['conduite_eletrica','C.ELÉT','#EAB308']].map(([t,lb,col])=>(
                         <button key={t} onClick={()=>setCableColor(c.id,t)} title={CABLE_LABELS[t]} style={{fontSize:9,padding:'2px 6px',borderRadius:9,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.18)'}`,background:c.type===t?col+'33':'transparent',color:c.type===t?'#fff':'rgba(255,255,255,0.55)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:3}}><span style={{width:7,height:7,borderRadius:'50%',background:col}}/>{lb}</button>
@@ -3008,6 +3039,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 {conduitMode && conduitDraft.map((p,i)=>(
                   <div key={'cd'+i} style={{position:'absolute',left:`${p.x}%`,top:`${p.y}%`,transform:'translate(-50%,-50%)',width:10,height:10,borderRadius:'50%',background:CABLE_PALETTE[conduitType],border:'2px solid #fff',zIndex:8,pointerEvents:'none',boxShadow:'0 1px 3px rgba(0,0,0,0.5)'}}/>
                 ))}
+                {/* rótulos dos conduítes livres já criados */}
+                {!hideCables && cables.filter(c=>c.free && c.label).map(c=>{ const pts=c.points||[]; if(pts.length<2) return null
+                  const mid=pts[Math.floor(pts.length/2)]
+                  return <div key={'lbl'+c.id} onClick={e=>{e.stopPropagation(); setSelCable(c.id)}} style={{position:'absolute',left:`${mid.x}%`,top:`${mid.y}%`,transform:'translate(-50%,-50%)',background:c.color||CABLE_PALETTE[c.type],color:'#fff',fontSize:8,fontWeight:700,padding:'1px 5px',borderRadius:8,zIndex:8,whiteSpace:'nowrap',border:'1px solid #fff',boxShadow:'0 1px 3px rgba(0,0,0,0.4)',cursor:'pointer'}}>{c.label}</div>
+                })}
                 {/* pontos arrastáveis do cabo selecionado + dobra ao clicar no segmento */}
                 {!hideCables && cableMode && cables.filter(c=>c.id===selCable).map(c=>{
                   const pts=cablePolyPoints(c)
@@ -3037,8 +3073,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   const matchC=filterCateg.size===0||filterCateg.has(inferCategory(m.name||'').cat||'Outros')
                   const matchI=!filterItem||m.name===filterItem
                   const isRack = isRackItem(m.name||'', m.code||'')
-                  const isQuadro = classifyEle(m)?.sym==='quadro'
-                  const visible = (isRack||isQuadro) ? (matchS&&matchR&&matchI) : (matchS&&matchR&&matchC&&matchI)  // CPD/rack e QDL nunca somem por categoria
+                  const _ele = classifyEle(m)
+                  const isQuadro = _ele?.sym==='quadro' || _ele?.sym==='prumada'
+                  const visible = (isRack||isQuadro) ? (matchS&&matchR&&matchI) : (matchS&&matchR&&matchC&&matchI)  // CPD/rack, QDL e prumada nunca somem por categoria
                   const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
                   const sel=selected===m.uid
                   const isCableOrigin = cableDraft?.fromUid===m.uid
@@ -3113,6 +3150,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     </optgroup>
                     <optgroup label="Quadro">
                       <option value="quadro">▦ Quadro de luz (QDL)</option>
+                      <option value="prumada">⇵ Prumada (descida entre andares)</option>
                     </optgroup>
                     <option value="nenhum">— Não é elétrico (rede/dados/som)</option>
                   </select> })()}
@@ -3122,6 +3160,16 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <option value="auto">✨ Automático → {detL}</option>
                     {Object.entries(CABLE_LABELS).map(([k,v])=><option key={k} value={k}>{v} · {CABLE_SPEC[k]?.spec||''}</option>)}
                   </select> })()}
+                  {classifyEle(m)?.sym==='prumada' && <div style={{background:'rgba(124,58,237,0.12)',border:'1px solid rgba(124,58,237,0.4)',borderRadius:6,padding:'8px 10px',marginBottom:8}}>
+                    <div style={{fontSize:10,color:'#C4B5FD',fontWeight:700,marginBottom:6}}><i className="ti ti-arrows-vertical" aria-hidden/> PRUMADA — descida entre pavimentos</div>
+                    <label style={{...lbl,marginTop:0}}>Altura a descer (pé-direito, em metros)</label>
+                    <input type="number" step="0.1" value={m.prumadaAltura||''} placeholder="ex: 3"
+                      onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,prumadaAltura:e.target.value}:x))} style={inputDark}/>
+                    <label style={lbl}>Liga os pavimentos</label>
+                    <input value={m.prumadaPav||''} placeholder="ex: Pav 2 → Pav 1 (CPD)"
+                      onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,prumadaPav:e.target.value}:x))} style={inputDark}/>
+                    <div style={{fontSize:9,color:'rgba(196,181,253,0.7)',marginTop:5,lineHeight:1.3}}>Os cabos que chegam nesta prumada somam automaticamente esta altura na metragem. Posicione uma prumada em cada andar, no mesmo ponto de descida.</div>
+                  </div>}
                   <label style={lbl}>Nota (posição/altura)</label>
                   <textarea value={m.note} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,note:e.target.value}:x))} rows={3} style={{...inputDark,resize:'vertical'}}/>
                   <button onClick={()=>{setMarkers(ms=>ms.filter(x=>x.uid!==m.uid).map((x,i)=>({...x,n:i+1})));setSelected(null)}} style={{...btnGhost,width:'100%',marginTop:10,color:'#FCA5A5',borderColor:'rgba(220,38,38,0.4)'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
