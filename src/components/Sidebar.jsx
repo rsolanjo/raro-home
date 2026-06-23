@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v138 — Prumada agora soma a altura tambem quando o cabo PASSA por ela (nao so quando termina): essencial p/ cabo de REDE (CAT6 vai inteiro/continuo do ponto ate o rack, sem emenda, cruzando a prumada). Painel da prumada explica rede(continuo) x eletrica(pode emendar)
+// v141 — Prumada criada JA EM PAR: ao posicionar a 1a prumada o sistema gera o codigo (PR1, PR2...), pergunta a altura uma vez, e ja re-arma para voce clicar a 2a (mesmo furo no outro andar) com o mesmo codigo automaticamente. Sem precisar digitar codigo manualmente.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v138 · build 2026-06
+          v141 · build 2026-06
         </div>
       </div>
     </div>

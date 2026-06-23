@@ -795,12 +795,30 @@ Responda APENAS JSON válido:
     const x=((e.clientX-r.left)/r.width)*100, y=((e.clientY-r.top)/r.height)*100
     const {cat, sub} = inferCategory(addItem.name, addItem.category||'')
     pushHistory()
+    const ehPrumada = addItem.eleType==='prumada'
     setMarkers(ms=>{
       const newId = genItemId('', sub, ms)
       return [...ms,{uid:Date.now(),n:ms.length+1,id:newId,code:addItem.code,name:addItem.name,
         room:'',x,y,note:addItem.note||'',cost:addItem.cost_price||0,sale:addItem.sale_price||0,category:cat,subcategory:sub||'',
-        ...(addItem.eleType?{eleType:addItem.eleType}:{})}]
+        ...(addItem.eleType?{eleType:addItem.eleType}:{}),
+        ...(addItem.prumadaCode?{prumadaCode:addItem.prumadaCode}:{}),
+        ...(addItem.prumadaAltura?{prumadaAltura:addItem.prumadaAltura}:{})}]
     })
+    // Fluxo de PAR de prumada: ao colocar a 1ª, já arma a 2ª com o mesmo código
+    if(ehPrumada && !addItem._segunda){
+      const usados = markers.filter(m=>classifyEle(m)?.sym==='prumada').map(m=>(m.prumadaCode||'').toUpperCase())
+      let cod=addItem.prumadaCode
+      if(!cod){ let i=1; while(usados.includes('PR'+i)) i++; cod='PR'+i }
+      const alturaResp = window.prompt(`Prumada ${cod} criada no 1º ponto.\n\nQual a ALTURA real entre os andares (pé-direito, em metros)?\nEx: 3`, '3')
+      const altura = (alturaResp||'').replace(',','.')
+      // grava o código+altura na prumada recém-criada
+      setMarkers(ms=>ms.map((m,i)=> i===ms.length-1 && classifyEle(m)?.sym==='prumada' ? {...m, prumadaCode:cod, prumadaAltura:altura||m.prumadaAltura} : m))
+      // re-arma o modo de adicionar para a SEGUNDA prumada do par (mesmo código)
+      setAddItem({...addItem, prumadaCode:cod, prumadaAltura:altura, _segunda:true})
+      setAddMode(true)
+      alert(`Agora clique no OUTRO andar para posicionar o par da prumada ${cod} (mesmo furo, andar de baixo).`)
+      return
+    }
     setAddMode(false); setAddItem(null)
   }
 
@@ -1041,17 +1059,20 @@ Responda APENAS JSON válido:
     const pts=cablePolyPoints(c); if(pts.length<2) return null
     const base = polyLenWidthUnits(pts)*plantScale            // metros do caminho na planta
     const subidaDescida = 3.0                                  // ~3m de subida ao forro/descida à caixa
-    // PRUMADA: soma a altura (pé-direito) tanto se o cabo TERMINA na prumada
-    // quanto se ele PASSA por uma (cabo de rede contínuo cruzando andares, sem emenda).
-    let prumadaH = 0
+    // PRUMADA: soma a altura do PAR (pé-direito). Cada par (mesmo código) conta UMA vez por cabo.
     const prumadas = markers.filter(m=>classifyEle(m)?.sym==='prumada')
-    const contadas = new Set()
-    // 1) endpoints que são prumada
-    if(!c.free){ for(const uid of [c.fromUid,c.toUid]){ const m=mk(uid); if(m && classifyEle(m)?.sym==='prumada' && !contadas.has(m.uid)){ prumadaH += parseFloat(m.prumadaAltura)||0; contadas.add(m.uid) } } }
-    // 2) prumada próxima de qualquer vértice do caminho (cabo passa por ela) — tolerância ~4% da planta
-    for(const p of prumadas){ if(contadas.has(p.uid)) continue
-      const perto = pts.some(pt=>{ const dx=(pt.x-p.x), dy=(pt.y-p.y)*imgRatio; return Math.sqrt(dx*dx+dy*dy) < 4 })
-      if(perto){ prumadaH += parseFloat(p.prumadaAltura)||0; contadas.add(p.uid) }
+    const alturaDoPar = (p)=>{ const cod=(p.prumadaCode||'').trim().toLowerCase()
+      if(cod){ const grupo=prumadas.filter(x=>(x.prumadaCode||'').trim().toLowerCase()===cod); const h=grupo.map(x=>parseFloat(x.prumadaAltura)||0).find(v=>v>0); return h||0 }
+      return parseFloat(p.prumadaAltura)||0 }
+    const chaveDoPar = (p)=> (p.prumadaCode||'').trim().toLowerCase() || ('uid'+p.uid)
+    let prumadaH = 0
+    const paresContados = new Set()
+    const tocaPrumada = (p)=>{
+      if(!c.free && (c.fromUid===p.uid || c.toUid===p.uid)) return true
+      return pts.some(pt=>{ const dx=(pt.x-p.x), dy=(pt.y-p.y)*imgRatio; return Math.sqrt(dx*dx+dy*dy) < 4 })
+    }
+    for(const p of prumadas){ const chave=chaveDoPar(p); if(paresContados.has(chave)) continue
+      if(tocaPrumada(p)){ prumadaH += alturaDoPar(p); paresContados.add(chave) }
     }
     const comFolga = (base+subidaDescida+prumadaH) * (1+folgaPct/100)
     return Math.round(comFolga*10)/10
@@ -2163,13 +2184,20 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <div><div style="font-size:20px;font-weight:800;color:#0D1420">Prumadas — descidas entre pavimentos</div>
             <div style="font-size:12px;color:#64748B">${prumadas.length} prumada(s)</div></div>
           </div>
-          ${T(prumadas.map(p=>{
-            const ligados=(cables||[]).filter(c=>!c.free && (c.fromUid===p.uid||c.toUid===p.uid))
-            const n=ligados.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
-            const tipos=[...new Set(ligados.map(c=>CABLE_LABELS[c.type]||c.type))].join(', ')||'—'
-            return `<tr><td style="text-align:center">${pin(p.n,'#7C3AED')}</td><td><b>${esc(p.prumadaPav||p.room||'—')}</b></td><td style="text-align:center">${p.prumadaAltura?esc(p.prumadaAltura)+'m':'—'}</td><td style="text-align:center">${n}</td><td style="font-size:11px">${esc(tipos)}</td><td style="text-align:center;font-weight:700">${n?bitola:'—'}</td></tr>`
-          }).join(''),['Nº','Liga pavimentos','Altura','Nº cabos','Tipos','Eletroduto vertical'])}
-          <p class="ex-p" style="font-size:10px;color:#64748B;margin-top:6px">A altura do pé-direito é somada automaticamente na metragem dos cabos que passam pela prumada. Posicione uma prumada no mesmo ponto de cada pavimento.</p>
+          ${(()=>{ // agrupa por código do par; prumadas sem código entram isoladas
+            const grupos={}; prumadas.forEach(p=>{ const k=(p.prumadaCode||'').trim()||('#'+p.n); (grupos[k]=grupos[k]||[]).push(p) })
+            return T(Object.entries(grupos).map(([cod,gr])=>{
+              const uids=new Set(gr.map(p=>p.uid))
+              const ligados=(cables||[]).filter(c=>!c.free && (uids.has(c.fromUid)||uids.has(c.toUid)))
+              const n=ligados.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
+              const tipos=[...new Set(ligados.map(c=>CABLE_LABELS[c.type]||c.type))].join(', ')||'—'
+              const alt=gr.map(p=>parseFloat(p.prumadaAltura)||0).find(v=>v>0)||0
+              const lbl=gr.map(p=>p.prumadaPav).filter(Boolean)[0]||gr.map(p=>p.room).filter(Boolean).join(' ↔ ')||'—'
+              const andares=gr.length
+              return `<tr><td style="text-align:center"><b>${esc(cod)}</b></td><td>${esc(lbl)}${andares>1?` <span style="color:#16A34A;font-size:9px">(par ✓)</span>`:` <span style="color:#F59E0B;font-size:9px">(sozinha)</span>`}</td><td style="text-align:center">${alt?alt+'m':'—'}</td><td style="text-align:center">${n}</td><td style="font-size:11px">${esc(tipos)}</td><td style="text-align:center;font-weight:700">${n?bitola:'—'}</td></tr>`
+            }).join(''),['Par','Liga andares','Altura','Nº cabos','Tipos','Eletroduto vertical'])
+          })()}
+          <p class="ex-p" style="font-size:10px;color:#64748B;margin-top:6px">Prumadas com o mesmo código são o mesmo furo em andares diferentes (par). A altura é somada uma vez por par na metragem dos cabos que passam por ele.</p>
         </div>` : ''
       const paginaTodos = todos.length ? `
         <div class="ex-obra-page" style="page-break-before:always">
@@ -2761,7 +2789,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       {label:'Arandela parede',sub:'2,20m',eleType:'arandela',name:'Arandela de parede',note:'H=2,20m'},
                       {label:'Arandela teto',sub:'teto',eleType:'arandela_teto',name:'Arandela de teto',note:'teto'},
                       {label:'Quadro QDL',sub:'1,50m',eleType:'quadro',name:'Quadro de luz QDL',note:'H=1,50m'},
-                      {label:'Prumada ↕',sub:'descida',eleType:'prumada',name:'Prumada (descida entre andares)',note:'shaft/laje'},
+                      {label:'Prumada ↕ (par)',sub:'2 andares',eleType:'prumada',name:'Prumada (subida/descida entre andares)',note:'shaft/laje'},
                     ].map(b=>{
                       const active = addMode && addItem?.eleType===b.eleType && addItem?.name===b.name
                       return <button key={b.label} onClick={()=>{ setAddItem({code:'',name:b.name,note:b.note,eleType:b.eleType,category:'Automação'}); setAddMode(true) }}
@@ -3159,7 +3187,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     </optgroup>
                     <optgroup label="Quadro">
                       <option value="quadro">▦ Quadro de luz (QDL)</option>
-                      <option value="prumada">⇵ Prumada (descida entre andares)</option>
+                      <option value="prumada">⇵ Prumada (subida/descida entre andares)</option>
                     </optgroup>
                     <option value="nenhum">— Não é elétrico (rede/dados/som)</option>
                   </select> })()}
@@ -3169,16 +3197,25 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <option value="auto">✨ Automático → {detL}</option>
                     {Object.entries(CABLE_LABELS).map(([k,v])=><option key={k} value={k}>{v} · {CABLE_SPEC[k]?.spec||''}</option>)}
                   </select> })()}
-                  {classifyEle(m)?.sym==='prumada' && <div style={{background:'rgba(124,58,237,0.12)',border:'1px solid rgba(124,58,237,0.4)',borderRadius:6,padding:'8px 10px',marginBottom:8}}>
-                    <div style={{fontSize:10,color:'#C4B5FD',fontWeight:700,marginBottom:6}}><i className="ti ti-arrows-vertical" aria-hidden/> PRUMADA — descida entre pavimentos</div>
-                    <label style={{...lbl,marginTop:0}}>Altura a descer (pé-direito, em metros)</label>
-                    <input type="number" step="0.1" value={m.prumadaAltura||''} placeholder="ex: 3"
+                  {classifyEle(m)?.sym==='prumada' && (()=>{
+                    const par = markers.filter(x=>x.uid!==m.uid && classifyEle(x)?.sym==='prumada' && (x.prumadaCode||'').trim() && (x.prumadaCode||'').trim().toLowerCase()===(m.prumadaCode||'').trim().toLowerCase())
+                    const altPar = parseFloat(m.prumadaAltura) || (par.find(x=>parseFloat(x.prumadaAltura))?.prumadaAltura) || 0
+                    return <div style={{background:'rgba(124,58,237,0.12)',border:'1px solid rgba(124,58,237,0.4)',borderRadius:6,padding:'8px 10px',marginBottom:8}}>
+                    <div style={{fontSize:10,color:'#C4B5FD',fontWeight:700,marginBottom:6}}><i className="ti ti-arrows-vertical" aria-hidden/> PRUMADA — subida/descida entre andares</div>
+                    <label style={{...lbl,marginTop:0}}>Código do par (mesmo nos 2 andares)</label>
+                    <input value={m.prumadaCode||''} placeholder="ex: PR1"
+                      onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,prumadaCode:e.target.value}:x))} style={inputDark}/>
+                    {par.length>0
+                      ? <div style={{fontSize:9.5,color:'#6EE7B7',marginTop:4,background:'rgba(16,163,74,0.12)',borderRadius:5,padding:'4px 7px'}}>✓ Pareada com a prumada #{par[0].n} ({esc(par[0].room||'outro andar')}). Os cabos que entram numa saem na outra.</div>
+                      : <div style={{fontSize:9,color:'#FBBF24',marginTop:4}}>⚠ Crie outra prumada com o MESMO código no outro andar para fechar o par.</div>}
+                    <label style={lbl}>Altura do par (pé-direito, em metros)</label>
+                    <input type="number" step="0.1" value={m.prumadaAltura||''} placeholder={altPar?`${altPar} (definida no par)`:'ex: 3'}
                       onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,prumadaAltura:e.target.value}:x))} style={inputDark}/>
-                    <label style={lbl}>Liga os pavimentos</label>
+                    <label style={lbl}>Rótulo (opcional)</label>
                     <input value={m.prumadaPav||''} placeholder="ex: Pav 2 → Pav 1 (CPD)"
                       onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,prumadaPav:e.target.value}:x))} style={inputDark}/>
-                    <div style={{fontSize:9,color:'rgba(196,181,253,0.7)',marginTop:5,lineHeight:1.3}}>Os cabos que <b>passam ou terminam</b> nesta prumada somam esta altura na metragem.<br/><b>Rede (CAT6):</b> trace UM cabo contínuo do ponto até o Rack passando pela prumada (sem emenda).<br/><b>Elétrica:</b> pode emendar na prumada.</div>
-                  </div>}
+                    <div style={{fontSize:9,color:'rgba(196,181,253,0.7)',marginTop:5,lineHeight:1.3}}>Crie 2 prumadas com o <b>mesmo código</b> (uma em cada andar). Ligue os pontos do andar de cima à prumada de cima, e a prumada de baixo ao CPD. O sistema entende que é o mesmo furo e soma a altura uma vez.<br/><b>Rede:</b> trate como cabo contínuo (sem emenda real).</div>
+                  </div> })()}
                   <label style={lbl}>Nota (posição/altura)</label>
                   <textarea value={m.note} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,note:e.target.value}:x))} rows={3} style={{...inputDark,resize:'vertical'}}/>
                   <button onClick={()=>{setMarkers(ms=>ms.filter(x=>x.uid!==m.uid).map((x,i)=>({...x,n:i+1})));setSelected(null)}} style={{...btnGhost,width:'100%',marginTop:10,color:'#FCA5A5',borderColor:'rgba(220,38,38,0.4)'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
