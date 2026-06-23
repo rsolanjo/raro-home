@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v142 — Inteligencia da prumada: ao desenhar o trecho prumada->CPD, o sistema LISTA os cabos que chegaram na prumada (ex: AP-25, AP-26...) e pergunta de qual item vem; ao escolher, casa os 2 trechos como o MESMO cabo logico (runId), mantendo a identidade do AP rastreavel ate o CPD mesmo com varios APs descendo pela mesma prumada. Painel mostra a ligacao.
+// v143 — FIX (QA): cabos/itens sumiam ao passar varios para a mesma prumada. Causa: id por Date.now() colidia em cliques rapidos (mesmo ms) -> React descartava os duplicados. Agora id unico monotonico (uniqId) para cabos, conduites livres, markers e runId. Varios cabos acumulam na prumada sem apagar o anterior.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v142 · build 2026-06
+          v143 · build 2026-06
         </div>
       </div>
     </div>

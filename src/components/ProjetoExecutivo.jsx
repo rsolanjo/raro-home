@@ -415,6 +415,9 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [filterItem, setFilterItem] = useState('')            // filtra mapa por nome de item (resumo)
   const [showRackModal, setShowRackModal] = useState(false)
   const [rackEquip, setRackEquip] = useState([])   // [{code,name,qty,u}]
+  // gerador de ID único e monotônico (evita colisão de Date.now() em cliques rápidos)
+  const _uidSeq = React.useRef(0)
+  const uniqId = (pref='')=> pref + Date.now().toString(36) + '-' + (++_uidSeq.current).toString(36) + Math.random().toString(36).slice(2,6)
   const [execDoc, setExecDoc] = useState(()=> fromProposal?.exec_doc || null)         // versão Completa (HTML)
   const [execDocObra, setExecDocObra] = useState(()=> fromProposal?.exec_doc_obra || null) // versão Obra/Pedreiro (HTML)
   const [execDocEletrica, setExecDocEletrica] = useState(()=> fromProposal?.exec_doc_eletrica || null) // versão Elétrica (HTML)
@@ -798,7 +801,7 @@ Responda APENAS JSON válido:
     const ehPrumada = addItem.eleType==='prumada'
     setMarkers(ms=>{
       const newId = genItemId('', sub, ms)
-      return [...ms,{uid:Date.now(),n:ms.length+1,id:newId,code:addItem.code,name:addItem.name,
+      return [...ms,{uid:uniqId('mk'),n:ms.length+1,id:newId,code:addItem.code,name:addItem.name,
         room:'',x,y,note:addItem.note||'',cost:addItem.cost_price||0,sale:addItem.sale_price||0,category:cat,subcategory:sub||'',
         ...(addItem.eleType?{eleType:addItem.eleType}:{}),
         ...(addItem.prumadaCode?{prumadaCode:addItem.prumadaCode}:{}),
@@ -1010,7 +1013,7 @@ Responda APENAS JSON válido:
         y:+(from.y + (to.y-from.y)*(i/4)).toFixed(1)
       }))
       const type = to?.cableType || from?.cableType || guessCableType(from,to)
-      const newCable={ id:Date.now(), fromUid:cableDraft.fromUid, toUid:uid,
+      const newCable={ id:uniqId('cab'), fromUid:cableDraft.fromUid, toUid:uid,
         points:pts, color:CABLE_PALETTE[type], type }
 
       // ── INTELIGÊNCIA DA PRUMADA ──
@@ -1033,7 +1036,7 @@ Responda APENAS JSON válido:
           const idx = parseInt(resp)-1
           if(idx>=0 && candidatos[idx]){
             const orig = candidatos[idx]
-            const runId = orig.cabo.runId || ('run'+Date.now())
+            const runId = orig.cabo.runId || uniqId('run')
             // marca os dois trechos com o mesmo runId e a identidade do item de origem
             newCable.runId = runId; newCable.runFromUid = orig.item.uid; newCable.type = orig.cabo.type; newCable.color = orig.cabo.color
             setCables(cs=>cs.map(c=>c.id===orig.cabo.id?{...c, runId, runToUid:uid}:c).concat(newCable))
@@ -1058,7 +1061,7 @@ Responda APENAS JSON válido:
   // finaliza o conduíte livre desenhado (vira um cabo com free:true)
   function finishConduit(){
     if(conduitDraft.length>=2){
-      const novo={ id:Date.now(), free:true, type:conduitType, color:CABLE_PALETTE[conduitType], points:conduitDraft.map(p=>({...p})) }
+      const novo={ id:uniqId('cab'), free:true, type:conduitType, color:CABLE_PALETTE[conduitType], points:conduitDraft.map(p=>({...p})) }
       pushHistory(); setCables(cs=>[...cs, novo]); setSelCable(novo.id)
     }
     setConduitDraft([])
@@ -3323,7 +3326,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             setMarkers(ms=>ms.map(x=>x.uid===existingRack.uid ? {...x, rackEquip:equip, name:'Rack CPD', note:`${equip.length} equipamentos`} : x))
           } else {
             // Adiciona um marcador de rack no centro
-            setMarkers(ms=>[...ms,{uid:Date.now(),n:ms.length+1,id:'RACK-CPD',code:'RACK',name:'Rack CPD',room:'',x:50,y:50,note:`${equip.length} equipamentos`,cost:0,sale:0,category:'Redes / WiFi',subcategory:'Rack / Enclosure',rackEquip:equip}])
+            setMarkers(ms=>[...ms,{uid:uniqId('mk'),n:ms.length+1,id:'RACK-CPD',code:'RACK',name:'Rack CPD',room:'',x:50,y:50,note:`${equip.length} equipamentos`,cost:0,sale:0,category:'Redes / WiFi',subcategory:'Rack / Enclosure',rackEquip:equip}])
           }
           setRackEquip(equip)
           setShowRackModal(false)
