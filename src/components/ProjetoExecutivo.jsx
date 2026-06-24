@@ -1092,38 +1092,17 @@ Responda APENAS JSON válido:
   function deleteCable(id){ setCables(cs=>cs.filter(c=>c.id!==id)); setSelCable(null) }
   function setCableColor(id,type){ setCables(cs=>cs.map(c=>c.id===id?{...c,type,color:CABLE_PALETTE[type]}:c)) }
   // finaliza o conduíte livre desenhado (vira um cabo com free:true)
+  // NÃO faz prompts — abre direto no modo edição no painel lateral
   function finishConduit(){
     if(conduitDraft.length>=2){
-      // 1) pergunta rótulo do conduíte
-      const rotulo = (window.prompt('Rótulo do conduíte (ex: Sala → Rack):\n(deixe vazio para nomear depois)')||'').trim()
-      // 2) pergunta se há caixa de interseção/passagem
-      const temCaixa = window.confirm('Há uma CAIXA DE PASSAGEM (interseção/derivação) neste conduíte?\n\nOK = Sim, haverá uma caixa\nCancelar = Não')
-      // 3) lista cabos existentes para adicionar ao conduíte
-      const cabosComNome = cables.filter(c=>!c.free).map((c,i)=>{
-        const a=markers.find(m=>m.uid===c.fromUid), b=markers.find(m=>m.uid===c.toUid)
-        return { c, label:`${i+1}) ${CABLE_LABELS[c.type]||c.type}: ${a?.name||'?'} → ${b?.name||'?'}` }
-      })
-      let cabosIds=[]
-      if(cabosComNome.length>0){
-        const lista=cabosComNome.map(x=>x.label).join('\n')
-        const resp=(window.prompt(`Quais CABOS passam por este conduíte?\nDigite os números separados por vírgula (ou deixe vazio):\n\n${lista}`)||'').trim()
-        if(resp) cabosIds=resp.split(',').map(s=>parseInt(s.trim())-1).filter(i=>i>=0&&i<cabosComNome.length).map(i=>cabosComNome[i].c.id)
-      }
       const novoId=uniqId('cab')
       const novo={ id:novoId, free:true, type:conduitType, color:CABLE_PALETTE[conduitType],
-        points:conduitDraft.map(p=>({...p})),
-        label:rotulo||undefined,
-        obs:temCaixa?'Caixa de passagem/interseção neste conduíte':undefined }
+        points:conduitDraft.map(p=>({...p})) }
       pushHistory()
-      // associa os cabos selecionados a este conduíte (pelo rótulo ou id do novo conduíte)
-      const label = rotulo||novoId
-      if(rotulo) novo.label = rotulo
-      setCables(cs=>{
-        const updated = cs.map(c=> cabosIds.includes(c.id) ? {...c, conduite:label} : c )
-        return [...updated, novo]
-      })
+      setCables(cs=>[...cs, novo])
       setSelCable(novoId)
-      if(temCaixa) setTimeout(()=>setConduitEditMode(true),100)
+      setConduitEditMode(true)   // entra direto no modo edição: clique nos cabos/itens para adicionar
+      setConduitMode(false)      // sai do modo de desenho
     }
     setConduitDraft([])
   }
@@ -3163,94 +3142,6 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <span style={{color:'#fff',fontSize:11,display:'flex',alignItems:'center',padding:'0 4px'}}>{Math.round(zoom*100)}%</span>
                 <button onClick={()=>setZoom(z=>Math.min(3,z+0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>+</button>
               </div>
-              {conduitMode && <div style={{position:'sticky',top:44,marginLeft:'auto',alignSelf:'flex-start',zIndex:29,background:'rgba(20,20,40,0.96)',border:'1px solid #1E3A8A',borderRadius:8,padding:'8px 11px',maxWidth:260,fontSize:11,color:'#fff'}}>
-                <div style={{color:'#93C5FD',fontWeight:600,marginBottom:4,fontSize:11.5}}><i className="ti ti-vector" aria-hidden/> Conduíte livre</div>
-                <div style={{color:'rgba(255,255,255,0.6)',fontSize:9.5,lineHeight:1.35,marginBottom:6}}>Clique na planta para marcar o caminho do eletroduto (vários pontos). Não precisa ligar itens. Clique <b>Finalizar</b> quando terminar.</div>
-                <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',marginBottom:3}}>Tipo do conduíte:</div>
-                <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:7}}>
-                  {[['conduite_dados','DADOS','#1E3A8A'],['conduite_eletrica','ELÉTRICA','#EAB308'],['som','SOM','#BE185D']].map(([t,lb,col])=>(
-                    <button key={t} onClick={()=>setConduitType(t)} style={{fontSize:9.5,padding:'3px 8px',borderRadius:9,border:`1px solid ${conduitType===t?col:'rgba(255,255,255,0.2)'}`,background:conduitType===t?col+'44':'transparent',color:conduitType===t?'#fff':'rgba(255,255,255,0.6)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:col}}/>{lb}</button>
-                  ))}
-                </div>
-                <div style={{fontSize:10,color:'#93C5FD',marginBottom:7}}>{conduitDraft.length} ponto(s) marcado(s){conduitDraft.length>=2 && plantScale?` · ~${Math.round((polyLenWidthUnits(conduitDraft)*plantScale)*1.15+1)}m`:''}</div>
-                <div style={{display:'flex',gap:5}}>
-                  <button onClick={finishConduit} disabled={conduitDraft.length<2} style={{flex:1,fontSize:10.5,padding:'5px 8px',borderRadius:6,border:'none',background:conduitDraft.length<2?'rgba(255,255,255,0.1)':'#16A34A',color:conduitDraft.length<2?'rgba(255,255,255,0.3)':'#fff',cursor:conduitDraft.length<2?'default':'pointer',fontWeight:600}}><i className="ti ti-check" aria-hidden/> Finalizar</button>
-                  <button onClick={cancelConduit} style={{fontSize:10.5,padding:'5px 8px',borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.6)',cursor:'pointer'}}>Limpar</button>
-                </div>
-                {conduitDraft.length>0 && <button onClick={()=>setConduitDraft(p=>p.slice(0,-1))} style={{width:'100%',marginTop:5,fontSize:9.5,padding:'3px',borderRadius:5,border:'1px solid rgba(255,255,255,0.15)',background:'transparent',color:'rgba(255,255,255,0.5)',cursor:'pointer'}}>↶ desfazer último ponto</button>}
-              </div>}
-              {(cableMode || (selCable && cables.find(x=>x.id===selCable))) && <div style={{position:'absolute',top:44,right:8,zIndex:29,background:'rgba(12,15,30,0.97)',border:`1px solid ${selCable && cables.find(x=>x.id===selCable)?.free ? '#1E3A8A' : '#F59E0B'}`,borderRadius:8,padding:'7px 10px',width:220,maxHeight:'60vh',overflowY:'auto',fontSize:10.5,color:'#fff',boxShadow:'0 4px 20px rgba(0,0,0,0.5)'}}>
-                <div style={{color:'#FBBf24',fontWeight:600,marginBottom:3,fontSize:11}}><i className="ti ti-route" aria-hidden/> Modo cabos</div>
-                {!cableDraft
-                  ? <div style={{color:'rgba(255,255,255,0.6)',fontSize:9.5,lineHeight:1.3}}>Clique na <b>origem</b> e no <b>destino</b>.</div>
-                  : <div style={{color:'#FBBf24',fontSize:10}}>Origem: <b>{mk(cableDraft.fromUid)?.name}</b> → clique o destino. <span onClick={()=>setCableDraft(null)} style={{textDecoration:'underline',cursor:'pointer'}}>cancelar</span></div>}
-                {selCable && (()=>{ const c=cables.find(x=>x.id===selCable); if(!c) return null
-                  return <div style={{marginTop:7,paddingTop:7,borderTop:'1px solid rgba(255,255,255,0.15)'}}>
-                    {c.free
-                      ? <div style={{marginBottom:6}}>
-                          <div style={{fontSize:9,color:'#93C5FD',fontWeight:700,marginBottom:4}}><i className="ti ti-vector" aria-hidden/> Conduíte — {CABLE_LABELS[c.type]||c.type}</div>
-                          {/* Rótulo */}
-                          <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginBottom:2}}>Rótulo</div>
-                          <input value={c.label||''} onChange={e=>setCables(cs=>cs.map(x=>x.id===c.id?{...x,label:e.target.value}:x))} placeholder="ex: Sala → Rack"
-                            style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'3px 6px',color:'#fff',fontSize:10,fontFamily:'inherit',boxSizing:'border-box',marginBottom:4}}/>
-                          {/* Observações */}
-                          <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginBottom:2}}>Observações</div>
-                          <input value={c.obs||''} onChange={e=>setCables(cs=>cs.map(x=>x.id===c.id?{...x,obs:e.target.value}:x))} placeholder="ex: passa acima do forro"
-                            style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'3px 6px',color:'#fff',fontSize:10,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
-                          {/* Cabos dentro */}
-                          {(()=>{
-                            const label=(c.label||'').trim()
-                            const cabosNaoCond=label ? cables.filter(x=>!x.free && x.conduite===label) : []
-                            return <>
-                              <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginBottom:3}}>
-                                Cabos dentro {label?`(${cabosNaoCond.length})`:'— dê um rótulo primeiro'}:
-                              </div>
-                              {cabosNaoCond.length>0 && <div style={{maxHeight:90,overflowY:'auto',marginBottom:4}}>
-                                {cabosNaoCond.map(x=>{ const a=mk(x.fromUid),b=mk(x.toUid); return <div key={x.id} style={{display:'flex',alignItems:'center',gap:4,fontSize:9,color:'rgba(255,255,255,0.7)',padding:'2px 4px',background:'rgba(255,255,255,0.05)',borderRadius:4,marginBottom:2}}>
-                                  <span style={{width:6,height:6,borderRadius:'50%',background:x.color||'#fff',flexShrink:0}}/>
-                                  <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{CABLE_LABELS[x.type]||x.type}: {a?.name||'?'} → {b?.name||'?'}</span>
-                                  <button onClick={()=>setCables(cs=>cs.map(q=>q.id===x.id?{...q,conduite:undefined}:q))} style={{fontSize:8,padding:'1px 4px',borderRadius:3,border:'1px solid rgba(220,38,38,0.4)',background:'transparent',color:'#FCA5A5',cursor:'pointer',flexShrink:0}}>tirar</button>
-                                </div>})}
-                              </div>}
-                              {label && <button onClick={()=>{ setConduitEditMode(v=>!v) }} style={{width:'100%',fontSize:9.5,padding:'4px 0',borderRadius:6,border:`1px solid ${conduitEditMode?'#22D3EE':'rgba(255,255,255,0.25)'}`,background:conduitEditMode?'rgba(34,211,238,0.15)':'transparent',color:conduitEditMode?'#22D3EE':'rgba(255,255,255,0.6)',cursor:'pointer',fontFamily:'inherit',fontWeight:conduitEditMode?700:400}}>
-                                {conduitEditMode?'✓ Clique num cabo ou item para adicionar/tirar':'+ Clique num cabo/item para adicionar ao conduíte'}
-                              </button>}
-                            </>
-                          })()}
-                        </div>
-                      : <div style={{marginBottom:5,fontSize:10,color:'rgba(255,255,255,0.85)'}}><b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b>
-                          {c.runFromUid && <div style={{marginTop:3,fontSize:9,color:'#6EE7B7',background:'rgba(16,163,74,0.12)',borderRadius:4,padding:'2px 6px'}}>↳ continuação do cabo do item <b>#{mk(c.runFromUid)?.n} {mk(c.runFromUid)?.name}</b> (mesmo cabo descendo pela prumada)</div>}
-                          {c.runToUid && <div style={{marginTop:3,fontSize:9,color:'#6EE7B7',background:'rgba(16,163,74,0.12)',borderRadius:4,padding:'2px 6px'}}>↳ este cabo desce pela prumada e chega em <b>{(()=>{const d=cables.find(x=>x.runId===c.runId&&x.id!==c.id);return d?mk(d.toUid)?.name:'—'})()}</b></div>}
-                        </div>}
-                    <div style={{display:'flex',gap:3,alignItems:'center',flexWrap:'wrap'}}>
-                      {[['dados','Dados','#2563EB'],['ap','AP','#F59E0B'],['camera','Câm','#92400E'],['uplink','Uplk','#DC2626'],['hdmi','HDMI','#7C3AED'],['som','Som','#BE185D'],['eletrica','Elét','#16A34A'],['fibra','Fibra','#0D9488'],['conduite_dados','C.DADOS','#1E3A8A'],['conduite_eletrica','C.ELÉT','#EAB308']].map(([t,lb,col])=>(
-                        <button key={t} onClick={()=>setCableColor(c.id,t)} title={CABLE_LABELS[t]} style={{fontSize:9,padding:'2px 6px',borderRadius:9,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.18)'}`,background:c.type===t?col+'33':'transparent',color:c.type===t?'#fff':'rgba(255,255,255,0.55)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:3}}><span style={{width:7,height:7,borderRadius:'50%',background:col}}/>{lb}</button>
-                      ))}
-                    </div>
-                    {CABLE_SPEC[c.type] && <div style={{fontSize:9,color:'rgba(255,255,255,0.55)',marginTop:5,background:'rgba(255,255,255,0.05)',borderRadius:5,padding:'3px 7px'}}>
-                      <b style={{color:CABLE_PALETTE[c.type]}}>{CABLE_LABELS[c.type]}</b> · {CABLE_SPEC[c.type].spec}
-                    </div>}
-                    <div style={{display:'flex',alignItems:'center',gap:5,marginTop:5,fontSize:10,color:'rgba(255,255,255,0.7)'}}>
-                      <i className="ti ti-ruler-measure" aria-hidden/><span>Metros:</span>
-                      <input type="number" step="0.5" value={c.meters??''} placeholder={plantScale? (cableMeters({...c,meters:undefined})??'auto') : '—'}
-                        onChange={e=>setCableMetersManual(c.id, e.target.value)}
-                        style={{width:56,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'2px 5px',color:'#fff',fontSize:10,fontFamily:'inherit'}}/>
-                      {c.meters!=null && c.meters!=='' && <button onClick={()=>setCableMetersManual(c.id,'')} style={{fontSize:8.5,padding:'2px 5px',borderRadius:5,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.5)',cursor:'pointer'}}>auto</button>}
-                    </div>
-                    <div style={{display:'flex',alignItems:'center',gap:5,marginTop:5,fontSize:10,color:'rgba(255,255,255,0.7)'}}>
-                      <i className="ti ti-tournament" aria-hidden/><span>Conduíte:</span>
-                      <input value={c.conduite||''} onChange={e=>setCableConduite(c.id,e.target.value)} placeholder="ex: C1"
-                        style={{width:70,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'2px 5px',color:'#fff',fontSize:10,fontFamily:'inherit'}}/>
-                      {c.conduite && (()=>{ const g=conduiteGroups()[c.conduite]||[]; const n=g.length; const bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
-                        return <span style={{fontSize:8.5,color:'#6EE7B7'}}>{n}× → {bitola}</span> })()}
-                    </div>
-                    <div style={{display:'flex',gap:5,marginTop:7}}>
-                      <button onClick={()=>deleteCable(c.id)} style={{fontSize:9,padding:'3px 8px',borderRadius:6,border:'1px solid #DC2626',background:'transparent',color:'#FCA5A5',cursor:'pointer'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
-                      <button onClick={()=>{ setSelCable(null); setConduitEditMode(false) }} style={{fontSize:9,padding:'3px 8px',borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.6)',cursor:'pointer',marginLeft:'auto'}}>fechar</button>
-                    </div>
-                  </div>
-                })()}
-              </div>}
               <div ref={containerRef} style={{position:'relative',display:'block',margin:'0 auto',cursor:addMode?'crosshair':'default',width:bgImage?`${zoom*100}%`:`${Math.min(640*zoom,window.innerWidth*0.82)}px`,transformOrigin:'top center'}} onClick={onCanvasClick}>
                 {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false} onLoad={e=>{const im=e.target; if(im.naturalWidth)setImgRatio(im.naturalHeight/im.naturalWidth)}}/>
                   : <div style={{width:'100%',aspectRatio:'4/3',background:'repeating-linear-gradient(0deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px),repeating-linear-gradient(90deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px)',backgroundColor:'rgba(255,255,255,0.02)',border:'2px dashed rgba(255,255,255,0.15)',borderRadius:10,position:'relative'}}>
@@ -3302,7 +3193,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                             const label=cond.label; const jaEstaDentro=c.conduite===label
                             setCables(cs=>cs.map(x=>x.id===c.id?{...x,conduite:jaEstaDentro?undefined:label}:x)); return }
                         }
-                        setSelCable(c.id)}}/>
+                        setSelCable(c.id)
+                        if(c.free) setConduitEditMode(true)   // clicar no conduíte abre edição direta
+                        else setConduitEditMode(false)}}/>
                   })}
                   {/* preview ao vivo do conduíte livre sendo desenhado */}
                   {conduitMode && conduitDraft.length>0 && <>
@@ -3316,7 +3209,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 {/* rótulos dos conduítes livres já criados */}
                 {!hideConduites && cables.filter(c=>c.free && c.label).map(c=>{ const pts=c.points||[]; if(pts.length<2) return null
                   const mid=pts[Math.floor(pts.length/2)]
-                  return <div key={'lbl'+c.id} onClick={e=>{e.stopPropagation(); setSelCable(c.id)}} style={{position:'absolute',left:`${mid.x}%`,top:`${mid.y}%`,transform:'translate(-50%,-50%)',background:c.color||CABLE_PALETTE[c.type],color:'#fff',fontSize:8,fontWeight:700,padding:'1px 5px',borderRadius:8,zIndex:8,whiteSpace:'nowrap',border:'1px solid #fff',boxShadow:'0 1px 3px rgba(0,0,0,0.4)',cursor:'pointer'}}>{c.label}</div>
+                  return <div key={'lbl'+c.id} onClick={e=>{e.stopPropagation(); setSelCable(c.id); setConduitEditMode(true)}} style={{position:'absolute',left:`${mid.x}%`,top:`${mid.y}%`,transform:'translate(-50%,-50%)',background:c.color||CABLE_PALETTE[c.type],color:'#fff',fontSize:8,fontWeight:700,padding:'1px 5px',borderRadius:8,zIndex:8,whiteSpace:'nowrap',border:'1px solid #fff',boxShadow:'0 1px 3px rgba(0,0,0,0.4)',cursor:'pointer'}}>{c.label} ✏</div>
                 })}
                 {/* pontos arrastáveis do cabo selecionado + dobra ao clicar no segmento */}
                 {!hideCables && !hideConduites && cableMode && cables.filter(c=>c.id===selCable && (c.free ? !hideConduites : !hideCables)).map(c=>{
@@ -3370,6 +3263,112 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             </div>
             {/* ── Painel direito ── */}
             <div className="pe-editor-side" style={{width:220,background:'#0f172a',borderLeft:'1px solid rgba(255,255,255,0.08)',overflowY:'auto'}}>
+              {/* ── PAINEL DO CONDUÍTE (modo ativo) ── */}
+              {conduitMode && <div style={{padding:12,borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
+                <div style={{color:'#93C5FD',fontWeight:700,marginBottom:6,fontSize:12,display:'flex',alignItems:'center',gap:6}}><i className="ti ti-vector" aria-hidden/>Conduíte livre</div>
+                <div style={{color:'rgba(255,255,255,0.55)',fontSize:9.5,lineHeight:1.4,marginBottom:8}}>Clique na planta para marcar o caminho. Não precisa ligar itens. Clique <b>Finalizar</b> ao terminar.</div>
+                <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',marginBottom:4}}>Tipo:</div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
+                  {[['conduite_dados','DADOS','#1E3A8A'],['conduite_eletrica','ELÉTRICA','#EAB308'],['som','SOM','#BE185D']].map(([t,lb,col])=>(
+                    <button key={t} onClick={()=>setConduitType(t)} style={{fontSize:9.5,padding:'3px 8px',borderRadius:9,border:`1px solid ${conduitType===t?col:'rgba(255,255,255,0.2)'}`,background:conduitType===t?col+'44':'transparent',color:conduitType===t?'#fff':'rgba(255,255,255,0.6)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:col}}/>{lb}</button>
+                  ))}
+                </div>
+                <div style={{fontSize:11,color:'#93C5FD',fontWeight:600,marginBottom:8}}>{conduitDraft.length} ponto(s){conduitDraft.length>=2 && plantScale?` · ~${Math.round((polyLenWidthUnits(conduitDraft)*plantScale)*1.15+1)}m`:''}</div>
+                <div style={{display:'flex',gap:5,marginBottom:5}}>
+                  <button onClick={finishConduit} disabled={conduitDraft.length<2} style={{flex:1,fontSize:11,padding:'6px 0',borderRadius:6,border:'none',background:conduitDraft.length<2?'rgba(255,255,255,0.1)':'#16A34A',color:conduitDraft.length<2?'rgba(255,255,255,0.3)':'#fff',cursor:conduitDraft.length<2?'default':'pointer',fontWeight:600}}><i className="ti ti-check" aria-hidden/> Finalizar</button>
+                  <button onClick={cancelConduit} style={{fontSize:11,padding:'6px 8px',borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.6)',cursor:'pointer'}}>Limpar</button>
+                </div>
+                {conduitDraft.length>0 && <button onClick={()=>setConduitDraft(p=>p.slice(0,-1))} style={{width:'100%',fontSize:9.5,padding:'4px',borderRadius:5,border:'1px solid rgba(255,255,255,0.15)',background:'transparent',color:'rgba(255,255,255,0.5)',cursor:'pointer'}}>↶ desfazer último ponto</button>}
+              </div>}
+              {/* ── PAINEL DO CABO SELECIONADO ── */}
+              {!conduitMode && (cableMode || selCable) && (()=>{ const c=cables.find(x=>x.id===selCable); return <div style={{padding:12,borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
+                <div style={{color:'#FBBf24',fontWeight:700,marginBottom:6,fontSize:12,display:'flex',alignItems:'center',gap:6}}><i className="ti ti-route" aria-hidden/>Modo cabos</div>
+                {cableMode && (!cableDraft
+                  ? <div style={{color:'rgba(255,255,255,0.55)',fontSize:9.5,marginBottom:8}}>Clique na <b>origem</b>, depois no <b>destino</b>.</div>
+                  : <div style={{color:'#FBBf24',fontSize:10,marginBottom:8}}>Origem: <b>{mk(cableDraft.fromUid)?.name}</b> → clique o destino. <span onClick={()=>setCableDraft(null)} style={{textDecoration:'underline',cursor:'pointer'}}>cancelar</span></div>)}
+                {c && <div style={{borderTop:'1px solid rgba(255,255,255,0.1)',paddingTop:8}}>
+                  {c.free ? <div>
+                    {/* Tipo / categoria */}
+                    <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginBottom:3}}>Tipo de conduíte</div>
+                    <div style={{display:'flex',gap:3,flexWrap:'wrap',marginBottom:8}}>
+                      {[['conduite_dados','DADOS','#1E3A8A'],['conduite_eletrica','ELÉTRICA','#EAB308'],['som','SOM','#BE185D']].map(([t,lb,col])=>(
+                        <button key={t} onClick={()=>setCableColor(c.id,t)} style={{fontSize:9,padding:'2px 7px',borderRadius:9,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.18)'}`,background:c.type===t?col+'44':'transparent',color:c.type===t?'#fff':'rgba(255,255,255,0.55)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:3}}><span style={{width:7,height:7,borderRadius:'50%',background:col}}/>{lb}</button>
+                      ))}
+                    </div>
+                    {/* Rótulo */}
+                    <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginBottom:2}}>Rótulo (ex: Sala → Rack)</div>
+                    <input value={c.label||''} onChange={e=>setCables(cs=>cs.map(x=>x.id===c.id?{...x,label:e.target.value}:x))} placeholder="ex: Sala → Rack"
+                      style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'3px 6px',color:'#fff',fontSize:10,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
+                    {/* Observações + caixa de passagem */}
+                    <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginBottom:2}}>Observações</div>
+                    <input value={c.obs||''} onChange={e=>setCables(cs=>cs.map(x=>x.id===c.id?{...x,obs:e.target.value}:x))} placeholder="ex: passa acima do forro"
+                      style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'3px 6px',color:'#fff',fontSize:10,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
+                    <label style={{display:'flex',alignItems:'center',gap:6,fontSize:10,color:'rgba(255,255,255,0.7)',marginBottom:8,cursor:'pointer'}}>
+                      <input type="checkbox" checked={/caixa/i.test(c.obs||'')} onChange={e=>setCables(cs=>cs.map(x=>x.id===c.id?{...x,obs:e.target.checked?(x.obs?x.obs+' — Caixa de passagem':'Caixa de passagem'):(x.obs||'').replace(/\s*—?\s*Caixa de passagem/i,'').trim()}:x))}/>
+                      Tem caixa de passagem/interseção
+                    </label>
+                    {/* Cabos dentro */}
+                    {(()=>{ const label=(c.label||'').trim()
+                      const cabosNaoCond=cables.filter(x=>!x.free&&x.conduite===label&&label)
+                      return <>
+                        {/* Modo edição: instrução de clique na planta */}
+                        <button onClick={()=>setConduitEditMode(v=>!v)} style={{width:'100%',fontSize:10,padding:'6px 0',borderRadius:7,border:`2px solid ${conduitEditMode?'#22D3EE':'rgba(255,255,255,0.2)'}`,background:conduitEditMode?'rgba(34,211,238,0.15)':'rgba(255,255,255,0.05)',color:conduitEditMode?'#22D3EE':'rgba(255,255,255,0.7)',cursor:'pointer',fontFamily:'inherit',fontWeight:600,marginBottom:6}}>
+                          <i className="ti ti-hand-click" aria-hidden/> {conduitEditMode?'✓ Clicando na planta — ativo':'Editar: clique cabos/itens na planta'}
+                        </button>
+                        {conduitEditMode && <div style={{fontSize:9,color:'#22D3EE',background:'rgba(34,211,238,0.08)',borderRadius:5,padding:'5px 7px',marginBottom:6,lineHeight:1.4}}>
+                          Clique num <b>cabo</b> (linha colorida) ou num <b>item</b> (círculo) na planta para adicionar ou tirar deste conduíte. Os cabos dentro ficam realçados.
+                        </div>}
+                        {/* Adicionar por nº do item */}
+                        {label && <div style={{marginBottom:6}}>
+                          <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginBottom:3}}>Adicionar pelo nº do item:</div>
+                          <div style={{display:'flex',gap:4}}>
+                            <input id="cond-add-num" type="number" min="1" placeholder="nº" style={{width:52,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'3px 6px',color:'#fff',fontSize:10,fontFamily:'inherit'}}/>
+                            <button onClick={()=>{ const inp=document.getElementById('cond-add-num'); const n=parseInt(inp?.value); if(!n)return; const ms=cables.filter(x=>!x.free&&(()=>{const a=mk(x.fromUid),b=mk(x.toUid); return a?.n===n||b?.n===n})()); ms.forEach(x=>setCables(cs=>cs.map(q=>q.id===x.id?{...q,conduite:label}:q))); if(inp)inp.value=''}} style={{flex:1,fontSize:9.5,padding:'3px 6px',borderRadius:5,border:'1px solid rgba(34,211,238,0.4)',background:'rgba(34,211,238,0.1)',color:'#22D3EE',cursor:'pointer',fontFamily:'inherit'}}>+ Adicionar</button>
+                          </div>
+                        </div>}
+                        {/* Lista dos cabos dentro */}
+                        <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginBottom:3}}>
+                          Cabos dentro {label?`(${cabosNaoCond.length})`:'— dê um rótulo primeiro'}:
+                        </div>
+                        <div style={{maxHeight:120,overflowY:'auto',marginBottom:4}}>
+                          {cabosNaoCond.map(x=>{ const a=mk(x.fromUid),b=mk(x.toUid); return <div key={x.id} style={{display:'flex',alignItems:'center',gap:4,fontSize:9,color:'rgba(255,255,255,0.75)',padding:'3px 5px',background:'rgba(255,255,255,0.05)',borderRadius:4,marginBottom:2}}>
+                            <span style={{width:6,height:6,borderRadius:'50%',background:x.color||'#fff',flexShrink:0}}/>
+                            <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={`${a?.name||'?'} → ${b?.name||'?'}`}><b>#{a?.n||'?'}</b> {a?.name||'?'} → <b>#{b?.n||'?'}</b></span>
+                            <button onClick={()=>setCables(cs=>cs.map(q=>q.id===x.id?{...q,conduite:undefined}:q))} style={{fontSize:8,padding:'1px 5px',borderRadius:3,border:'1px solid rgba(220,38,38,0.4)',background:'transparent',color:'#FCA5A5',cursor:'pointer',flexShrink:0}}>✕</button>
+                          </div>})}
+                          {cabosNaoCond.length===0&&label&&<div style={{fontSize:9,color:'rgba(255,255,255,0.25)',padding:'4px 0'}}>Nenhum cabo ainda — clique na planta ou adicione pelo nº.</div>}
+                        </div>
+                      </>
+                    })()}
+                  </div>
+                  : <div style={{marginBottom:6}}>
+                    <div style={{fontSize:10,color:'rgba(255,255,255,0.85)',marginBottom:6}}><b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b>
+                      {c.runFromUid&&<div style={{marginTop:3,fontSize:9,color:'#6EE7B7',background:'rgba(16,163,74,0.12)',borderRadius:4,padding:'2px 6px'}}>↳ mesmo cabo do item <b>#{mk(c.runFromUid)?.n} {mk(c.runFromUid)?.name}</b></div>}
+                    </div>
+                    <div style={{display:'flex',gap:3,flexWrap:'wrap',marginBottom:6}}>
+                      {[['dados','Dados','#2563EB'],['ap','AP','#F59E0B'],['camera','Câm','#92400E'],['uplink','Uplk','#DC2626'],['hdmi','HDMI','#7C3AED'],['som','Som','#BE185D'],['eletrica','Elét','#16A34A'],['fibra','Fibra','#0D9488'],['conduite_dados','C.DADOS','#1E3A8A'],['conduite_eletrica','C.ELÉT','#EAB308']].map(([t,lb,col])=>(
+                        <button key={t} onClick={()=>setCableColor(c.id,t)} title={CABLE_LABELS[t]} style={{fontSize:9,padding:'2px 6px',borderRadius:9,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.18)'}`,background:c.type===t?col+'33':'transparent',color:c.type===t?'#fff':'rgba(255,255,255,0.55)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:3}}><span style={{width:7,height:7,borderRadius:'50%',background:col}}/>{lb}</button>
+                      ))}
+                    </div>
+                    {CABLE_SPEC[c.type]&&<div style={{fontSize:9,color:'rgba(255,255,255,0.55)',marginBottom:6,background:'rgba(255,255,255,0.05)',borderRadius:5,padding:'3px 7px'}}><b style={{color:CABLE_PALETTE[c.type]}}>{CABLE_LABELS[c.type]}</b> · {CABLE_SPEC[c.type].spec}</div>}
+                    <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:5,fontSize:10,color:'rgba(255,255,255,0.7)'}}>
+                      <i className="ti ti-ruler-measure" aria-hidden/><span>m:</span>
+                      <input type="number" step="0.5" value={c.meters??''} placeholder={plantScale?(cableMeters({...c,meters:undefined})??'auto'):'—'} onChange={e=>setCableMetersManual(c.id,e.target.value)}
+                        style={{width:52,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'2px 5px',color:'#fff',fontSize:10,fontFamily:'inherit'}}/>
+                      {c.meters!=null&&c.meters!==''&&<button onClick={()=>setCableMetersManual(c.id,'')} style={{fontSize:8.5,padding:'2px 5px',borderRadius:5,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.5)',cursor:'pointer'}}>auto</button>}
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'rgba(255,255,255,0.7)'}}>
+                      <i className="ti ti-tournament" aria-hidden/><input value={c.conduite||''} onChange={e=>setCableConduite(c.id,e.target.value)} placeholder="Conduíte (ex: C1)"
+                        style={{flex:1,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'2px 5px',color:'#fff',fontSize:10,fontFamily:'inherit'}}/>
+                      {c.conduite&&(()=>{const g=conduiteGroups()[c.conduite]||[];const n=g.length;const bi=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'; return <span style={{fontSize:8.5,color:'#6EE7B7',whiteSpace:'nowrap'}}>{n}×{bi}</span>})()}
+                    </div>
+                  </div>}
+                  <div style={{display:'flex',gap:5,marginTop:8}}>
+                    <button onClick={()=>deleteCable(c.id)} style={{fontSize:9,padding:'3px 8px',borderRadius:6,border:'1px solid #DC2626',background:'transparent',color:'#FCA5A5',cursor:'pointer'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
+                    <button onClick={()=>{setSelCable(null);setConduitEditMode(false)}} style={{fontSize:9,padding:'3px 8px',borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.6)',cursor:'pointer',marginLeft:'auto'}}>fechar</button>
+                  </div>
+                </div>}
+              </div> })()}
               {selected ? (()=>{const m=markers.find(x=>x.uid===selected); if(!m)return null
                 const rNames=[...new Set([...rooms.map(r=>r.name), ...markers.map(x=>x.room).filter(Boolean)])].filter(Boolean).sort((a,b)=>a.localeCompare(b,'pt'))
                 return <div style={{padding:14}}>
@@ -3479,7 +3478,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   {(filterRooms.size>0||filterCateg.size>0||editorSearch||filterItem)&&<div style={{marginTop:8,fontSize:11,color:'#38BDF8',background:'rgba(56,189,248,0.1)',padding:'6px 8px',borderRadius:5}}>
                     Visíveis: {markers.filter(m=>{const s=editorSearch.toLowerCase();return(!editorSearch||m.name?.toLowerCase().includes(s)||m.code?.toLowerCase().includes(s)||m.room?.toLowerCase().includes(s))&&(filterRooms.size===0||filterRooms.has(m.room||'Sem cômodo'))&&(filterCateg.size===0||filterCateg.has(inferCategory(m.name||'').cat||'Outros'))&&(!filterItem||m.name===filterItem)}).length} / {markers.length}
                   </div>}
-                  <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginTop:10,lineHeight:1.6}}>Clique num marcador para editar.<br/>Arraste para mover.<br/>Use o painel esquerdo para adicionar.</div>
+                  <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginTop:10,lineHeight:1.6}}>
+                    {conduitMode ? 'Clique na planta para traçar o conduíte.' : cableMode ? 'Clique na origem, depois no destino.' : 'Clique num marcador para editar.\nArraste para mover.\nUse o painel esquerdo para adicionar.'}
+                  </div>
               </div>
             )}
             </div>
