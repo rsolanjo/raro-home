@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v150 — (1)Ocultar cabos nao oculta conduites; botao separado "Ocultar condts" para conduites livres; (2)Painel do conduite vira overlay absoluto sobre a planta (nao encolhe mais o canvas); clique num cabo ou item na planta adiciona/retira ele do conduite (modo edicao com highlight dos cabos dentro); botao "tirar" em cada cabo; (3)conduits em modo edicao realcam os cabos que estao dentro e dimiam os de fora
+// v151 — (bug)Ocultar cabos e ocultar conduites agora sao INDEPENDENTES (SVG sempre renderiza, filtra por cabo); (conduite)ao finalizar pede rotulo, lista cabos pra escolher quais vao dentro, e pergunta se ha caixa de passagem; (teto)badge TETO removido do pin, trocado por ponto azul discreto + botao toggle "Teto" na toolbar; novo topico no relatorio "Planta - Itens no Teto" com planta dedicada + tabela (cabos tracejados)
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v150 · build 2026-06
+          v151 · build 2026-06
         </div>
       </div>
     </div>

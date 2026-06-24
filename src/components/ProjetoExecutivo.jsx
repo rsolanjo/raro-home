@@ -439,6 +439,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [execMode, setExecMode] = useState('completo') // 'completo' | 'obra' | 'eletrica'
   const [showHeatmap, setShowHeatmap] = useState(true)  // mostrar mapa de calor de Wi-Fi no executivo
   const [showIds, setShowIds] = useState(false)  // mostrar os códigos/IDs nos pinos da planta (default: limpo)
+  const [showTeto, setShowTeto] = useState(true)   // mostrar indicador de itens no teto (pontinho azul)
   const [execData, setExecData] = useState(null)       // dados crus da IA (p/ re-render das 2 versões)
   const [execProgress, setExecProgress] = useState('')
   const [zoom, setZoom] = useState(1)
@@ -1093,8 +1094,36 @@ Responda APENAS JSON válido:
   // finaliza o conduíte livre desenhado (vira um cabo com free:true)
   function finishConduit(){
     if(conduitDraft.length>=2){
-      const novo={ id:uniqId('cab'), free:true, type:conduitType, color:CABLE_PALETTE[conduitType], points:conduitDraft.map(p=>({...p})) }
-      pushHistory(); setCables(cs=>[...cs, novo]); setSelCable(novo.id)
+      // 1) pergunta rótulo do conduíte
+      const rotulo = (window.prompt('Rótulo do conduíte (ex: Sala → Rack):\n(deixe vazio para nomear depois)')||'').trim()
+      // 2) pergunta se há caixa de interseção/passagem
+      const temCaixa = window.confirm('Há uma CAIXA DE PASSAGEM (interseção/derivação) neste conduíte?\n\nOK = Sim, haverá uma caixa\nCancelar = Não')
+      // 3) lista cabos existentes para adicionar ao conduíte
+      const cabosComNome = cables.filter(c=>!c.free).map((c,i)=>{
+        const a=markers.find(m=>m.uid===c.fromUid), b=markers.find(m=>m.uid===c.toUid)
+        return { c, label:`${i+1}) ${CABLE_LABELS[c.type]||c.type}: ${a?.name||'?'} → ${b?.name||'?'}` }
+      })
+      let cabosIds=[]
+      if(cabosComNome.length>0){
+        const lista=cabosComNome.map(x=>x.label).join('\n')
+        const resp=(window.prompt(`Quais CABOS passam por este conduíte?\nDigite os números separados por vírgula (ou deixe vazio):\n\n${lista}`)||'').trim()
+        if(resp) cabosIds=resp.split(',').map(s=>parseInt(s.trim())-1).filter(i=>i>=0&&i<cabosComNome.length).map(i=>cabosComNome[i].c.id)
+      }
+      const novoId=uniqId('cab')
+      const novo={ id:novoId, free:true, type:conduitType, color:CABLE_PALETTE[conduitType],
+        points:conduitDraft.map(p=>({...p})),
+        label:rotulo||undefined,
+        obs:temCaixa?'Caixa de passagem/interseção neste conduíte':undefined }
+      pushHistory()
+      // associa os cabos selecionados a este conduíte (pelo rótulo ou id do novo conduíte)
+      const label = rotulo||novoId
+      if(rotulo) novo.label = rotulo
+      setCables(cs=>{
+        const updated = cs.map(c=> cabosIds.includes(c.id) ? {...c, conduite:label} : c )
+        return [...updated, novo]
+      })
+      setSelCable(novoId)
+      if(temCaixa) setTimeout(()=>setConduitEditMode(true),100)
     }
     setConduitDraft([])
   }
@@ -2049,7 +2078,30 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         ? (d.modulos_teto||[]).map(mt=>`<h3 class="ex-amb">${esc(mt.ambiente)}</h3>${T((mt.itens||[]).map(it=>`<tr><td>${esc(it)}</td></tr>`).join(''),['Itens de teto / forro'])}`).join('')
         : ''
 
-    // ── Tabela de observações dos pontos (item 1: notas digitadas em cada item) ──
+    // ── Seção de Itens no Teto (planta + tabela) ──────────────────────────────
+    const tetoSyms = new Set(['tomada_teto','keystone_teto','ponto_som_teto'])
+    const isTeto = m => { const sym=classifyEle(m)?.sym||''; return tetoSyms.has(sym)||(sym==='ponto_luz'&&/teto/.test((m.note||'').toLowerCase())) }
+    const tetoMarkers = markers.filter(isTeto)
+    const tblTetoSec = tetoMarkers.length ? `
+      <h3 class="ex-amb" style="margin-top:14px">Itens no Teto — tabela</h3>
+      ${T(tetoMarkers.map(m=>{ const cab=(cables||[]).find(c=>!c.free&&(c.toUid===m.uid||c.fromUid===m.uid)); const mt=cab?cableMeters(cab):null
+        return `<tr>${pinCell(m.id,m.code,m.n)}<td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td><td>${esc(m.name)}</td><td style="font-size:11px">${esc(m.room||'—')}</td><td style="font-size:11px">${esc(classifyEle(m)?.tipo||'—')}</td><td style="text-align:right">${mt!=null?mt+'m':'—'}</td><td style="font-size:10px;color:#D97706">${esc(m.note||'')}</td></tr>` }).join(''),
+        ['Nº','ID','Item','Cômodo','Tipo','Cabo','Obs'])}
+    ` : ''
+    const plantaTeto = (bgImage && tetoMarkers.length) ? (() => {
+      const ratio=imgRatio||0.66
+      const dots=tetoMarkers.map(m=>`<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
+        <div style="width:20px;height:20px;border-radius:50%;background:#0891B2;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${m.n}</div>
+        <div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);font-size:7.5px;font-weight:700;color:#0D1420;white-space:nowrap;background:rgba(255,255,255,0.9);padding:0 2px;border-radius:2px;pointer-events:none">${esc(m.id||m.code||'')}</div>
+        </div>`).join('')
+      const cabosLinha=(cables||[]).filter(c=>!c.free&&tetoMarkers.some(m=>m.uid===c.fromUid||m.uid===c.toUid)).map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''; return `<path d="${pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')}" fill="none" stroke="${c.color||'#0891B2'}" stroke-dasharray="4,2.5" vector-effect="non-scaling-stroke" style="stroke-width:2px"/>`}).join('')
+      return `<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>
+        <p class="ex-p" style="margin-bottom:8px">Somente pontos no teto (tomadas, keystones, caixas de som e luz embutidos). Cabos em tracejado (passam pelo forro).</p>
+        <div style="position:relative;width:100%;padding-bottom:${(ratio*100).toFixed(1)}%;border:1px solid #CBD5E1;border-radius:8px;overflow:hidden">
+          <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.4)"/>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${cabosLinha}</svg>${dots}
+        </div>${tblTetoSec}</div>`
+    })() : ''
     const mComObs = markers.filter(m=>m.note&&m.note.trim())
     const tblObservacoes = mComObs.length ? T(mComObs.map(m=>`<tr>
       ${pinCell(m.id,m.code,m.n)}
@@ -2428,6 +2480,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     secN(`Segurança — Câmeras e Sensores de Alarme`, tblSeguranca, true),
     secN(`Som Ambiente — Caixas, Amplificador e Zonas`, tblSom, true),
     secN(`Devices no Teto — Posição, Origem e Cabeamento`, tblTeto, true),
+    plantaTeto,
     secN(`Observações dos Pontos`, tblObservacoes, true),
     (()=>{ let _nh=0; const aps=markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase())); return (showHeatmap && aps.length) ? buildHeatmap(()=>'') : '' })(),
     secN(`Cabos de Som — Amplificador no RACK`, (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr>${pinCell(r.destino,r.etiqueta,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-size:10px">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['Nº','ID','Origem','Destino','Tipo','Metros','Etiqueta']):'', true),
@@ -3059,6 +3112,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <button onClick={()=>setShowIds(v=>!v)} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:showIds?'rgba(255,255,255,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={showIds?'Ocultar os códigos (planta limpa)':'Mostrar os códigos dos pontos'}>
                   <i className={showIds?'ti ti-tag':'ti ti-tag-off'} aria-hidden/>{showIds?'IDs visíveis':'IDs ocultos'}
                 </button>
+                <button onClick={()=>setShowTeto(v=>!v)} style={{height:32,borderRadius:6,border:`1px solid ${showTeto?'#0891B288':'rgba(255,255,255,0.2)'}`,background:showTeto?'rgba(8,145,178,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={showTeto?'Ocultar indicadores de teto':'Mostrar itens de teto'}>
+                  <i className="ti ti-ceiling" aria-hidden/>{showTeto?'Teto visível':'Teto oculto'}
+                </button>
                 {(()=>{ const temEle=markers.some(m=>classifyEle(m)); const qdls=markers.filter(m=>classifyEle(m)?.sym==='quadro').length
                   // prumadas pareadas indicam que há mais de um pavimento na planta
                   const pares=new Set(markers.filter(m=>classifyEle(m)?.sym==='prumada'&&(m.prumadaCode||'').trim()).map(m=>(m.prumadaCode||'').trim().toLowerCase()))
@@ -3201,9 +3257,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       <div style={{position:'absolute',top:10,left:0,right:0,textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.45)',pointerEvents:'none'}}>Pontos posicionados — arraste para ajustar, ou carregue a planta.</div>
                     </div>}
                 {/* ── Camada de CABOS (planta elétrica) ── */}
-                {!hideCables && !hideConduites && <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:4,overflow:'visible'}} preserveAspectRatio="none" viewBox="0 0 100 100">
+                {<svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:4,overflow:'visible'}} preserveAspectRatio="none" viewBox="0 0 100 100">
                   {cables.map(c=>{
-                    // conduítes livres respeitam hideConduites; cabos normais respeitam hideCables
+                    // conduítes livres: respeitam hideConduites; cabos normais: respeitam hideCables
                     if(c.free && hideConduites) return null
                     if(!c.free && hideCables) return null
                     // oculta o cabo conforme a categoria FILTRADA. Usa o tipo do cabo (não os itens),
@@ -3263,7 +3319,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   return <div key={'lbl'+c.id} onClick={e=>{e.stopPropagation(); setSelCable(c.id)}} style={{position:'absolute',left:`${mid.x}%`,top:`${mid.y}%`,transform:'translate(-50%,-50%)',background:c.color||CABLE_PALETTE[c.type],color:'#fff',fontSize:8,fontWeight:700,padding:'1px 5px',borderRadius:8,zIndex:8,whiteSpace:'nowrap',border:'1px solid #fff',boxShadow:'0 1px 3px rgba(0,0,0,0.4)',cursor:'pointer'}}>{c.label}</div>
                 })}
                 {/* pontos arrastáveis do cabo selecionado + dobra ao clicar no segmento */}
-                {!hideCables && !hideConduites && cableMode && cables.filter(c=>c.id===selCable).map(c=>{
+                {!hideCables && !hideConduites && cableMode && cables.filter(c=>c.id===selCable && (c.free ? !hideConduites : !hideCables)).map(c=>{
                   const pts=cablePolyPoints(c)
                   return <div key={'pts'+c.id}>
                     {(c.points||[]).map((p,idx)=>(
@@ -3302,8 +3358,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     onTouchStart={e=>{ if(!cableMode){ const t=e.touches[0]; onDown({preventDefault:()=>{},stopPropagation:()=>e.stopPropagation(),clientX:t.clientX,clientY:t.clientY},m.uid) } }}
                     onClick={e=>{ if(cableMode){ e.stopPropagation(); onCableItemClick(m.uid) } }}>
                     {isCableOrigin && <div style={{position:'absolute',inset:-7,borderRadius:'50%',border:'3px dashed #F59E0B',pointerEvents:'none'}}/>}
-                    {/* badge de TETO nos itens de teto */}
-                    {(()=>{ const sym=classifyEle(m)?.sym||''; const isTeto=['tomada_teto','keystone_teto','ponto_som_teto'].includes(sym)||(sym==='ponto_luz'&&/teto/.test((m.note||'').toLowerCase())); return isTeto?<div style={{position:'absolute',top:-6,right:-6,background:'#0891B2',color:'#fff',fontSize:6.5,fontWeight:800,borderRadius:3,padding:'1px 3px',border:'1px solid #fff',zIndex:21,pointerEvents:'none',letterSpacing:'0.5px'}}>TETO</div>:null })()} 
+                    {/* indicador de teto: pequeno ponto pontilhado na borda do pin (não badge de texto) */}
+                    {(()=>{ const sym=classifyEle(m)?.sym||''; const isT=['tomada_teto','keystone_teto','ponto_som_teto'].includes(sym)||(sym==='ponto_luz'&&/teto/.test((m.note||'').toLowerCase())); return isT&&showTeto?<div style={{position:'absolute',top:-4,left:'50%',transform:'translateX(-50%)',width:6,height:6,borderRadius:'50%',background:'#0891B2',border:'1.5px solid #fff',zIndex:21,pointerEvents:'none'}}/>:null })()} 
                     {isRack
                       ? <div style={{width:sel?30:24,height:sel?30:24,borderRadius:5,background:'#4C1D95',color:'#C4B5FD',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #7C3AED',boxShadow:sel?`0 0 0 3px #7C3AED`:'0 2px 6px rgba(0,0,0,0.6)'}}><i className="ti ti-server" aria-hidden style={{fontSize:13}}/></div>
                       : <div style={{width:sel?22:18,height:sel?22:18,borderRadius:'50%',background:st.c,color:'#fff',fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'1.5px solid #fff',boxShadow:sel?`0 0 0 3px ${st.c}`:'0 1px 3px rgba(0,0,0,0.5)'}}>{m.n}</div>}
