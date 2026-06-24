@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v147 — Contrato: (1)Categorias ocultas agora PARTE do valor cheio e SUBTRAI o que ocultar (mostra cheio - desconto = contrato ao vivo); Mao de obra virou categoria ocultavel; (2)nome do arquivo/titulo relevante por tipo de contrato; (3)margens A4 do PDF ajustadas (14/16mm) para impressao; (4)pagamento, prazo e garantia editaveis em TODOS os tipos de contrato (campo opcional, vazio=padrao)
+// v148 — FIX contrato: (nome do PDF) o navegador ignorava o <title> porque o doc abria via Blob/URL — agora abre via document.write, entao o nome sugerido do PDF vira o titulo correto por tipo (Contrato de Projeto e Acompanhamento Tecnico — Cliente). (margens) preview agora mostra padding lateral (nao "come" mais na borda) e impressao usa @page 14/16mm sem padding.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v147 · build 2026-06
+          v148 · build 2026-06
         </div>
       </div>
     </div>

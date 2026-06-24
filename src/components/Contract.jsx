@@ -146,7 +146,8 @@ export function buildContract(proposal, client, opts={}) {
   <style>
     @page{size:A4;margin:14mm 16mm 16mm}
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'DM Sans',sans-serif;font-size:10.5px;color:#1a1a1a;line-height:1.75;background:#fff}
+    body{font-family:'DM Sans',sans-serif;font-size:10.5px;color:#1a1a1a;line-height:1.75;background:#fff;padding:20px 26px}
+    @media print{ body{padding:0} }
     h1{font-family:'DM Serif Display',serif;font-size:20px;color:#060B1A;margin-bottom:2px}
     h2{font-family:'DM Serif Display',serif;font-size:12.5px;color:#0369A1;margin:16px 0 5px;border-bottom:1px solid #C8DEFF;padding-bottom:3px;text-transform:uppercase;letter-spacing:0.5px}
     .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #060B1A;padding-bottom:12px;margin-bottom:18px}
@@ -331,16 +332,18 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
   function openContract() { downloadContract() }
 
   function downloadContract() {
-    // Open in new window and trigger print → Save as PDF
+    // Abre via document.write para que o <title> vire o nome sugerido do PDF
+    // (blob/URL.createObjectURL faz o navegador ignorar o título e usar um nome genérico)
     const html = buildContract(proposal, client, opts)
+    const w = window.open('', '_blank')
+    if (w) { w.document.open(); w.document.write(html); w.document.close(); return }
+    // fallback: blob (caso pop-up bloqueie a janela vazia)
     try {
       const blob = new Blob([html], {type:'text/html;charset=utf-8'})
       const url = URL.createObjectURL(blob)
-      const w = window.open(url, '_blank')
-      if (w) { setTimeout(() => URL.revokeObjectURL(url), 15000); return }
+      const w2 = window.open(url, '_blank')
+      if (w2) setTimeout(() => URL.revokeObjectURL(url), 15000)
     } catch(e) {}
-    const w = window.open('', '_blank')
-    if (w) { w.document.open(); w.document.write(html); w.document.close() }
   }
 
   function sendWhatsApp(phone) {
