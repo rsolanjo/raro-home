@@ -11,17 +11,33 @@ export function buildContract(proposal, client, opts={}) {
   const hiddenCats = new Set(opts.hiddenCats||[])
   const floors = Array.isArray(proposal.floors) ? proposal.floors
     : (typeof proposal.floors==='string' ? JSON.parse(proposal.floors||'[]') : proposal.floors||[])
-  // total considerando categorias ocultas (desconta itens das categorias escondidas)
   const itemVisivel = it => !hiddenCats.has((it.category||it.cat||'').trim())
-  const equipTotal = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>{
-    if(tipo==='ocultas'){ return rs + (r.items||[]).filter(itemVisivel).reduce((is,it)=>is+(Number(it.price)||Number(it.sale)||0)*(parseInt(it.qty)||1),0) }
-    return rs+(Number(r.price)||0)
-  },s),0)
   const labor = Number(proposal.labor)||0
-  const computed = equipTotal + labor
-  // valor do contrato: avulsa usa valor digitado; senão aprovado, senão calculado
-  let total = Number(proposal.approved_value)>0 ? Number(proposal.approved_value) : computed
-  if(tipo==='ocultas') total = computed   // recalculado só com o visível
+  // valor de equipamentos pelo total dos cômodos (cheio)
+  const equipTotalCheio = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)
+  const computedCheio = equipTotalCheio + labor
+  // VALOR CHEIO de referência = aprovado da proposta, senão calculado
+  const valorCheio = Number(proposal.approved_value)>0 ? Number(proposal.approved_value) : computedCheio
+
+  // Em "ocultas": parte do valor CHEIO e SUBTRAI o que foi ocultado (categorias e/ou mão de obra)
+  let descontado = 0
+  if(tipo==='ocultas'){
+    // soma o valor dos itens das categorias ocultas (usa price do item; se não houver, rateia pelo cômodo)
+    floors.forEach(f=>(f.rooms||[]).forEach(r=>{
+      const itens=(r.items||[])
+      const somaItens=itens.reduce((s,it)=>s+(Number(it.price)||Number(it.sale)||0)*(parseInt(it.qty)||1),0)
+      const roomPrice=Number(r.price)||0
+      itens.forEach(it=>{
+        if(itemVisivel(it)) return
+        const v=(Number(it.price)||Number(it.sale)||0)*(parseInt(it.qty)||1)
+        // se os itens não têm preço, rateia o valor do cômodo igualmente
+        descontado += v>0 ? v : (somaItens===0 && itens.length ? roomPrice/itens.length : 0)
+      })
+    }))
+    // mão de obra é uma "categoria" ocultável
+    if(hiddenCats.has('Mão de obra')) descontado += labor
+  }
+  let total = tipo==='ocultas' ? Math.max(0, valorCheio - descontado) : valorCheio
   if((tipo==='avulsa'||tipo==='projeto') && Number(opts.valorManual)>0) total = Number(opts.valorManual)
   const today = new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})
   const name1 = client?.full_name1 || client?.name1 || '—'
@@ -90,23 +106,30 @@ export function buildContract(proposal, client, opts={}) {
     : tipo==='avulsa'
     ? (opts.objetoCustom || `O presente instrumento tem por objeto a prestação de serviços conforme escopo técnico nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I.`)
     : `O presente instrumento tem por objeto a prestação de serviços de automação residencial, fornecimento, instalação e configuração de equipamentos de tecnologia, conforme proposta técnica nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I.`
-  // Forma de pagamento
-  const pagamentoTxt = ehProjeto
+  // Forma de pagamento (editável em qualquer tipo via opts.pagamentoCustom)
+  const pagamentoTxt = opts.pagamentoCustom ? opts.pagamentoCustom : (ehProjeto
     ? `O valor do projeto será pago <strong>à vista</strong>, no ato da contratação, mediante PIX, transferência ou conforme combinado entre as partes. A liberação do projeto e o início do acompanhamento ocorrem após a confirmação do pagamento.`
-    : (opts.pagamentoCustom || `O pagamento será efetuado em <strong>2 (duas) parcelas</strong>: <strong>50% (cinquenta por cento)</strong> na assinatura deste contrato, a título de entrada para aquisição de equipamentos e início dos serviços, e <strong>50% (cinquenta por cento)</strong> na entrega final, após a conclusão da instalação, configuração e testes.`)
+    : `O pagamento será efetuado em <strong>2 (duas) parcelas</strong>: <strong>50% (cinquenta por cento)</strong> na assinatura deste contrato, a título de entrada para aquisição de equipamentos e início dos serviços, e <strong>50% (cinquenta por cento)</strong> na entrega final, após a conclusão da instalação, configuração e testes.`)
+  // prazo e garantia editáveis
+  const prazoTxt = opts.prazoCustom || (ehProjeto
+    ? 'O projeto técnico será entregue no prazo acordado entre as partes após a confirmação do pagamento, em formato digital (PDF), incluindo plantas, especificações e quantitativos.'
+    : 'O prazo de execução será acordado entre as partes após assinatura deste instrumento, respeitando disponibilidade de materiais e agenda da CONTRATADA. Qualquer alteração no prazo será comunicada com antecedência mínima de 48 horas.')
+  const garantiaTxt = opts.garantiaCustom || (ehProjeto
+    ? 'O projeto entregue destina-se exclusivamente ao imóvel e ao CONTRATANTE indicados, sendo vedada sua reprodução ou uso em outras obras sem autorização da CONTRATADA.'
+    : 'Os equipamentos possuem garantia de fábrica conforme especificação de cada fabricante. A instalação e configuração têm garantia de <strong>90 (noventa) dias</strong> contra defeitos decorrentes da execução dos serviços, contados da data de entrega.')
   // Inclui lista de ambientes? (projeto não)
   const mostraEscopoItens = !ehProjeto && scopeRooms.length>0
   // Cláusulas específicas
   const clausulas = ehProjeto ? [
-    ['PRAZO DE ENTREGA DO PROJETO','O projeto técnico será entregue no prazo acordado entre as partes após a confirmação do pagamento, em formato digital (PDF), incluindo plantas, especificações e quantitativos.'],
+    ['PRAZO DE ENTREGA DO PROJETO', prazoTxt],
     ['ACOMPANHAMENTO','A CONTRATADA prestará acompanhamento técnico à execução por terceiros, esclarecendo dúvidas e validando etapas, conforme combinado, sem assumir a responsabilidade pela mão de obra de instalação de terceiros.'],
-    ['PROPRIEDADE INTELECTUAL','O projeto entregue destina-se exclusivamente ao imóvel e ao CONTRATANTE indicados, sendo vedada sua reprodução ou uso em outras obras sem autorização da CONTRATADA.'],
+    ['PROPRIEDADE INTELECTUAL', garantiaTxt],
     ['REVISÕES','Estão incluídas até 2 (duas) revisões do projeto. Revisões adicionais ou mudanças de escopo poderão ser cobradas à parte.'],
     ['SUPORTE','Dúvidas sobre o projeto via WhatsApp (21) 98170-9009, de segunda a sexta, das 9h às 18h.'],
     ['CONFIDENCIALIDADE','As partes comprometem-se a manter sigilo sobre as informações técnicas, comerciais e pessoais trocadas no âmbito deste contrato.'],
   ] : [
-    ['PRAZO','O prazo de execução será acordado entre as partes após assinatura deste instrumento, respeitando disponibilidade de materiais e agenda da CONTRATADA. Qualquer alteração no prazo será comunicada com antecedência mínima de 48 horas.'],
-    ['GARANTIA','Os equipamentos possuem garantia de fábrica conforme especificação de cada fabricante. A instalação e configuração têm garantia de <strong>90 (noventa) dias</strong> contra defeitos decorrentes da execução dos serviços, contados da data de entrega.'],
+    ['PRAZO', prazoTxt],
+    ['GARANTIA', garantiaTxt],
     ['SUPORTE PÓS-ENTREGA','A CONTRATADA prestará suporte técnico via WhatsApp no número (21) 98170-9009, de segunda a sexta, das 9h às 18h. Atendimentos emergenciais fora deste horário poderão ser cobrados separadamente.'],
     ['OBRIGAÇÕES DO CONTRATANTE','Garantir acesso ao imóvel nos horários acordados; fornecer energia elétrica estabilizada no local de instalação; não efetuar modificações nos sistemas instalados sem prévia autorização técnica da CONTRATADA; manter os equipamentos afastados de fontes de umidade excessiva e calor.'],
     ['EXCLUSÕES DE GARANTIA','Não estão cobertos: danos causados por mau uso, sobretensão elétrica, raio, inundação, quedas físicas, modificações realizadas por terceiros não autorizados, ou uso fora das especificações técnicas dos fabricantes.'],
@@ -118,10 +141,10 @@ export function buildContract(proposal, client, opts={}) {
   extras.forEach(x=>clausulas.push([x.titulo||'CLÁUSULA ADICIONAL', x.texto||'']))
 
   return `<!DOCTYPE html><html lang="pt-BR"><head>
-  <meta charset="UTF-8"><title>${tituloDoc} — ${client?.name1||proposal.client_name||'Cliente'}${proposal.code?' — '+proposal.code:''}</title>
+  <meta charset="UTF-8"><title>${tituloDoc} — ${client?.name1||proposal.client_name||'Cliente'}${proposal.code?' ('+proposal.code+')':''}</title>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
-    @page{size:A4;margin:18mm 24mm}
+    @page{size:A4;margin:14mm 16mm 16mm}
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'DM Sans',sans-serif;font-size:10.5px;color:#1a1a1a;line-height:1.75;background:#fff}
     h1{font-family:'DM Serif Display',serif;font-size:20px;color:#060B1A;margin-bottom:2px}
@@ -159,7 +182,7 @@ export function buildContract(proposal, client, opts={}) {
   </style>
 </head><body>
   <div class="no-print" style="position:sticky;top:0;background:#060B1A;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;font-family:'DM Sans',sans-serif;font-size:11px;z-index:99">
-    <span>Contrato RARO Home — ${proposal.code} — ${client?.name1||proposal.client_name}</span>
+    <span>${tituloDoc} — ${proposal.code} — ${client?.name1||proposal.client_name}</span>
     <button onclick="window.print()" style="background:#0EA5E9;color:#fff;border:none;padding:6px 16px;border-radius:4px;font-size:11px;cursor:pointer">⬇ Salvar como PDF</button>
   </div>
 
@@ -273,16 +296,37 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
   const [hiddenCats, setHiddenCats] = useState([])
   const [pagamentoCustom, setPagamentoCustom] = useState('')
   const [objetoCustom, setObjetoCustom] = useState('')
+  const [prazoCustom, setPrazoCustom] = useState('')
+  const [garantiaCustom, setGarantiaCustom] = useState('')
   // categorias presentes na proposta (para o modo "ocultas")
   const catsDisponiveis = (()=>{ try{
     const fl = Array.isArray(proposal.floors)?proposal.floors:(typeof proposal.floors==='string'?JSON.parse(proposal.floors||'[]'):[])
     const s=new Set(); fl.forEach(f=>(f.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{ const c=(it.category||it.cat||'').trim(); if(c)s.add(c) })))
-    return [...s].sort()
+    const arr=[...s].sort()
+    if(Number(proposal.labor)>0) arr.push('Mão de obra')   // mão de obra é ocultável
+    return arr
   }catch{return []} })()
   const opts = { tipo, valorManual, hiddenCats,
-    pagamentoCustom: tipo==='avulsa'?pagamentoCustom:'',
+    pagamentoCustom,   // editável em qualquer tipo
+    prazoCustom, garantiaCustom,
     objetoCustom: tipo==='avulsa'?objetoCustom:'' }
   const toggleCat = c => setHiddenCats(p=> p.includes(c)? p.filter(x=>x!==c) : [...p,c])
+  // valor cheio e valor atual (para mostrar ao vivo no painel de ocultas)
+  const valorCheioUI = ()=>{ try{
+    const fl=Array.isArray(proposal.floors)?proposal.floors:JSON.parse(proposal.floors||'[]')
+    const eq=fl.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)
+    const cheio=eq+(Number(proposal.labor)||0)
+    return Number(proposal.approved_value)>0?Number(proposal.approved_value):cheio
+  }catch{return Number(proposal.approved_value)||0} }
+  const totalAtualUI = ()=>{ try{
+    const fl=Array.isArray(proposal.floors)?proposal.floors:JSON.parse(proposal.floors||'[]')
+    const hid=new Set(hiddenCats)
+    let desc=0
+    fl.forEach(f=>(f.rooms||[]).forEach(r=>{ const itens=(r.items||[]); const soma=itens.reduce((s,it)=>s+(Number(it.price)||Number(it.sale)||0)*(parseInt(it.qty)||1),0); const rp=Number(r.price)||0
+      itens.forEach(it=>{ if(!hid.has((it.category||it.cat||'').trim())) return; const v=(Number(it.price)||Number(it.sale)||0)*(parseInt(it.qty)||1); desc+=v>0?v:(soma===0&&itens.length?rp/itens.length:0) }) }))
+    if(hid.has('Mão de obra')) desc+=Number(proposal.labor)||0
+    return Math.max(0, valorCheioUI()-desc)
+  }catch{return valorCheioUI()} }
 
   function openContract() { downloadContract() }
 
@@ -417,7 +461,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
           )}
           {tipo==='ocultas' && (
             <div style={{marginTop:10}}>
-              <div style={{fontSize:11,color:'var(--text2)',marginBottom:6}}>Marque as categorias a <b>OCULTAR</b> (some do escopo e desconta do valor):</div>
+              <div style={{fontSize:11,color:'var(--text2)',marginBottom:6}}>Parte do <b>valor cheio</b> e marque as categorias a <b>OCULTAR</b> — o valor vai diminuindo:</div>
               <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
                 {catsDisponiveis.length? catsDisponiveis.map(c=>(
                   <button key={c} onClick={()=>toggleCat(c)} style={{fontSize:11,padding:'5px 10px',borderRadius:14,cursor:'pointer',
@@ -427,6 +471,12 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
                     {hiddenCats.includes(c)?'🚫 ':''}{c}</button>
                 )):<span style={{fontSize:11,color:'var(--text3)'}}>Nenhuma categoria detectada nos itens da proposta.</span>}
               </div>
+              {(()=>{ const cheio=valorCheioUI(); const atual=totalAtualUI()
+                return <div style={{marginTop:8,display:'flex',gap:16,alignItems:'center',fontSize:12}}>
+                  <span style={{color:'var(--text3)'}}>Valor cheio: <b style={{textDecoration:hiddenCats.length?'line-through':'none'}}>{fmt(cheio)}</b></span>
+                  {hiddenCats.length>0 && <span style={{color:'#FCA5A5'}}>− {fmt(cheio-atual)}</span>}
+                  <span style={{color:'var(--green)',fontWeight:700}}>Contrato: {fmt(atual)}</span>
+                </div> })()}
             </div>
           )}
           {tipo==='avulsa' && (
@@ -448,6 +498,29 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
               </div>
             </div>
           )}
+          {/* Cláusulas editáveis — disponível em TODOS os tipos */}
+          <details style={{marginTop:12,borderTop:'1px solid var(--border)',paddingTop:10}}>
+            <summary style={{fontSize:12,fontWeight:600,color:'var(--text1)',cursor:'pointer',listStyle:'none',display:'flex',alignItems:'center',gap:6}}>
+              <i className="ti ti-edit" aria-hidden/>Personalizar pagamento, prazo e garantia (opcional)
+            </summary>
+            <div style={{display:'grid',gap:8,marginTop:10}}>
+              {tipo!=='avulsa' && <div>
+                <div style={{fontSize:11,color:'var(--text2)',marginBottom:3}}>Forma de pagamento <span style={{color:'var(--text3)'}}>(vazio = padrão do tipo)</span></div>
+                <input value={pagamentoCustom} onChange={e=>setPagamentoCustom(e.target.value)} placeholder={tipo==='projeto'?'padrão: à vista no ato':'padrão: 50% assinatura + 50% entrega'}
+                  style={{width:'100%',padding:'7px 10px',borderRadius:6,border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text1)',fontFamily:'inherit',fontSize:12}}/>
+              </div>}
+              <div>
+                <div style={{fontSize:11,color:'var(--text2)',marginBottom:3}}>Prazo <span style={{color:'var(--text3)'}}>(vazio = padrão)</span></div>
+                <input value={prazoCustom} onChange={e=>setPrazoCustom(e.target.value)} placeholder="ex: 30 dias úteis a partir da assinatura"
+                  style={{width:'100%',padding:'7px 10px',borderRadius:6,border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text1)',fontFamily:'inherit',fontSize:12}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:'var(--text2)',marginBottom:3}}>Garantia <span style={{color:'var(--text3)'}}>(vazio = padrão)</span></div>
+                <input value={garantiaCustom} onChange={e=>setGarantiaCustom(e.target.value)} placeholder="ex: 90 dias de instalação + garantia de fábrica"
+                  style={{width:'100%',padding:'7px 10px',borderRadius:6,border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text1)',fontFamily:'inherit',fontSize:12}}/>
+              </div>
+            </div>
+          </details>
         </div>
         {/* Contract preview */}
         <iframe
