@@ -392,6 +392,8 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   // ── Roteamento de cabos (planta elétrica) ──
   const [cableMode, setCableMode]   = useState(false)        // ativa o modo de traçar cabos
   const [hideCables, setHideCables] = useState(false)        // oculta os cabos (mostra só itens)
+  const [hideConduites, setHideConduites] = useState(false)  // oculta conduítes livres separadamente
+  const [conduitEditMode, setConduitEditMode] = useState(false) // modo: clicar cabos/itens pra adicionar ao conduíte selecionado
   const [cables, setCables]         = useState(()=> initPlanta?.cables || []) // [{id,fromUid,toUid,points:[{x,y}],color,meters?}]
   // ── Escala da planta (metros) ──
   const [plantScale, setPlantScale] = useState(()=> initPlanta?.scale || null) // metros por unidade-de-distância-%  (null = não calibrado)
@@ -1014,6 +1016,24 @@ Responda APENAS JSON válido:
     return 'dados'
   }
   function onCableItemClick(uid){
+    // modo de edição de conduíte: clique num item/pin → adiciona ou retira seus cabos do conduíte selecionado
+    if(conduitEditMode && selCable){
+      const conduit = cables.find(x=>x.id===selCable)
+      if(conduit?.free && conduit.label){
+        const label = conduit.label
+        // cabos ligados a este item
+        const cabosDoItem = cables.filter(c=>!c.free && (c.fromUid===uid||c.toUid===uid))
+        if(cabosDoItem.length===0) return true
+        const jaEstaDentro = cabosDoItem.some(c=>c.conduite===label)
+        setCables(cs=>cs.map(c=>{
+          if(!c.free && (c.fromUid===uid||c.toUid===uid)){
+            return {...c, conduite: jaEstaDentro ? (c.conduite===label?undefined:c.conduite) : label}
+          }
+          return c
+        }))
+        return true
+      }
+    }
     if(!cableMode) return false
     if(!cableDraft){ setCableDraft({fromUid:uid}); return true }
     if(cableDraft.fromUid===uid){ setCableDraft(null); return true }
@@ -3054,6 +3074,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 {cables.length>0 && <button onClick={()=>setHideCables(h=>!h)} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:hideCables?'rgba(255,255,255,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={hideCables?'Mostrar cabos':'Ocultar cabos (só itens)'}>
                   <i className={hideCables?'ti ti-eye-off':'ti ti-eye'} aria-hidden/>{hideCables?'Cabos ocultos':'Ocultar cabos'}
                 </button>}
+                {cables.some(c=>c.free) && <button onClick={()=>setHideConduites(h=>!h)} style={{height:32,borderRadius:6,border:`1px solid ${hideConduites?'#1E3A8A88':'rgba(255,255,255,0.2)'}`,background:hideConduites?'rgba(30,58,138,0.25)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={hideConduites?'Mostrar conduítes':'Ocultar conduítes livres'}>
+                  <i className={hideConduites?'ti ti-vector-off':'ti ti-vector'} aria-hidden/>{hideConduites?'Condts ocultos':'Ocultar condts'}
+                </button>}
                 <button onClick={undo} disabled={!history.length} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:history.length?'#fff':'rgba(255,255,255,0.3)',cursor:history.length?'pointer':'default',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Desfazer (Ctrl+Z)">
                   <i className="ti ti-arrow-back-up" aria-hidden/>Desfazer
                 </button>
@@ -3100,7 +3123,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 </div>
                 {conduitDraft.length>0 && <button onClick={()=>setConduitDraft(p=>p.slice(0,-1))} style={{width:'100%',marginTop:5,fontSize:9.5,padding:'3px',borderRadius:5,border:'1px solid rgba(255,255,255,0.15)',background:'transparent',color:'rgba(255,255,255,0.5)',cursor:'pointer'}}>↶ desfazer último ponto</button>}
               </div>}
-              {(cableMode || (selCable && cables.find(x=>x.id===selCable))) && <div style={{position:'sticky',top:44,marginLeft:'auto',alignSelf:'flex-start',zIndex:29,background:'rgba(20,20,40,0.96)',border:`1px solid ${selCable && cables.find(x=>x.id===selCable)?.free ? '#1E3A8A' : '#F59E0B'}`,borderRadius:8,padding:'7px 10px',maxWidth:selCable?290:230,fontSize:10.5,color:'#fff'}}>
+              {(cableMode || (selCable && cables.find(x=>x.id===selCable))) && <div style={{position:'absolute',top:44,right:8,zIndex:29,background:'rgba(12,15,30,0.97)',border:`1px solid ${selCable && cables.find(x=>x.id===selCable)?.free ? '#1E3A8A' : '#F59E0B'}`,borderRadius:8,padding:'7px 10px',width:220,maxHeight:'60vh',overflowY:'auto',fontSize:10.5,color:'#fff',boxShadow:'0 4px 20px rgba(0,0,0,0.5)'}}>
                 <div style={{color:'#FBBf24',fontWeight:600,marginBottom:3,fontSize:11}}><i className="ti ti-route" aria-hidden/> Modo cabos</div>
                 {!cableDraft
                   ? <div style={{color:'rgba(255,255,255,0.6)',fontSize:9.5,lineHeight:1.3}}>Clique na <b>origem</b> e no <b>destino</b>.</div>
@@ -3109,19 +3132,34 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   return <div style={{marginTop:7,paddingTop:7,borderTop:'1px solid rgba(255,255,255,0.15)'}}>
                     {c.free
                       ? <div style={{marginBottom:6}}>
-                          <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',marginBottom:3}}><i className="ti ti-vector" aria-hidden/> Conduíte livre</div>
-                          <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',marginBottom:2}}>Rótulo (opcional)</div>
+                          <div style={{fontSize:9,color:'#93C5FD',fontWeight:700,marginBottom:4}}><i className="ti ti-vector" aria-hidden/> Conduíte — {CABLE_LABELS[c.type]||c.type}</div>
+                          {/* Rótulo */}
+                          <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginBottom:2}}>Rótulo</div>
                           <input value={c.label||''} onChange={e=>setCables(cs=>cs.map(x=>x.id===c.id?{...x,label:e.target.value}:x))} placeholder="ex: Sala → Rack"
-                            style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'4px 7px',color:'#fff',fontSize:11,fontFamily:'inherit',boxSizing:'border-box',marginBottom:5}}/>
-                          <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',marginBottom:2}}>Observações</div>
-                          <input value={c.obs||''} onChange={e=>setCables(cs=>cs.map(x=>x.id===c.id?{...x,obs:e.target.value}:x))} placeholder="ex: passar acima do forro, cuidado com pilar"
-                            style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'4px 7px',color:'#fff',fontSize:10,fontFamily:'inherit',boxSizing:'border-box',marginBottom:5}}/>
-                          {/* Cabos que passam dentro deste conduíte */}
-                          {(()=>{ const cabosNaoCond=cables.filter(x=>!x.free && (x.conduite===c.label||(()=>{ if(!c.label||!c.label.trim()) return false; const pts=cablePolyPoints(x); return pts.some(pt=>(c.points||[]).some(cp=>Math.sqrt((pt.x-cp.x)**2+(pt.y-cp.y)**2)<3)) })())) 
-                            return cabosNaoCond.length>0 ? <div style={{marginTop:4}}>
-                              <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',marginBottom:3}}>Cabos dentro deste conduíte ({cabosNaoCond.length}):</div>
-                              {cabosNaoCond.map(x=>{const a=mk(x.fromUid),b=mk(x.toUid); return <div key={x.id} style={{fontSize:9,color:'rgba(255,255,255,0.7)',padding:'2px 5px',background:'rgba(255,255,255,0.07)',borderRadius:4,marginBottom:2,display:'flex',alignItems:'center',gap:4}}><span style={{width:7,height:7,borderRadius:'50%',background:x.color||'#fff',flexShrink:0}}/>{CABLE_LABELS[x.type]||x.type}: {a?.name||'?'} → {b?.name||'?'}</div>})}
-                            </div> : <div style={{fontSize:9,color:'rgba(255,255,255,0.35)'}}>Para listar cabos dentro deste conduíte, use o mesmo rótulo no campo "Conduíte" de cada cabo.</div>
+                            style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'3px 6px',color:'#fff',fontSize:10,fontFamily:'inherit',boxSizing:'border-box',marginBottom:4}}/>
+                          {/* Observações */}
+                          <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginBottom:2}}>Observações</div>
+                          <input value={c.obs||''} onChange={e=>setCables(cs=>cs.map(x=>x.id===c.id?{...x,obs:e.target.value}:x))} placeholder="ex: passa acima do forro"
+                            style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:5,padding:'3px 6px',color:'#fff',fontSize:10,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
+                          {/* Cabos dentro */}
+                          {(()=>{
+                            const label=(c.label||'').trim()
+                            const cabosNaoCond=label ? cables.filter(x=>!x.free && x.conduite===label) : []
+                            return <>
+                              <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginBottom:3}}>
+                                Cabos dentro {label?`(${cabosNaoCond.length})`:'— dê um rótulo primeiro'}:
+                              </div>
+                              {cabosNaoCond.length>0 && <div style={{maxHeight:90,overflowY:'auto',marginBottom:4}}>
+                                {cabosNaoCond.map(x=>{ const a=mk(x.fromUid),b=mk(x.toUid); return <div key={x.id} style={{display:'flex',alignItems:'center',gap:4,fontSize:9,color:'rgba(255,255,255,0.7)',padding:'2px 4px',background:'rgba(255,255,255,0.05)',borderRadius:4,marginBottom:2}}>
+                                  <span style={{width:6,height:6,borderRadius:'50%',background:x.color||'#fff',flexShrink:0}}/>
+                                  <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{CABLE_LABELS[x.type]||x.type}: {a?.name||'?'} → {b?.name||'?'}</span>
+                                  <button onClick={()=>setCables(cs=>cs.map(q=>q.id===x.id?{...q,conduite:undefined}:q))} style={{fontSize:8,padding:'1px 4px',borderRadius:3,border:'1px solid rgba(220,38,38,0.4)',background:'transparent',color:'#FCA5A5',cursor:'pointer',flexShrink:0}}>tirar</button>
+                                </div>})}
+                              </div>}
+                              {label && <button onClick={()=>{ setConduitEditMode(v=>!v) }} style={{width:'100%',fontSize:9.5,padding:'4px 0',borderRadius:6,border:`1px solid ${conduitEditMode?'#22D3EE':'rgba(255,255,255,0.25)'}`,background:conduitEditMode?'rgba(34,211,238,0.15)':'transparent',color:conduitEditMode?'#22D3EE':'rgba(255,255,255,0.6)',cursor:'pointer',fontFamily:'inherit',fontWeight:conduitEditMode?700:400}}>
+                                {conduitEditMode?'✓ Clique num cabo ou item para adicionar/tirar':'+ Clique num cabo/item para adicionar ao conduíte'}
+                              </button>}
+                            </>
                           })()}
                         </div>
                       : <div style={{marginBottom:5,fontSize:10,color:'rgba(255,255,255,0.85)'}}><b>{mk(c.fromUid)?.name}</b> → <b>{mk(c.toUid)?.name}</b>
@@ -3152,7 +3190,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     </div>
                     <div style={{display:'flex',gap:5,marginTop:7}}>
                       <button onClick={()=>deleteCable(c.id)} style={{fontSize:9,padding:'3px 8px',borderRadius:6,border:'1px solid #DC2626',background:'transparent',color:'#FCA5A5',cursor:'pointer'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
-                      <button onClick={()=>setSelCable(null)} style={{fontSize:9,padding:'3px 8px',borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.6)',cursor:'pointer',marginLeft:'auto'}}>fechar</button>
+                      <button onClick={()=>{ setSelCable(null); setConduitEditMode(false) }} style={{fontSize:9,padding:'3px 8px',borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.6)',cursor:'pointer',marginLeft:'auto'}}>fechar</button>
                     </div>
                   </div>
                 })()}
@@ -3163,8 +3201,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       <div style={{position:'absolute',top:10,left:0,right:0,textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.45)',pointerEvents:'none'}}>Pontos posicionados — arraste para ajustar, ou carregue a planta.</div>
                     </div>}
                 {/* ── Camada de CABOS (planta elétrica) ── */}
-                {!hideCables && <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:4,overflow:'visible'}} preserveAspectRatio="none" viewBox="0 0 100 100">
+                {!hideCables && !hideConduites && <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:4,overflow:'visible'}} preserveAspectRatio="none" viewBox="0 0 100 100">
                   {cables.map(c=>{
+                    // conduítes livres respeitam hideConduites; cabos normais respeitam hideCables
+                    if(c.free && hideConduites) return null
+                    if(!c.free && hideCables) return null
                     // oculta o cabo conforme a categoria FILTRADA. Usa o tipo do cabo (não os itens),
                     // assim cabos que tocam prumada/quadro/rack (estruturais) não somem indevidamente.
                     if(filterCateg.size>0 && !c.free){
@@ -3189,14 +3230,23 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     const d=pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')
                     const sel=selCable===c.id
                     const isCond=CABLE_CONDUITE[c.type]||c.free
-                    // items de teto → cabo pontilhado (passa pelo forro)
+                    // em modo edição de conduíte: realça cabos que estão dentro do conduíte selecionado
+                    const condEdit = conduitEditMode && selCable && (() => { const cond=cables.find(x=>x.id===selCable); return cond?.free&&cond.label&&!c.free&&c.conduite===cond.label })()
                     const isTeto=(uid)=>{ const m=mk(uid); if(!m)return false; const sym=classifyEle(m)?.sym||''; return ['tomada_teto','keystone_teto','ponto_som_teto'].includes(sym)||(sym==='ponto_luz'&&/teto/.test((m.note||'').toLowerCase())) }
                     const ehTeto=!c.free&&(isTeto(c.fromUid)||isTeto(c.toUid))
                     return <path key={c.id} d={d} fill="none" stroke={c.color}
                       strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke"
                       strokeDasharray={isCond?undefined:(ehTeto?'5,3':undefined)}
-                      style={{pointerEvents:(cableMode||conduitMode||isCond)?'stroke':'none',cursor:'pointer',filter:sel?'drop-shadow(0 0 2px '+c.color+')':'none',strokeWidth:sel?(isCond?6:3):(isCond?5:2)}}
-                      onClick={e=>{e.stopPropagation(); setSelCable(c.id)}}/>
+                      style={{pointerEvents:(cableMode||conduitMode||conduitEditMode||isCond)?'stroke':'none',cursor:'pointer',
+                        filter:condEdit?`drop-shadow(0 0 4px ${c.color}) drop-shadow(0 0 6px #fff)`:sel?'drop-shadow(0 0 2px '+c.color+')':'none',
+                        strokeWidth:sel?(isCond?6:3):condEdit?4:(isCond?5:2),opacity:conduitEditMode&&!condEdit&&!isCond?0.3:1}}
+                      onClick={e=>{e.stopPropagation()
+                        if(conduitEditMode && selCable){
+                          const cond=cables.find(x=>x.id===selCable); if(cond?.free && cond.label && !c.free){
+                            const label=cond.label; const jaEstaDentro=c.conduite===label
+                            setCables(cs=>cs.map(x=>x.id===c.id?{...x,conduite:jaEstaDentro?undefined:label}:x)); return }
+                        }
+                        setSelCable(c.id)}}/>
                   })}
                   {/* preview ao vivo do conduíte livre sendo desenhado */}
                   {conduitMode && conduitDraft.length>0 && <>
@@ -3208,12 +3258,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   <div key={'cd'+i} style={{position:'absolute',left:`${p.x}%`,top:`${p.y}%`,transform:'translate(-50%,-50%)',width:10,height:10,borderRadius:'50%',background:CABLE_PALETTE[conduitType],border:'2px solid #fff',zIndex:8,pointerEvents:'none',boxShadow:'0 1px 3px rgba(0,0,0,0.5)'}}/>
                 ))}
                 {/* rótulos dos conduítes livres já criados */}
-                {!hideCables && cables.filter(c=>c.free && c.label).map(c=>{ const pts=c.points||[]; if(pts.length<2) return null
+                {!hideConduites && cables.filter(c=>c.free && c.label).map(c=>{ const pts=c.points||[]; if(pts.length<2) return null
                   const mid=pts[Math.floor(pts.length/2)]
                   return <div key={'lbl'+c.id} onClick={e=>{e.stopPropagation(); setSelCable(c.id)}} style={{position:'absolute',left:`${mid.x}%`,top:`${mid.y}%`,transform:'translate(-50%,-50%)',background:c.color||CABLE_PALETTE[c.type],color:'#fff',fontSize:8,fontWeight:700,padding:'1px 5px',borderRadius:8,zIndex:8,whiteSpace:'nowrap',border:'1px solid #fff',boxShadow:'0 1px 3px rgba(0,0,0,0.4)',cursor:'pointer'}}>{c.label}</div>
                 })}
                 {/* pontos arrastáveis do cabo selecionado + dobra ao clicar no segmento */}
-                {!hideCables && cableMode && cables.filter(c=>c.id===selCable).map(c=>{
+                {!hideCables && !hideConduites && cableMode && cables.filter(c=>c.id===selCable).map(c=>{
                   const pts=cablePolyPoints(c)
                   return <div key={'pts'+c.id}>
                     {(c.points||[]).map((p,idx)=>(

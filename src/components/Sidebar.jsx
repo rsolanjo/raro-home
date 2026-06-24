@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v149 — (bug)Conduite livre clicavel e apagavel sem precisar do modo Cabos; (1)Observacoes de cada item aparecem no relatorio executivo (tabela Observacoes dos Pontos); (2)Conduite mostra quais cabos estao dentro e obs no painel + relatorio detalha cabos por conduite; (3)Keystone teto, fio teto, som teto como atalhos eletricos; itens de teto com badge TETO e cabos pontilhados; (4)Caixa de conduite: marker de passagem/derivacao sempre visivel, aparece na planta e tabela do relatorio de Conduites
+// v150 — (1)Ocultar cabos nao oculta conduites; botao separado "Ocultar condts" para conduites livres; (2)Painel do conduite vira overlay absoluto sobre a planta (nao encolhe mais o canvas); clique num cabo ou item na planta adiciona/retira ele do conduite (modo edicao com highlight dos cabos dentro); botao "tirar" em cada cabo; (3)conduits em modo edicao realcam os cabos que estao dentro e dimiam os de fora
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v149 · build 2026-06
+          v150 · build 2026-06
         </div>
       </div>
     </div>
