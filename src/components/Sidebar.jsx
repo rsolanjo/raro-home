@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v145 — (1)FIX: cabos da 2a planta sumiam ao filtrar Redes — agora filtra pela categoria do TIPO do cabo e trata prumada/quadro/rack como neutros (nao escondem o cabo); (2)aviso de QDL ciente de multi-pavimento (prumada pareada => sugere 1 quadro por andar); (3)Planta eletrica + profissional: tomadas menores na planta, badge de tensao 110/220V (toggle no painel), novo Modulo de cabeceira (tomada+interruptor+2 USB) com simbolo proprio
+// v146 — CONTRATO com TIPO selecionavel ao gerar: (Projeto) so valor a vista, sem equipamentos, clausulas de acompanhamento/consultoria/propriedade intelectual; (Proposta total) escopo completo + pagamento 50% assinatura / 50% entrega; (Categorias ocultas) escolhe categorias a ocultar -> some do escopo e desconta do valor, 50/50; (Avulsa) campos livres de valor, pagamento e objeto + clausulas extras. Puxa dados do cliente (editaveis) e preview ao vivo.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v145 · build 2026-06
+          v146 · build 2026-06
         </div>
       </div>
     </div>

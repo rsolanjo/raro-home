@@ -6,14 +6,23 @@ const LOGO_CONTRACT = LOGO_COVER
 
 const fmt = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
 
-export function buildContract(proposal, client) {
+export function buildContract(proposal, client, opts={}) {
+  const tipo = opts.tipo || 'total'   // 'projeto' | 'total' | 'ocultas' | 'avulsa'
+  const hiddenCats = new Set(opts.hiddenCats||[])
   const floors = Array.isArray(proposal.floors) ? proposal.floors
     : (typeof proposal.floors==='string' ? JSON.parse(proposal.floors||'[]') : proposal.floors||[])
-  const equipTotal = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(Number(r.price)||0),s),0)
+  // total considerando categorias ocultas (desconta itens das categorias escondidas)
+  const itemVisivel = it => !hiddenCats.has((it.category||it.cat||'').trim())
+  const equipTotal = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>{
+    if(tipo==='ocultas'){ return rs + (r.items||[]).filter(itemVisivel).reduce((is,it)=>is+(Number(it.price)||Number(it.sale)||0)*(parseInt(it.qty)||1),0) }
+    return rs+(Number(r.price)||0)
+  },s),0)
   const labor = Number(proposal.labor)||0
-  // valor do contrato = valor aprovado da última proposta salva, se houver; senão o total calculado
   const computed = equipTotal + labor
-  const total = Number(proposal.approved_value)>0 ? Number(proposal.approved_value) : computed
+  // valor do contrato: avulsa usa valor digitado; senão aprovado, senão calculado
+  let total = Number(proposal.approved_value)>0 ? Number(proposal.approved_value) : computed
+  if(tipo==='ocultas') total = computed   // recalculado só com o visível
+  if((tipo==='avulsa'||tipo==='projeto') && Number(opts.valorManual)>0) total = Number(opts.valorManual)
   const today = new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})
   const name1 = client?.full_name1 || client?.name1 || '—'
   const name2 = client?.full_name2 || client?.name2 || ''
@@ -21,9 +30,9 @@ export function buildContract(proposal, client) {
   const addr = [client?.neighborhood, client?.city].filter(Boolean).join(', ') || '—'
   const housing = client?.housing_type || 'residencial'
   const scopeRooms = floors.flatMap(fl=>(fl.rooms||[]).map(r=>{
-    // agrupa itens por nome com quantidade
+    // agrupa itens por nome com quantidade (respeitando categorias ocultas)
     const counts={}
-    ;(r.items||[]).filter(i=>i.name).forEach(it=>{
+    ;(r.items||[]).filter(i=>i.name).filter(i=>tipo==='ocultas'?itemVisivel(i):true).forEach(it=>{
       const nm=it.name
       const q=parseInt(it.qty)||1
       counts[nm]=(counts[nm]||0)+q
@@ -67,8 +76,49 @@ export function buildContract(proposal, client) {
   const totalExtenso = numPorExtenso(total)
   const ROG_SIG = `<div style="position:relative;display:inline-block"><div style="font-family:'Dancing Script',cursive;font-size:28px;color:#0369A1;opacity:0.9;letter-spacing:1px;line-height:1">Rogério Silva</div><div style="position:absolute;bottom:-2px;left:0;right:0;height:0.5px;background:#0369A1;opacity:0.4"></div></div>`
 
+  // ── Configuração por TIPO de contrato ──────────────────────────────
+  const ehProjeto = tipo==='projeto'
+  const tituloDoc = ehProjeto ? 'Contrato de Projeto e Acompanhamento Técnico'
+    : tipo==='avulsa' ? 'Contrato de Prestação de Serviços'
+    : 'Contrato de Fornecimento, Instalação e Automação'
+  const tipoBadge = ehProjeto ? 'PROJETO · ACOMPANHAMENTO'
+    : tipo==='ocultas' ? 'FORNECIMENTO + INSTALAÇÃO'
+    : tipo==='avulsa' ? 'SERVIÇO PERSONALIZADO' : 'FORNECIMENTO + INSTALAÇÃO'
+  // Objeto do contrato
+  const objetoTxt = ehProjeto
+    ? `O presente instrumento tem por objeto a elaboração de <strong>projeto técnico de automação e infraestrutura</strong> e o <strong>acompanhamento técnico</strong> da sua implantação, conforme escopo técnico nº <strong>${proposal.code}</strong>. Este contrato <strong>não inclui</strong> o fornecimento de equipamentos nem a execução física da instalação, que poderão ser objeto de contrato específico.`
+    : tipo==='avulsa'
+    ? (opts.objetoCustom || `O presente instrumento tem por objeto a prestação de serviços conforme escopo técnico nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I.`)
+    : `O presente instrumento tem por objeto a prestação de serviços de automação residencial, fornecimento, instalação e configuração de equipamentos de tecnologia, conforme proposta técnica nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I.`
+  // Forma de pagamento
+  const pagamentoTxt = ehProjeto
+    ? `O valor do projeto será pago <strong>à vista</strong>, no ato da contratação, mediante PIX, transferência ou conforme combinado entre as partes. A liberação do projeto e o início do acompanhamento ocorrem após a confirmação do pagamento.`
+    : (opts.pagamentoCustom || `O pagamento será efetuado em <strong>2 (duas) parcelas</strong>: <strong>50% (cinquenta por cento)</strong> na assinatura deste contrato, a título de entrada para aquisição de equipamentos e início dos serviços, e <strong>50% (cinquenta por cento)</strong> na entrega final, após a conclusão da instalação, configuração e testes.`)
+  // Inclui lista de ambientes? (projeto não)
+  const mostraEscopoItens = !ehProjeto && scopeRooms.length>0
+  // Cláusulas específicas
+  const clausulas = ehProjeto ? [
+    ['PRAZO DE ENTREGA DO PROJETO','O projeto técnico será entregue no prazo acordado entre as partes após a confirmação do pagamento, em formato digital (PDF), incluindo plantas, especificações e quantitativos.'],
+    ['ACOMPANHAMENTO','A CONTRATADA prestará acompanhamento técnico à execução por terceiros, esclarecendo dúvidas e validando etapas, conforme combinado, sem assumir a responsabilidade pela mão de obra de instalação de terceiros.'],
+    ['PROPRIEDADE INTELECTUAL','O projeto entregue destina-se exclusivamente ao imóvel e ao CONTRATANTE indicados, sendo vedada sua reprodução ou uso em outras obras sem autorização da CONTRATADA.'],
+    ['REVISÕES','Estão incluídas até 2 (duas) revisões do projeto. Revisões adicionais ou mudanças de escopo poderão ser cobradas à parte.'],
+    ['SUPORTE','Dúvidas sobre o projeto via WhatsApp (21) 98170-9009, de segunda a sexta, das 9h às 18h.'],
+    ['CONFIDENCIALIDADE','As partes comprometem-se a manter sigilo sobre as informações técnicas, comerciais e pessoais trocadas no âmbito deste contrato.'],
+  ] : [
+    ['PRAZO','O prazo de execução será acordado entre as partes após assinatura deste instrumento, respeitando disponibilidade de materiais e agenda da CONTRATADA. Qualquer alteração no prazo será comunicada com antecedência mínima de 48 horas.'],
+    ['GARANTIA','Os equipamentos possuem garantia de fábrica conforme especificação de cada fabricante. A instalação e configuração têm garantia de <strong>90 (noventa) dias</strong> contra defeitos decorrentes da execução dos serviços, contados da data de entrega.'],
+    ['SUPORTE PÓS-ENTREGA','A CONTRATADA prestará suporte técnico via WhatsApp no número (21) 98170-9009, de segunda a sexta, das 9h às 18h. Atendimentos emergenciais fora deste horário poderão ser cobrados separadamente.'],
+    ['OBRIGAÇÕES DO CONTRATANTE','Garantir acesso ao imóvel nos horários acordados; fornecer energia elétrica estabilizada no local de instalação; não efetuar modificações nos sistemas instalados sem prévia autorização técnica da CONTRATADA; manter os equipamentos afastados de fontes de umidade excessiva e calor.'],
+    ['EXCLUSÕES DE GARANTIA','Não estão cobertos: danos causados por mau uso, sobretensão elétrica, raio, inundação, quedas físicas, modificações realizadas por terceiros não autorizados, ou uso fora das especificações técnicas dos fabricantes.'],
+    ['CANCELAMENTO','Em caso de cancelamento por parte do CONTRATANTE após o início da execução dos serviços, serão devidos os valores proporcionais aos serviços já prestados e materiais já adquiridos, acrescidos de multa de <strong>20% (vinte por cento)</strong> sobre o valor total contratado.'],
+    ['CONFIDENCIALIDADE','As partes comprometem-se a manter sigilo sobre as informações técnicas, comerciais e pessoais trocadas no âmbito deste contrato.'],
+  ]
+  // cláusulas extras (avulsa)
+  const extras = (opts.clausulasExtras||[]).filter(x=>(x.titulo||x.texto))
+  extras.forEach(x=>clausulas.push([x.titulo||'CLÁUSULA ADICIONAL', x.texto||'']))
+
   return `<!DOCTYPE html><html lang="pt-BR"><head>
-  <meta charset="UTF-8"><title>Contrato RARO Home — ${client?.name1||proposal.client_name||'Cliente'}${proposal.code?' — '+proposal.code:''}</title>
+  <meta charset="UTF-8"><title>${tituloDoc} — ${client?.name1||proposal.client_name||'Cliente'}${proposal.code?' — '+proposal.code:''}</title>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
     @page{size:A4;margin:18mm 24mm}
@@ -116,8 +166,8 @@ export function buildContract(proposal, client) {
   <div class="header">
     <div>
       <img src="${LOGO_CONTRACT}" alt="RARO HOME" style="height:80px;width:auto;margin-bottom:10px;display:block"/>
-      <div class="badge">Contrato de Prestação de Serviços</div>
-      <h1>Termo de Execução de Projeto</h1>
+      <div class="badge">${tipoBadge}</div>
+      <h1>${tituloDoc}</h1>
       <div style="font-size:9px;color:#6B8CAE">Automação Residencial · Tecnologia · Lazer</div>
     </div>
     <div class="header-right">
@@ -148,31 +198,25 @@ export function buildContract(proposal, client) {
   </div>
 
   <h2>2. Objeto do Contrato</h2>
-  <div class="clause">O presente instrumento tem por objeto a prestação de serviços de automação residencial, fornecimento, instalação e configuração de equipamentos de tecnologia, conforme proposta técnica nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I.</div>
-  <div style="margin:8px 0 4px;font-size:9px;font-weight:600;color:#1E3A5F;text-transform:uppercase;letter-spacing:1px">Ambientes e itens contemplados:</div>
+  <div class="clause">${objetoTxt}</div>
+  ${mostraEscopoItens?`<div style="margin:8px 0 4px;font-size:9px;font-weight:600;color:#1E3A5F;text-transform:uppercase;letter-spacing:1px">Ambientes e itens contemplados:</div>
   <div class="scope-detail">${scopeRooms.map(r=>`
     <div class="scope-room">
       <div class="scope-room-hdr">${r.icon} ${r.name} <span class="scope-room-qty">${r.total} ${r.total===1?'item':'itens'}</span></div>
       <div class="scope-room-items">${r.itemList.map(it=>`<span class="scope-chip">${it}</span>`).join('')}</div>
-    </div>`).join('')}</div>
+    </div>`).join('')}</div>`:''}
 
-  <h2>3. Valor Total e Forma de Pagamento</h2>
+  <h2>3. Valor ${ehProjeto?'do Projeto':'Total'} e Forma de Pagamento</h2>
   <div class="total-box">
-    <div class="total-label">Investimento Total do Projeto</div>
+    <div class="total-label">${ehProjeto?'Valor do Projeto e Acompanhamento':'Investimento Total do Projeto'}</div>
     <div class="total-value">R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
     <div class="total-extenso">(${totalExtenso})</div>
   </div>
-  <div class="clause">O valor total inclui fornecimento de todos os equipamentos, materiais, mão de obra especializada, instalação, configuração, testes e treinamento ao contratante. A forma de pagamento será definida conforme acordado na proposta comercial.</div>
-  <div class="highlight"><strong>Nota:</strong> O detalhamento completo dos equipamentos por ambiente consta na Proposta Técnica nº ${proposal.code}, parte integrante deste contrato.</div>
+  <div class="clause">${pagamentoTxt}</div>
+  ${ehProjeto?'':`<div class="highlight"><strong>Nota:</strong> O detalhamento completo dos equipamentos por ambiente consta na Proposta Técnica nº ${proposal.code}, parte integrante deste contrato.</div>`}
 
   <h2>4. Cláusulas e Condições</h2>
-  <div class="clause"><span class="clause-num">4.1 PRAZO:</span> O prazo de execução será acordado entre as partes após assinatura deste instrumento, respeitando disponibilidade de materiais e agenda da CONTRATADA. Qualquer alteração no prazo será comunicada com antecedência mínima de 48 horas.</div>
-  <div class="clause"><span class="clause-num">4.2 GARANTIA:</span> Os equipamentos possuem garantia de fábrica conforme especificação de cada fabricante. A instalação e configuração têm garantia de <strong>90 (noventa) dias</strong> contra defeitos decorrentes da execução dos serviços, contados da data de entrega.</div>
-  <div class="clause"><span class="clause-num">4.3 SUPORTE PÓS-ENTREGA:</span> A CONTRATADA prestará suporte técnico via WhatsApp no número (21) 98170-9009, de segunda a sexta, das 9h às 18h. Atendimentos emergenciais fora deste horário poderão ser cobrados separadamente.</div>
-  <div class="clause"><span class="clause-num">4.4 OBRIGAÇÕES DO CONTRATANTE:</span> Garantir acesso ao imóvel nos horários acordados; fornecer energia elétrica estabilizada no local de instalação; não efetuar modificações nos sistemas instalados sem prévia autorização técnica da CONTRATADA; manter os equipamentos afastados de fontes de umidade excessiva e calor.</div>
-  <div class="clause"><span class="clause-num">4.5 EXCLUSÕES DE GARANTIA:</span> Não estão cobertos: danos causados por mau uso, sobretensão elétrica, raio, inundação, quedas físicas, modificações realizadas por terceiros não autorizados, ou uso fora das especificações técnicas dos fabricantes.</div>
-  <div class="clause"><span class="clause-num">4.6 CANCELAMENTO:</span> Em caso de cancelamento por parte do CONTRATANTE após o início da execução dos serviços, serão devidos os valores proporcionais aos serviços já prestados e materiais já adquiridos, acrescidos de multa de <strong>20% (vinte por cento)</strong> sobre o valor total contratado.</div>
-  <div class="clause"><span class="clause-num">4.7 CONFIDENCIALIDADE:</span> As partes comprometem-se a manter sigilo sobre as informações técnicas, comerciais e pessoais trocadas no âmbito deste contrato.</div>
+  ${clausulas.map((cl,i)=>`<div class="clause"><span class="clause-num">4.${i+1} ${cl[0]}:</span> ${cl[1]}</div>`).join('')}
 
 
   <h2>5. Aceite e Assinaturas</h2>
@@ -223,12 +267,28 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
   const client = { ...baseClient, full_name1:edits.name1, name1:edits.name1, full_name2:edits.name2, name2:edits.name2,
     cpf1:edits.cpf1, cpf:edits.cpf1, neighborhood:edits.neighborhood, city:edits.city, phone1:edits.phone1, email:edits.email }
   const ed=(k,v)=>setEdits(p=>({...p,[k]:v}))
+  // ── Tipo de contrato + opções ──
+  const [tipo, setTipo] = useState('total')   // projeto | total | ocultas | avulsa
+  const [valorManual, setValorManual] = useState('')
+  const [hiddenCats, setHiddenCats] = useState([])
+  const [pagamentoCustom, setPagamentoCustom] = useState('')
+  const [objetoCustom, setObjetoCustom] = useState('')
+  // categorias presentes na proposta (para o modo "ocultas")
+  const catsDisponiveis = (()=>{ try{
+    const fl = Array.isArray(proposal.floors)?proposal.floors:(typeof proposal.floors==='string'?JSON.parse(proposal.floors||'[]'):[])
+    const s=new Set(); fl.forEach(f=>(f.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{ const c=(it.category||it.cat||'').trim(); if(c)s.add(c) })))
+    return [...s].sort()
+  }catch{return []} })()
+  const opts = { tipo, valorManual, hiddenCats,
+    pagamentoCustom: tipo==='avulsa'?pagamentoCustom:'',
+    objetoCustom: tipo==='avulsa'?objetoCustom:'' }
+  const toggleCat = c => setHiddenCats(p=> p.includes(c)? p.filter(x=>x!==c) : [...p,c])
 
   function openContract() { downloadContract() }
 
   function downloadContract() {
     // Open in new window and trigger print → Save as PDF
-    const html = buildContract(proposal, client)
+    const html = buildContract(proposal, client, opts)
     try {
       const blob = new Blob([html], {type:'text/html;charset=utf-8'})
       const url = URL.createObjectURL(blob)
@@ -325,9 +385,73 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
             <button className="btn" style={{fontSize:11}} onClick={()=>setShowReview(true)}><i className="ti ti-edit" aria-hidden/>Revisar/editar dados do cliente</button>
           </div>
         )}
+        {/* Seletor de TIPO de contrato */}
+        <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'12px 16px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+            <i className="ti ti-file-stack" style={{color:'var(--accent)'}} aria-hidden/>
+            <b style={{fontSize:13}}>Tipo de contrato</b>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:8}}>
+            {[
+              ['projeto','Projeto','Só valor, à vista, sem equipamentos','ti-ruler-2'],
+              ['total','Proposta total','Tudo + 50/50','ti-file-invoice'],
+              ['ocultas','Categorias ocultas','Escolhe o que mostrar','ti-eye-off'],
+              ['avulsa','Proposta avulsa','Personaliza tudo','ti-adjustments'],
+            ].map(([v,t,sub,ic])=>(
+              <button key={v} onClick={()=>setTipo(v)} style={{textAlign:'left',padding:'10px 12px',borderRadius:8,cursor:'pointer',
+                border:`1.5px solid ${tipo===v?'var(--accent)':'var(--border)'}`,background:tipo===v?'rgba(14,165,233,0.1)':'var(--bg)',color:'var(--text1)',fontFamily:'inherit'}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,fontSize:12.5,fontWeight:600}}><i className={'ti '+ic} aria-hidden/>{t}</div>
+                <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>{sub}</div>
+              </button>
+            ))}
+          </div>
+
+          {/* Opções por tipo */}
+          {tipo==='projeto' && (
+            <div style={{marginTop:10,display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+              <div style={{fontSize:11,color:'var(--text2)'}}>Valor do projeto (à vista):</div>
+              <input type="number" value={valorManual} onChange={e=>setValorManual(e.target.value)} placeholder="ex: 8000"
+                style={{padding:'7px 10px',borderRadius:6,border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text1)',fontFamily:'inherit',fontSize:12,width:140}}/>
+              <span style={{fontSize:10,color:'var(--text3)'}}>vazio = usa o valor aprovado da proposta</span>
+            </div>
+          )}
+          {tipo==='ocultas' && (
+            <div style={{marginTop:10}}>
+              <div style={{fontSize:11,color:'var(--text2)',marginBottom:6}}>Marque as categorias a <b>OCULTAR</b> (some do escopo e desconta do valor):</div>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                {catsDisponiveis.length? catsDisponiveis.map(c=>(
+                  <button key={c} onClick={()=>toggleCat(c)} style={{fontSize:11,padding:'5px 10px',borderRadius:14,cursor:'pointer',
+                    border:`1px solid ${hiddenCats.includes(c)?'#DC2626':'var(--border)'}`,
+                    background:hiddenCats.includes(c)?'rgba(220,38,38,0.15)':'var(--bg)',
+                    color:hiddenCats.includes(c)?'#FCA5A5':'var(--text2)',fontFamily:'inherit',textDecoration:hiddenCats.includes(c)?'line-through':'none'}}>
+                    {hiddenCats.includes(c)?'🚫 ':''}{c}</button>
+                )):<span style={{fontSize:11,color:'var(--text3)'}}>Nenhuma categoria detectada nos itens da proposta.</span>}
+              </div>
+            </div>
+          )}
+          {tipo==='avulsa' && (
+            <div style={{marginTop:10,display:'grid',gap:8}}>
+              <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+                <div style={{fontSize:11,color:'var(--text2)'}}>Valor (R$):</div>
+                <input type="number" value={valorManual} onChange={e=>setValorManual(e.target.value)} placeholder="vazio = valor da proposta"
+                  style={{padding:'7px 10px',borderRadius:6,border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text1)',fontFamily:'inherit',fontSize:12,width:200}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:'var(--text2)',marginBottom:3}}>Forma de pagamento (texto livre):</div>
+                <input value={pagamentoCustom} onChange={e=>setPagamentoCustom(e.target.value)} placeholder="ex: 3 parcelas iguais via PIX, sendo a 1ª na assinatura..."
+                  style={{width:'100%',padding:'7px 10px',borderRadius:6,border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text1)',fontFamily:'inherit',fontSize:12}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:'var(--text2)',marginBottom:3}}>Objeto do contrato (texto livre, opcional):</div>
+                <input value={objetoCustom} onChange={e=>setObjetoCustom(e.target.value)} placeholder="ex: manutenção mensal dos sistemas de automação..."
+                  style={{width:'100%',padding:'7px 10px',borderRadius:6,border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text1)',fontFamily:'inherit',fontSize:12}}/>
+              </div>
+            </div>
+          )}
+        </div>
         {/* Contract preview */}
         <iframe
-          srcDoc={buildContract(proposal, client)}
+          srcDoc={buildContract(proposal, client, opts)}
           style={{flex:1,border:'none',width:'100%'}}
           title="Contrato RARO Home"
         />
