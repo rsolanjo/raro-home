@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v148 — FIX contrato: (nome do PDF) o navegador ignorava o <title> porque o doc abria via Blob/URL — agora abre via document.write, entao o nome sugerido do PDF vira o titulo correto por tipo (Contrato de Projeto e Acompanhamento Tecnico — Cliente). (margens) preview agora mostra padding lateral (nao "come" mais na borda) e impressao usa @page 14/16mm sem padding.
+// v149 — (bug)Conduite livre clicavel e apagavel sem precisar do modo Cabos; (1)Observacoes de cada item aparecem no relatorio executivo (tabela Observacoes dos Pontos); (2)Conduite mostra quais cabos estao dentro e obs no painel + relatorio detalha cabos por conduite; (3)Keystone teto, fio teto, som teto como atalhos eletricos; itens de teto com badge TETO e cabos pontilhados; (4)Caixa de conduite: marker de passagem/derivacao sempre visivel, aparece na planta e tabela do relatorio de Conduites
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v148 · build 2026-06
+          v149 · build 2026-06
         </div>
       </div>
     </div>
