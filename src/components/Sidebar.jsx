@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v153 — Conduíte sem prompts: ao finalizar entra direto no modo edição no painel lateral. Painel do conduíte: tipo/categoria, rótulo, obs, checkbox de caixa de passagem, lista de cabos dentro com nº para adicionar (campo "nº" + botão), clique direto na planta nos cabos/itens, botão Editar (clique no label ✏ ou na linha do conduíte). Planta sempre livre.
+// v154 — (1)Ao editar conduíte, os outros conduites SOMEM da planta (oculta automaticamente em conduitEditMode, mostra só o selecionado); voltam ao des-selecionar; (2)Ao clicar num item/cabo que ja esta em OUTRO conduite, pergunta: MOVER (sai do antigo e vai pro novo) ou Adicionar nos dois; (3)clicar num item ja dentro do proprio conduíte remove (toggle)
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v153 · build 2026-06
+          v154 · build 2026-06
         </div>
       </div>
     </div>

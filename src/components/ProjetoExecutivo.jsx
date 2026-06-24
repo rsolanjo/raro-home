@@ -1022,14 +1022,38 @@ Responda APENAS JSON válido:
       const conduit = cables.find(x=>x.id===selCable)
       if(conduit?.free && conduit.label){
         const label = conduit.label
-        // cabos ligados a este item
         const cabosDoItem = cables.filter(c=>!c.free && (c.fromUid===uid||c.toUid===uid))
         if(cabosDoItem.length===0) return true
         const jaEstaDentro = cabosDoItem.some(c=>c.conduite===label)
+        if(jaEstaDentro){
+          // remove do conduíte atual (toggle)
+          setCables(cs=>cs.map(c=>{
+            if(!c.free && (c.fromUid===uid||c.toUid===uid) && c.conduite===label)
+              return {...c, conduite:undefined}
+            return c
+          }))
+          return true
+        }
+        // verifica se algum cabo já está em OUTRO conduíte
+        const emOutro = cabosDoItem.filter(c=>c.conduite && c.conduite!==label)
+        if(emOutro.length>0){
+          const nomes=[...new Set(emOutro.map(c=>c.conduite))].join(', ')
+          const mover = window.confirm(
+            `Este item já tem cabo(s) no conduíte "${nomes}".\n\nMOVER para o conduíte "${label}"?\n\nOK = Mover (sai do conduíte antigo)\nCancelar = Adicionar nos dois`)
+          setCables(cs=>cs.map(c=>{
+            if(!c.free && (c.fromUid===uid||c.toUid===uid)){
+              if(mover) return {...c, conduite:label}
+              // adicionar nos dois: só adiciona se ainda não está
+              return c.conduite===label ? c : {...c, conduite:label}
+            }
+            return c
+          }))
+          return true
+        }
+        // não está em nenhum → adiciona normalmente
         setCables(cs=>cs.map(c=>{
-          if(!c.free && (c.fromUid===uid||c.toUid===uid)){
-            return {...c, conduite: jaEstaDentro ? (c.conduite===label?undefined:c.conduite) : label}
-          }
+          if(!c.free && (c.fromUid===uid||c.toUid===uid))
+            return {...c, conduite:label}
           return c
         }))
         return true
@@ -3150,8 +3174,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 {/* ── Camada de CABOS (planta elétrica) ── */}
                 {<svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:4,overflow:'visible'}} preserveAspectRatio="none" viewBox="0 0 100 100">
                   {cables.map(c=>{
-                    // conduítes livres: respeitam hideConduites; cabos normais: respeitam hideCables
-                    if(c.free && hideConduites) return null
+                    // conduítes livres: respeitam hideConduites; em modo edição, oculta TODOS exceto o selecionado
+                    if(c.free && (hideConduites || (conduitEditMode && c.id!==selCable))) return null
                     if(!c.free && hideCables) return null
                     // oculta o cabo conforme a categoria FILTRADA. Usa o tipo do cabo (não os itens),
                     // assim cabos que tocam prumada/quadro/rack (estruturais) não somem indevidamente.
@@ -3189,9 +3213,19 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                         strokeWidth:sel?(isCond?6:3):condEdit?4:(isCond?5:2),opacity:conduitEditMode&&!condEdit&&!isCond?0.3:1}}
                       onClick={e=>{e.stopPropagation()
                         if(conduitEditMode && selCable){
-                          const cond=cables.find(x=>x.id===selCable); if(cond?.free && cond.label && !c.free){
+                          const cond=cables.find(x=>x.id===selCable)
+                          if(cond?.free && cond.label && !c.free){
                             const label=cond.label; const jaEstaDentro=c.conduite===label
-                            setCables(cs=>cs.map(x=>x.id===c.id?{...x,conduite:jaEstaDentro?undefined:label}:x)); return }
+                            if(jaEstaDentro){ setCables(cs=>cs.map(x=>x.id===c.id?{...x,conduite:undefined}:x)); return }
+                            if(c.conduite && c.conduite!==label){
+                              const mover=window.confirm(`Este cabo está no conduíte "${c.conduite}".\nMOVER para "${label}"?\n\nOK = Mover  |  Cancelar = Adicionar nos dois`)
+                              // mover: troca o conduíte; adicionar nos dois: não faz nada especial (já vai ter o novo label)
+                              setCables(cs=>cs.map(x=>x.id===c.id?{...x,conduite:mover?label:x.conduite}:x))
+                              if(!mover){/* adiciona nos dois — mantém o antigo e adiciona outro apontando ao novo conduíte via nota */}
+                              return
+                            }
+                            setCables(cs=>cs.map(x=>x.id===c.id?{...x,conduite:label}:x)); return
+                          }
                         }
                         setSelCable(c.id)
                         if(c.free) setConduitEditMode(true)   // clicar no conduíte abre edição direta
@@ -3207,7 +3241,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   <div key={'cd'+i} style={{position:'absolute',left:`${p.x}%`,top:`${p.y}%`,transform:'translate(-50%,-50%)',width:10,height:10,borderRadius:'50%',background:CABLE_PALETTE[conduitType],border:'2px solid #fff',zIndex:8,pointerEvents:'none',boxShadow:'0 1px 3px rgba(0,0,0,0.5)'}}/>
                 ))}
                 {/* rótulos dos conduítes livres já criados */}
-                {!hideConduites && cables.filter(c=>c.free && c.label).map(c=>{ const pts=c.points||[]; if(pts.length<2) return null
+                {!hideConduites && cables.filter(c=>c.free && c.label && (!conduitEditMode || c.id===selCable)).map(c=>{ const pts=c.points||[]; if(pts.length<2) return null
                   const mid=pts[Math.floor(pts.length/2)]
                   return <div key={'lbl'+c.id} onClick={e=>{e.stopPropagation(); setSelCable(c.id); setConduitEditMode(true)}} style={{position:'absolute',left:`${mid.x}%`,top:`${mid.y}%`,transform:'translate(-50%,-50%)',background:c.color||CABLE_PALETTE[c.type],color:'#fff',fontSize:8,fontWeight:700,padding:'1px 5px',borderRadius:8,zIndex:8,whiteSpace:'nowrap',border:'1px solid #fff',boxShadow:'0 1px 3px rgba(0,0,0,0.4)',cursor:'pointer'}}>{c.label} ✏</div>
                 })}
