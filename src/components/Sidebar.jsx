@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v162 — FIX: "todos is not defined" ao gerar relatorio de conduites. Causa: variavel todos foi removida na reescrita do v161 mas ainda era usada em paginaTodos. Substituida por conduitesFree (so os conduites livres).
+// v163 — Itens sem conduíte: (1) movido para pagina propria DEPOIS de todos os conduites e paginaTodos (nao mais dentro de cada pagina por familia); (2) coluna Categoria adicionada na tabela; (3) visual atualizado como pagina de cabecalho vermelho propria
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v162 · build 2026-06
+          v163 · build 2026-06
         </div>
       </div>
     </div>

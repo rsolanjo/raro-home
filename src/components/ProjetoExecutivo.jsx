@@ -2341,15 +2341,20 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       }
       // ── TABELA DE ITENS SEM CONDUÍTE ──
       const tabelaSemConduite = itensSemConduite.length ? `
-        <div style="margin-top:20px;padding:12px 16px;border:1.5px solid #FCA5A5;border-radius:8px;background:#FEF2F2">
-          <div style="font-size:12px;font-weight:700;color:#DC2626;margin-bottom:8px">⚠ Itens sem conduíte (${itensSemConduite.length})</div>
-          <div style="font-size:10px;color:#7F1D1D;margin-bottom:8px">Os cabos destes itens ainda não foram atribuídos a nenhum conduíte.</div>
-          ${T(itensSemConduite.map(m=>`<tr>
-            <td style="text-align:center">${pin(m.n)}</td>
-            <td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td>
-            <td>${esc(m.name)}</td>
-            <td>${esc(m.room||'—')}</td>
-          </tr>`).join(''),['Nº','ID','Item','Cômodo'])}
+        <div class="ex-obra-page" style="page-break-before:always">
+          <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid #DC2626;padding-bottom:8px;margin-bottom:14px">
+            <div style="width:30px;height:30px;border-radius:8px;background:#DC2626;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px">⚠</div>
+            <div><div style="font-size:20px;font-weight:800;color:#0D1420">Itens sem conduíte (${itensSemConduite.length})</div>
+            <div style="font-size:12px;color:#64748B">Cabos traçados mas ainda não atribuídos a nenhum conduíte.</div></div>
+          </div>
+          ${T(itensSemConduite.map(m=>{const cat=inferCategory(m.name||'').cat||'—'
+            return `<tr>
+              <td style="text-align:center">${pin(m.n)}</td>
+              <td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td>
+              <td>${esc(m.name)}</td>
+              <td>${esc(m.room||'—')}</td>
+              <td style="font-size:10px;color:#0369A1">${esc(cat)}</td>
+            </tr>`}).join(''),['Nº','ID','Item','Cômodo','Categoria'])}
         </div>` : ''
       const tabelaCaixas = caixasConduite.length ? `
         <h3 class="ex-amb" style="color:#1E3A8A;margin-top:16px">Caixas de Conduíte</h3>
@@ -2368,7 +2373,6 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           <h3 class="ex-amb" style="color:${famColor[f]};margin-top:14px">Relação de Conduítes — ${f}</h3>
           ${tabela(arr)}
           ${tabelaCaixas}
-          ${tabelaSemConduite}
         </div>`).join('')
       // página de prumadas (descidas entre pavimentos)
       const prumadas = markers.filter(m=>classifyEle(m)?.sym==='prumada')
@@ -2406,7 +2410,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const corpo = (Object.keys(porFam).length?paginas:`<p class="ex-p" style="color:#B45309">Nenhum conduíte/cabo traçado. Use o modo "Cabos" no editor.</p>`)
       return `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Relatório de Conduítes</h2>
         <p class="ex-p" style="color:#6B7280">Caminhos de eletrodutos por família (Dados, Som, Elétrica) e uma visão com todos juntos. Para o pedreiro saber onde passar cada conduíte.</p></div>
-        ${corpo}${paginaPrumadas}${paginaTodos}</div>`
+        ${corpo}${paginaPrumadas}${paginaTodos}${tabelaSemConduite}</div>`
     }
     if (mode==='eletrica') {
       let _ne=0
