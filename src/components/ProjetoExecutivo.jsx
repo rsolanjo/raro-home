@@ -2514,19 +2514,20 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
       // ── planta de TODOS os itens (sem cabos/conduítes) ── igual ao relatório de conduítes
       const plantaGeralItens = bgImage ? (()=>{
-        const allDots = markers.filter(m=>!classifyEle(m)?.sym||isRackItem(m.name,m.code)).map(m=>{
+        // todos os itens do projeto/proposta posicionados na planta, sem nenhum filtro
+        const allDots = markers.map(m=>{
           const isR=isRackItem(m.name||'',m.code||'')
+          const isCx=classifyEle(m)?.sym==='caixa_conduite'
+          const isPrum=classifyEle(m)?.sym==='prumada'
+          const bg=isR?'#4C1D95':isCx?'#1E3A8A':isPrum?'#7C3AED':'#0EA5E9'
+          const label=isCx?'CX':isPrum?'⇵':(isR?'R':m.n)
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:18px;height:18px;border-radius:50%;background:${isR?'#4C1D95':'#0EA5E9'};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
+            <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${label}</div>
             <div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 3px;font-size:7px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||'')}</div>
           </div>`}).join('')
-        const caixaDots = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
-          <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
-            <div style="width:14px;height:14px;background:#fff;border:2px solid #1E3A8A;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:800;color:#1E3A8A">CX</div>
-          </div>`).join('')
         return `<div style="position:relative;display:inline-block;width:100%;margin-top:8px">
           <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></svg>${allDots}${caixaDots}
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></svg>${allDots}
         </div>`
       })() : ''
 
