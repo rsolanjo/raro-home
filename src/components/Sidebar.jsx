@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v164 — (1)Snap ao CPD/Rack ao traçar conduíte (além de caixa CX); (2)Conduíte criado com pontos intermediários automáticos para edição imediata; (3)ID automático C1/C2/C3... atribuído ao criar; ID aparece na planta (badge monospace) e no relatório; Descrição vira campo opcional; (4)Caixa simplificada: mostra lista de conduítes ligados (ID + sai/chega) e botão Novo conduíte; sem painel confuso
+// v165 — (1)Colaboração em tempo real: banner amarelo aparece quando outro usuario abre a mesma planta ao mesmo tempo (Supabase Presence/WebSocket, sem polling); (2)Conduites no Plano de Obra: cada pagina de familia de cabos agora tem tambem uma tabela dos conduites que carregam aqueles cabos (ID, trecho, eletroduto, metros, cabos dentro, obs) — o pedreiro ve cabos E conduites juntos
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v164 · build 2026-06
+          v165 · build 2026-06
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { TAXONOMY, inferCategory, genItemId } from '../taxonomy.js'
 import { LOGO_EXEC } from '../logos.js'
+import { supabase } from '../db/supabase.js'
 
 const EQUIP_STYLE = {
   'Gateway':{c:'#0EA5E9',s:'G'},'NVR':{c:'#7C3AED',s:'N'},'Câmera':{c:'#DC2626',s:'C'},
@@ -407,6 +408,28 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [dragPoint, setDragPoint]   = useState(null)         // {cableId, idx}
   // ── Conduíte LIVRE (desenho na parede, sem precisar de itens origem/destino) ──
   const [conduitMode, setConduitMode] = useState(false)      // ativa o modo desenho livre de conduíte
+
+  // ── COLABORAÇÃO EM TEMPO REAL (Supabase Presence) ─────────────────────────
+  const [colaboradores, setColaboradores] = React.useState([])
+  React.useEffect(()=>{
+    if(!fromProposal?.id) return
+    const deviceId = 'dev_'+Math.random().toString(36).slice(2,8)
+    const canal = supabase.channel('exec_collab_'+fromProposal.id, { config:{ presence:{ key: deviceId } } })
+    canal
+      .on('presence', { event:'sync' }, ()=>{
+        const state = canal.presenceState()
+        const outros = Object.entries(state)
+          .filter(([k])=>k!==deviceId)
+          .map(([,v])=>v[0]).filter(Boolean)
+        setColaboradores(outros)
+      })
+      .subscribe(async status=>{
+        if(status==='SUBSCRIBED'){
+          await canal.track({ deviceId, at: new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) })
+        }
+      })
+    return ()=>{ canal.untrack(); supabase.removeChannel(canal) }
+  }, [fromProposal?.id])
   const [conduitType, setConduitType] = useState('conduite_dados')  // tipo do conduíte sendo desenhado
   const [conduitDraft, setConduitDraft] = useState([])       // [{x,y}] pontos clicados enquanto desenha
   // snapshot para undo (chamar ANTES de alterar markers)
@@ -2496,6 +2519,29 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           return `<tr>${pinCell(to?.id,to?.code,to?.n)}<td>${f?`<b>#${f.n}</b> ${esc(f.name)}`:'—'}</td><td>${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td><td style="font-size:11px">${esc(to?.room||'—')}</td><td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td></tr>` }).join('')
         const totM=arr.reduce((s,c)=>s+(cableMeters(c)||0),0)
         const isCond=CABLE_CONDUITE[t]
+        // conduítes livres que carregam cabos desta família (match por conduiteId)
+        const conduitesFamilia = (cables||[]).filter(c=>c.free && arr.some(cabo=>c.conduiteId && cabo.conduite===c.conduiteId))
+        const tblConduitesFam = conduitesFamilia.length ? (() => {
+          const rowsCond = conduitesFamilia.map(cond=>{
+            const chv = cond.conduiteId||(cond.label||'').trim()||cond.id
+            const cabosD = arr.filter(c=>c.conduite===chv)
+            const n=cabosD.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
+            const mt = cableMeters(cond); const mtTxt=mt?Math.round(mt)+'m':'—'
+            const fDe = cond.fromSnapName||(cond.fromCaixaUid?`CX#${markers.find(m=>m.uid===cond.fromCaixaUid)?.n||'?'}`:'—')
+            const fPara = cond.toSnapName||(cond.toCaixaUid?`CX#${markers.find(m=>m.uid===cond.toCaixaUid)?.n||'?'}`:'—')
+            const cabosLinha = cabosD.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid); return `#${f?.n||'?'}→#${to?.n||'?'}` }).join(', ')
+            return `<tr>
+              <td style="font-family:monospace;font-weight:800;color:#0369A1;font-size:12px">${esc(cond.conduiteId||'—')}</td>
+              <td style="font-size:10px">${esc(fDe)} → ${esc(fPara)}</td>
+              <td style="text-align:center;font-weight:700">${bitola}</td>
+              <td style="text-align:right">${mtTxt}</td>
+              <td style="font-size:9.5px;color:#475569">${esc(cabosLinha)}</td>
+              <td style="font-size:9.5px;color:#D97706">${esc(cond.obs||'')}</td>
+            </tr>`
+          }).join('')
+          return `<h3 class="ex-amb" style="margin-top:14px;color:${col}">Conduítes — ${lb}</h3>
+            ${T(rowsCond,['ID','Trecho','Eletroduto','Metros','Cabos dentro','Obs'])}`
+        })() : ''
         return `<div class="ex-obra-page" style="page-break-before:${idx===0?'auto':'always'}">
           <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid ${col};padding-bottom:8px;margin-bottom:6px">
             <div style="width:30px;height:30px;border-radius:8px;background:${col};display:flex;align-items:center;justify-content:center"><span style="width:18px;height:4px;background:#fff;border-radius:2px"></span></div>
@@ -2505,6 +2551,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           ${pagePlanta(t,arr,col,lb,sp)}
           <h3 class="ex-amb" style="margin-top:14px;color:${col}">Tabela — ${lb}</h3>
           ${T(rows,['Nº destino','Origem','Destino','Cômodo','Metros'])}
+          ${tblConduitesFam}
         </div>`
       })
       // página de conduítes compartilhados (caixas que recebem mais de um cabo)
@@ -3153,6 +3200,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             {/* ── Canvas ── */}
             <div ref={canvasRef} className="pe-editor-canvas" onMouseDown={onCanvasPanDown} onTouchStart={onCanvasPanDown} onWheel={onCanvasWheel}
               style={{flex:1,overflow:'auto',background:'#1a1a2e',display:'block',padding:20,position:'relative',cursor:canvasPan?'grabbing':(addMode||cableMode?'default':'grab'),touchAction:'none'}}>
+              {/* ── Banner de colaboração em tempo real ── */}
+              {colaboradores.length>0 && <div style={{position:'sticky',top:0,left:0,right:0,zIndex:50,background:'rgba(234,179,8,0.15)',border:'1px solid #EAB308',borderRadius:8,padding:'7px 14px',marginBottom:8,display:'flex',alignItems:'center',gap:8,fontSize:11}}>
+                <span style={{fontSize:15}}>👥</span>
+                <span style={{color:'#FDE68A',fontWeight:600}}>Atenção: {colaboradores.length} outro{colaboradores.length>1?'s':''} usuário{colaboradores.length>1?'s':''} {colaboradores.length>1?'estão':'está'} editando esta planta ao mesmo tempo</span>
+                <span style={{color:'rgba(253,230,138,0.6)',fontSize:10}}>Salve com frequência para evitar conflitos</span>
+              </div>}
               <div style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content',flexWrap:'wrap',justifyContent:'flex-end',maxWidth:'70%'}}>
                 <button onClick={()=>setCableMode(m=>!m)} style={{height:32,borderRadius:6,border:`1px solid ${cableMode?'#F59E0B':'#F59E0B88'}`,background:cableMode?'#F59E0B':'rgba(245,158,11,0.15)',color:cableMode?'#1a1a2e':'#FBBf24',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Traçar cabos ligando item a item">
                   <i className="ti ti-route" aria-hidden/>{cableMode?'Cabos: ON':'Cabos'}
