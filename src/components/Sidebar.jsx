@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v154 — (1)Ao editar conduíte, os outros conduites SOMEM da planta (oculta automaticamente em conduitEditMode, mostra só o selecionado); voltam ao des-selecionar; (2)Ao clicar num item/cabo que ja esta em OUTRO conduite, pergunta: MOVER (sai do antigo e vai pro novo) ou Adicionar nos dois; (3)clicar num item ja dentro do proprio conduíte remove (toggle)
+// v156 — Conduíte simplificado: painel limpo com cabeçalho (nome+metros), tipo (3 botoes), campo de rotulo, lista de cabos dentro (nº origem→destino com X pra tirar), botao unico "Ativo — clique num cabo/item" para adicionar/tirar, secao Caixa de passagem com botao "Traçar outro conduíte da caixa", obs e Apagar. Sem modos confusos, sem campos escondidos.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v154 · build 2026-06
+          v156 · build 2026-06
         </div>
       </div>
     </div>
