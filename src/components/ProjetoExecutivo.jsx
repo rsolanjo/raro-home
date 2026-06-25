@@ -2493,18 +2493,17 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const ordem=['conduite_dados','dados','ap','camera','uplink','hdmi','som']
       const tipos = Object.keys(byType).sort((a,b)=>(ordem.indexOf(a)+99)-(ordem.indexOf(b)+99))
 
+      // ── função: planta de cabos (função original) ──
       const pagePlanta = (t, arr, col, lb, sp)=>{
         if(!bgImage) return ''
         const condW = CABLE_CONDUITE[t] ? 4.2 : 2.4
-        // só os pontos ligados por esta categoria + o rack/quadro
         const uids = new Set(); arr.forEach(c=>{ uids.add(c.fromUid); uids.add(c.toUid) })
         const dots = markers.filter(m=>uids.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
-          const isR=isRackItem(m.name||'',m.code||''); const c2= isR?'#4C1D95':col
+          const isR=isRackItem(m.name||'',m.code||''); const c2=isR?'#4C1D95':col
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
             <div style="width:20px;height:20px;border-radius:50%;background:${c2};color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
             <div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>
-          </div>`
-        }).join('')
+          </div>`}).join('')
         const lines = arr.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
           return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:${condW}px" vector-effect="non-scaling-stroke"/>` }).join('')
         return `<div style="position:relative;display:inline-block;width:100%;margin-top:8px">
@@ -2512,46 +2511,102 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}
         </div>`
       }
-      // uma seção (página) por categoria
+      // ── função: planta só com conduítes (lógica do relatório de conduítes) ──
+      const pagePlantaConduites = (conduites, col)=>{
+        if(!bgImage || !conduites.length) return ''
+        // itens cujos cabos estão dentro dos conduítes
+        const chaves = new Set(conduites.map(c=>c.conduiteId||(c.label||'').trim()||c.id))
+        const cabosNaoCond = (cables||[]).filter(c=>!c.free && c.conduite && chaves.has(c.conduite))
+        const uidsNaFam = new Set(); cabosNaoCond.forEach(c=>{uidsNaFam.add(c.fromUid);uidsNaFam.add(c.toUid)})
+        const dots = markers.filter(m=>uidsNaFam.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
+          const isR=isRackItem(m.name||'',m.code||'')
+          return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
+            <div style="width:18px;height:18px;border-radius:50%;background:${isR?'#4C1D95':col};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
+          </div>`}).join('')
+        const caixaDots = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
+          <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
+            <div style="width:16px;height:16px;background:#fff;border:2px solid #1E3A8A;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;color:#1E3A8A">CX</div>
+          </div>`).join('')
+        const lines = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
+          const idLabel = c.conduiteId||(c.label||'').slice(0,6)||''
+          return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:5px" vector-effect="non-scaling-stroke"/>
+            ${idLabel?`<text x="${pts[Math.floor(pts.length/2)].x}" y="${pts[Math.floor(pts.length/2)].y}" font-size="3.5" fill="${c.color||col}" font-weight="800" text-anchor="middle" dominant-baseline="middle" dy="-3" style="font-family:monospace">${esc(idLabel)}</text>`:''}`}).join('')
+        return `<div style="position:relative;display:inline-block;width:100%;margin-top:8px">
+          <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px;filter:grayscale(0.3)"/>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}${caixaDots}
+        </div>`
+      }
+      // ── função: planta COMPLETA (cabos + conduítes juntos) ──
+      const pagePlantaCompleta = (cabos, conduites, col)=>{
+        if(!bgImage) return ''
+        const uids = new Set(); cabos.forEach(c=>{uids.add(c.fromUid);uids.add(c.toUid)})
+        const dots = markers.filter(m=>uids.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
+          const isR=isRackItem(m.name||'',m.code||'')
+          return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
+            <div style="width:20px;height:20px;border-radius:50%;background:${isR?'#4C1D95':col};color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${isR?'R':m.n}</div>
+            <div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>
+          </div>`}).join('')
+        const caixaDots = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
+          <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
+            <div style="width:16px;height:16px;background:#fff;border:2px solid #1E3A8A;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;color:#1E3A8A">CX</div>
+          </div>`).join('')
+        const linesCabos = cabos.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
+          return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:2px;opacity:0.7" vector-effect="non-scaling-stroke"/>`}).join('')
+        const linesCond = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
+          const idLabel=c.conduiteId||(c.label||'').slice(0,6)||''
+          return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:5px;opacity:0.55" vector-effect="non-scaling-stroke"/>
+            ${idLabel?`<text x="${pts[Math.floor(pts.length/2)].x}" y="${pts[Math.floor(pts.length/2)].y}" font-size="3" fill="${c.color||col}" font-weight="800" text-anchor="middle" dominant-baseline="middle" dy="-3" style="font-family:monospace">${esc(idLabel)}</text>`:''}`}).join('')
+        return `<div style="position:relative;display:inline-block;width:100%;margin-top:8px">
+          <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${linesCabos}${linesCond}</svg>${dots}${caixaDots}
+        </div>`
+      }
+
+      // ── uma página por família ──
       const categoriaPaginas = tipos.map((t,idx)=>{
         const arr=byType[t], col=CABLE_PALETTE[t]||'#374151', lb=CABLE_LABELS[t]||t, sp=CABLE_SPEC[t]||{spec:'—',conector:'—'}
         const rows=arr.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid); const mt=cableMeters(c)
           return `<tr>${pinCell(to?.id,to?.code,to?.n)}<td>${f?`<b>#${f.n}</b> ${esc(f.name)}`:'—'}</td><td>${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td><td style="font-size:11px">${esc(to?.room||'—')}</td><td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td></tr>` }).join('')
         const totM=arr.reduce((s,c)=>s+(cableMeters(c)||0),0)
         const isCond=CABLE_CONDUITE[t]
-        // conduítes livres que carregam cabos desta família (match por conduiteId)
+        // conduítes desta família
         const conduitesFamilia = (cables||[]).filter(c=>c.free && arr.some(cabo=>c.conduiteId && cabo.conduite===c.conduiteId))
-        const tblConduitesFam = conduitesFamilia.length ? (() => {
-          const rowsCond = conduitesFamilia.map(cond=>{
-            const chv = cond.conduiteId||(cond.label||'').trim()||cond.id
-            const cabosD = arr.filter(c=>c.conduite===chv)
-            const n=cabosD.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
-            const mt = cableMeters(cond); const mtTxt=mt?Math.round(mt)+'m':'—'
-            const fDe = cond.fromSnapName||(cond.fromCaixaUid?`CX#${markers.find(m=>m.uid===cond.fromCaixaUid)?.n||'?'}`:'—')
-            const fPara = cond.toSnapName||(cond.toCaixaUid?`CX#${markers.find(m=>m.uid===cond.toCaixaUid)?.n||'?'}`:'—')
-            const cabosLinha = cabosD.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid); return `#${f?.n||'?'}→#${to?.n||'?'}` }).join(', ')
-            return `<tr>
-              <td style="font-family:monospace;font-weight:800;color:#0369A1;font-size:12px">${esc(cond.conduiteId||'—')}</td>
-              <td style="font-size:10px">${esc(fDe)} → ${esc(fPara)}</td>
-              <td style="text-align:center;font-weight:700">${bitola}</td>
-              <td style="text-align:right">${mtTxt}</td>
-              <td style="font-size:9.5px;color:#475569">${esc(cabosLinha)}</td>
-              <td style="font-size:9.5px;color:#D97706">${esc(cond.obs||'')}</td>
-            </tr>`
-          }).join('')
-          return `<h3 class="ex-amb" style="margin-top:14px;color:${col}">Conduítes — ${lb}</h3>
-            ${T(rowsCond,['ID','Trecho','Eletroduto','Metros','Cabos dentro','Obs'])}`
-        })() : ''
+        const rowsCond = conduitesFamilia.map(cond=>{
+          const chv = cond.conduiteId||(cond.label||'').trim()||cond.id
+          const cabosD = arr.filter(c=>c.conduite===chv)
+          const n=cabosD.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
+          const mt=cableMeters(cond); const mtTxt=mt?Math.round(mt)+'m':'—'
+          const fDe=cond.fromSnapName||(cond.fromCaixaUid?`CX#${markers.find(m=>m.uid===cond.fromCaixaUid)?.n||'?'}`:'—')
+          const fPara=cond.toSnapName||(cond.toCaixaUid?`CX#${markers.find(m=>m.uid===cond.toCaixaUid)?.n||'?'}`:'—')
+          const cabosLinha=cabosD.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid),to=markers.find(m=>m.uid===c.toUid); return `#${f?.n||'?'}→#${to?.n||'?'}` }).join(', ')
+          return `<tr>
+            <td style="font-family:monospace;font-weight:800;color:#0369A1;font-size:12px">${esc(cond.conduiteId||'—')}</td>
+            <td style="font-size:10px">${esc(fDe)} → ${esc(fPara)}</td>
+            <td style="text-align:center;font-weight:700">${bitola}</td>
+            <td style="text-align:right">${mtTxt}</td>
+            <td style="font-size:9.5px;color:#475569">${esc(cabosLinha)}</td>
+            <td style="font-size:9.5px;color:#D97706">${esc(cond.obs||'')}</td>
+          </tr>` }).join('')
+
         return `<div class="ex-obra-page" style="page-break-before:${idx===0?'auto':'always'}">
-          <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid ${col};padding-bottom:8px;margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid ${col};padding-bottom:8px;margin-bottom:10px">
             <div style="width:30px;height:30px;border-radius:8px;background:${col};display:flex;align-items:center;justify-content:center"><span style="width:18px;height:4px;background:#fff;border-radius:2px"></span></div>
-            <div><div style="font-size:20px;font-weight:800;color:#0D1420">${lb}${isCond?' (conduíte)':''}</div>
-            <div style="font-size:12px;color:#64748B">${arr.length} ${isCond?'conduíte(s)':'cabo(s)'} · ${sp.spec} · ${sp.conector}${totM>0?` · total ~${Math.round(totM)}m`:''}</div></div>
+            <div><div style="font-size:20px;font-weight:800;color:#0D1420">${lb}</div>
+            <div style="font-size:12px;color:#64748B">${arr.length} cabo(s) · ${sp.spec} · ${sp.conector}${totM>0?` · total ~${Math.round(totM)}m`:''}${conduitesFamilia.length?` · ${conduitesFamilia.length} conduíte(s)`:''}</div></div>
           </div>
+
+          <h3 class="ex-amb" style="color:${col};margin-bottom:4px">1. Cabos — ${lb}</h3>
           ${pagePlanta(t,arr,col,lb,sp)}
-          <h3 class="ex-amb" style="margin-top:14px;color:${col}">Tabela — ${lb}</h3>
           ${T(rows,['Nº destino','Origem','Destino','Cômodo','Metros'])}
-          ${tblConduitesFam}
+
+          ${conduitesFamilia.length ? `
+          <h3 class="ex-amb" style="color:${col};margin-top:16px;margin-bottom:4px">2. Conduítes — ${lb}</h3>
+          ${pagePlantaConduites(conduitesFamilia, col)}
+          ${T(rowsCond,['ID','Trecho','Eletroduto','Metros','Cabos dentro','Obs'])}
+
+          <h3 class="ex-amb" style="color:${col};margin-top:16px;margin-bottom:4px">3. Visão completa — Cabos + Conduítes</h3>
+          ${pagePlantaCompleta(arr, conduitesFamilia, col)}
+          ` : ''}
         </div>`
       })
       // página de conduítes compartilhados (caixas que recebem mais de um cabo)

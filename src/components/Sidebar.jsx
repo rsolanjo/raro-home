@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v165 — (1)Colaboração em tempo real: banner amarelo aparece quando outro usuario abre a mesma planta ao mesmo tempo (Supabase Presence/WebSocket, sem polling); (2)Conduites no Plano de Obra: cada pagina de familia de cabos agora tem tambem uma tabela dos conduites que carregam aqueles cabos (ID, trecho, eletroduto, metros, cabos dentro, obs) — o pedreiro ve cabos E conduites juntos
+// v166 — Plano de Obra reestruturado: cada tópico (Dados, AP, Camera, Som...) tem 3 seções: (1) planta + tabela de CABOS; (2) planta + tabela de CONDUITES dessa família (só aparece se houver conduítes com cabos atribuídos); (3) planta COMPLETA com cabos e conduítes sobrepostos. Pedreiro ve tudo no mesmo tópico.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v165 · build 2026-06
+          v166 · build 2026-06
         </div>
       </div>
     </div>
