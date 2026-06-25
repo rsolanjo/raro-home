@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v167 — FIX: ao clicar em qualquer aba (Obra/Elétrica/Conduítes), o documento é REGENERADO do estado atual da planta (não usa o HTML salvo). Match de conduíte robusto: aceita conduiteId OU label OU _chave OU id — compatível com conduítes criados antes da v164 e com qualquer variante de chave.
+// v168 — Plano de Obra reescrito: (1)Página 1: planta geral só itens (sem cabos/conduítes), igual ao relatório de conduítes; (2)Cada tópico: cabos→planta só da família+tabela útil, conduítes→planta conduítes+tabela, visão completa; (3)Tabela de cabos melhorada com spec/metros/conduíte; (4)Filtros precisos de item por família (AP≠câmera≠keystone); (5)Planta de conduítes mostra só itens da família
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v167 · build 2026-06
+          v168 · build 2026-06
         </div>
       </div>
     </div>
