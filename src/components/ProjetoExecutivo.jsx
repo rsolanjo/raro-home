@@ -2271,67 +2271,104 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         return 'Dados'
       }
       const famColor = { 'Elétrica':'#EAB308','Som':'#BE185D','Dados':'#1E3A8A' }
-      const todos = (cables||[])
-      const porFam={}; todos.forEach(c=>{ const f=fam(c); (porFam[f]=porFam[f]||[]).push(c) })
-      const desenhaPlanta = (arr, corLinha)=>{
-        const uids=new Set(); arr.forEach(c=>{ uids.add(c.fromUid); uids.add(c.toUid) })
-        const normDots = markers.filter(m=>uids.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
+      // caixas de conduíte na planta
+      const caixasConduite = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite')
+      // mapa: chave do conduíte → cabos que estão dentro
+      const conduitesFree = (cables||[]).filter(c=>c.free)
+      const chaveConduite = c => (c.label||'').trim()||c._chave||c.id
+      const cabosNoConduite = (cables||[]).filter(c=>!c.free && c.conduite)
+      // itens cujos cabos estão em algum conduíte
+      const itensComConduite = new Set()
+      cabosNoConduite.forEach(c=>{ if(c.fromUid)itensComConduite.add(c.fromUid); if(c.toUid)itensComConduite.add(c.toUid) })
+      // itens sem conduíte (têm cabo traçado mas não estão em nenhum conduíte)
+      const todosItensComCabo = new Set(); (cables||[]).filter(c=>!c.free).forEach(c=>{todosItensComCabo.add(c.fromUid);todosItensComCabo.add(c.toUid)})
+      const itensSemConduite = markers.filter(m=>todosItensComCabo.has(m.uid)&&!itensComConduite.has(m.uid)&&!isRackItem(m.name,m.code)&&classifyEle(m)?.sym!=='caixa_conduite'&&classifyEle(m)?.sym!=='prumada')
+
+      // ── PLANTA: só conduítes livres + caixas + itens que têm cabos em conduítes ──
+      const desenhaPlanta = (conduites, corLinha)=>{
+        // só marca os itens que têm cabos dentro dos conduítes desta família
+        const chavesNestaFam = new Set(conduites.map(chaveConduite))
+        const cabosNaFam = cabosNoConduite.filter(c=>chavesNestaFam.has(c.conduite))
+        const uidsNaFam = new Set(); cabosNaFam.forEach(c=>{uidsNaFam.add(c.fromUid);uidsNaFam.add(c.toUid)})
+        // pins de itens: só quem tem cabo nesta família de conduítes
+        const itemDots = markers.filter(m=>uidsNaFam.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
           const isR=isRackItem(m.name||'',m.code||'')
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:18px;height:18px;border-radius:50%;background:${isR?'#4C1D95':'#0EA5E9'};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
+            <div style="width:16px;height:16px;border-radius:50%;background:${isR?'#4C1D95':'#0EA5E9'};color:#fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
           </div>`}).join('')
-        // caixas de conduíte sempre visíveis na planta de conduítes
+        // caixas
         const caixaDots = caixasConduite.map(m=>`
           <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
-            <div style="width:18px;height:18px;background:#fff;border:2px solid #1E3A8A;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#1E3A8A;box-shadow:0 1px 3px rgba(0,0,0,0.4)">CX</div>
-            ${m.note?`<div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);font-size:7px;color:#1E3A8A;white-space:nowrap;background:rgba(255,255,255,0.9);padding:0 2px;border-radius:2px">${esc(m.note)}</div>`:''}
+            <div style="width:16px;height:16px;background:#fff;border:2px solid #1E3A8A;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;color:#1E3A8A">CX</div>
+            ${m.n?`<div style="position:absolute;left:50%;top:18px;transform:translateX(-50%);font-size:6.5px;color:#1E3A8A;white-space:nowrap">#${m.n}</div>`:''}
           </div>`).join('')
-        const dots = normDots + caixaDots
-        const lines = arr.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
-          const col = c.color || CABLE_PALETTE[c.type] || corLinha
-          const w = CABLE_CONDUITE[c.type]?4.5:2.6
-          return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:${w}px" vector-effect="non-scaling-stroke"/>` }).join('')
+        // só linhas dos conduítes livres (sem os cabos normais)
+        const lines = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
+          const col = c.color||CABLE_PALETTE[c.type]||corLinha
+          return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:5px" vector-effect="non-scaling-stroke"/>
+            ${c.label?`<text x="${pts[Math.floor(pts.length/2)].x}" y="${pts[Math.floor(pts.length/2)].y}" font-size="3.5" fill="${col}" font-weight="700" text-anchor="middle" dominant-baseline="middle" dy="-3">${esc(c.label)}</text>`:''}`}).join('')
         return `<div style="position:relative;width:100%;padding-bottom:${(ratio*100).toFixed(1)}%;border:1px solid #CBD5E1;border-radius:8px;overflow:hidden;margin-top:8px">
-          <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.3)"/>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${lines}</svg>${dots}
+          <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.4)"/>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${lines}</svg>${itemDots}${caixaDots}
         </div>`
       }
-      // caixas de conduíte na planta (mostradas no relatório)
-      const caixasConduite = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite')
-      const tabela = arr=>{
-        // agrupa conduítes livres por label, e cabos normais por conduite group
-        const grupos={}; arr.forEach(c=>{ const k=c.conduite||c.label||'(sem grupo)'; (grupos[k]=grupos[k]||[]).push(c) })
-        const rows=Object.entries(grupos).map(([nome,g])=>{
-          const n=g.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
-          // tipos e cabos individuais
-          const cabosDetalhe=g.filter(c=>!c.free).map(c=>{ const a=markers.find(m=>m.uid===c.fromUid), b=markers.find(m=>m.uid===c.toUid)
-            return `${CABLE_LABELS[c.type]||c.type}: ${a?esc(a.name):'?'} → ${b?esc(b.name):'?'}` }).join('<br>')
-          const tipos=[...new Set(g.map(c=>CABLE_LABELS[c.type]||c.type))].join(', ')
-          const mt=Math.max(...g.map(c=>cableMeters(c)||0))
-          const obs=[...new Set(g.map(c=>c.obs).filter(Boolean))].join(' · ')
+      // ── TABELA por conduíte: lista os cabos dentro ──
+      const tabela = conduites => {
+        if(!conduites.length) return ''
+        const rows = conduites.map(cond=>{
+          const chave = chaveConduite(cond)
+          const cabos = cabosNoConduite.filter(c=>c.conduite===chave)
+          const mt = cableMeters(cond); const mtTxt = mt?Math.round(mt)+'m':'—'
+          const n = cabos.length
+          const bitola = n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
+          const cabosHtml = cabos.map(c=>{ const a=markers.find(m=>m.uid===c.fromUid), b=markers.find(m=>m.uid===c.toUid)
+            return `<div style="display:flex;align-items:center;gap:4px;margin-top:3px">
+              <span style="width:6px;height:6px;border-radius:50%;background:${c.color||'#888'};flex-shrink:0"></span>
+              <span style="font-size:9px;color:#475569">${CABLE_LABELS[c.type]||c.type}: <b>#${a?.n||'?'} ${esc(a?.name||'?')}</b> → <b>#${b?.n||'?'} ${esc(b?.name||'?')}</b></span>
+            </div>` }).join('')
+          const itensHtml = [...new Set(cabos.flatMap(c=>[c.fromUid,c.toUid]))].map(uid=>{ const m=markers.find(x=>x.uid===uid); return m?`#${m.n} ${esc(m.name)}`:'?' }).join(', ')
           return `<tr>
-            <td><b>${esc(nome)}</b>${cabosDetalhe?`<br><div style="font-size:9px;color:#475569;margin-top:3px">${cabosDetalhe}</div>`:''}</td>
-            <td style="text-align:center">${n}</td>
-            <td style="font-size:11px">${esc(tipos)}</td>
-            <td style="text-align:center;font-weight:700">${(nome==='(sem grupo)'&&!g[0].conduite)?'—':bitola}</td>
-            <td style="text-align:right">${mt>0?Math.round(mt)+'m':'—'}</td>
-            <td style="font-size:9.5px;color:#D97706">${esc(obs||'')}</td>
-          </tr>` }).join('')
-        return T(rows,['Conduíte / Cabos dentro','Nº','Tipos','Eletroduto','Metros','Obs'])
+            <td style="vertical-align:top">
+              <b style="color:#0369A1">${esc(cond.label||'(sem rótulo)')}</b>
+              ${cabosHtml||'<div style="font-size:9px;color:#94A3B8;margin-top:2px">Nenhum cabo atribuído</div>'}
+            </td>
+            <td style="text-align:center;vertical-align:top;font-weight:700">${n>0?bitola:'—'}</td>
+            <td style="text-align:right;vertical-align:top">${mtTxt}</td>
+            <td style="font-size:9.5px;color:#D97706;vertical-align:top">${esc(cond.obs||'')}</td>
+          </tr>`
+        }).join('')
+        return T(rows,['Conduíte / Cabos dentro','Eletroduto','Metros','Obs'])
       }
+      // ── TABELA DE ITENS SEM CONDUÍTE ──
+      const tabelaSemConduite = itensSemConduite.length ? `
+        <div style="margin-top:20px;padding:12px 16px;border:1.5px solid #FCA5A5;border-radius:8px;background:#FEF2F2">
+          <div style="font-size:12px;font-weight:700;color:#DC2626;margin-bottom:8px">⚠ Itens sem conduíte (${itensSemConduite.length})</div>
+          <div style="font-size:10px;color:#7F1D1D;margin-bottom:8px">Os cabos destes itens ainda não foram atribuídos a nenhum conduíte.</div>
+          ${T(itensSemConduite.map(m=>`<tr>
+            <td style="text-align:center">${pin(m.n)}</td>
+            <td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td>
+            <td>${esc(m.name)}</td>
+            <td>${esc(m.room||'—')}</td>
+          </tr>`).join(''),['Nº','ID','Item','Cômodo'])}
+        </div>` : ''
       const tabelaCaixas = caixasConduite.length ? `
         <h3 class="ex-amb" style="color:#1E3A8A;margin-top:16px">Caixas de Conduíte</h3>
         ${T(caixasConduite.map(m=>`<tr><td style="text-align:center">${pin(m.n)}</td><td><b>${esc(m.id||m.code||'CX')}</b></td><td>${esc(m.room||'—')}</td><td style="font-size:11px">${esc(m.note||'')}</td></tr>`).join(''),['Nº','ID','Cômodo','Observação'])}` : ''
+
+      // agrupa conduítes livres por família
+      const porFam={}; conduitesFree.forEach(c=>{ const f=fam(c); (porFam[f]=porFam[f]||[]).push(c) })
       const paginas = Object.entries(porFam).map(([f,arr],i)=>`
         <div class="ex-obra-page" style="page-break-before:${i===0?'auto':'always'}">
           <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid ${famColor[f]};padding-bottom:8px;margin-bottom:6px">
             <div style="width:30px;height:30px;border-radius:8px;background:${famColor[f]};display:flex;align-items:center;justify-content:center"><span style="width:18px;height:5px;background:#fff;border-radius:3px"></span></div>
             <div><div style="font-size:20px;font-weight:800;color:#0D1420">Conduítes — ${f}</div>
-            <div style="font-size:12px;color:#64748B">${arr.length} trecho(s)</div></div>
+            <div style="font-size:12px;color:#64748B">${arr.length} conduíte(s)</div></div>
           </div>
           ${desenhaPlanta(arr, famColor[f])}
-          <h3 class="ex-amb" style="color:${famColor[f]}">Conduítes ${f}</h3>${tabela(arr)}
+          <h3 class="ex-amb" style="color:${famColor[f]};margin-top:14px">Relação de Conduítes — ${f}</h3>
+          ${tabela(arr)}
           ${tabelaCaixas}
+          ${tabelaSemConduite}
         </div>`).join('')
       // página de prumadas (descidas entre pavimentos)
       const prumadas = markers.filter(m=>classifyEle(m)?.sym==='prumada')
