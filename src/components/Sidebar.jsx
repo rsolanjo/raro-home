@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v166 — Plano de Obra reestruturado: cada tópico (Dados, AP, Camera, Som...) tem 3 seções: (1) planta + tabela de CABOS; (2) planta + tabela de CONDUITES dessa família (só aparece se houver conduítes com cabos atribuídos); (3) planta COMPLETA com cabos e conduítes sobrepostos. Pedreiro ve tudo no mesmo tópico.
+// v167 — FIX: ao clicar em qualquer aba (Obra/Elétrica/Conduítes), o documento é REGENERADO do estado atual da planta (não usa o HTML salvo). Match de conduíte robusto: aceita conduiteId OU label OU _chave OU id — compatível com conduítes criados antes da v164 e com qualquer variante de chave.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v166 · build 2026-06
+          v167 · build 2026-06
         </div>
       </div>
     </div>

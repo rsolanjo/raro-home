@@ -2316,6 +2316,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const conduitesFree = (cables||[]).filter(c=>c.free)
       const chaveConduite = c => c.conduiteId || (c.label||'').trim() || c._chave || c.id
       const cabosNoConduite = (cables||[]).filter(c=>!c.free && c.conduite)
+      // match: cabo.conduite bate em qualquer variante de chave do conduíte
+      const cabosDoConduite = cond => cabosNoConduite.filter(c=>
+        c.conduite===chaveConduite(cond) || c.conduite===cond.id || c.conduite===(cond.label||'').trim() || (cond._chave&&c.conduite===cond._chave)
+      )
       // itens cujos cabos estão em algum conduíte
       const itensComConduite = new Set()
       cabosNoConduite.forEach(c=>{ if(c.fromUid)itensComConduite.add(c.fromUid); if(c.toUid)itensComConduite.add(c.toUid) })
@@ -2326,8 +2330,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       // ── PLANTA: só conduítes livres + caixas + itens que têm cabos em conduítes ──
       const desenhaPlanta = (conduites, corLinha)=>{
         // só marca os itens que têm cabos dentro dos conduítes desta família
-        const chavesNestaFam = new Set(conduites.map(chaveConduite))
-        const cabosNaFam = cabosNoConduite.filter(c=>chavesNestaFam.has(c.conduite))
+        const chavesNestaFam = new Set(conduites.map(c=>chaveConduite(c)))
+        // usa match amplo (todas as variantes de chave)
+        const cabosNaFam = cabosNoConduite.filter(c=>conduites.some(cond=>
+          c.conduite===chaveConduite(cond)||c.conduite===cond.id||c.conduite===(cond.label||'').trim()||(cond._chave&&c.conduite===cond._chave)
+        ))
         const uidsNaFam = new Set(); cabosNaFam.forEach(c=>{uidsNaFam.add(c.fromUid);uidsNaFam.add(c.toUid)})
         // pins de itens: só quem tem cabo nesta família de conduítes
         const itemDots = markers.filter(m=>uidsNaFam.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
@@ -2357,7 +2364,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         if(!conduites.length) return ''
         const rows = conduites.map(cond=>{
           const chave = chaveConduite(cond)
-          const cabos = cabosNoConduite.filter(c=>c.conduite===chave)
+          const cabos = cabosDoConduite(cond)
           const mt = cableMeters(cond); const mtTxt = mt?Math.round(mt)+'m':'—'
           const n = cabos.length
           const bitola = n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
@@ -2569,11 +2576,16 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           return `<tr>${pinCell(to?.id,to?.code,to?.n)}<td>${f?`<b>#${f.n}</b> ${esc(f.name)}`:'—'}</td><td>${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td><td style="font-size:11px">${esc(to?.room||'—')}</td><td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td></tr>` }).join('')
         const totM=arr.reduce((s,c)=>s+(cableMeters(c)||0),0)
         const isCond=CABLE_CONDUITE[t]
-        // conduítes desta família
-        const conduitesFamilia = (cables||[]).filter(c=>c.free && arr.some(cabo=>c.conduiteId && cabo.conduite===c.conduiteId))
+        // conduítes desta família — match por conduiteId OU label OU _chave
+        const chavesDoCabo = c => { const k=new Set(); if(c.conduite)k.add(c.conduite); return k }
+        const conduitesFamilia = (cables||[]).filter(c2=>{
+          if(!c2.free) return false
+          const chave = c2.conduiteId||(c2.label||'').trim()||c2._chave||c2.id
+          return arr.some(cabo=>cabo.conduite && (cabo.conduite===chave||cabo.conduite===c2.id||cabo.conduite===(c2.label||'').trim()||cabo.conduite===c2._chave))
+        })
         const rowsCond = conduitesFamilia.map(cond=>{
-          const chv = cond.conduiteId||(cond.label||'').trim()||cond.id
-          const cabosD = arr.filter(c=>c.conduite===chv)
+          const chv = cond.conduiteId||(cond.label||'').trim()||cond._chave||cond.id
+          const cabosD = arr.filter(c=>c.conduite===chv||c.conduite===cond.id||c.conduite===(cond.label||'').trim()||(cond._chave&&c.conduite===cond._chave))
           const n=cabosD.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
           const mt=cableMeters(cond); const mtTxt=mt?Math.round(mt)+'m':'—'
           const fDe=cond.fromSnapName||(cond.fromCaixaUid?`CX#${markers.find(m=>m.uid===cond.fromCaixaUid)?.n||'?'}`:'—')
@@ -3748,14 +3760,22 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
               {[['completo','Completo','ti-file-text'],['obra','Obra / Pedreiro','ti-tools'],['eletrica','Elétrica','ti-bolt'],['conduites','Conduítes','ti-route']].map(([m,label,icon])=>{
                 const doc = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:m==='conduites'?execDocConduites:execDoc
                 return (
-                <button key={m} onClick={()=>setExecMode(m)}
+                <button key={m} onClick={()=>{
+                  setExecMode(m)
+                  // sempre regenera ao clicar — garante que reflete o estado atual da planta (cabos, conduítes, itens)
+                  try{
+                    const d=buildExecDataFromMarkers()
+                    const full=buildExecHtml(d,'completo'), obra=buildExecHtml(d,'obra')
+                    const eletrica=buildExecHtml(d,'eletrica'), conduites=buildExecHtml(d,'conduites')
+                    setExecDoc(full); setExecDocObra(obra); setExecDocEletrica(eletrica); setExecDocConduites(conduites)
+                  }catch(e){ console.warn('tab-regen:',e) }
+                }}
                   style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,fontSize:12.5,fontWeight:execMode===m?700:500,cursor:'pointer',opacity:doc?1:0.55,
                     border:`1.5px solid ${execMode===m?'#7C3AED':'#CBD5E1'}`,background:execMode===m?'#7C3AED':'#fff',color:execMode===m?'#fff':'#475569'}}>
                   <i className={`ti ${icon}`} aria-hidden/>{label}
                 </button>
               )})}
               <div style={{flex:1}}/>
-              {/* Toggle do mapa de calor — só na versão completa (executivo) */}
               {execMode==='completo' && <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569',cursor:'pointer',userSelect:'none'}}>
                 <input type="checkbox" checked={showHeatmap} onChange={e=>{
                   const v=e.target.checked; setShowHeatmap(v)
