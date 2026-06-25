@@ -3246,8 +3246,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   const mid=pts[Math.floor(pts.length/2)]
                   return <div key={'lbl'+c.id} onClick={e=>{e.stopPropagation(); setSelCable(c.id); setConduitEditMode(true)}} style={{position:'absolute',left:`${mid.x}%`,top:`${mid.y}%`,transform:'translate(-50%,-50%)',background:c.color||CABLE_PALETTE[c.type],color:'#fff',fontSize:8,fontWeight:700,padding:'1px 5px',borderRadius:8,zIndex:8,whiteSpace:'nowrap',border:'1px solid #fff',boxShadow:'0 1px 3px rgba(0,0,0,0.4)',cursor:'pointer'}}>{c.label} ✏</div>
                 })}
-                {/* pontos arrastáveis do cabo selecionado + dobra ao clicar no segmento */}
-                {!hideCables && !hideConduites && cableMode && cables.filter(c=>c.id===selCable && (c.free ? !hideConduites : !hideCables)).map(c=>{
+                {/* pontos arrastáveis — cabos normais (só em cableMode) + conduítes livres (sempre que selecionado) */}
+                {cables.filter(c=>{
+                  if(c.id!==selCable) return false
+                  if(c.free) return !hideConduites && !!selCable  // conduíte: handles sempre que selecionado
+                  return !hideCables && cableMode               // cabo normal: só em cableMode
+                }).map(c=>{
                   const pts=cablePolyPoints(c)
                   return <div key={'pts'+c.id}>
                     {(c.points||[]).map((p,idx)=>(
@@ -3255,16 +3259,16 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                         onMouseDown={e=>{e.stopPropagation(); setDragPoint({cableId:c.id,idx})}}
                         onTouchStart={e=>{e.stopPropagation(); setDragPoint({cableId:c.id,idx})}}
                         onDoubleClick={e=>{e.stopPropagation(); removeCablePoint(c.id,idx)}}
-                        title="Arraste para dobrar · duplo-clique remove"
+                        title="Arraste para curvar · duplo-clique remove ponto"
                         style={{position:'absolute',left:`${p.x}%`,top:`${p.y}%`,transform:'translate(-50%,-50%)',zIndex:15,touchAction:'none',
-                          width:18,height:18,borderRadius:'50%',background:'#fff',border:`3px solid ${c.color}`,cursor:'move',boxShadow:'0 1px 4px rgba(0,0,0,0.6)'}}/>
+                          width:c.free?16:18,height:c.free?16:18,borderRadius:c.free?3:'50%',background:'#fff',border:`3px solid ${c.color}`,cursor:'move',boxShadow:'0 1px 4px rgba(0,0,0,0.6)'}}/>
                     ))}
                     {pts.slice(0,-1).map((p,i)=>{ const n=pts[i+1]; const mx=(p.x+n.x)/2, my=(p.y+n.y)/2
                       return <div key={'mid'+i} className="cable-handle"
                         onClick={e=>{e.stopPropagation(); addCablePoint(c.id,i,mx,my)}}
-                        title="Toque para criar uma dobra aqui"
+                        title="Clique para adicionar um ponto aqui (curvar)"
                         style={{position:'absolute',left:`${mx}%`,top:`${my}%`,transform:'translate(-50%,-50%)',zIndex:14,
-                          width:15,height:15,borderRadius:3,background:c.color+'cc',border:'2px solid #fff',cursor:'copy'}}/>
+                          width:12,height:12,borderRadius:c.free?2:3,background:c.color+'cc',border:'2px solid #fff',cursor:'copy',opacity:0.7}}/>
                     })}
                   </div>
                 })}

@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v159 — FIX critico: adicionar cabos ao conduíte nao funcionava sem rotulo (a chave era o label, e sem label o click nos itens era ignorado). Agora usa label OR id interno como chave (funciona mesmo sem rotulo). Anel colorido e highlight corretos sem exigir rotulo. Mesmo fix no painel (cabosNaoCond) e no SVG (condEdit).
+// v160 — Conduíte livre editavel como cabo: handles aparecem ao selecionar (quadradinhos nos pontos, circulo no meio do segmento). Arraste pra curvar, clique no meio pra criar novo ponto, duplo-clique no ponto pra remover. Independente do modo Cabos — funciona ao clicar no conduíte diretamente.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v159 · build 2026-06
+          v160 · build 2026-06
         </div>
       </div>
     </div>
