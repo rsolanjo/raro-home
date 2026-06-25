@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v156 — Conduíte simplificado: painel limpo com cabeçalho (nome+metros), tipo (3 botoes), campo de rotulo, lista de cabos dentro (nº origem→destino com X pra tirar), botao unico "Ativo — clique num cabo/item" para adicionar/tirar, secao Caixa de passagem com botao "Traçar outro conduíte da caixa", obs e Apagar. Sem modos confusos, sem campos escondidos.
+// v159 — FIX critico: adicionar cabos ao conduíte nao funcionava sem rotulo (a chave era o label, e sem label o click nos itens era ignorado). Agora usa label OR id interno como chave (funciona mesmo sem rotulo). Anel colorido e highlight corretos sem exigir rotulo. Mesmo fix no painel (cabosNaoCond) e no SVG (condEdit).
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v156 · build 2026-06
+          v159 · build 2026-06
         </div>
       </div>
     </div>
