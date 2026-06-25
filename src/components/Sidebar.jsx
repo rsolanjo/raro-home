@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v163 — Itens sem conduíte: (1) movido para pagina propria DEPOIS de todos os conduites e paginaTodos (nao mais dentro de cada pagina por familia); (2) coluna Categoria adicionada na tabela; (3) visual atualizado como pagina de cabecalho vermelho propria
+// v164 — (1)Snap ao CPD/Rack ao traçar conduíte (além de caixa CX); (2)Conduíte criado com pontos intermediários automáticos para edição imediata; (3)ID automático C1/C2/C3... atribuído ao criar; ID aparece na planta (badge monospace) e no relatório; Descrição vira campo opcional; (4)Caixa simplificada: mostra lista de conduítes ligados (ID + sai/chega) e botão Novo conduíte; sem painel confuso
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v163 · build 2026-06
+          v164 · build 2026-06
         </div>
       </div>
     </div>
