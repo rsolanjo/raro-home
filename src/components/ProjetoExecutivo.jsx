@@ -2394,14 +2394,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           })()}
           <p class="ex-p" style="font-size:10px;color:#64748B;margin-top:6px">Prumadas com o mesmo código são o mesmo furo em andares diferentes (par). A altura é somada uma vez por par na metragem dos cabos que passam por ele.</p>
         </div>` : ''
-      const paginaTodos = todos.length ? `
+      const paginaTodos = conduitesFree.length>1 ? `
         <div class="ex-obra-page" style="page-break-before:always">
           <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid #0D1420;padding-bottom:8px;margin-bottom:6px">
             <div style="width:30px;height:30px;border-radius:8px;background:#0D1420;display:flex;align-items:center;justify-content:center"><i class="ti ti-stack-2" style="color:#fff"></i></div>
             <div><div style="font-size:20px;font-weight:800;color:#0D1420">Todos os Conduítes</div>
-            <div style="font-size:12px;color:#64748B">${todos.length} trecho(s) — visão geral</div></div>
+            <div style="font-size:12px;color:#64748B">${conduitesFree.length} conduíte(s) — visão geral</div></div>
           </div>
-          ${desenhaPlanta(todos,'#0D1420')}
+          ${desenhaPlanta(conduitesFree,'#0D1420')}
         </div>` : ''
       const corpo = (Object.keys(porFam).length?paginas:`<p class="ex-p" style="color:#B45309">Nenhum conduíte/cabo traçado. Use o modo "Cabos" no editor.</p>`)
       return `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Relatório de Conduítes</h2>

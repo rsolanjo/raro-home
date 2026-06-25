@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v161 — Relatorio de conduites reescrito: (1)Planta mostra SO os conduites livres (linhas grossas com rotulo) + caixas CX + apenas os itens cujos cabos estao dentro de algum conduíte; cabos normais nao aparecem na planta; (2)Tabela por conduíte lista cada cabo dentro com cor, tipo, origem→destino; (3)Bloco vermelho "Itens sem conduíte" no final: itens que tem cabo tracado mas nao foram atribuidos a nenhum conduíte
+// v162 — FIX: "todos is not defined" ao gerar relatorio de conduites. Causa: variavel todos foi removida na reescrita do v161 mas ainda era usada em paginaTodos. Substituida por conduitesFree (so os conduites livres).
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v161 · build 2026-06
+          v162 · build 2026-06
         </div>
       </div>
     </div>
