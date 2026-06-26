@@ -214,7 +214,7 @@ export function buildContract(proposal, client, opts={}) {
 
   <div class="header">
     <div>
-      <img src="${LOGO_CONTRACT}" alt="RARO HOME" style="height:90px;width:auto;margin-bottom:10px;display:block;border-radius:8px"/>
+      <img src="${LOGO_CONTRACT}" alt="RARO HOME" style="height:84px;width:auto;margin-bottom:10px;display:block"/>
       <div class="badge">${tipoBadge}</div>
       <h1>${tituloDoc}</h1>
       <div style="font-size:9px;color:#6B8CAE">Automação Residencial · Tecnologia · Lazer</div>

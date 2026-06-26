@@ -341,7 +341,7 @@ function buildPDF(data, adminMode=false){
       <div class="cov-right">Válido por 30 dias · ${date_str}</div>
     </div>
     <div class="logo-zone">
-      <img src="${LOGO_COVER}" alt="RARO Home" style="height:150px;width:auto;display:block;border-radius:12px"/>
+      <img src="${LOGO_COVER}" alt="RARO Home" style="height:140px;width:auto;display:block"/>
       <div class="logo-tagline">C A S A · T E C N O L O G I A · L A Z E R</div>
       <div class="logo-orn"><div class="lo-l-r"></div><div class="lo-d"></div><div class="lo-l"></div></div>
     </div>

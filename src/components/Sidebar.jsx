@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v174 — Logo RARO Home recriado fiel a imagem oficial: monograma RR entrelacado (dois R espelhados, bojos arredondados no topo, pernas descendo), teto traco azul+dourado, wordmark RARO com A em compasso, HOME com ponto azul entre linhas douradas, slogan TECNOLOGIA-CONFORTO-EXCLUSIVIDADE. Fundo navy #0B1228 (cor dos documentos) embutido em todas as variantes; cantos arredondados nos cabecalhos/capas. Aplicado em contrato, proposta, executivo, diario, login, sidebar e painel central.
+// v176 — Logo: revertido para a versao anterior (a do v173, dois R espelhados em Georgia, HOME com linhas douradas, slogan, fundo transparente) e adicionado UM TRACO dourado horizontal ligando os dois R espelhados no centro. Removidos os cantos arredondados/cartao navy do v174. Resto identico.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v174 · build 2026-06
+          v176 · build 2026-06
         </div>
       </div>
     </div>

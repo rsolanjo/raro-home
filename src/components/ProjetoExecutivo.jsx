@@ -2017,7 +2017,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   <!-- CAPA -->
   <div class="ex-cover">
     <div class="ex-cover-top">${_eletr?'DOCUMENTO TÉCNICO · ELÉTRICA E Wi-Fi':isObra?'DOCUMENTO DE OBRA · INFRAESTRUTURA':'DOCUMENTO TÉCNICO · PROJETO EXECUTIVO'}</div>
-    <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:200px;max-width:55%;margin:0 auto 10px;display:block;border-radius:10px"/>
+    <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:170px;max-width:50%;margin:0 auto 8px;display:block"/>
     <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
     <div class="ex-cover-title">${_eletr?'Planta Elétrica e Cobertura Wi-Fi':isObra?'Plano de Obra — Cabos e Infraestrutura':'Projeto Executivo de Automação'}</div>
     <div class="ex-cover-sub">${_eletr?'Símbolos ABNT NBR 5444 · Quadro de cargas · Mapa de calor Wi-Fi<br>Pontos elétricos e cobertura aproximada':isObra?'Caminho dos cabos · Metragens · Alturas · Caixas 4×4<br>Guia direto para o eletricista e o pedreiro':'Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto'}</div>
