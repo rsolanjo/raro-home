@@ -1,16 +1,12 @@
-// Envia um documento para assinatura digital via Assinafy (https://api.assinafy.com.br)
-// API grátis até 100 documentos/mês, certificada ICP-Brasil/ITI.
+// Assinatura digital via Assinafy (https://api.assinafy.com.br/v1)
+// Confirmado pela CLI oficial (github.com/assinafy/assinafy-cli):
+//   - auth: header X-Api-Key
+//   - fluxo: documents upload -> signers create -> assignments create (com signer-ids)
 //
-// Configure no Vercel -> Settings -> Environment Variables:
-//   ASSINAFY_API_KEY    = sua API Key (gerada no dashboard da Assinafy)
-//   ASSINAFY_ACCOUNT_ID = o ID da sua conta/workspace (mesmo painel)
-//
-// Fluxo Assinafy:
-//   1. upload do PDF              -> POST /v1/accounts/{accountId}/documents   (multipart: file)
-//   2. cria signatarios           -> POST /v1/accounts/{accountId}/signers     (name, email)
-//   3. cria o envio (assignment)  -> POST /v1/documents/{documentId}/assignments (signers, method=virtual)
-//
-// Autenticacao via header X-Api-Key. Se o painel mostrar outro header/caminho, ajuste abaixo.
+// Vercel -> Settings -> Environment Variables:
+//   ASSINAFY_API_KEY    = sua API Key (Configuracoes/Desenvolvedor/API no painel)
+//   ASSINAFY_ACCOUNT_ID = id da conta/workspace
+//   (opcional) ASSINAFY_BASE_URL  = https://api.assinafy.com.br/v1  (ou sandbox)
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -21,60 +17,76 @@ module.exports = async function handler(req, res) {
 
   const API_KEY = process.env.ASSINAFY_API_KEY
   const ACCOUNT = process.env.ASSINAFY_ACCOUNT_ID
-  if (!API_KEY) { res.status(200).json({ sent:false, reason:'API Key da Assinafy nao configurada (defina ASSINAFY_API_KEY no Vercel).' }); return }
-  if (!ACCOUNT) { res.status(200).json({ sent:false, reason:'ID da conta Assinafy nao configurado (defina ASSINAFY_ACCOUNT_ID no Vercel).' }); return }
+  const BASE = (process.env.ASSINAFY_BASE_URL || 'https://api.assinafy.com.br/v1').replace(/\/+$/,'')
+  if (!API_KEY) { res.status(200).json({ sent:false, reason:'Defina ASSINAFY_API_KEY no Vercel.' }); return }
+  if (!ACCOUNT) { res.status(200).json({ sent:false, reason:'Defina ASSINAFY_ACCOUNT_ID no Vercel.' }); return }
 
-  const BASE = 'https://api.assinafy.com.br/v1'
-  const headers = { 'X-Api-Key': API_KEY }
+  // auth: X-Api-Key (principal) + Authorization Bearer como fallback que algumas contas aceitam
+  const auth = { 'X-Api-Key': API_KEY, 'Authorization': `Bearer ${API_KEY}` }
+  const pickId = j => j?.data?.id || j?.id || j?.data?.document?.id || j?.document?.id
+  const steps = []
 
   try {
     let body = req.body
     if (typeof body === 'string') body = JSON.parse(body)
     const { fileName, pdfBase64, signers, message } = body || {}
     if (!pdfBase64 || !Array.isArray(signers) || !signers.length) {
-      res.status(400).json({ error:'Faltam pdfBase64 e/ou signers (lista com {name,email})' }); return
+      res.status(400).json({ error:'Faltam pdfBase64 e/ou signers [{name,email}]' }); return
     }
 
-    // 1) UPLOAD (multipart/form-data)
+    // 1) UPLOAD (multipart) — POST /accounts/{id}/documents  campo "file"
     const pdfBuffer = Buffer.from(pdfBase64, 'base64')
     const form = new FormData()
     form.append('file', new Blob([pdfBuffer], { type:'application/pdf' }), fileName || 'Contrato.pdf')
-    form.append('name', fileName || 'Contrato RARO Home.pdf')
-
-    const upR = await fetch(`${BASE}/accounts/${ACCOUNT}/documents`, { method:'POST', headers, body: form })
+    const upR = await fetch(`${BASE}/accounts/${ACCOUNT}/documents`, { method:'POST', headers:auth, body:form })
     const upJson = await upR.json().catch(()=>({}))
-    const documentId = upJson?.data?.id || upJson?.id
-    if (!documentId) { res.status(502).json({ error:'Falha no upload do documento na Assinafy', detail:upJson }); return }
+    steps.push({ step:'upload', status:upR.status })
+    const documentId = pickId(upJson)
+    if (!upR.ok || !documentId) { res.status(502).json({ sent:false, error:'Falha no upload', http:upR.status, detail:upJson, steps }); return }
 
-    // 2) signatarios
+    // 2) SIGNERS — POST /accounts/{id}/signers (name, email). Reaproveita por e-mail se já existir.
     const signerIds = []
     for (const s of signers) {
+      let sid = null
       const sR = await fetch(`${BASE}/accounts/${ACCOUNT}/signers`, {
-        method:'POST', headers:{ ...headers, 'Content-Type':'application/json' },
+        method:'POST', headers:{ ...auth, 'Content-Type':'application/json' },
         body: JSON.stringify({ name:s.name, email:s.email })
       })
       const sJson = await sR.json().catch(()=>({}))
-      const sid = sJson?.data?.id || sJson?.id
+      sid = pickId(sJson)
+      // se falhou por já existir, tenta achar por e-mail
+      if (!sid) {
+        const fR = await fetch(`${BASE}/accounts/${ACCOUNT}/signers?email=${encodeURIComponent(s.email)}`, { headers:auth })
+        const fJson = await fR.json().catch(()=>({}))
+        const arr = fJson?.data || fJson
+        if (Array.isArray(arr) && arr.length) sid = arr[0].id
+      }
       if (sid) signerIds.push(sid)
+      steps.push({ step:'signer', email:s.email, status:sR.status, id:sid||null })
     }
+    if (!signerIds.length) { res.status(502).json({ sent:false, error:'Não foi possível criar signatários', detail:steps }); return }
 
-    // 3) envio para assinatura
+    // 3) ASSIGNMENT — POST /documents/{id}/assignments  com signer_ids (envio para assinatura)
+    const asgPayload = {
+      method: 'virtual',
+      signer_ids: signerIds,
+      signers: signerIds,                  // alguns ambientes aceitam "signers"
+      message: message || 'Por favor, assine o contrato da RARO Home.'
+    }
     const asgR = await fetch(`${BASE}/documents/${documentId}/assignments`, {
-      method:'POST', headers:{ ...headers, 'Content-Type':'application/json' },
-      body: JSON.stringify({
-        method: 'virtual',
-        signers: signerIds.length ? signerIds : signers.map(s=>({ name:s.name, email:s.email })),
-        message: message || 'Por favor, assine o contrato da RARO Home.'
-      })
+      method:'POST', headers:{ ...auth, 'Content-Type':'application/json' },
+      body: JSON.stringify(asgPayload)
     })
     const asgJson = await asgR.json().catch(()=>({}))
+    steps.push({ step:'assignment', status:asgR.status })
+    if (!asgR.ok) { res.status(502).json({ sent:false, error:'Documento enviado mas falhou ao solicitar assinatura', http:asgR.status, documentId, detail:asgJson, steps }); return }
 
     res.status(200).json({
       sent:true, documentId,
       url: asgJson?.data?.url || `https://app.assinafy.com.br/documents/${documentId}`,
-      detail: asgJson
+      steps
     })
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ sent:false, error: e.message, steps })
   }
 }

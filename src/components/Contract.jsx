@@ -468,7 +468,13 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         alert(`✓ Contrato enviado para assinatura!\n\nOs signatários receberão um e-mail da Assinafy.\n${j.url?'\nAcompanhe em: '+j.url:''}`)
         setSaved(true); if(onGenerated) onGenerated(proposal)
       } else {
-        alert(`Não foi possível enviar automaticamente.\n\nMotivo: ${j.reason||j.error||'desconhecido'}\n\nVerifique as credenciais de assinatura nas configurações e tente de novo. Por enquanto, use "Salvar contrato (PDF)" e envie manualmente.`)
+        const motivo = j.reason || j.error || 'desconhecido'
+        const http = j.http ? `\nHTTP: ${j.http}` : ''
+        const det = j.detail ? `\n\nResposta da Assinafy:\n${JSON.stringify(j.detail).slice(0,400)}` : ''
+        const steps = j.steps ? `\n\nEtapas: ${JSON.stringify(j.steps).slice(0,300)}` : ''
+        // loga no console pra inspeção completa
+        console.error('Assinafy /api/sign falhou:', j)
+        alert(`Não foi possível enviar para assinatura.\n\nMotivo: ${motivo}${http}${det}${steps}\n\nDica: confira ASSINAFY_API_KEY e ASSINAFY_ACCOUNT_ID no Vercel (e Redeploy). Detalhes completos no Console do navegador (F12).\n\nPor enquanto você pode usar "Salvar contrato (PDF)" e enviar manualmente.`)
       }
     }catch(e){ alert('Erro ao preparar/enviar o PDF: '+e.message) }
     setSigning(false)

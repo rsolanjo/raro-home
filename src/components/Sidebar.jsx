@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v176 — Logo: revertido para a versao anterior (a do v173, dois R espelhados em Georgia, HOME com linhas douradas, slogan, fundo transparente) e adicionado UM TRACO dourado horizontal ligando os dois R espelhados no centro. Removidos os cantos arredondados/cartao navy do v174. Resto identico.
+// v178 — Assinatura Assinafy corrigida conforme CLI oficial: endpoint /api/sign robustecido (auth X-Api-Key+Bearer fallback; upload->signers com reaproveitamento por email->assignments com signer_ids; valida cada etapa). Mensagem de erro no app agora mostra HTTP+resposta+etapas e loga no Console (F12) para diagnostico. Vars: ASSINAFY_API_KEY e ASSINAFY_ACCOUNT_ID.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v176 · build 2026-06
+          v178 · build 2026-06
         </div>
       </div>
     </div>
