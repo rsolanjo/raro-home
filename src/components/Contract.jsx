@@ -1,5 +1,26 @@
 import { useState } from 'react'
 import { LOGO_COVER } from '../logos.js'
+import { getProposals, getProjects } from '../db/supabase.js'
+
+// extrai itens (nome+qtd) e total de uma proposta/projeto (mesma estrutura floors[].rooms[].items[])
+function extrairItensETotal(obj){
+  if(!obj) return { itens:{}, total:0 }
+  let floors = obj.floors
+  if(typeof floors==='string'){ try{ floors=JSON.parse(floors||'[]') }catch{ floors=[] } }
+  floors = Array.isArray(floors)?floors:[]
+  const itens={}
+  let total=0
+  floors.forEach(f=>(f.rooms||[]).forEach(r=>{
+    total += Number(r.price)||0
+    ;(r.items||[]).forEach(it=>{
+      if(!it.name) return
+      const key=(it.name||'').trim()
+      itens[key]=(itens[key]||0)+(parseInt(it.qty)||1)
+    })
+  }))
+  const approved = Number(obj.approved_value)>0?Number(obj.approved_value):0
+  return { itens, total: approved||total }
+}
 
 // Logo do contrato — fundo transparente blenda no #fff do corpo do contrato
 const LOGO_CONTRACT = LOGO_COVER
@@ -43,7 +64,11 @@ export function buildContract(proposal, client, opts={}) {
   const name1 = client?.full_name1 || client?.name1 || '—'
   const name2 = client?.full_name2 || client?.name2 || ''
   const bothNames = name2 ? `${name1} e ${name2}` : name1
-  const addr = [client?.neighborhood, client?.city].filter(Boolean).join(', ') || '—'
+  const _ruaNum = [client?.street, client?.number].filter(Boolean).join(', ')
+  const _compl = client?.complement ? ` (${client.complement})` : ''
+  const _bairroCidade = [client?.neighborhood, client?.city].filter(Boolean).join(', ')
+  const _estadoCep = [client?.state, client?.cep].filter(Boolean).join(' · CEP ')
+  const addr = [ _ruaNum + _compl, _bairroCidade, _estadoCep ].filter(s=>s&&s.trim()).join(' — ') || '—'
   const housing = client?.housing_type || 'residencial'
   const scopeRooms = floors.flatMap(fl=>(fl.rooms||[]).map(r=>{
     // agrupa itens por nome com quantidade (respeitando categorias ocultas)
@@ -122,9 +147,9 @@ export function buildContract(proposal, client, opts={}) {
   // Cláusulas específicas
   const clausulas = ehProjeto ? [
     ['PRAZO DE ENTREGA DO PROJETO', prazoTxt],
-    ['ACOMPANHAMENTO','A CONTRATADA prestará acompanhamento técnico à execução por terceiros, esclarecendo dúvidas e validando etapas, conforme combinado, sem assumir a responsabilidade pela mão de obra de instalação de terceiros.'],
+    ['ACOMPANHAMENTO','A CONTRATADA prestará acompanhamento técnico durante a execução, esclarecendo dúvidas e validando as etapas conforme combinado.'],
     ['PROPRIEDADE INTELECTUAL', garantiaTxt],
-    ['REVISÕES','Estão incluídas até 2 (duas) revisões do projeto. Revisões adicionais ou mudanças de escopo poderão ser cobradas à parte.'],
+    ['REVISÕES','Estão incluídas até 3 (três) revisões do projeto. Revisões adicionais ou mudanças de escopo poderão ser cobradas à parte.'],
     ['SUPORTE','Dúvidas sobre o projeto via WhatsApp (21) 98170-9009, de segunda a sexta, das 9h às 18h.'],
     ['CONFIDENCIALIDADE','As partes comprometem-se a manter sigilo sobre as informações técnicas, comerciais e pessoais trocadas no âmbito deste contrato.'],
   ] : [
@@ -132,7 +157,7 @@ export function buildContract(proposal, client, opts={}) {
     ['GARANTIA', garantiaTxt],
     ['SUPORTE PÓS-ENTREGA','A CONTRATADA prestará suporte técnico via WhatsApp no número (21) 98170-9009, de segunda a sexta, das 9h às 18h. Atendimentos emergenciais fora deste horário poderão ser cobrados separadamente.'],
     ['OBRIGAÇÕES DO CONTRATANTE','Garantir acesso ao imóvel nos horários acordados; fornecer energia elétrica estabilizada no local de instalação; não efetuar modificações nos sistemas instalados sem prévia autorização técnica da CONTRATADA; manter os equipamentos afastados de fontes de umidade excessiva e calor.'],
-    ['EXCLUSÕES DE GARANTIA','Não estão cobertos: danos causados por mau uso, sobretensão elétrica, raio, inundação, quedas físicas, modificações realizadas por terceiros não autorizados, ou uso fora das especificações técnicas dos fabricantes.'],
+    ['EXCLUSÕES DE GARANTIA','Não estão cobertos: danos causados por mau uso, sobretensão elétrica, raio, inundação, quedas físicas, modificações realizadas por pessoas não autorizadas, ou uso fora das especificações técnicas dos fabricantes.'],
     ['CANCELAMENTO','Em caso de cancelamento por parte do CONTRATANTE após o início da execução dos serviços, serão devidos os valores proporcionais aos serviços já prestados e materiais já adquiridos, acrescidos de multa de <strong>20% (vinte por cento)</strong> sobre o valor total contratado.'],
     ['CONFIDENCIALIDADE','As partes comprometem-se a manter sigilo sobre as informações técnicas, comerciais e pessoais trocadas no âmbito deste contrato.'],
   ]
@@ -142,43 +167,43 @@ export function buildContract(proposal, client, opts={}) {
 
   return `<!DOCTYPE html><html lang="pt-BR"><head>
   <meta charset="UTF-8"><title>${tituloDoc} — ${client?.name1||proposal.client_name||'Cliente'}${proposal.code?' ('+proposal.code+')':''}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    @page{size:A4;margin:14mm 16mm 16mm}
+    @page{size:A4;margin:16mm 18mm 18mm}
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'DM Sans',sans-serif;font-size:10.5px;color:#1a1a1a;line-height:1.75;background:#fff;padding:20px 26px}
+    body{font-family:'DM Sans',sans-serif;font-size:10.5px;color:#22272E;line-height:1.78;background:#fff;padding:22px 30px;-webkit-font-smoothing:antialiased}
     @media print{ body{padding:0} }
-    h1{font-family:'DM Serif Display',serif;font-size:20px;color:#060B1A;margin-bottom:2px}
-    h2{font-family:'DM Serif Display',serif;font-size:12.5px;color:#0369A1;margin:16px 0 5px;border-bottom:1px solid #C8DEFF;padding-bottom:3px;text-transform:uppercase;letter-spacing:0.5px}
-    .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #060B1A;padding-bottom:12px;margin-bottom:18px}
-    .badge{background:#060B1A;color:#fff;padding:3px 10px;border-radius:3px;font-size:8px;letter-spacing:2px;text-transform:uppercase;display:inline-block;margin-bottom:8px}
-    .header-right{text-align:right;font-size:9px;color:#6B8CAE;line-height:1.9}
-    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
-    .field{background:#F5FAFF;border:0.5px solid #C8DEFF;border-radius:3px;padding:7px 10px}
-    .field-label{font-size:7.5px;letter-spacing:1.5px;color:#0369A1;text-transform:uppercase;margin-bottom:2px;font-weight:500}
-    .field-value{font-size:11px;color:#060B1A}
-    .clause{margin-bottom:9px;text-align:justify}
-    .clause-num{font-weight:600;color:#0369A1;margin-right:4px}
-    .total-box{background:linear-gradient(135deg,#060B1A 0%,#0a1628 100%);color:#fff;padding:14px 18px;border-radius:4px;margin:14px 0}
-    .total-label{font-size:8px;letter-spacing:3px;color:#38BDF8;text-transform:uppercase;margin-bottom:6px}
-    .total-value{font-family:'DM Serif Display',serif;font-size:26px;color:#fff;margin-bottom:4px}
-    .total-extenso{font-size:9.5px;color:rgba(255,255,255,0.65);font-style:italic}
-    .scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:8px 0}
-    .scope-item{background:#F5FAFF;border:0.5px solid #C8DEFF;border-radius:3px;padding:4px 8px;font-size:10px;color:#1E3A5F}
-    .scope-detail{display:flex;flex-direction:column;gap:6px;margin:8px 0}
-    .scope-room{background:#F5FAFF;border:0.5px solid #C8DEFF;border-radius:4px;padding:6px 9px;break-inside:avoid}
-    .scope-room-hdr{font-size:10px;font-weight:700;color:#0D2540;margin-bottom:4px;display:flex;align-items:center;gap:6px}
-    .scope-room-qty{font-size:8px;font-weight:600;color:#fff;background:#0369A1;border-radius:8px;padding:1px 7px;margin-left:auto}
-    .scope-room-items{display:flex;flex-wrap:wrap;gap:3px}
-    .scope-chip{font-size:8.5px;color:#1E3A5F;background:#fff;border:0.5px solid #D6E6FB;border-radius:3px;padding:2px 6px}
-    .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:36px}
+    h1{font-family:'Fraunces',serif;font-size:23px;font-weight:500;color:#0A0F1C;margin-bottom:3px;letter-spacing:-0.3px}
+    h2{font-family:'Fraunces',serif;font-size:13px;font-weight:600;color:#0A3A66;margin:20px 0 7px;border-bottom:1.5px solid #DCEAFB;padding-bottom:4px;text-transform:uppercase;letter-spacing:0.8px}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #0A0F1C;padding-bottom:14px;margin-bottom:20px}
+    .badge{background:#0A0F1C;color:#fff;padding:4px 12px;border-radius:3px;font-size:8px;letter-spacing:2.5px;text-transform:uppercase;display:inline-block;margin-bottom:9px;font-weight:600}
+    .header-right{text-align:right;font-size:9px;color:#5A748F;line-height:2}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:11px}
+    .field{background:#F7FBFF;border:1px solid #DCEAFB;border-radius:5px;padding:8px 11px}
+    .field-label{font-size:7.5px;letter-spacing:1.6px;color:#0A6BC0;text-transform:uppercase;margin-bottom:3px;font-weight:600}
+    .field-value{font-size:11px;color:#0A0F1C;font-weight:500}
+    .clause{margin-bottom:11px;text-align:justify;line-height:1.82;hyphens:auto}
+    .clause-num{font-weight:700;color:#0A3A66;margin-right:5px}
+    .total-box{background:linear-gradient(135deg,#0A0F1C 0%,#0d1d33 100%);color:#fff;padding:16px 20px;border-radius:6px;margin:16px 0;box-shadow:0 2px 10px rgba(10,15,28,0.12)}
+    .total-label{font-size:8px;letter-spacing:3.5px;color:#5BBEF5;text-transform:uppercase;margin-bottom:7px;font-weight:600}
+    .total-value{font-family:'Fraunces',serif;font-size:29px;font-weight:600;color:#fff;margin-bottom:5px;letter-spacing:-0.5px}
+    .total-extenso{font-size:9.5px;color:rgba(255,255,255,0.7);font-style:italic;line-height:1.5}
+    .scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:8px 0}
+    .scope-item{background:#F7FBFF;border:1px solid #DCEAFB;border-radius:4px;padding:5px 9px;font-size:10px;color:#1E3A5F}
+    .scope-detail{display:flex;flex-direction:column;gap:7px;margin:9px 0}
+    .scope-room{background:#F7FBFF;border:1px solid #DCEAFB;border-radius:5px;padding:7px 11px;break-inside:avoid}
+    .scope-room-hdr{font-size:10.5px;font-weight:700;color:#0A2540;margin-bottom:5px;display:flex;align-items:center;gap:6px}
+    .scope-room-qty{font-size:8px;font-weight:600;color:#fff;background:#0A6BC0;border-radius:9px;padding:1px 8px;margin-left:auto}
+    .scope-room-items{display:flex;flex-wrap:wrap;gap:4px}
+    .scope-chip{font-size:8.5px;color:#1E3A5F;background:#fff;border:1px solid #DCEAFB;border-radius:3px;padding:2px 7px}
+    .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px}
     .sig-box{text-align:center}
-    .sig-signed{min-height:44px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px}
-    .sig-line{border-top:0.5px solid #C8DEFF;margin-bottom:4px}
-    .sig-name{font-size:9px;font-weight:600;color:#060B1A}
-    .sig-sub{font-size:8px;color:#9CA3AF;margin-top:1px}
-    .highlight{background:#E8F4FF;border-left:3px solid #0EA5E9;padding:8px 12px;border-radius:0 4px 4px 0;margin:10px 0;font-size:10px}
-    .footer{margin-top:24px;padding-top:8px;border-top:0.5px solid #C8DEFF;font-size:7.5px;color:#9CA3AF;text-align:center}
+    .sig-signed{min-height:46px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px}
+    .sig-line{border-top:1px solid #9CB4CE;margin-bottom:5px}
+    .sig-name{font-size:9.5px;font-weight:600;color:#0A0F1C}
+    .sig-sub{font-size:8px;color:#8595A8;margin-top:2px}
+    .highlight{background:#EFF7FF;border-left:3px solid #0A6BC0;padding:9px 13px;border-radius:0 5px 5px 0;margin:11px 0;font-size:10px;line-height:1.7}
+    .footer{margin-top:26px;padding-top:10px;border-top:1px solid #DCEAFB;font-size:7.5px;color:#8595A8;text-align:center;line-height:1.7}
     @media print{body{font-size:10px}.no-print{display:none!important}}
   </style>
 </head><body>
@@ -189,7 +214,7 @@ export function buildContract(proposal, client, opts={}) {
 
   <div class="header">
     <div>
-      <img src="${LOGO_CONTRACT}" alt="RARO HOME" style="height:80px;width:auto;margin-bottom:10px;display:block"/>
+      <img src="${LOGO_CONTRACT}" alt="RARO HOME" style="height:90px;width:auto;margin-bottom:10px;display:block;border-radius:8px"/>
       <div class="badge">${tipoBadge}</div>
       <h1>${tituloDoc}</h1>
       <div style="font-size:9px;color:#6B8CAE">Automação Residencial · Tecnologia · Lazer</div>
@@ -276,21 +301,61 @@ export function buildContract(proposal, client, opts={}) {
 export default function Contract({ proposal, clients, onClose, onSend, onGenerated }) {
   const [sending, setSending] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [signing, setSigning] = useState(false)
   const baseClient = clients?.find(c => c.id === Number(proposal?.client_id))
   const [showReview, setShowReview] = useState(true)
   const [edits, setEdits] = useState({
     name1: baseClient?.full_name1 || baseClient?.name1 || '',
     name2: baseClient?.full_name2 || baseClient?.name2 || '',
     cpf1: baseClient?.cpf1 || baseClient?.cpf || '',
+    street: baseClient?.street || '',
+    number: baseClient?.number || '',
+    complement: baseClient?.complement || '',
     neighborhood: baseClient?.neighborhood || '',
     city: baseClient?.city || '',
+    state: baseClient?.state || '',
+    cep: baseClient?.cep || '',
     phone1: baseClient?.phone1 || '',
     email: baseClient?.email || '',
   })
   // cliente efetivo = base + edições
   const client = { ...baseClient, full_name1:edits.name1, name1:edits.name1, full_name2:edits.name2, name2:edits.name2,
-    cpf1:edits.cpf1, cpf:edits.cpf1, neighborhood:edits.neighborhood, city:edits.city, phone1:edits.phone1, email:edits.email }
+    cpf1:edits.cpf1, cpf:edits.cpf1, street:edits.street, number:edits.number, complement:edits.complement,
+    neighborhood:edits.neighborhood, city:edits.city, state:edits.state, cep:edits.cep, phone1:edits.phone1, email:edits.email }
   const ed=(k,v)=>setEdits(p=>({...p,[k]:v}))
+  // ── Comparar última proposta × último projeto salvos ──
+  const [cmpOpen, setCmpOpen] = useState(false)
+  const [cmpData, setCmpData] = useState(null)
+  const [cmpLoading, setCmpLoading] = useState(false)
+  async function compararPropostaProjeto(){
+    setCmpLoading(true)
+    try{
+      const [props, projs] = await Promise.all([getProposals(), getProjects()])
+      const cid = Number(proposal?.client_id)
+      // última proposta do cliente
+      const minhasProps = (props||[]).filter(p=>Number(p.client_id)===cid)
+      const ultProp = minhasProps.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0))[0] || proposal
+      // último projeto ligado à proposta (ou do cliente)
+      const meusProjs = (projs||[]).filter(p=>String(p.proposal_id)===String(ultProp?.id) || String(p.proposal_code)===String(ultProp?.code))
+      const ultProj = meusProjs.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0))[0]
+      if(!ultProj){ setCmpData({ semProjeto:true }); setCmpOpen(true); setCmpLoading(false); return }
+      const P = extrairItensETotal(ultProp)
+      const J = extrairItensETotal(ultProj)
+      // diff de itens
+      const todasChaves = [...new Set([...Object.keys(P.itens), ...Object.keys(J.itens)])].sort()
+      const diffs = todasChaves.map(k=>{
+        const qp=P.itens[k]||0, qj=J.itens[k]||0
+        let status='igual'
+        if(qp&&!qj) status='só proposta'
+        else if(!qp&&qj) status='só projeto'
+        else if(qp!==qj) status='qtd diferente'
+        return { nome:k, qtdProp:qp, qtdProj:qj, status }
+      }).filter(d=>d.status!=='igual')
+      setCmpData({ ultProp, ultProj, P, J, diffs, precoDif: P.total!==J.total })
+      setCmpOpen(true)
+    }catch(e){ alert('Erro ao comparar: '+e.message) }
+    setCmpLoading(false)
+  }
   // ── Tipo de contrato + opções ──
   const [tipo, setTipo] = useState('total')   // projeto | total | ocultas | avulsa
   const [valorManual, setValorManual] = useState('')
@@ -366,8 +431,114 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
     setSaved(true)
   }
 
+  // ── Assinatura digital (Assinafy) ──
+  function loadScript(src){ return new Promise((resolve,reject)=>{
+    if(document.querySelector(`script[src="${src}"]`)) return resolve()
+    const s=document.createElement('script'); s.src=src; s.onload=resolve; s.onerror=reject; document.body.appendChild(s)
+  })}
+  async function enviarParaAssinatura(){
+    const emailCliente = (client?.email||'').trim()
+    if(!emailCliente){ alert('O cliente não tem e-mail cadastrado. Adicione o e-mail nos dados acima para enviar para assinatura.'); return }
+    if(!window.confirm(`Enviar o contrato para assinatura digital?\n\nSerá enviado para:\n• ${bothNames} <${emailCliente}>\n• Rogério (RARO Home)\n\nVia Assinafy (ICP-Brasil).`)) return
+    setSigning(true)
+    try{
+      // 1) gera o PDF do contrato em base64 (html2pdf via CDN)
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js')
+      const html = buildContract(proposal, client, opts)
+      const cont = document.createElement('div'); cont.innerHTML = html
+      const bodyEl = cont.querySelector('body') || cont
+      const worker = window.html2pdf().set({
+        margin:0, filename:`Contrato-${proposal.code}.pdf`,
+        image:{type:'jpeg',quality:0.96}, html2canvas:{scale:2,useCORS:true},
+        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
+      }).from(bodyEl)
+      const pdfBlob = await worker.outputPdf('blob')
+      const pdfBase64 = await new Promise((res)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.readAsDataURL(pdfBlob) })
+      // 2) envia para a função serverless
+      const resp = await fetch('/api/sign', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          fileName:`Contrato-${proposal.code}.pdf`, pdfBase64,
+          signers:[ {name:bothNames, email:emailCliente}, {name:'Rogério — RARO Home', email:'contato@rarohome.com.br'} ],
+          message:`Contrato RARO Home — proposta ${proposal.code}. Por favor, assine digitalmente.`
+        })
+      })
+      const j = await resp.json().catch(()=>({}))
+      if(j.sent){
+        alert(`✓ Contrato enviado para assinatura!\n\nOs signatários receberão um e-mail da Assinafy.\n${j.url?'\nAcompanhe em: '+j.url:''}`)
+        setSaved(true); if(onGenerated) onGenerated(proposal)
+      } else {
+        alert(`Não foi possível enviar automaticamente.\n\nMotivo: ${j.reason||j.error||'desconhecido'}\n\nVerifique as credenciais de assinatura nas configurações e tente de novo. Por enquanto, use "Salvar contrato (PDF)" e envie manualmente.`)
+      }
+    }catch(e){ alert('Erro ao preparar/enviar o PDF: '+e.message) }
+    setSigning(false)
+  }
+
   return (
     <div className="modal-overlay" style={{alignItems:'stretch',padding:0,zIndex:1000}}>
+      {/* ── Modal de comparação proposta × projeto ── */}
+      {cmpOpen && <div className="modal-overlay" style={{zIndex:2000,padding:20}} onClick={()=>setCmpOpen(false)}>
+        <div style={{background:'var(--surf)',borderRadius:12,maxWidth:560,width:'100%',maxHeight:'85vh',overflow:'auto',padding:20}} onClick={e=>e.stopPropagation()}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
+            <i className="ti ti-git-compare" style={{color:'var(--accent)',fontSize:20}} aria-hidden/>
+            <b style={{fontSize:15}}>Proposta × Projeto</b>
+            <button className="btn" style={{marginLeft:'auto',padding:'4px 8px'}} onClick={()=>setCmpOpen(false)}>✕</button>
+          </div>
+          {cmpData?.semProjeto
+            ? <div style={{color:'var(--text2)',fontSize:13}}>Não há projeto executivo salvo para esta proposta ainda. Salve o projeto no editor para poder comparar.</div>
+            : cmpData && <>
+              {/* Resumo */}
+              <div style={{display:'flex',gap:10,marginBottom:14}}>
+                <div style={{flex:1,background:'var(--bg)',borderRadius:8,padding:'10px 12px'}}>
+                  <div style={{fontSize:10,color:'var(--text2)',textTransform:'uppercase'}}>Proposta {cmpData.ultProp?.code||''}</div>
+                  <div style={{fontSize:16,fontWeight:700}}>{fmt(cmpData.P.total)}</div>
+                  <div style={{fontSize:10,color:'var(--text2)'}}>{Object.keys(cmpData.P.itens).length} tipos de item</div>
+                </div>
+                <div style={{flex:1,background:'var(--bg)',borderRadius:8,padding:'10px 12px'}}>
+                  <div style={{fontSize:10,color:'var(--text2)',textTransform:'uppercase'}}>Projeto</div>
+                  <div style={{fontSize:16,fontWeight:700}}>{fmt(cmpData.J.total)}</div>
+                  <div style={{fontSize:10,color:'var(--text2)'}}>{Object.keys(cmpData.J.itens).length} tipos de item</div>
+                </div>
+              </div>
+              {cmpData.precoDif && <div style={{background:'rgba(234,179,8,0.12)',border:'1px solid var(--amber)',borderRadius:8,padding:'8px 12px',marginBottom:12,fontSize:12,color:'var(--amber)'}}>
+                ⚠ Preço total diferente: proposta {fmt(cmpData.P.total)} vs projeto {fmt(cmpData.J.total)} (diferença {fmt(Math.abs(cmpData.P.total-cmpData.J.total))})
+              </div>}
+              {/* Diferenças de itens */}
+              {cmpData.diffs.length===0
+                ? <div style={{color:'var(--green)',fontSize:13,marginBottom:12}}>✓ Itens idênticos entre proposta e projeto.</div>
+                : <div style={{marginBottom:14}}>
+                    <div style={{fontSize:11,color:'var(--text2)',textTransform:'uppercase',marginBottom:6}}>{cmpData.diffs.length} diferença(s) de item</div>
+                    <div style={{maxHeight:240,overflow:'auto'}}>
+                      {cmpData.diffs.map((d,i)=>(
+                        <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',background:'var(--bg)',borderRadius:6,marginBottom:4}}>
+                          <span style={{flex:1,fontSize:12}}>{d.nome}</span>
+                          <span style={{fontSize:11,color:'var(--text2)',fontFamily:'monospace'}}>P:{d.qtdProp} · J:{d.qtdProj}</span>
+                          <span style={{fontSize:9,fontWeight:700,padding:'2px 6px',borderRadius:5,background:d.status==='qtd diferente'?'rgba(234,179,8,0.2)':d.status==='só proposta'?'rgba(59,130,246,0.2)':'rgba(190,24,93,0.2)',color:d.status==='qtd diferente'?'var(--amber)':d.status==='só proposta'?'#60A5FA':'#F472B6'}}>{d.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>}
+              {/* Ação: escolher master e sincronizar */}
+              {(cmpData.diffs.length>0||cmpData.precoDif) && <div style={{borderTop:'1px solid var(--border)',paddingTop:12}}>
+                <div style={{fontSize:12,color:'var(--text1)',marginBottom:8}}>Qual é o <b>master</b> (versão correta)?</div>
+                <div style={{display:'flex',gap:8}}>
+                  <button className="btn" style={{flex:1}} onClick={()=>{
+                    if(window.confirm(`Sincronizar usando a PROPOSTA ${cmpData.ultProp?.code||''} como master?\n\nO contrato passará a usar os itens e o valor da proposta.`)){
+                      alert('✓ OK — a proposta será usada como base para este contrato.')
+                      setCmpOpen(false)
+                    }
+                  }}>Proposta é o master</button>
+                  <button className="btn" style={{flex:1}} onClick={()=>{
+                    if(window.confirm('Sincronizar usando o PROJETO como master?\n\nO contrato passará a usar os itens e o valor do projeto executivo.')){
+                      alert('✓ OK — o projeto será usado como base para este contrato.')
+                      setCmpOpen(false)
+                    }
+                  }}>Projeto é o master</button>
+                </div>
+              </div>}
+            </>}
+        </div>
+      </div>}
       <div style={{width:'100%',height:'100%',background:'var(--bg)',display:'flex',flexDirection:'column'}}>
         {/* Toolbar */}
         <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'10px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
@@ -387,6 +558,12 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
               <i className="ti ti-check" aria-hidden/>Contrato salvo
             </span>
           )}
+          <button className="btn" style={{padding:'5px 10px'}} onClick={compararPropostaProjeto} disabled={cmpLoading} title="Comparar última proposta salva com o último projeto salvo">
+            <i className={cmpLoading?'ti ti-loader':'ti ti-git-compare'} aria-hidden/>{cmpLoading?'Comparando…':'Comparar proposta × projeto'}
+          </button>
+          <button className="btn" style={{padding:'5px 10px',borderColor:'#0A6BC0',color:'#0A6BC0'}} onClick={enviarParaAssinatura} disabled={signing} title="Enviar o contrato para assinatura digital (Assinafy / ICP-Brasil)">
+            <i className={signing?'ti ti-loader':'ti ti-signature'} aria-hidden/>{signing?'Enviando…':'Enviar p/ assinatura'}
+          </button>
           <button
             className={saved ? 'btn' : 'btn primary'}
             style={saved ? {borderColor:'var(--green)',color:'var(--green)'} : {}}
@@ -416,7 +593,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
               <button className="btn" style={{marginLeft:'auto',fontSize:11}} onClick={()=>setShowReview(false)}><i className="ti ti-check" aria-hidden/>Dados corretos, ocultar</button>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10}}>
-              {[['name1','Nome completo (1º contratante)'],['name2','Nome completo (2º contratante)'],['cpf1','CPF'],['phone1','Telefone'],['email','E-mail'],['neighborhood','Bairro'],['city','Cidade']].map(([k,lb])=>(
+              {[['name1','Nome completo (1º contratante)'],['name2','Nome completo (2º contratante)'],['cpf1','CPF'],['phone1','Telefone'],['email','E-mail'],['street','Rua / Logradouro do imóvel'],['number','Número'],['complement','Complemento'],['neighborhood','Bairro'],['city','Cidade'],['state','Estado'],['cep','CEP']].map(([k,lb])=>(
                 <div key={k}>
                   <div style={{fontSize:10,color:'var(--text3)',marginBottom:3}}>{lb}</div>
                   <input value={edits[k]} onChange={e=>ed(k,e.target.value)} placeholder={lb}

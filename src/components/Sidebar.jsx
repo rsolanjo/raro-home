@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v169 — FIX planta geral (página 1 Plano de Obra): agora mostra TODOS os markers sem filtro (todos os itens do projeto/proposta posicionados). Antes filtrava incorretamente excluindo itens elétricos. Caixas CX quadradas azul, prumadas roxas, rack roxo escuro, demais azul.
+// v174 — Logo RARO Home recriado fiel a imagem oficial: monograma RR entrelacado (dois R espelhados, bojos arredondados no topo, pernas descendo), teto traco azul+dourado, wordmark RARO com A em compasso, HOME com ponto azul entre linhas douradas, slogan TECNOLOGIA-CONFORTO-EXCLUSIVIDADE. Fundo navy #0B1228 (cor dos documentos) embutido em todas as variantes; cantos arredondados nos cabecalhos/capas. Aplicado em contrato, proposta, executivo, diario, login, sidebar e painel central.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v169 · build 2026-06
+          v174 · build 2026-06
         </div>
       </div>
     </div>
