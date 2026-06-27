@@ -323,10 +323,37 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
     cpf1:edits.cpf1, cpf:edits.cpf1, street:edits.street, number:edits.number, complement:edits.complement,
     neighborhood:edits.neighborhood, city:edits.city, state:edits.state, cep:edits.cep, phone1:edits.phone1, email:edits.email }
   const ed=(k,v)=>setEdits(p=>({...p,[k]:v}))
-  // ── Comparar última proposta × último projeto salvos ──
+  // ── Assinatura digital ──
   const [cmpOpen, setCmpOpen] = useState(false)
   const [cmpData, setCmpData] = useState(null)
   const [cmpLoading, setCmpLoading] = useState(false)
+  // rastreia o documentId da Assinafy (salvo em localStorage por proposta)
+  const signKey = `assinafy_doc_${proposal?.id||proposal?.code||''}`
+  const [signDocId, setSignDocId] = useState(()=>{try{return localStorage.getItem(signKey)||''}catch{return ''}})
+  const [signStatus, setSignStatus] = useState(null)
+  const [checkingSign, setCheckingSign] = useState(false)
+  function salvarSignDocId(id){ setSignDocId(id); try{localStorage.setItem(signKey,id)}catch{} }
+  async function verificarAssinatura(){
+    if(!signDocId){ alert('Nenhum contrato foi enviado para assinatura nesta proposta ainda.'); return }
+    setCheckingSign(true)
+    try{
+      const r = await fetch(`/api/sign-status?documentId=${encodeURIComponent(signDocId)}`)
+      const j = await r.json().catch(()=>({}))
+      setSignStatus(j)
+      const st = j.status||'desconhecido'
+      const prog = j.progress
+      let msg = `Status: ${st.toUpperCase()}\n`
+      if(prog?.signers && Array.isArray(prog.signers)){
+        msg += '\nSignatários:\n'
+        prog.signers.forEach(s=>{ msg += `• ${s.name||s.email}: ${s.signed?'✓ ASSINADO'+(s.signed_at?' em '+new Date(s.signed_at).toLocaleDateString('pt-BR'):''):'⏳ Pendente'}\n` })
+      } else if(prog?.total!==undefined){
+        msg += `Progresso: ${prog.signed||0} de ${prog.total} assinaram\n`
+      }
+      msg += `\nAcompanhe em: ${j.url||'app.assinafy.com.br'}`
+      alert(msg)
+    }catch(e){ alert('Erro ao verificar: '+e.message) }
+    setCheckingSign(false)
+  }
   async function compararPropostaProjeto(){
     setCmpLoading(true)
     try{
@@ -442,29 +469,51 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
     if(!window.confirm(`Enviar o contrato para assinatura digital?\n\nSerá enviado para:\n• ${bothNames} <${emailCliente}>\n• Rogério (RARO Home)\n\nVia Assinafy (ICP-Brasil).`)) return
     setSigning(true)
     try{
-      // 1) gera o PDF do contrato em base64 (html2pdf via CDN)
+      // 1) carrega html2pdf do CDN
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js')
+      if(!window.html2pdf) throw new Error('html2pdf não carregou do CDN')
+
+      // 2) renderiza o contrato num iframe oculto (para que o CSS seja aplicado corretamente)
       const html = buildContract(proposal, client, opts)
-      const cont = document.createElement('div'); cont.innerHTML = html
-      const bodyEl = cont.querySelector('body') || cont
-      const worker = window.html2pdf().set({
-        margin:0, filename:`Contrato-${proposal.code}.pdf`,
-        image:{type:'jpeg',quality:0.96}, html2canvas:{scale:2,useCORS:true},
+      const iframe = document.createElement('iframe')
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:1123px;border:none'
+      document.body.appendChild(iframe)
+      const idoc = iframe.contentDocument || iframe.contentWindow.document
+      idoc.open(); idoc.write(html); idoc.close()
+      // espera fontes e imagens renderizarem
+      await new Promise(r=>setTimeout(r,1500))
+
+      // 3) gera o PDF a partir do body do iframe
+      const bodyEl = idoc.body
+      const pdfBlob = await window.html2pdf().set({
+        margin:[10,10,10,10], filename:`Contrato-${proposal.code||'RARO'}.pdf`,
+        image:{type:'jpeg',quality:0.92}, html2canvas:{scale:2,useCORS:true,logging:false},
         jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
-      }).from(bodyEl)
-      const pdfBlob = await worker.outputPdf('blob')
-      const pdfBase64 = await new Promise((res)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.readAsDataURL(pdfBlob) })
-      // 2) envia para a função serverless
+      }).from(bodyEl).outputPdf('blob')
+
+      document.body.removeChild(iframe)
+      if(!pdfBlob || pdfBlob.size < 1000) throw new Error(`PDF gerado inválido (${pdfBlob?.size||0} bytes)`)
+
+      // 4) converte para base64
+      const pdfBase64 = await new Promise((res,rej)=>{
+        const r=new FileReader()
+        r.onload=()=>res(String(r.result).split(',')[1])
+        r.onerror=()=>rej(new Error('Erro ao converter PDF para base64'))
+        r.readAsDataURL(pdfBlob)
+      })
+
+      // 5) envia para a função serverless /api/sign
       const resp = await fetch('/api/sign', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          fileName:`Contrato-${proposal.code}.pdf`, pdfBase64,
+          fileName:`Contrato-${proposal.code||'RARO'}.pdf`, pdfBase64,
           signers:[ {name:bothNames, email:emailCliente}, {name:'Rogério — RARO Home', email:'contato@rarohome.com.br'} ],
-          message:`Contrato RARO Home — proposta ${proposal.code}. Por favor, assine digitalmente.`
+          message:`Contrato RARO Home — proposta ${proposal.code||''}. Por favor, assine digitalmente.`
         })
       })
       const j = await resp.json().catch(()=>({}))
       if(j.sent){
+        salvarSignDocId(j.documentId)
         alert(`✓ Contrato enviado para assinatura!\n\nOs signatários receberão um e-mail da Assinafy.\n${j.url?'\nAcompanhe em: '+j.url:''}`)
         setSaved(true); if(onGenerated) onGenerated(proposal)
       } else {
@@ -472,11 +521,13 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         const http = j.http ? `\nHTTP: ${j.http}` : ''
         const det = j.detail ? `\n\nResposta da Assinafy:\n${JSON.stringify(j.detail).slice(0,400)}` : ''
         const steps = j.steps ? `\n\nEtapas: ${JSON.stringify(j.steps).slice(0,300)}` : ''
-        // loga no console pra inspeção completa
         console.error('Assinafy /api/sign falhou:', j)
-        alert(`Não foi possível enviar para assinatura.\n\nMotivo: ${motivo}${http}${det}${steps}\n\nDica: confira ASSINAFY_API_KEY e ASSINAFY_ACCOUNT_ID no Vercel (e Redeploy). Detalhes completos no Console do navegador (F12).\n\nPor enquanto você pode usar "Salvar contrato (PDF)" e enviar manualmente.`)
+        alert(`Não foi possível enviar para assinatura.\n\nMotivo: ${motivo}${http}${det}${steps}\n\nDica: confira ASSINAFY_API_KEY e ASSINAFY_ACCOUNT_ID no Vercel (e Redeploy). Detalhes completos no Console do navegador (F12).`)
       }
-    }catch(e){ alert('Erro ao preparar/enviar o PDF: '+e.message) }
+    }catch(e){
+      console.error('Erro assinatura:', e)
+      alert('Erro ao preparar/enviar o PDF:\n\n'+e.message+'\n\nVerifique a conexão e tente de novo.')
+    }
     setSigning(false)
   }
 
@@ -570,6 +621,9 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
           <button className="btn" style={{padding:'5px 10px',borderColor:'#0A6BC0',color:'#0A6BC0'}} onClick={enviarParaAssinatura} disabled={signing} title="Enviar o contrato para assinatura digital (Assinafy / ICP-Brasil)">
             <i className={signing?'ti ti-loader':'ti ti-signature'} aria-hidden/>{signing?'Enviando…':'Enviar p/ assinatura'}
           </button>
+          {signDocId && <button className="btn" style={{padding:'5px 10px',borderColor:'#16A34A',color:'#16A34A'}} onClick={verificarAssinatura} disabled={checkingSign} title="Verificar se os signatários já assinaram">
+            <i className={checkingSign?'ti ti-loader':'ti ti-checks'} aria-hidden/>{checkingSign?'Verificando…':'Verificar assinaturas'}
+          </button>}
           <button
             className={saved ? 'btn' : 'btn primary'}
             style={saved ? {borderColor:'var(--green)',color:'var(--green)'} : {}}

@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v178 — Assinatura Assinafy corrigida conforme CLI oficial: endpoint /api/sign robustecido (auth X-Api-Key+Bearer fallback; upload->signers com reaproveitamento por email->assignments com signer_ids; valida cada etapa). Mensagem de erro no app agora mostra HTTP+resposta+etapas e loga no Console (F12) para diagnostico. Vars: ASSINAFY_API_KEY e ASSINAFY_ACCOUNT_ID.
+// v179 — Assinatura digital: (1)FIX geração do PDF — agora renderiza num iframe oculto com CSS aplicado corretamente (antes o CSS era ignorado num div desanexado); (2)Verificação de status: botão "Verificar assinaturas" aparece depois de enviar, consulta /api/sign-status e mostra quem já assinou ou não; (3)documentId salvo em localStorage por proposta para consulta futura
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v178 · build 2026-06
+          v179 · build 2026-06
         </div>
       </div>
     </div>
