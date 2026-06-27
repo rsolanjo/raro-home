@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v179 — Assinatura digital: (1)FIX geração do PDF — agora renderiza num iframe oculto com CSS aplicado corretamente (antes o CSS era ignorado num div desanexado); (2)Verificação de status: botão "Verificar assinaturas" aparece depois de enviar, consulta /api/sign-status e mostra quem já assinou ou não; (3)documentId salvo em localStorage por proposta para consulta futura
+// v181 — (1)FIX "bothNames is not defined" ao enviar para assinatura (variavel estava no escopo errado); (2)Proposta: categorias (Sonorizacao, Automacao, Redes, Seguranca) com valores DENTRO de cada card de comodo; (3)Resumo do investimento simplificado: so categorias → equipamentos → mao de obra → total (removido o detalhamento por comodo do resumo)
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v179 · build 2026-06
+          v181 · build 2026-06
         </div>
       </div>
     </div>

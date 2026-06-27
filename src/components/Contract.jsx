@@ -322,6 +322,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
   const client = { ...baseClient, full_name1:edits.name1, name1:edits.name1, full_name2:edits.name2, name2:edits.name2,
     cpf1:edits.cpf1, cpf:edits.cpf1, street:edits.street, number:edits.number, complement:edits.complement,
     neighborhood:edits.neighborhood, city:edits.city, state:edits.state, cep:edits.cep, phone1:edits.phone1, email:edits.email }
+  const bothNames = edits.name2 ? `${edits.name1} e ${edits.name2}` : edits.name1
   const ed=(k,v)=>setEdits(p=>({...p,[k]:v}))
   // ── Assinatura digital ──
   const [cmpOpen, setCmpOpen] = useState(false)

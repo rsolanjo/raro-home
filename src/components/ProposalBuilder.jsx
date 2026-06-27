@@ -375,6 +375,7 @@ function buildPDF(data, adminMode=false){
 
   // ── room card (layout vertical, fontes grandes) ───────────────
   const FORD={'Primeiro':'1º','Segundo':'2º','Terceiro':'3º','Quarto':'4º','Quinto':'5º'}
+  const CAT_COLORS_PDF={'Segurança':'#DC2626','Sonorização':'#BE185D','Som':'#BE185D','Redes':'#0EA5E9','Rede':'#0EA5E9','Automação':'#059669','Gourmet':'#D97706','Elétrica':'#F59E0B','CPD':'#7C3AED','Outros':'#6B7280'}
   const roomCard=r=>{
     const hl=r.highlight?' hl':''
     const rows=(r.items||[]).filter(i=>i.name).map(i=>{
@@ -395,6 +396,16 @@ function buildPDF(data, adminMode=false){
     const thead=adminMode?`<tr style="background:#F3F0FF"><th style="font-size:7.5px;color:#7C3AED;padding:3px 4px;text-align:left;font-family:'DM Sans',sans-serif">Item</th><th style="font-size:7.5px;color:#7C3AED;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif">Venda</th><th style="font-size:7.5px;color:#E8956A;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif">Custo</th><th style="font-size:7.5px;color:#0EA5E9;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif">Qtd</th><th style="font-size:7.5px;color:#059669;text-align:right;padding:3px 4px;font-family:'DM Sans',sans-serif">Mg%</th></tr>`:''
     const items=rows?`<table class="items-table" style="${adminMode?'border:0.5px solid #DDD6FE;overflow:hidden':''}">${thead}${rows}</table>`:''
     const pitch=r.pitch&&!adminMode?`<div class="rp">${r.pitch}</div>`:''
+    // badges de categoria dentro do cômodo
+    const catBadges=(()=>{
+      const bc={}; (r.items||[]).filter(i=>i.name).forEach(i=>{ const c=i.category||'Outros'; bc[c]=(bc[c]||0)+(i.sale_price||0)*(parseInt(i.qty)||1) })
+      const entries=Object.entries(bc).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])
+      if(!entries.length) return ''
+      return `<div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:4px;padding-top:4px;border-top:0.5px solid #E2E8F0">${entries.map(([cat,v])=>{
+        const col=CAT_COLORS_PDF[cat]||'#6B7280'
+        return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:6.5px;color:#1E3A5F;border:0.5px solid ${col}44;border-left:2px solid ${col};border-radius:2px;padding:1px 4px;font-family:'DM Sans',sans-serif"><span style="color:${col};font-weight:600">${cat}</span> ${fmt(v)}</span>`
+      }).join('')}</div>`
+    })()
     const roomTotal=adminMode?(()=>{
       const cost=(r.items||[]).reduce((s,i)=>s+(i.cost_price||0)*(parseInt(i.qty)||1),0)
       const sale=parse(r.price), mg=cost>0?Math.round((sale-cost)/cost*100):0
@@ -404,7 +415,7 @@ function buildPDF(data, adminMode=false){
         <div style="text-align:right"><div style="font-size:6px;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;font-family:'DM Sans',sans-serif">Venda</div><div class="rvv">${fmt(sale)}</div></div>
       </div>`
     })():`<div class="rv"><div class="rvl">I N V E S T I M E N T O</div><div class="rvv">${fmt(parse(r.price))}</div></div>`
-    return `<div class="room${hl}"><div class="rh"><span class="ri">${r.icon||'◈'}</span><div class="rn">${r.name}</div></div>${items}${pitch}${roomTotal}</div>`
+    return `<div class="room${hl}"><div class="rh"><span class="ri">${r.icon||'◈'}</span><div class="rn">${r.name}</div></div>${items}${pitch}${catBadges}${roomTotal}</div>`
   }
 
   // ── floor section header ──────────────────────────────────────
@@ -451,7 +462,6 @@ function buildPDF(data, adminMode=false){
 
   // ── totals page ───────────────────────────────────────────────
   // Tabela de cômodos: 2 colunas fixas (nome | valor), sem colisão
-  const CAT_COLORS_PDF={'Segurança':'#DC2626','Sonorização':'#BE185D','Som':'#BE185D','Redes':'#0EA5E9','Rede':'#0EA5E9','Automação':'#059669','Gourmet':'#D97706','Elétrica':'#F59E0B','CPD':'#7C3AED','Outros':'#6B7280'}
   const roomsTable=(rooms)=>{
     return rooms.map(r=>{
       const items=(r.items||[]).filter(it=>it.name)
@@ -510,7 +520,6 @@ function buildPDF(data, adminMode=false){
     <div class="tot-body">
       <div class="tot-ey">R E S U M O D O I N V E S T I M E N T O</div>
       ${adminSummary}
-      <div class="pav-grid">${pavBlocks}</div>
       ${catBlock}
       <div class="tr"><span class="tl">Equipamentos — ${(floors||[]).length} Pavimento${(floors||[]).length>1?'s':''}</span><span class="tv">${fmt(equipTotal)}</span></div>
       <div class="tr"><span class="tl">Mão de Obra — Instalação e Programação</span><span class="tv">${fmt(laborVal)}</span></div>

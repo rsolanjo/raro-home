@@ -2770,42 +2770,88 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       return obraSections.join('\n') + '</div>'
     }
 
+    // ── capítulos numerados (profissional, sem duplicação) ──
+    let _cap = 0
+    const cap = t => `<div class="ex-sec ex-breakable" style="page-break-before:always"><h2 style="border-bottom:3px solid #0EA5E9;padding-bottom:8px;margin-bottom:12px"><span class="ex-sec-num" style="background:#0EA5E9;color:#fff;padding:3px 10px;border-radius:5px;font-size:13px;margin-right:10px">${++_cap}</span>${t}</h2>`
+
+    // ── gera os conteúdos de Obra e Conduítes inline (sem duplicação) ──
+    let obraInline = '', conduitesInline = ''
+    try {
+      const obraFull = buildExecHtml(d,'obra')
+      const condFull = buildExecHtml(d,'conduites')
+      const extrair = html => { const i=html.indexOf('<div class="ex-obra-page"'); const j=html.lastIndexOf('</div>'); return (i>=0)?html.slice(i, j):'' }
+      obraInline = extrair(obraFull)
+      conduitesInline = extrair(condFull)
+    } catch(e){ console.warn('inline obra/cond:',e) }
+
     return [
-    secN(`Premissas Confirmadas`, list(d.premissas)),
-    secN(`Detalhe do RACK / CPD`, hasRack && (d.rack_detalhe||rackItems.length)?(list(d.rack_detalhe)+(rackEquipTable?`<h3 class="ex-amb">Equipamentos do Rack (com quantidades)</h3>${rackEquipTable}`:'')+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Todos os Cabos de Rede (APs · Câmeras · Keystones · Uplinks)</h3>${rackCableTableHtml}`:'')):'', true),
-    secN(`Cabos de Rede — Patch Panel e Etiquetas`, cabosRedeHtml, true),
-    secN(`Segurança — Câmeras e Sensores de Alarme`, tblSeguranca, true),
-    secN(`Som Ambiente — Caixas, Amplificador e Zonas`, tblSom, true),
-    secN(`Devices no Teto — Posição, Origem e Cabeamento`, tblTeto, true),
-    plantaTeto,
-    secN(`Observações dos Pontos`, tblObservacoes, true),
-    (()=>{ let _nh=0; const aps=markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase())); return (showHeatmap && aps.length) ? buildHeatmap(()=>'') : '' })(),
-    secN(`Cabos de Som — Amplificador no RACK`, (d.cabos_som||[]).length?T(d.cabos_som.map(r=>`<tr>${pinCell(r.destino,r.etiqueta,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.metros)}m</td><td style="font-family:monospace;font-size:10px">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['Nº','ID','Origem','Destino','Tipo','Metros','Etiqueta']):'', true),
-    secN(`Automação — Interruptores, Tomadas, Sensores, Hub IR, Módulos`, tblAutomacao||pontosHtml, true),
-    secN(`Alimentação dos Keypads (Fase + Neutro)`, (d.alim_keypads||[]).length?T(d.alim_keypads.map(r=>`<tr>${pinCell(r.destino,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x2,5mm²')}</td></tr>`).join(''),['Nº','ID','Origem','Destino (Keypad)','Cota/Altura','Cômodo','m','Fios']):'', true),
-    secN(`Cabos Elétricos — por Cômodo`, cabosEletHtml, true),
-    secN(`Cabos Elétricos — Todos os Pontos (consolidado)`, cabosEletConsolidado, true),
-    secN(`Itens por Cômodo e Total Geral`, itensComodoHtml ? (itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml) : '', true),
-    secN(`Lista Completa de Peças`, (d.pecas||[]).length?T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td style="text-align:center"><b>${esc(r.qtd)}</b></td></tr>`).join(''),['Item','Qtd']):'', true),
-    secN(`Fotos no Diário de Obra`, fotosTxt),
-    secN(`Checklist de Obra — para o Arquiteto / Eletricista`, list(d.checklist_obra)),
-    secN(`Checklist de Instalação — Equipe RARO Home`, list(d.checklist_raro)),
-    secN(`Gestão e Controle do Projeto`, gestaoTxt),
-    secN(`Gráficos e Linha do Tempo do Projeto`, (grafico1 + grafico2 + grafico3 + grafico4)),
-    // ── No COMPLETO, anexa também tudo dos outros relatórios (Conduítes + Obra) ──
-    (()=>{ try{
-      const conduitesHtml = buildExecHtml(d,'conduites')
-      const obraHtml = buildExecHtml(d,'obra')
-      // extrai só o miolo (sem a capa e o wrapper externo) de cada um
-      const miolo = html => { const i=html.indexOf('<div class="ex-sec"'); const j=html.lastIndexOf('</div>'); return (i>=0)?html.slice(i, j):'' }
-      const secConduites = miolo(conduitesHtml)
-      const secObra = miolo(obraHtml)
-      let out=''
-      if(secObra) out += `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #7C3AED;padding-bottom:8px;font-size:22px">ANEXO — Plano de Obra (Cabos e Conduítes)</h2></div>${secObra}`
-      if(secConduites) out += `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #1E3A8A;padding-bottom:8px;font-size:22px">ANEXO — Relatório de Conduítes</h2></div>${secConduites}`
-      return out
-    }catch(e){ console.warn('anexos completo:',e); return '' } })(),
-  ].join('\n') })()}
+    // 1. PREMISSAS
+    d.premissas?.length ? cap('Premissas e Escopo do Projeto') + list(d.premissas) + '</div>' : '',
+
+    // 2. PLANTA GERAL (todos os itens, sem cabos/conduítes)
+    bgImage ? cap('Planta Geral — Posição de Todos os Itens') + `<p class="ex-p">Localização de todos os equipamentos posicionados na planta. Sem cabos ou conduítes — somente os pontos para referência do eletricista e pedreiro.</p>` + (()=>{
+      const allDots = markers.map(m=>{
+        const isR=isRackItem(m.name||'',m.code||'')
+        const isCx=classifyEle(m)?.sym==='caixa_conduite'
+        const bg=isR?'#4C1D95':isCx?'#1E3A8A':'#0EA5E9'
+        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
+          <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isCx?'CX':(isR?'R':m.n)}</div>
+          <div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 3px;font-size:7px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||'')}</div>
+        </div>`}).join('')
+      return `<div style="position:relative;display:inline-block;width:100%;margin-top:8px"><img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/><svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></svg>${allDots}</div>`
+    })() + '</div>' : '',
+
+    // 3. RACK / CPD
+    hasRack && (d.rack_detalhe||rackItems.length) ? cap('Rack / CPD — Equipamentos e Portas') + (list(d.rack_detalhe)+(rackEquipTable?`<h3 class="ex-amb">Equipamentos do Rack</h3>${rackEquipTable}`:'')+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Cabos de Rede</h3>${rackCableTableHtml}`:'')) + '</div>' : '',
+
+    // 4. PLANTA ELÉTRICA
+    buildPlantaEletrica(()=>`<span class="ex-sec-num" style="background:#0EA5E9;color:#fff;padding:3px 10px;border-radius:5px;font-size:13px;margin-right:10px">${++_cap}</span>`),
+
+    // 5. MAPA DE CALOR WI-FI
+    (()=>{ const aps=markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
+      return (showHeatmap && aps.length) ? (()=>{_cap++; return buildHeatmap(()=>`<span class="ex-sec-num" style="background:#0EA5E9;color:#fff;padding:3px 10px;border-radius:5px;font-size:13px;margin-right:10px">${_cap}</span>`)})() : '' })(),
+
+    // 6. PLANTA DE TETO
+    plantaTeto ? cap('Planta de Teto — Itens sobre Forro e Laje') + plantaTeto.replace(/<div class="ex-sec[^>]*><h2[^<]*<[^>]*>[^<]*<\/span>[^<]*<\/h2>/,'') + '</div>' : '',
+
+    // 7. CABEAMENTO — plantas por família (dados da Obra, integrado sem duplicação)
+    obraInline ? cap('Cabeamento e Conduítes — Plantas por Família') + `<p class="ex-p" style="margin-bottom:10px">Cada família de cabo (Dados, AP, Câmera, Som) com a planta dos cabos, tabela, planta dos conduítes e visão completa sobreposta. Para impressão em A3.</p>` + obraInline + '</div>' : '',
+
+    // 8. CONDUÍTES — relatório dedicado
+    conduitesInline ? cap('Relatório de Conduítes') + `<p class="ex-p" style="margin-bottom:10px">Detalhamento de cada conduíte com cabos dentro, bitola estimada e percurso.</p>` + conduitesInline + '</div>' : '',
+
+    // 9. SEGURANÇA
+    tblSeguranca ? cap('Segurança — Câmeras e Sensores') + tblSeguranca + '</div>' : '',
+
+    // 10. SOM
+    tblSom ? cap('Som Ambiente — Zonas e Caixas') + tblSom + '</div>' : '',
+
+    // 11. AUTOMAÇÃO
+    (tblAutomacao||pontosHtml) ? cap('Automação — Interruptores, Keypads e Módulos') + (tblAutomacao||pontosHtml) + '</div>' : '',
+
+    // 12. ALIMENTAÇÃO KEYPADS
+    (d.alim_keypads||[]).length ? cap('Alimentação dos Keypads (Fase + Neutro)') + T(d.alim_keypads.map(r=>`<tr>${pinCell(r.destino,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x1,5mm²')}</td></tr>`).join(''),['Nº','ID','Origem','Destino (Keypad)','Altura','Cômodo','m','Fios']) + '</div>' : '',
+
+    // 13. EQUIPAMENTOS E PEÇAS
+    cap('Equipamentos por Cômodo e Lista de Peças') +
+    (itensComodoHtml ? itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml : '') +
+    ((d.pecas||[]).length?'<h3 class="ex-amb" style="margin-top:16px">Lista Completa de Peças</h3>' + T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td style="text-align:center"><b>${esc(r.qtd)}</b></td></tr>`).join(''),['Item','Qtd']):'') + '</div>',
+
+    // 14. CHECKLISTS
+    cap('Checklists de Obra e Instalação') +
+    '<h3 class="ex-amb">Checklist de Obra — Arquiteto / Eletricista</h3>' + list(d.checklist_obra) +
+    '<h3 class="ex-amb" style="margin-top:16px">Checklist de Instalação — Equipe RARO Home</h3>' + list(d.checklist_raro) + '</div>',
+
+    // 15. GRÁFICOS E GESTÃO
+    cap('Gráficos e Gestão do Projeto') + (grafico1 + grafico2 + grafico3 + grafico4) +
+    (gestaoTxt ? '<h3 class="ex-amb" style="margin-top:18px">Gestão e Controle</h3>' + gestaoTxt : '') + '</div>',
+
+    // 16. OBSERVAÇÕES E FOTOS
+    (tblObservacoes||fotosTxt) ? cap('Observações e Fotos') +
+    (tblObservacoes ? '<h3 class="ex-amb">Observações dos Pontos</h3>' + tblObservacoes : '') +
+    (fotosTxt ? '<h3 class="ex-amb" style="margin-top:16px">Fotos no Diário de Obra</h3>' + fotosTxt : '') + '</div>' : '',
+
+  ].filter(Boolean).join('\n') })()}
 </div>`
   }
 
