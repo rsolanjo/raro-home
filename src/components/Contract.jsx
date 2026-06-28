@@ -104,23 +104,29 @@ export function buildContract(proposal, client, opts={}) {
   const tipoBadge = ehProjeto ? 'PROJETO · ACOMPANHAMENTO'
     : tipo==='ocultas' ? 'FORNECIMENTO + INSTALAÇÃO'
     : tipo==='avulsa' ? 'SERVIÇO PERSONALIZADO' : 'FORNECIMENTO + INSTALAÇÃO'
-  // Endereço da OBRA (onde a automação acontece) — montado dos campos de endereço do cliente
+  // Identificação do IMÓVEL da obra (onde a automação acontece) — montado dos campos do cliente.
+  // Complemento só com número (ex.: "202") é tratado como apartamento; "Casa 2", "Sala 30" etc. entram como vieram.
   const _ocli = client||{}
   const _obRuaNum = [_ocli.street, _ocli.number?('nº '+String(_ocli.number)):''].filter(Boolean).join(', ')
   const _obCidUf = _ocli.city ? (_ocli.city + (_ocli.state?(' – '+_ocli.state):'')) : (_ocli.state||'')
   const _obApos = [_ocli.neighborhood, _obCidUf, _ocli.cep?('CEP '+_ocli.cep):''].filter(Boolean).join(', ')
   const _obRuaFull = [_obRuaNum, _obApos].filter(Boolean).join(', ')
-  const obraNoArt = _obRuaFull
-    ? (_ocli.complement ? `${_ocli.complement}, localizado na ${_obRuaFull}` : `imóvel localizado na ${_obRuaFull}`)
-    : (_ocli.complement || 'imóvel objeto deste contrato')
+  const _imovel = (()=>{
+    let u = (_ocli.complement||'').trim()
+    if(u && /^\d+\s*[A-Za-z]?$/.test(u)) u = 'apartamento '+u.replace(/\s+/g,'')   // só número → apartamento
+    const fem = /^(casa|sala|cobertura|loja|unidade|quadra|kitnet|kitchenette|su[ií]te)\b/i.test(u)
+    if(!u) return { a:'ao', em:'no', txt: _obRuaFull ? `imóvel localizado na ${_obRuaFull}` : 'imóvel objeto deste contrato' }
+    const corpo = _obRuaFull ? `${u}, localizad${fem?'a':'o'} na ${_obRuaFull}` : u
+    return { a: fem?'à':'ao', em: fem?'na':'no', txt: corpo }
+  })()
   // Objeto do contrato
   const objetoTxt = opts.objetoCustom
     ? opts.objetoCustom
     : ehProjeto
-    ? `O presente instrumento tem por objeto a elaboração do <strong>projeto técnico de automação residencial e infraestrutura</strong>, bem como o <strong>acompanhamento técnico</strong> da implantação das soluções previstas, para o ${obraNoArt}, conforme escopo técnico nº <strong>${proposal.code}</strong>. Este instrumento <strong>não inclui</strong> o fornecimento de equipamentos, materiais ou a execução física da instalação, que poderão ser contratados posteriormente por meio de proposta e contrato específicos.`
+    ? `O presente instrumento tem por objeto a elaboração do <strong>projeto técnico de automação residencial e infraestrutura</strong>, bem como o <strong>acompanhamento técnico</strong> da implantação das soluções previstas. Os serviços destinam-se ${_imovel.a} ${_imovel.txt}, conforme escopo técnico nº <strong>${proposal.code}</strong>. Este instrumento <strong>não inclui</strong> o fornecimento de equipamentos, materiais ou a execução física da instalação, que poderão ser contratados posteriormente por meio de proposta e contrato específicos.`
     : tipo==='avulsa'
-    ? `O presente instrumento tem por objeto a prestação de serviços conforme escopo técnico nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I. Os serviços serão executados no ${obraNoArt}.`
-    : `O presente instrumento tem por objeto a prestação de serviços de automação residencial, fornecimento, instalação e configuração de equipamentos de tecnologia, conforme proposta técnica nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I. Os serviços serão executados no ${obraNoArt}.`
+    ? `O presente instrumento tem por objeto a prestação de serviços conforme escopo técnico nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I. Os serviços serão executados ${_imovel.em} ${_imovel.txt}.`
+    : `O presente instrumento tem por objeto a prestação de serviços de automação residencial, fornecimento, instalação e configuração de equipamentos de tecnologia, conforme proposta técnica nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I. Os serviços serão executados ${_imovel.em} ${_imovel.txt}.`
   // Forma de pagamento (editável em qualquer tipo via opts.pagamentoCustom)
   const pagamentoTxt = opts.pagamentoCustom ? opts.pagamentoCustom : (ehProjeto
     ? `O valor do projeto será pago <strong>à vista</strong>, no ato da contratação, mediante PIX, transferência ou conforme combinado entre as partes. A liberação do projeto e o início do acompanhamento ocorrem após a confirmação do pagamento.`
@@ -140,7 +146,7 @@ export function buildContract(proposal, client, opts={}) {
     ['DO ACOMPANHAMENTO TÉCNICO','O acompanhamento técnico contempla visita técnica, suporte ilimitado e orientação durante a execução, visando assegurar a conformidade da instalação com o projeto desenvolvido. A CONTRATADA esclarecerá dúvidas e validará as etapas conforme combinado entre as partes.'],
     ['DA PROPRIEDADE INTELECTUAL', garantiaTxt],
     ['DAS REVISÕES','Estão incluídas até 3 (três) revisões do projeto. Revisões adicionais ou mudanças de escopo poderão ser cobradas à parte.'],
-    ['DO SUPORTE','Dúvidas sobre o projeto via WhatsApp (21) 98170-9009, de segunda a sexta, das 9h às 18h.'],
+    ['DO SUPORTE','Dúvidas sobre o projeto serão atendidas via WhatsApp, no número (21) 98170-9009, de segunda a sexta, das 9h às 18h.'],
     ['DA CONFIDENCIALIDADE','As partes comprometem-se a manter sigilo sobre as informações técnicas, comerciais e pessoais trocadas no âmbito deste contrato.'],
   ] : [
     ['DO PRAZO', prazoTxt],
@@ -236,7 +242,7 @@ export function buildContract(proposal, client, opts={}) {
   <div class="clause">
     <div class="clause-h">CLÁUSULA 2ª — DO VALOR E DA FORMA DE PAGAMENTO</div>
     <div class="clause-b">
-      <p>Pelos serviços e equipamentos objeto deste contrato, o CONTRATANTE pagará à CONTRATADA o valor total de:</p>
+      <p>${ehProjeto?'Pelo projeto técnico e pelo acompanhamento objeto deste contrato':'Pelos serviços e equipamentos objeto deste contrato'}, o CONTRATANTE pagará à CONTRATADA o valor total de:</p>
       <div class="value">
         <div class="vl">${ehProjeto?'Valor do projeto e acompanhamento':'Investimento total do projeto'}</div>
         <div class="vn">R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>

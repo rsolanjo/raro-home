@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v195 — Contrato, alterações: (1) contratante ÚNICO (removido o 2º contratante e sua assinatura); (2) sai 'residente e domiciliado' — o endereço do cliente passa a ser o LOCAL DA OBRA, montado dentro do objeto; (3) toggle 'Ocultar CPF do cliente' (preâmbulo + assinatura); (4) objeto do PROJETO reescrito com escopo + endereço da obra + cláusula de exclusão de fornecimento; (5) cláusula do Acompanhamento reorganizada (visita técnica, suporte ilimitado, orientação). Garantia já era editável em Personalizar. 'Esta proposta' trocado por 'O presente instrumento' no objeto (consistência jurídica). Mantém v194 (relatório Novo/Clássico) e v193 (PDF de assinatura).
+// v197 — Relatório (Projeto Executivo): (1) corrige ícones/pinos brancos e formatação quebrada ao salvar em PDF — adicionado print-color-adjust:exact (premium e clássico), que força os fundos coloridos (pinos por categoria, cabeçalho navy das tabelas, zebra) a imprimirem sempre, em vez de sumirem quando o navegador desliga 'gráficos de plano de fundo'; (2) 'Planta de Pontos' deixa de ser seção numerada (é figura de referência) — sai o '1' ao lado do título e as seções reais passam a numerar a partir de 1. Mantém v196 (redação do contrato) e anteriores.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v195 · build 2026-06
+          v197 · build 2026-06
         </div>
       </div>
     </div>

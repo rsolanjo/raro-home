@@ -2027,17 +2027,16 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     <div class="ex-cover-foot">RARO Home · contato@rarohome.com.br · (21) 98170-9009</div>
   </div>
 
-  ${(()=>{ if(isObra||_eletr) return ''; let _n=0
-    const secN2=(title,inner,breakable=false)=> inner ? `<div class="ex-sec${breakable?' ex-breakable':''}"><h2><span class="ex-sec-num">${++_n}</span>${title}</h2>${inner}</div>` : ''
+  ${(()=>{ if(isObra||_eletr) return ''
     if(bgImage){
       const dots=markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:${st.c};color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${m.n}</div>`}).join('')
-      return secN2('Planta de Pontos', `<div style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${dots}</div>`)
+      return `<div class="ex-sec"><h2>Planta de Pontos</h2><div style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${dots}</div></div>`
     }
     return ''
   })()}
 
-  ${(()=>{ let _n=(bgImage && !isObra) ? 1 : 0
+  ${(()=>{ let _n=0
     const secN=(title,inner,breakable=false)=> inner ? `<div class="ex-sec${breakable?' ex-breakable':''}"><h2><span class="ex-sec-num">${++_n}</span>${title}</h2>${inner}</div>` : ''
     const fotosTxt=`
 <p class="ex-p">O mestre de obra deve fotografar cada ponto pelo número antes de fechar a parede, registrando no app RARO Home. Assim cada foto fica atrelada ao ponto correspondente.</p>
@@ -4098,8 +4097,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
 const EXEC_CSS=`
 /* ── Base ──────────────────────────────────────────────────────────────── */
-.ex-doc{font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;font-size:11.5px;line-height:1.55;background:#F5FAFF}
-.ex-doc *{box-sizing:border-box}
+.ex-doc{font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;font-size:11.5px;line-height:1.55;background:#F5FAFF;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.ex-doc *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
 /* ── Capa ───────────────────────────────────────────────────────────────── */
 .ex-cover{background:#F5FAFF;color:#0D1420;padding:60px 40px;text-align:center;border-bottom:3px solid #0EA5E9;page-break-after:always;break-after:page}
@@ -4168,8 +4167,8 @@ const EXEC_CSS=`
 `
 const EXEC_CSS_PREMIUM=`
 /* ===== RELATÓRIO — VERSÃO NOVA (premium sóbria) — mesmas classes do clássico ===== */
-.ex-doc{font-family:'EB Garamond','Georgia',serif;color:#23282F;font-size:11.8px;line-height:1.6;background:#fff}
-.ex-doc *{box-sizing:border-box}
+.ex-doc{font-family:'EB Garamond','Georgia',serif;color:#23282F;font-size:11.8px;line-height:1.6;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.ex-doc *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .ex-doc strong{color:#1A2740;font-weight:600}
 .ex-cover{background:#fff;color:#1A2740;padding:72px 40px;text-align:center;border-bottom:1px solid #9C7B45;page-break-after:always;break-after:page}
 .ex-cover-top{font-size:10px;letter-spacing:3px;color:#5C6470;text-transform:uppercase;margin-bottom:26px}
