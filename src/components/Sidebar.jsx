@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v187 — FIX PDF de assinatura (Assinafy): o PDF que ia pro Assinafy saía cortado (só 1ª página) e com a barra "Salvar como PDF" dentro. Causa: o iframe gerador tinha altura fixa de 1123px (1 página A4) e o html2canvas ignora @media print. Correção em Contract.jsx enviarParaAssinatura: remove os elementos .no-print antes de capturar, solta a altura do iframe pro conteúdo inteiro (scrollHeight) e adiciona pagebreak A4. Agora sobe o contrato completo e limpo. (Os demais documentos imprimem via window.print do navegador, que já pagina certo e esconde a barra.)
+// v188 — CONTRATO redesenhado (perfil tradicional aprovado pela Ful): saiu o layout de cards/caixas navy e entrou documento jurídico clássico em serif (EB Garamond, fallback Georgia), com preâmbulo de qualificação das partes, cláusulas no formato "CLÁUSULA Xª — DO/DA ...", ambientes em tabela sóbria de filetes, valor destacado entre filetes (print-safe, nunca some), e fecho tradicional. Dados editáveis na tela passam ao documento, incluindo CPF do 1º e agora do 2º contratante. PDF do Assinafy herda o novo template completo (via o fix v187: remove barra, altura cheia, paginação).
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v187 · build 2026-06
+          v188 · build 2026-06
         </div>
       </div>
     </div>

@@ -125,153 +125,136 @@ export function buildContract(proposal, client, opts={}) {
   const mostraEscopoItens = !ehProjeto && scopeRooms.length>0
   // Cláusulas específicas
   const clausulas = ehProjeto ? [
-    ['PRAZO DE ENTREGA DO PROJETO', prazoTxt],
-    ['ACOMPANHAMENTO','A CONTRATADA prestará acompanhamento técnico durante a execução, esclarecendo dúvidas e validando as etapas conforme combinado.'],
-    ['PROPRIEDADE INTELECTUAL', garantiaTxt],
-    ['REVISÕES','Estão incluídas até 3 (três) revisões do projeto. Revisões adicionais ou mudanças de escopo poderão ser cobradas à parte.'],
-    ['SUPORTE','Dúvidas sobre o projeto via WhatsApp (21) 98170-9009, de segunda a sexta, das 9h às 18h.'],
-    ['CONFIDENCIALIDADE','As partes comprometem-se a manter sigilo sobre as informações técnicas, comerciais e pessoais trocadas no âmbito deste contrato.'],
+    ['DO PRAZO DE ENTREGA DO PROJETO', prazoTxt],
+    ['DO ACOMPANHAMENTO','A CONTRATADA prestará acompanhamento técnico durante a execução, esclarecendo dúvidas e validando as etapas conforme combinado.'],
+    ['DA PROPRIEDADE INTELECTUAL', garantiaTxt],
+    ['DAS REVISÕES','Estão incluídas até 3 (três) revisões do projeto. Revisões adicionais ou mudanças de escopo poderão ser cobradas à parte.'],
+    ['DO SUPORTE','Dúvidas sobre o projeto via WhatsApp (21) 98170-9009, de segunda a sexta, das 9h às 18h.'],
+    ['DA CONFIDENCIALIDADE','As partes comprometem-se a manter sigilo sobre as informações técnicas, comerciais e pessoais trocadas no âmbito deste contrato.'],
   ] : [
-    ['PRAZO', prazoTxt],
-    ['GARANTIA', garantiaTxt],
-    ['SUPORTE PÓS-ENTREGA','A CONTRATADA prestará suporte técnico via WhatsApp no número (21) 98170-9009, de segunda a sexta, das 9h às 18h. Atendimentos emergenciais fora deste horário poderão ser cobrados separadamente.'],
-    ['OBRIGAÇÕES DO CONTRATANTE','Garantir acesso ao imóvel nos horários acordados; fornecer energia elétrica estabilizada no local de instalação; não efetuar modificações nos sistemas instalados sem prévia autorização técnica da CONTRATADA; manter os equipamentos afastados de fontes de umidade excessiva e calor.'],
-    ['EXCLUSÕES DE GARANTIA','Não estão cobertos: danos causados por mau uso, sobretensão elétrica, raio, inundação, quedas físicas, modificações realizadas por pessoas não autorizadas, ou uso fora das especificações técnicas dos fabricantes.'],
-    ['CANCELAMENTO','Em caso de cancelamento por parte do CONTRATANTE após o início da execução dos serviços, serão devidos os valores proporcionais aos serviços já prestados e materiais já adquiridos, acrescidos de multa de <strong>20% (vinte por cento)</strong> sobre o valor total contratado.'],
-    ['CONFIDENCIALIDADE','As partes comprometem-se a manter sigilo sobre as informações técnicas, comerciais e pessoais trocadas no âmbito deste contrato.'],
+    ['DO PRAZO', prazoTxt],
+    ['DA GARANTIA', garantiaTxt],
+    ['DO SUPORTE PÓS-ENTREGA','A CONTRATADA prestará suporte técnico via WhatsApp no número (21) 98170-9009, de segunda a sexta, das 9h às 18h. Atendimentos emergenciais fora deste horário poderão ser cobrados separadamente.'],
+    ['DAS OBRIGAÇÕES DO CONTRATANTE','Garantir acesso ao imóvel nos horários acordados; fornecer energia elétrica estabilizada no local de instalação; não efetuar modificações nos sistemas instalados sem prévia autorização técnica da CONTRATADA; manter os equipamentos afastados de fontes de umidade excessiva e calor.'],
+    ['DAS EXCLUSÕES DE GARANTIA','Não estão cobertos: danos causados por mau uso, sobretensão elétrica, raio, inundação, quedas físicas, modificações realizadas por pessoas não autorizadas, ou uso fora das especificações técnicas dos fabricantes.'],
+    ['DO CANCELAMENTO','Em caso de cancelamento por parte do CONTRATANTE após o início da execução dos serviços, serão devidos os valores proporcionais aos serviços já prestados e materiais já adquiridos, acrescidos de multa de <strong>20% (vinte por cento)</strong> sobre o valor total contratado.'],
+    ['DA CONFIDENCIALIDADE','As partes comprometem-se a manter sigilo sobre as informações técnicas, comerciais e pessoais trocadas no âmbito deste contrato.'],
   ]
   // cláusulas extras (avulsa)
   const extras = (opts.clausulasExtras||[]).filter(x=>(x.titulo||x.texto))
   extras.forEach(x=>clausulas.push([x.titulo||'CLÁUSULA ADICIONAL', x.texto||'']))
 
+  // qualificação do(s) contratante(s) no preâmbulo (usa CPF real se houver)
+  const _cpf1q = client?.cpf1 ? `portador do CPF nº ${client.cpf1}` : 'portador do CPF nº ___.___.___-__'
+  const _cpf2q = client?.cpf2 ? `portador do CPF nº ${client.cpf2}` : 'portador do CPF nº ___.___.___-__'
+  const contratanteQualif = name2
+    ? `<strong>${name1}</strong>, ${_cpf1q}, e <strong>${name2}</strong>, ${_cpf2q}, residentes e domiciliados à ${addr}.`
+    : `<strong>${name1}</strong>, ${_cpf1q}, residente e domiciliado à ${addr}.`
+
   return `<!DOCTYPE html><html lang="pt-BR"><head>
   <meta charset="UTF-8"><title>${tituloDoc} — ${client?.name1||proposal.client_name||'Cliente'}${proposal.code?' ('+proposal.code+')':''}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    @page{size:A4;margin:16mm 18mm 18mm}
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'DM Sans',sans-serif;font-size:10.5px;color:#22272E;line-height:1.78;background:#fff;padding:22px 30px;-webkit-font-smoothing:antialiased}
-    @media print{ body{padding:0} }
-    h1{font-family:'Fraunces',serif;font-size:23px;font-weight:500;color:#0A0F1C;margin-bottom:3px;letter-spacing:-0.3px}
-    h2{font-family:'Fraunces',serif;font-size:13px;font-weight:600;color:#0A3A66;margin:20px 0 7px;border-bottom:1.5px solid #DCEAFB;padding-bottom:4px;text-transform:uppercase;letter-spacing:0.8px}
-    .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #0A0F1C;padding-bottom:14px;margin-bottom:20px}
-    .badge{background:#0A0F1C;color:#fff;padding:4px 12px;border-radius:3px;font-size:8px;letter-spacing:2.5px;text-transform:uppercase;display:inline-block;margin-bottom:9px;font-weight:600}
-    .header-right{text-align:right;font-size:9px;color:#5A748F;line-height:2}
-    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:11px}
-    .field{background:#F7FBFF;border:1px solid #DCEAFB;border-radius:5px;padding:8px 11px}
-    .field-label{font-size:7.5px;letter-spacing:1.6px;color:#0A6BC0;text-transform:uppercase;margin-bottom:3px;font-weight:600}
-    .field-value{font-size:11px;color:#0A0F1C;font-weight:500}
-    .clause{margin-bottom:11px;text-align:justify;line-height:1.82;hyphens:auto}
-    .clause-num{font-weight:700;color:#0A3A66;margin-right:5px}
-    .total-box{background:linear-gradient(135deg,#0A0F1C 0%,#0d1d33 100%);color:#fff;padding:16px 20px;border-radius:6px;margin:16px 0;box-shadow:0 2px 10px rgba(10,15,28,0.12)}
-    .total-label{font-size:8px;letter-spacing:3.5px;color:#5BBEF5;text-transform:uppercase;margin-bottom:7px;font-weight:600}
-    .total-value{font-family:'Fraunces',serif;font-size:29px;font-weight:600;color:#fff;margin-bottom:5px;letter-spacing:-0.5px}
-    .total-extenso{font-size:9.5px;color:rgba(255,255,255,0.7);font-style:italic;line-height:1.5}
-    .scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:8px 0}
-    .scope-item{background:#F7FBFF;border:1px solid #DCEAFB;border-radius:4px;padding:5px 9px;font-size:10px;color:#1E3A5F}
-    .scope-detail{display:flex;flex-direction:column;gap:7px;margin:9px 0}
-    .scope-room{background:#F7FBFF;border:1px solid #DCEAFB;border-radius:5px;padding:7px 11px;break-inside:avoid}
-    .scope-room-hdr{font-size:10.5px;font-weight:700;color:#0A2540;margin-bottom:5px;display:flex;align-items:center;gap:6px}
-    .scope-room-qty{font-size:8px;font-weight:600;color:#fff;background:#0A6BC0;border-radius:9px;padding:1px 8px;margin-left:auto}
-    .scope-room-items{display:flex;flex-wrap:wrap;gap:4px}
-    .scope-chip{font-size:8.5px;color:#1E3A5F;background:#fff;border:1px solid #DCEAFB;border-radius:3px;padding:2px 7px}
-    .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px}
-    .sig-box{text-align:center}
-    .sig-signed{min-height:46px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px}
-    .sig-line{border-top:1px solid #9CB4CE;margin-bottom:5px}
-    .sig-name{font-size:9.5px;font-weight:600;color:#0A0F1C}
-    .sig-sub{font-size:8px;color:#8595A8;margin-top:2px}
-    .highlight{background:#EFF7FF;border-left:3px solid #0A6BC0;padding:9px 13px;border-radius:0 5px 5px 0;margin:11px 0;font-size:10px;line-height:1.7}
-    .footer{margin-top:26px;padding-top:10px;border-top:1px solid #DCEAFB;font-size:7.5px;color:#8595A8;text-align:center;line-height:1.7}
-    @media print{body{font-size:10px}.no-print{display:none!important}}
+  @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  @page{ size:A4; margin:18mm 18mm }
+  body{ font-family:'EB Garamond','Georgia',serif; font-size:11.7px; line-height:1.62; color:#23282F; text-align:justify; background:#fff; padding:30px 40px; hyphens:auto; -webkit-font-smoothing:antialiased }
+  @media print{ body{padding:0} .no-print{display:none!important} }
+  .head{ text-align:center; margin-bottom:6px }
+  .head img{ width:120px; height:auto; margin:0 auto 8px; display:block }
+  .head .firm{ font-size:10px; color:#5C6470; line-height:1.5 }
+  .head .firm strong{ color:#1A2740 }
+  .rule{ border:none; border-top:1px solid #9C7B45; width:60%; margin:13px auto 4px }
+  .rule.thin{ border-top:1px solid #E3E6EB; width:100%; margin:16px auto }
+  .title{ text-align:center; font-weight:600; font-size:18px; color:#1A2740; letter-spacing:.4px; margin:15px 0 4px; line-height:1.25 }
+  .subtitle{ text-align:center; font-size:10.5px; font-style:italic; color:#5C6470; margin-bottom:20px }
+  .preamble p{ margin-bottom:9px }
+  .party-line{ margin:8px 0; padding-left:16px }
+  .party-line .lbl{ font-variant:small-caps; font-weight:600; letter-spacing:.5px; color:#1A2740 }
+  .clause{ margin:15px 0; break-inside:avoid }
+  .clause-h{ font-weight:600; font-size:12px; color:#1A2740; letter-spacing:.6px; margin-bottom:4px; text-align:left }
+  .clause-b p{ margin-bottom:6px }
+  .value{ text-align:center; margin:13px auto; padding:11px 0; border-top:1px solid #CDD2DA; border-bottom:1px solid #CDD2DA; width:78% }
+  .value .vl{ font-variant:small-caps; letter-spacing:2px; font-size:10px; color:#9C7B45 }
+  .value .vn{ font-size:23px; font-weight:600; color:#1A2740; line-height:1.2; margin:3px 0 2px }
+  .value .ve{ font-size:10.5px; font-style:italic; color:#5C6470 }
+  table.scope{ width:100%; border-collapse:collapse; margin:9px 0; font-size:10.7px }
+  table.scope td{ padding:7px 4px; border-bottom:1px solid #E3E6EB; vertical-align:top }
+  table.scope td.amb{ font-weight:600; color:#1A2740; width:30%; white-space:nowrap }
+  table.scope tr:first-child td{ border-top:1px solid #CDD2DA }
+  strong{ font-weight:600; color:#1A2740 }
+  .nota{ font-style:italic; color:#5C6470; font-size:10.5px; margin-top:6px }
+  .closing{ margin:18px 0 8px }
+  .sigs{ display:flex; gap:50px; margin-top:40px; break-inside:avoid }
+  .sig{ flex:1; text-align:center }
+  .sigspace{ height:42px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:3px }
+  .sigline{ border-top:1px solid #23282F; margin-bottom:5px }
+  .signame{ font-weight:600; color:#1A2740; font-size:11px }
+  .sigrole{ font-size:9.5px; font-style:italic; color:#5C6470 }
+  .hand{ font-style:italic; font-size:19px; color:#1A2740 }
+  .footer{ margin-top:24px; padding-top:9px; border-top:1px solid #E3E6EB; font-size:8.5px; color:#9AA1AB; text-align:center; line-height:1.6 }
   </style>
 </head><body>
-  <div class="no-print" style="position:sticky;top:0;background:#060B1A;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;font-family:'DM Sans',sans-serif;font-size:11px;z-index:99">
-    <span>${tituloDoc} — ${proposal.code} — ${client?.name1||proposal.client_name}</span>
-    <button onclick="window.print()" style="background:#0EA5E9;color:#fff;border:none;padding:6px 16px;border-radius:4px;font-size:11px;cursor:pointer">⬇ Salvar como PDF</button>
+  <div class="no-print" style="position:sticky;top:0;background:#1A2740;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;font-size:11px;z-index:99">
+    <span>${tituloDoc} — ${proposal.code||''} — ${client?.name1||proposal.client_name||''}</span>
+    <button onclick="window.print()" style="background:#9C7B45;color:#fff;border:none;padding:6px 16px;border-radius:4px;font-size:11px;cursor:pointer;font-family:sans-serif">⬇ Salvar como PDF</button>
   </div>
 
-  <div class="header">
-    <div>
-      <img src="${LOGO_CONTRACT}" alt="RARO HOME" style="height:84px;width:auto;margin-bottom:10px;display:block"/>
-      <div class="badge">${tipoBadge}</div>
-      <h1>${tituloDoc}</h1>
-      <div style="font-size:9px;color:#6B8CAE">Automação Residencial · Tecnologia · Lazer</div>
-    </div>
-    <div class="header-right">
-      <strong>RARO Home Tecnologia</strong><br/>
-      contato@rarohome.com.br · (21) 98170-9009<br/>
-      www.rarohome.com.br · @rarohome<br/>
-      <strong style="color:#060B1A">Contrato nº ${proposal.code||proposal.id}</strong><br/>
-      Rio de Janeiro, ${today}
+  <div class="head">
+    <img src="${LOGO_CONTRACT}" alt="RARO Home"/>
+    <div class="firm"><strong>RARO Home Tecnologia</strong> · contato@rarohome.com.br · (21) 98170-9009<br/>www.rarohome.com.br · @rarohome</div>
+    <hr class="rule"/>
+  </div>
+
+  <div class="title">${tituloDoc}</div>
+  <div class="subtitle">Contrato nº ${proposal.code||proposal.id} · Rio de Janeiro, ${today}</div>
+
+  <div class="preamble">
+    <p>Pelo presente instrumento particular, as partes a seguir qualificadas:</p>
+    <div class="party-line"><span class="lbl">Contratada:</span> <strong>RARO Home Tecnologia</strong>, prestadora de serviços de automação residencial, com sede no Rio de Janeiro/RJ, neste ato representada por <strong>Rogério Silva</strong>; e</div>
+    <div class="party-line"><span class="lbl">Contratante:</span> ${contratanteQualif}</div>
+    <p>têm entre si, de comum acordo, justo e contratado o que segue, mediante as cláusulas e condições adiante estabelecidas.</p>
+  </div>
+
+  <div class="clause">
+    <div class="clause-h">CLÁUSULA 1ª — DO OBJETO</div>
+    <div class="clause-b">
+      <p>${objetoTxt}</p>
+      ${mostraEscopoItens?`<p style="margin-top:4px">Os ambientes e itens contemplados são os seguintes:</p>
+      <table class="scope">${scopeRooms.map(r=>`<tr><td class="amb">${r.name}</td><td>${r.itemList.join(', ')}.</td></tr>`).join('')}</table>`:''}
     </div>
   </div>
 
-  <h2>1. Partes Contratantes</h2>
-  <div class="grid-2">
-    <div>
-      <div style="font-size:9px;font-weight:600;color:#0369A1;margin-bottom:5px;text-transform:uppercase;letter-spacing:1px">Contratada</div>
-      <div class="field"><div class="field-label">Empresa</div><div class="field-value">RARO Home Tecnologia</div></div>
-      <div class="field" style="margin-top:5px"><div class="field-label">Responsável</div><div class="field-value">Rogério Silva</div></div>
-    </div>
-    <div>
-      <div style="font-size:9px;font-weight:600;color:#0369A1;margin-bottom:5px;text-transform:uppercase;letter-spacing:1px">Contratante</div>
-      <div class="field"><div class="field-label">Nome completo</div><div class="field-value">${bothNames}</div></div>
-      <div class="field" style="margin-top:5px"><div class="field-label">Contato</div><div class="field-value">${client?.phone1||'—'} · ${client?.email||'—'}</div></div>
+  <div class="clause">
+    <div class="clause-h">CLÁUSULA 2ª — DO VALOR E DA FORMA DE PAGAMENTO</div>
+    <div class="clause-b">
+      <p>Pelos serviços e equipamentos objeto deste contrato, o CONTRATANTE pagará à CONTRATADA o valor total de:</p>
+      <div class="value">
+        <div class="vl">${ehProjeto?'Valor do projeto e acompanhamento':'Investimento total do projeto'}</div>
+        <div class="vn">R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+        <div class="ve">(${totalExtenso})</div>
+      </div>
+      <p>${pagamentoTxt}</p>
+      ${ehProjeto?'':`<p class="nota">O detalhamento completo dos equipamentos por ambiente consta na Proposta Técnica nº ${proposal.code}, parte integrante deste contrato.</p>`}
     </div>
   </div>
-  <div class="grid-2">
-    <div class="field"><div class="field-label">Local de execução</div><div class="field-value">${addr}</div></div>
-    <div class="field"><div class="field-label">Tipo de imóvel</div><div class="field-value">${housing}</div></div>
+
+  ${clausulas.map((cl,i)=>`<div class="clause"><div class="clause-h">CLÁUSULA ${i+3}ª — ${cl[0]}</div><div class="clause-b"><p>${cl[1]}</p></div></div>`).join('')}
+
+  <hr class="rule thin"/>
+  <div class="closing">
+    <p>E, por estarem assim justas e contratadas, as partes assinam o presente instrumento em 2 (duas) vias de igual teor e forma, declarando tê-lo lido, compreendido e aceito integralmente.</p>
+    <p style="margin-top:7px"><strong>Rio de Janeiro, ${today}.</strong></p>
   </div>
 
-  <h2>2. Objeto do Contrato</h2>
-  <div class="clause">${objetoTxt}</div>
-  ${mostraEscopoItens?`<div style="margin:8px 0 4px;font-size:9px;font-weight:600;color:#1E3A5F;text-transform:uppercase;letter-spacing:1px">Ambientes e itens contemplados:</div>
-  <div class="scope-detail">${scopeRooms.map(r=>`
-    <div class="scope-room">
-      <div class="scope-room-hdr">${r.icon} ${r.name} <span class="scope-room-qty">${r.total} ${r.total===1?'item':'itens'}</span></div>
-      <div class="scope-room-items">${r.itemList.map(it=>`<span class="scope-chip">${it}</span>`).join('')}</div>
-    </div>`).join('')}</div>`:''}
-
-  <h2>3. Valor ${ehProjeto?'do Projeto':'Total'} e Forma de Pagamento</h2>
-  <div class="total-box">
-    <div class="total-label">${ehProjeto?'Valor do Projeto e Acompanhamento':'Investimento Total do Projeto'}</div>
-    <div class="total-value">R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
-    <div class="total-extenso">(${totalExtenso})</div>
-  </div>
-  <div class="clause">${pagamentoTxt}</div>
-  ${ehProjeto?'':`<div class="highlight"><strong>Nota:</strong> O detalhamento completo dos equipamentos por ambiente consta na Proposta Técnica nº ${proposal.code}, parte integrante deste contrato.</div>`}
-
-  <h2>4. Cláusulas e Condições</h2>
-  ${clausulas.map((cl,i)=>`<div class="clause"><span class="clause-num">4.${i+1} ${cl[0]}:</span> ${cl[1]}</div>`).join('')}
-
-
-  <h2>5. Aceite e Assinaturas</h2>
-  <div style="font-size:10px;color:#3D5A80;margin-bottom:16px">
-    As partes declaram ter lido, compreendido e concordado com todas as cláusulas deste instrumento, assinando-o em duas vias de igual teor e forma.
-  </div>
-  <div style="font-size:10px;color:#3D5A80;margin-bottom:20px"><strong>Rio de Janeiro, ${today}.</strong></div>
-
-  <div class="sig-grid">
-    <div class="sig-box">
-      <div class="sig-signed"><div style="font-size:11px;color:#9CA3AF;font-style:italic">_________________________</div></div>
-      <div class="sig-line"></div>
-      <div class="sig-name">${name1}</div>
-      <div class="sig-sub">Contratante · CPF: ___.___.___-__</div>
-    </div>
-    <div class="sig-box">
-      <div class="sig-signed">${ROG_SIG}</div>
-      <div class="sig-line"></div>
-      <div class="sig-name">Rogério Silva</div>
-      <div class="sig-sub">RARO Home Tecnologia · Contratada</div>
-    </div>
-    ${name2?`<div class="sig-box" style="margin-top:24px"><div class="sig-signed"><div style="font-size:11px;color:#9CA3AF;font-style:italic">_________________________</div></div><div class="sig-line"></div><div class="sig-name">${name2}</div><div class="sig-sub">Contratante · CPF: ___.___.___-__</div></div><div></div>`:''}
+  <div class="sigs">
+    <div class="sig"><div class="sigspace"></div><div class="sigline"></div><div class="signame">${name1}</div><div class="sigrole">Contratante${client?.cpf1?' · CPF '+client.cpf1:''}</div></div>
+    <div class="sig"><div class="sigspace"><span class="hand">Rogério Silva</span></div><div class="sigline"></div><div class="signame">Rogério Silva</div><div class="sigrole">RARO Home Tecnologia — Contratada</div></div>
+    ${name2?`<div class="sig" style="margin-top:14px"><div class="sigspace"></div><div class="sigline"></div><div class="signame">${name2}</div><div class="sigrole">Contratante${client?.cpf2?' · CPF '+client.cpf2:''}</div></div><div class="sig"></div>`:''}
   </div>
 
   <div class="footer">
     RARO Home Tecnologia · contato@rarohome.com.br · (21) 98170-9009 · www.rarohome.com.br<br/>
-    Contrato nº ${proposal.code||proposal.id} · Emitido em ${today} · Proposta válida por ${proposal.valid_days||30} dias
+    Contrato nº ${proposal.code||proposal.id} · Emitido em ${today}${proposal.valid_days?' · Proposta válida por '+proposal.valid_days+' dias':''}
   </div>
 </body></html>`
 }
@@ -287,6 +270,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
     name1: baseClient?.full_name1 || baseClient?.name1 || '',
     name2: baseClient?.full_name2 || baseClient?.name2 || '',
     cpf1: baseClient?.cpf1 || baseClient?.cpf || '',
+    cpf2: baseClient?.cpf2 || '',
     street: baseClient?.street || '',
     number: baseClient?.number || '',
     complement: baseClient?.complement || '',
@@ -299,7 +283,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
   })
   // cliente efetivo = base + edições
   const client = { ...baseClient, full_name1:edits.name1, name1:edits.name1, full_name2:edits.name2, name2:edits.name2,
-    cpf1:edits.cpf1, cpf:edits.cpf1, street:edits.street, number:edits.number, complement:edits.complement,
+    cpf1:edits.cpf1, cpf:edits.cpf1, cpf2:edits.cpf2, street:edits.street, number:edits.number, complement:edits.complement,
     neighborhood:edits.neighborhood, city:edits.city, state:edits.state, cep:edits.cep, phone1:edits.phone1, email:edits.email }
   const bothNames = edits.name2 ? `${edits.name1} e ${edits.name2}` : edits.name1
   const ed=(k,v)=>setEdits(p=>({...p,[k]:v}))
@@ -648,7 +632,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
               <button className="btn" style={{marginLeft:'auto',fontSize:11}} onClick={()=>setShowReview(false)}><i className="ti ti-check" aria-hidden/>Dados corretos, ocultar</button>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10}}>
-              {[['name1','Nome completo (1º contratante)'],['name2','Nome completo (2º contratante)'],['cpf1','CPF'],['phone1','Telefone'],['email','E-mail'],['street','Rua / Logradouro do imóvel'],['number','Número'],['complement','Complemento'],['neighborhood','Bairro'],['city','Cidade'],['state','Estado'],['cep','CEP']].map(([k,lb])=>(
+              {[['name1','Nome completo (1º contratante)'],['name2','Nome completo (2º contratante)'],['cpf1','CPF (1º contratante)'],['cpf2','CPF (2º contratante)'],['phone1','Telefone'],['email','E-mail'],['street','Rua / Logradouro do imóvel'],['number','Número'],['complement','Complemento'],['neighborhood','Bairro'],['city','Cidade'],['state','Estado'],['cep','CEP']].map(([k,lb])=>(
                 <div key={k}>
                   <div style={{fontSize:10,color:'var(--text3)',marginBottom:3}}>{lb}</div>
                   <input value={edits[k]} onChange={e=>ed(k,e.target.value)} placeholder={lb}
