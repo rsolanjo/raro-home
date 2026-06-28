@@ -444,9 +444,11 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
     if(!window.confirm(`Enviar o contrato para assinatura digital?\n\nSerá enviado para:\n• ${bothNames} <${emailCliente}>\n• Rogério (RARO Home)\n\nVia Assinafy (ICP-Brasil).`)) return
     setSigning(true)
     try{
-      // 1) carrega html2pdf do CDN
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js')
-      if(!window.html2pdf) throw new Error('html2pdf não carregou do CDN')
+      // 1) carrega html2canvas e jsPDF do CDN (geração manual, sem o wrapper html2pdf que cortava)
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+      if(!window.html2canvas) throw new Error('html2canvas não carregou do CDN')
+      if(!(window.jspdf && window.jspdf.jsPDF)) throw new Error('jsPDF não carregou do CDN')
 
       // 2) renderiza o contrato num iframe oculto com largura A4 e altura AUTO
       const html = buildContract(proposal, client, opts)
@@ -491,14 +493,30 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
       iframe.style.height = fullH+'px'
       await new Promise(r=>setTimeout(r,250))
 
-      // 3) gera o PDF (A4, conteúdo completo, paginado)
-      const pdfBlob = await window.html2pdf().set({
-        margin:[10,10,10,10], filename:`Contrato-${proposal.code||'RARO'}.pdf`,
-        image:{type:'jpeg',quality:0.95},
-        html2canvas:{ scale:2, useCORS:true, logging:false, backgroundColor:'#ffffff', windowWidth:794, windowHeight:fullH, scrollX:0, scrollY:0 },
-        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
-        pagebreak:{ mode:['css','legacy'] }
-      }).from(idoc.body).outputPdf('blob')
+      // 3) gera o PDF com paginação MANUAL (jsPDF), porque o wrapper html2pdf estava
+      // posicionando a imagem com offset e cortando a lateral ESQUERDA do texto.
+      // Aqui capturamos o conteúdo e o colocamos ocupando a LARGURA CHEIA da página (x=0):
+      // a margem visual vem do próprio padding do contrato — sem margem dupla, sem corte.
+      const canvas = await window.html2canvas(idoc.body, {
+        scale:2, useCORS:true, logging:false, backgroundColor:'#ffffff',
+        width:794, windowWidth:794, windowHeight:fullH, x:0, y:0, scrollX:0, scrollY:0
+      })
+      const imgData = canvas.toDataURL('image/jpeg', 0.95)
+      const JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF
+      if(!JsPDF) throw new Error('jsPDF não disponível no bundle html2pdf')
+      const pdf = new JsPDF({ unit:'mm', format:'a4', orientation:'portrait' })
+      const pageW = 210, pageH = 297
+      const imgH = canvas.height * pageW / canvas.width   // altura total da imagem em mm
+      let heightLeft = imgH, position = 0
+      pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH, undefined, 'FAST')
+      heightLeft -= pageH
+      while(heightLeft > 0){
+        position -= pageH
+        pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH, undefined, 'FAST')
+        heightLeft -= pageH
+      }
+      const pdfBlob = pdf.output('blob')
 
       document.body.removeChild(iframe)
       if(!pdfBlob || pdfBlob.size < 5000) throw new Error(`PDF gerado inválido ou pequeno demais (${pdfBlob?.size||0} bytes) — o conteúdo pode não ter renderizado`)
