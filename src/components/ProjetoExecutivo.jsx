@@ -485,6 +485,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [showIds, setShowIds] = useState(false)  // mostrar os códigos/IDs nos pinos da planta (default: limpo)
   const [showTeto, setShowTeto] = useState(true)   // mostrar indicador de itens no teto (pontinho azul)
   const [execData, setExecData] = useState(null)       // dados crus da IA (p/ re-render das 2 versões)
+  const [execVersao, setExecVersao] = useState('nova') // 'nova' (premium) | 'antiga' (clássico cyan)
   const [execProgress, setExecProgress] = useState('')
   const [zoom, setZoom] = useState(1)
   const [selected, setSelected] = useState(null)
@@ -1531,7 +1532,8 @@ Responda APENAS JSON válido:
     setLoading(false)
   }
 
-  function buildExecHtml(d, mode='completo'){
+  function buildExecHtml(d, mode='completo', versao){
+    const _ver = versao || execVersao
     const isObra = mode==='obra'
 
     // ── PLANTA ELÉTRICA (ABNT NBR 5444) — símbolos técnicos sobre a planta ──
@@ -2012,7 +2014,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 </div>`
 
     const _eletr = mode==='eletrica'
-    return `<style>${EXEC_CSS}</style>
+    return `<style>${_ver==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
 <div class="ex-doc">
   <!-- CAPA -->
   <div class="ex-cover">
@@ -2879,8 +2881,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       body = (execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execMode==='conduites'?execDocConduites:execDoc)||''
     }
     w.document.write(`<html><head><title>${tituloPdf}</title><meta charset="utf-8">
-      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-      <style>${pageCss} body{margin:0}${EXEC_CSS}</style></head><body>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      <style>${pageCss} body{margin:0}${execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style></head><body>
       ${body}
       </body></html>`)
     w.document.close(); setTimeout(()=>w.print(),700)
@@ -3962,10 +3964,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
         {step==='exec' && (
           <div style={{flex:1,overflowY:'auto',background:'#e8eaed',padding:'20px 0'}}>
-            <style>{EXEC_CSS}</style>
+            <style>{execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
             {/* Seletor de versão do documento (Completo · Obra · Elétrica) */}
             <div style={{maxWidth:820,margin:'0 auto 14px',display:'flex',gap:8,alignItems:'center',padding:'0 4px',flexWrap:'wrap'}}>
-              <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:4}}>Versão do documento:</span>
+              <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:4}}>Documento:</span>
               {[['completo','Completo','ti-file-text'],['obra','Obra / Pedreiro','ti-tools'],['eletrica','Elétrica','ti-bolt'],['conduites','Conduítes','ti-route']].map(([m,label,icon])=>{
                 const doc = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:m==='conduites'?execDocConduites:execDoc
                 return (
@@ -3984,6 +3986,22 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   <i className={`ti ${icon}`} aria-hidden/>{label}
                 </button>
               )})}
+              <span style={{width:1,height:22,background:'#E2E8F0',margin:'0 6px'}}/>
+              <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:2}}>Estilo:</span>
+              {[['nova','Novo'],['antiga','Clássico']].map(([v,label])=>(
+                <button key={v} onClick={()=>{
+                  setExecVersao(v)
+                  try{
+                    const d = execData || buildExecDataFromMarkers()
+                    setExecDoc(buildExecHtml(d,'completo',v)); setExecDocObra(buildExecHtml(d,'obra',v))
+                    setExecDocEletrica(buildExecHtml(d,'eletrica',v)); setExecDocConduites(buildExecHtml(d,'conduites',v))
+                  }catch(e){ console.warn('versao-regen:',e) }
+                }}
+                  style={{padding:'7px 12px',borderRadius:8,fontSize:12.5,fontWeight:execVersao===v?700:500,cursor:'pointer',
+                    border:`1.5px solid ${execVersao===v?'#9C7B45':'#CBD5E1'}`,background:execVersao===v?'#9C7B45':'#fff',color:execVersao===v?'#fff':'#475569'}}>
+                  {label}
+                </button>
+              ))}
               <div style={{flex:1}}/>
               {execMode==='completo' && <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569',cursor:'pointer',userSelect:'none'}}>
                 <input type="checkbox" checked={showHeatmap} onChange={e=>{
@@ -4146,6 +4164,50 @@ const EXEC_CSS=`
   .ex-tbl td{padding:5px 7px}
   h2{font-size:16px}
   .ex-amb{font-size:11.5px}
+}
+`
+const EXEC_CSS_PREMIUM=`
+/* ===== RELATÓRIO — VERSÃO NOVA (premium sóbria) — mesmas classes do clássico ===== */
+.ex-doc{font-family:'EB Garamond','Georgia',serif;color:#23282F;font-size:11.8px;line-height:1.6;background:#fff}
+.ex-doc *{box-sizing:border-box}
+.ex-doc strong{color:#1A2740;font-weight:600}
+.ex-cover{background:#fff;color:#1A2740;padding:72px 40px;text-align:center;border-bottom:1px solid #9C7B45;page-break-after:always;break-after:page}
+.ex-cover-top{font-size:10px;letter-spacing:3px;color:#5C6470;text-transform:uppercase;margin-bottom:26px}
+.ex-cover-tag{font-variant:small-caps;font-size:13px;letter-spacing:4px;color:#9C7B45;margin:6px 0 34px}
+.ex-cover-title{font-family:'EB Garamond',Georgia,serif;font-weight:600;font-size:33px;line-height:1.16;margin-bottom:13px;color:#1A2740}
+.ex-cover-sub{font-size:13px;font-style:italic;color:#5C6470;line-height:1.6;margin-bottom:32px}
+.ex-cover-client{background:#fff;border-top:1px solid #1A2740;border-bottom:1px solid #1A2740;padding:18px 20px;margin:0 auto;max-width:420px}
+.ex-cc-name{font-size:19px;font-weight:600;color:#1A2740}
+.ex-cc-meta{font-size:11px;color:#5C6470;margin-top:4px}
+.ex-cover-foot{margin-top:34px;font-size:9.5px;color:#9AA1AB}
+.ex-sec{padding:22px 36px 24px;border-bottom:1px solid #E3E6EB;background:#fff}
+.ex-sec h2{font-family:'EB Garamond',Georgia,serif;font-weight:600;font-size:17px;color:#1A2740;margin:0 0 14px;padding-bottom:8px;border-bottom:2px solid #1A2740;display:flex;align-items:baseline;gap:10px;page-break-after:avoid;break-after:avoid}
+.ex-sec-num{display:inline;width:auto;height:auto;min-width:0;background:none;border-radius:0;color:#9C7B45;font-size:14px;font-weight:600;font-variant:small-caps;letter-spacing:1px;font-family:'EB Garamond',serif}
+.ex-amb{font-variant:small-caps;letter-spacing:1px;font-size:12.5px;color:#1A2740;font-weight:600;margin:16px 0 6px;background:none;border-left:2px solid #9C7B45;padding:2px 0 2px 11px;border-radius:0;page-break-after:avoid;break-after:avoid}
+.ex-tbl{width:100%;border-collapse:collapse;margin:8px 0 14px;font-family:'Inter',system-ui,sans-serif;font-size:9.5px;page-break-inside:auto;break-inside:auto}
+.ex-tbl thead{display:table-header-group}
+.ex-tbl th{background:#1A2740;color:#fff;padding:6px 8px;text-align:left;font-size:8.5px;font-weight:600;letter-spacing:.2px;text-transform:uppercase;white-space:nowrap}
+.ex-tbl td{padding:6px 8px;border-bottom:1px solid #E3E6EB;vertical-align:top}
+.ex-tbl tr:nth-child(even) td{background:#FAFBFC}
+.ex-tbl tbody tr{page-break-inside:avoid;break-inside:avoid}
+.ex-tbl-group td{border-top:1.5px solid #CDD2DA}
+.ex-ul{margin:5px 0 8px 20px}
+.ex-ul li{margin-bottom:4px;line-height:1.55}
+.ex-p{font-family:'EB Garamond',Georgia,serif;font-size:11.8px;line-height:1.65;color:#23282F;margin:0 0 8px}
+.ex-obra-page{padding:18px 28px 26px;background:#fff;border-bottom:1px solid #E3E6EB}
+.ex-obra-page h2{font-family:'EB Garamond',Georgia,serif;font-weight:600;font-size:20px;color:#1A2740;margin:0 0 10px}
+.ex-obra-page img{width:100%;display:block;border:1px solid #CDD2DA;border-radius:6px}
+.ex-plant-wrap{position:relative;width:100%;margin:8px 0}
+.ex-plant-wrap img{width:100%;display:block}
+@media print{
+  .no-print{display:none!important}
+  .ex-cover{page-break-after:always;break-after:page}
+  .ex-sec{page-break-inside:avoid;break-inside:avoid;padding:18px 28px 20px}
+  .ex-sec.ex-breakable{page-break-inside:auto;break-inside:auto}
+  .ex-obra-page{page-break-inside:avoid;break-inside:avoid}
+  .ex-tbl thead{display:table-header-group}
+  .ex-tbl{font-size:9px}.ex-tbl th{padding:5px 7px;font-size:8px}.ex-tbl td{padding:5px 7px}
+  h2{font-size:16px}.ex-amb{font-size:12px}
 }
 `
 

@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v193 — Ajuste fino do PDF de assinatura (fallback navegador): (1) mata a 3ª página vazia medindo o FIM REAL do contrato (fundo do rodapé) em vez do espaço morto depois dele, mais um encaixe automático que comprime levemente para 2 páginas exatas se estourar por pouco; (2) legibilidade: nitidez em alta (scale 3 + PNG) e corpo do texto um tico maior (12.3px). Georgia (v192) segue como fonte do PDF p/ não grudar. Caminho do servidor (v191, Chromium → vetorial) continua como preferencial quando estiver no ar. EM ANDAMENTO: portar p/ o código os designs de Proposta, Apresentação e Relatório do cliente.
+// v195 — Contrato, alterações: (1) contratante ÚNICO (removido o 2º contratante e sua assinatura); (2) sai 'residente e domiciliado' — o endereço do cliente passa a ser o LOCAL DA OBRA, montado dentro do objeto; (3) toggle 'Ocultar CPF do cliente' (preâmbulo + assinatura); (4) objeto do PROJETO reescrito com escopo + endereço da obra + cláusula de exclusão de fornecimento; (5) cláusula do Acompanhamento reorganizada (visita técnica, suporte ilimitado, orientação). Garantia já era editável em Personalizar. 'Esta proposta' trocado por 'O presente instrumento' no objeto (consistência jurídica). Mantém v194 (relatório Novo/Clássico) e v193 (PDF de assinatura).
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v193 · build 2026-06
+          v195 · build 2026-06
         </div>
       </div>
     </div>

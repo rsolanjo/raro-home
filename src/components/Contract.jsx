@@ -104,12 +104,23 @@ export function buildContract(proposal, client, opts={}) {
   const tipoBadge = ehProjeto ? 'PROJETO · ACOMPANHAMENTO'
     : tipo==='ocultas' ? 'FORNECIMENTO + INSTALAÇÃO'
     : tipo==='avulsa' ? 'SERVIÇO PERSONALIZADO' : 'FORNECIMENTO + INSTALAÇÃO'
+  // Endereço da OBRA (onde a automação acontece) — montado dos campos de endereço do cliente
+  const _ocli = client||{}
+  const _obRuaNum = [_ocli.street, _ocli.number?('nº '+String(_ocli.number)):''].filter(Boolean).join(', ')
+  const _obCidUf = _ocli.city ? (_ocli.city + (_ocli.state?(' – '+_ocli.state):'')) : (_ocli.state||'')
+  const _obApos = [_ocli.neighborhood, _obCidUf, _ocli.cep?('CEP '+_ocli.cep):''].filter(Boolean).join(', ')
+  const _obRuaFull = [_obRuaNum, _obApos].filter(Boolean).join(', ')
+  const obraNoArt = _obRuaFull
+    ? (_ocli.complement ? `${_ocli.complement}, localizado na ${_obRuaFull}` : `imóvel localizado na ${_obRuaFull}`)
+    : (_ocli.complement || 'imóvel objeto deste contrato')
   // Objeto do contrato
-  const objetoTxt = ehProjeto
-    ? `O presente instrumento tem por objeto a elaboração de <strong>projeto técnico de automação e infraestrutura</strong> e o <strong>acompanhamento técnico</strong> da sua implantação, conforme escopo técnico nº <strong>${proposal.code}</strong>. Este contrato <strong>não inclui</strong> o fornecimento de equipamentos nem a execução física da instalação, que poderão ser objeto de contrato específico.`
+  const objetoTxt = opts.objetoCustom
+    ? opts.objetoCustom
+    : ehProjeto
+    ? `O presente instrumento tem por objeto a elaboração do <strong>projeto técnico de automação residencial e infraestrutura</strong>, bem como o <strong>acompanhamento técnico</strong> da implantação das soluções previstas, para o ${obraNoArt}, conforme escopo técnico nº <strong>${proposal.code}</strong>. Este instrumento <strong>não inclui</strong> o fornecimento de equipamentos, materiais ou a execução física da instalação, que poderão ser contratados posteriormente por meio de proposta e contrato específicos.`
     : tipo==='avulsa'
-    ? (opts.objetoCustom || `O presente instrumento tem por objeto a prestação de serviços conforme escopo técnico nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I.`)
-    : `O presente instrumento tem por objeto a prestação de serviços de automação residencial, fornecimento, instalação e configuração de equipamentos de tecnologia, conforme proposta técnica nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I.`
+    ? `O presente instrumento tem por objeto a prestação de serviços conforme escopo técnico nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I. Os serviços serão executados no ${obraNoArt}.`
+    : `O presente instrumento tem por objeto a prestação de serviços de automação residencial, fornecimento, instalação e configuração de equipamentos de tecnologia, conforme proposta técnica nº <strong>${proposal.code}</strong>, que integra este contrato como Anexo I. Os serviços serão executados no ${obraNoArt}.`
   // Forma de pagamento (editável em qualquer tipo via opts.pagamentoCustom)
   const pagamentoTxt = opts.pagamentoCustom ? opts.pagamentoCustom : (ehProjeto
     ? `O valor do projeto será pago <strong>à vista</strong>, no ato da contratação, mediante PIX, transferência ou conforme combinado entre as partes. A liberação do projeto e o início do acompanhamento ocorrem após a confirmação do pagamento.`
@@ -126,7 +137,7 @@ export function buildContract(proposal, client, opts={}) {
   // Cláusulas específicas
   const clausulas = ehProjeto ? [
     ['DO PRAZO DE ENTREGA DO PROJETO', prazoTxt],
-    ['DO ACOMPANHAMENTO','A CONTRATADA prestará acompanhamento técnico durante a execução, esclarecendo dúvidas e validando as etapas conforme combinado.'],
+    ['DO ACOMPANHAMENTO TÉCNICO','O acompanhamento técnico contempla visita técnica, suporte ilimitado e orientação durante a execução, visando assegurar a conformidade da instalação com o projeto desenvolvido. A CONTRATADA esclarecerá dúvidas e validará as etapas conforme combinado entre as partes.'],
     ['DA PROPRIEDADE INTELECTUAL', garantiaTxt],
     ['DAS REVISÕES','Estão incluídas até 3 (três) revisões do projeto. Revisões adicionais ou mudanças de escopo poderão ser cobradas à parte.'],
     ['DO SUPORTE','Dúvidas sobre o projeto via WhatsApp (21) 98170-9009, de segunda a sexta, das 9h às 18h.'],
@@ -144,12 +155,10 @@ export function buildContract(proposal, client, opts={}) {
   const extras = (opts.clausulasExtras||[]).filter(x=>(x.titulo||x.texto))
   extras.forEach(x=>clausulas.push([x.titulo||'CLÁUSULA ADICIONAL', x.texto||'']))
 
-  // qualificação do(s) contratante(s) no preâmbulo (usa CPF real se houver)
-  const _cpf1q = client?.cpf1 ? `portador do CPF nº ${client.cpf1}` : 'portador do CPF nº ___.___.___-__'
-  const _cpf2q = client?.cpf2 ? `portador do CPF nº ${client.cpf2}` : 'portador do CPF nº ___.___.___-__'
-  const contratanteQualif = name2
-    ? `<strong>${name1}</strong>, ${_cpf1q}, e <strong>${name2}</strong>, ${_cpf2q}, residentes e domiciliados à ${addr}.`
-    : `<strong>${name1}</strong>, ${_cpf1q}, residente e domiciliado à ${addr}.`
+  // qualificação do contratante (apenas 1) — CPF opcional/ocultável; o endereço aparece no objeto como local da obra
+  const hideCpf = !!opts.hideCpf
+  const _cpf1q = hideCpf ? '' : (client?.cpf1 ? `, portador do CPF nº ${client.cpf1}` : ', portador do CPF nº ___.___.___-__')
+  const contratanteQualif = `<strong>${name1}</strong>${_cpf1q}.`
 
   return `<!DOCTYPE html><html lang="pt-BR"><head>
   <meta charset="UTF-8"><title>${tituloDoc} — ${client?.name1||proposal.client_name||'Cliente'}${proposal.code?' ('+proposal.code+')':''}</title>
@@ -247,9 +256,8 @@ export function buildContract(proposal, client, opts={}) {
   </div>
 
   <div class="sigs">
-    <div class="sig"><div class="sigspace"></div><div class="sigline"></div><div class="signame">${name1}</div><div class="sigrole">Contratante${client?.cpf1?' · CPF '+client.cpf1:''}</div></div>
+    <div class="sig"><div class="sigspace"></div><div class="sigline"></div><div class="signame">${name1}</div><div class="sigrole">Contratante${(!hideCpf&&client?.cpf1)?' · CPF '+client.cpf1:''}</div></div>
     <div class="sig"><div class="sigspace"><span class="hand">Rogério Silva</span></div><div class="sigline"></div><div class="signame">Rogério Silva</div><div class="sigrole">RARO Home Tecnologia — Contratada</div></div>
-    ${name2?`<div class="sig" style="margin-top:14px"><div class="sigspace"></div><div class="sigline"></div><div class="signame">${name2}</div><div class="sigrole">Contratante${client?.cpf2?' · CPF '+client.cpf2:''}</div></div><div class="sig"></div>`:''}
   </div>
 
   <div class="footer">
@@ -366,6 +374,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
   const [objetoCustom, setObjetoCustom] = useState('')
   const [prazoCustom, setPrazoCustom] = useState('')
   const [garantiaCustom, setGarantiaCustom] = useState('')
+  const [hideCpf, setHideCpf] = useState(false)
   // categorias presentes na proposta (para o modo "ocultas")
   const catsDisponiveis = (()=>{ try{
     const fl = Array.isArray(proposal.floors)?proposal.floors:(typeof proposal.floors==='string'?JSON.parse(proposal.floors||'[]'):[])
@@ -374,7 +383,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
     if(Number(proposal.labor)>0) arr.push('Mão de obra')   // mão de obra é ocultável
     return arr
   }catch{return []} })()
-  const opts = { tipo, valorManual, hiddenCats,
+  const opts = { tipo, valorManual, hiddenCats, hideCpf,
     pagamentoCustom,   // editável em qualquer tipo
     prazoCustom, garantiaCustom,
     objetoCustom: tipo==='avulsa'?objetoCustom:'' }
@@ -787,6 +796,14 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
               </div>
             </div>
           )}
+          {/* Opções gerais — todos os tipos */}
+          <div style={{marginTop:10,display:'flex',gap:16,alignItems:'center',flexWrap:'wrap'}}>
+            <label style={{display:'flex',alignItems:'center',gap:6,fontSize:11.5,color:'var(--text2)',cursor:'pointer',userSelect:'none'}}>
+              <input type="checkbox" checked={hideCpf} onChange={e=>setHideCpf(e.target.checked)}/>
+              Ocultar CPF do cliente
+            </label>
+            <span style={{fontSize:10,color:'var(--text3)'}}>Contratante único · o endereço do cliente entra como local da obra</span>
+          </div>
           {/* Cláusulas editáveis — disponível em TODOS os tipos */}
           <details style={{marginTop:12,borderTop:'1px solid var(--border)',paddingTop:10}}>
             <summary style={{fontSize:12,fontWeight:600,color:'var(--text1)',cursor:'pointer',listStyle:'none',display:'flex',alignItems:'center',gap:6}}>
