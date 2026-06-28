@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v183 — Assinafy FIX: fluxo de 3 etapas (upload→signatários→enviar) com multiplas tentativas de endpoint (signatories/signers single/array, send/put-status/assignments). Quando upload OK mas envio falha, oferece link direto pro painel da Assinafy p/ completar manualmente (EDITAR→posicionar campos→enviar). Salva documentId mesmo em caso de falha parcial.
+// v184 — LOGO oficial: substituído o monograma/wordmark aproximado (Georgia, A com barra) pelo vetor fiel da arte da marca (A triangular, monograma RR real), com dourado em gradiente. Propagado a todos os pontos via logos.js (sidebar, login, contrato, proposta, apresentação, relatórios, diários, mestre). Variantes: DARK/SIDEBAR (texto creme p/ interface escura), COVER/EXEC (texto navy p/ documentos claros), MONO (monograma).
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v183 · build 2026-06
+          v184 · build 2026-06
         </div>
       </div>
     </div>
