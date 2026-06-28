@@ -458,6 +458,31 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
       // espera fontes e imagens renderizarem
       await new Promise(r=>setTimeout(r,1800))
 
+      // CORREÇÃO CRÍTICA: a logo da RARO é um SVG (viewBox 600×694). O html2canvas ignora
+      // o width:120px do CSS e rasteriza o SVG no tamanho intrínseco (600px), estourando o
+      // layout — o cliente recebia só a capa ampliada e cortada, numa página só. Aqui
+      // rasterizamos a logo para PNG no tamanho certo ANTES da captura (PNG o html2canvas respeita).
+      try{
+        const _logo = idoc.querySelector('.head img')
+        if(_logo && /^data:image\/svg/.test(_logo.src||'')){
+          await new Promise(res=>{
+            const probe = new Image()
+            probe.onload = ()=>{
+              try{
+                const W=360, H=Math.round(W*(probe.naturalHeight||694)/(probe.naturalWidth||600))
+                const cv=document.createElement('canvas'); cv.width=W; cv.height=H
+                const cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,W,H); cx.drawImage(probe,0,0,W,H)
+                _logo.src=cv.toDataURL('image/png'); _logo.setAttribute('width','120'); _logo.removeAttribute('height')
+              }catch(_){}
+              res()
+            }
+            probe.onerror=()=>res()
+            probe.src=_logo.src
+          })
+          await new Promise(r=>setTimeout(r,200))
+        }
+      }catch(_){}
+
       // remove a barra de controle ("Salvar como PDF"): html2canvas ignora @media print,
       // então ela vazaria pro PDF. E solta a altura do iframe pro conteúdo INTEIRO,
       // senão o html2canvas captura só a primeira página.

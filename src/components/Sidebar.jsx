@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v188 — CONTRATO redesenhado (perfil tradicional aprovado pela Ful): saiu o layout de cards/caixas navy e entrou documento jurídico clássico em serif (EB Garamond, fallback Georgia), com preâmbulo de qualificação das partes, cláusulas no formato "CLÁUSULA Xª — DO/DA ...", ambientes em tabela sóbria de filetes, valor destacado entre filetes (print-safe, nunca some), e fecho tradicional. Dados editáveis na tela passam ao documento, incluindo CPF do 1º e agora do 2º contratante. PDF do Assinafy herda o novo template completo (via o fix v187: remove barra, altura cheia, paginação).
+// v189 — CORREÇÃO CRÍTICA do PDF de assinatura (Assinafy). A logo da RARO é um SVG (viewBox 600×694); o html2canvas ignorava o width:120px do CSS e a rasterizava no tamanho intrínseco (600px), estourando o layout — o cliente recebia só a capa ampliada e cortada, numa página. Agora a logo é rasterizada para PNG no tamanho certo ANTES da captura (PNG o html2canvas respeita), e o contrato sai completo e paginado. EM ANDAMENTO p/ próximas versões: implementação no código dos designs já aprovados de Proposta e Apresentação comercial, e do Relatório do cliente (3 partes: projeto / registro técnico / entrega e uso).
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v188 · build 2026-06
+          v189 · build 2026-06
         </div>
       </div>
     </div>
