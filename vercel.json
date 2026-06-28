@@ -1,8 +1,17 @@
 {
   "functions": {
-    "api/claude.js": { "maxDuration": 300 }
+    "api/claude.js": {
+      "maxDuration": 300
+    },
+    "api/render-pdf.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
   },
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ]
 }

@@ -444,106 +444,98 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
     if(!window.confirm(`Enviar o contrato para assinatura digital?\n\nSerá enviado para:\n• ${bothNames} <${emailCliente}>\n• Rogério (RARO Home)\n\nVia Assinafy (ICP-Brasil).`)) return
     setSigning(true)
     try{
-      // 1) carrega html2canvas e jsPDF do CDN (geração manual, sem o wrapper html2pdf que cortava)
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
-      if(!window.html2canvas) throw new Error('html2canvas não carregou do CDN')
-      if(!(window.jspdf && window.jspdf.jsPDF)) throw new Error('jsPDF não carregou do CDN')
+      const htmlBase = buildContract(proposal, client, opts)
+      let pdfBase64 = null
 
-      // 2) renderiza o contrato num iframe oculto com largura A4 e altura AUTO
-      let html = buildContract(proposal, client, opts)
-      // troca o @import externo da fonte (que o html2canvas não carrega a tempo, fazendo as
-      // palavras grudarem) pela EB Garamond embutida em base64 — pronta na hora da captura.
-      // Carregada sob demanda p/ não pesar o bundle principal.
-      const { FONT_FACE_EBGARAMOND } = await import('../fontsEmbed.js')
-      html = html.replace(/@import\s+url\(['"]https:\/\/fonts\.googleapis\.com[^'"]*['"]\);?/g, FONT_FACE_EBGARAMOND)
-      const iframe = document.createElement('iframe')
-      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:300px;border:none;background:#fff'
-      document.body.appendChild(iframe)
-      const idoc = iframe.contentDocument || iframe.contentWindow.document
-      idoc.open(); idoc.write(html); idoc.close()
-      // espera fontes e imagens renderizarem
-      await new Promise(r=>setTimeout(r,1800))
-
-      // CORREÇÃO CRÍTICA: a logo da RARO é um SVG (viewBox 600×694). O html2canvas ignora
-      // o width:120px do CSS e rasteriza o SVG no tamanho intrínseco (600px), estourando o
-      // layout — o cliente recebia só a capa ampliada e cortada, numa página só. Aqui
-      // rasterizamos a logo para PNG no tamanho certo ANTES da captura (PNG o html2canvas respeita).
+      // ── CAMINHO 1 (preferencial): gerar no SERVIDOR via Chromium → PDF com TEXTO VETORIAL,
+      // nítido em qualquer zoom. Tira a barra de controle e o padding (a margem vem do A4).
       try{
-        const _logo = idoc.querySelector('.head img')
-        if(_logo && /^data:image\/svg/.test(_logo.src||'')){
-          await new Promise(res=>{
-            const probe = new Image()
-            probe.onload = ()=>{
-              try{
-                const W=360, H=Math.round(W*(probe.naturalHeight||694)/(probe.naturalWidth||600))
-                const cv=document.createElement('canvas'); cv.width=W; cv.height=H
-                const cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,W,H); cx.drawImage(probe,0,0,W,H)
-                _logo.src=cv.toDataURL('image/png'); _logo.setAttribute('width','120'); _logo.removeAttribute('height')
-              }catch(_){}
-              res()
-            }
-            probe.onerror=()=>res()
-            probe.src=_logo.src
-          })
-          await new Promise(r=>setTimeout(r,200))
+        const htmlSrv = htmlBase
+          .replace(/<div class="no-print"[\s\S]*?<\/div>/, '')
+          .replace('</head>', '<style>body{padding:0 !important}</style></head>')
+        const rr = await fetch('/api/render-pdf', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ html: htmlSrv })
+        })
+        if(rr.ok){
+          const rj = await rr.json().catch(()=>({}))
+          if(rj && rj.pdfBase64 && rj.pdfBase64.length > 5000) pdfBase64 = rj.pdfBase64
         }
-      }catch(_){}
+      }catch(_){ /* servidor indisponível → cai no navegador abaixo */ }
 
-      // remove a barra de controle ("Salvar como PDF"): html2canvas ignora @media print,
-      // então ela vazaria pro PDF.
-      idoc.querySelectorAll('.no-print').forEach(el=>el.remove())
+      // ── CAMINHO 2 (fallback): gerar no NAVEGADOR (html2canvas) caso o servidor não responda.
+      if(!pdfBase64){
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+        if(!window.html2canvas) throw new Error('html2canvas não carregou do CDN')
+        if(!(window.jspdf && window.jspdf.jsPDF)) throw new Error('jsPDF não carregou do CDN')
 
-      // CORREÇÃO: html2canvas renderiza text-align:justify com as PALAVRAS GRUDADAS (bug
-      // conhecido — ele come os espaços que a justificação distribui entre as palavras).
-      // Trocamos justify por left só na captura; os títulos têm text-align:center próprio e não mudam.
-      idoc.body.style.textAlign = 'left'
-      // garante a fonte EB Garamond pronta antes de rasterizar (senão mede os espaços errado)
-      try{ if(idoc.fonts && idoc.fonts.ready){ await idoc.fonts.ready } }catch(_){}
-
-      // solta a altura do iframe pro conteúdo inteiro (só o body — documentElement inflava
-      // a altura e gerava uma 3ª página em branco no fim)
-      const fullH = Math.max(idoc.body.scrollHeight, 1123)
-      iframe.style.height = fullH+'px'
-      await new Promise(r=>setTimeout(r,250))
-
-      // 3) gera o PDF com paginação MANUAL (jsPDF), porque o wrapper html2pdf estava
-      // posicionando a imagem com offset e cortando a lateral ESQUERDA do texto.
-      // Aqui capturamos o conteúdo e o colocamos ocupando a LARGURA CHEIA da página (x=0):
-      // a margem visual vem do próprio padding do contrato — sem margem dupla, sem corte.
-      const canvas = await window.html2canvas(idoc.body, {
-        scale:2, useCORS:true, logging:false, backgroundColor:'#ffffff',
-        width:794, windowWidth:794, windowHeight:fullH, x:0, y:0, scrollX:0, scrollY:0
-      })
-      const imgData = canvas.toDataURL('image/jpeg', 0.95)
-      const JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF
-      if(!JsPDF) throw new Error('jsPDF não disponível no bundle html2pdf')
-      const pdf = new JsPDF({ unit:'mm', format:'a4', orientation:'portrait' })
-      const pageW = 210, pageH = 297
-      const imgH = canvas.height * pageW / canvas.width   // altura total da imagem em mm
-      let heightLeft = imgH, position = 0
-      pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH, undefined, 'FAST')
-      heightLeft -= pageH
-      // tolerância de 12mm: se o que sobra é só margem/padding do rodapé (não conteúdo),
-      // não cria mais uma página — era a 3ª página em branco.
-      while(heightLeft > 12){
-        position -= pageH
-        pdf.addPage()
+        let html = htmlBase
+        const { FONT_FACE_EBGARAMOND } = await import('../fontsEmbed.js')
+        html = html.replace(/@import\s+url\(['"]https:\/\/fonts\.googleapis\.com[^'"]*['"]\);?/g, FONT_FACE_EBGARAMOND)
+        const iframe = document.createElement('iframe')
+        iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:300px;border:none;background:#fff'
+        document.body.appendChild(iframe)
+        const idoc = iframe.contentDocument || iframe.contentWindow.document
+        idoc.open(); idoc.write(html); idoc.close()
+        await new Promise(r=>setTimeout(r,1800))
+        try{
+          const _logo = idoc.querySelector('.head img')
+          if(_logo && /^data:image\/svg/.test(_logo.src||'')){
+            await new Promise(res=>{
+              const probe = new Image()
+              probe.onload = ()=>{
+                try{
+                  const W=360, H=Math.round(W*(probe.naturalHeight||694)/(probe.naturalWidth||600))
+                  const cv=document.createElement('canvas'); cv.width=W; cv.height=H
+                  const cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,W,H); cx.drawImage(probe,0,0,W,H)
+                  _logo.src=cv.toDataURL('image/png'); _logo.setAttribute('width','120'); _logo.removeAttribute('height')
+                }catch(_){}
+                res()
+              }
+              probe.onerror=()=>res()
+              probe.src=_logo.src
+            })
+            await new Promise(r=>setTimeout(r,200))
+          }
+        }catch(_){}
+        idoc.querySelectorAll('.no-print').forEach(el=>el.remove())
+        idoc.body.style.textAlign = 'left'
+        try{ if(idoc.fonts && idoc.fonts.ready){ await idoc.fonts.ready } }catch(_){}
+        const fullH = Math.max(idoc.body.scrollHeight, 1123)
+        iframe.style.height = fullH+'px'
+        await new Promise(r=>setTimeout(r,250))
+        const canvas = await window.html2canvas(idoc.body, {
+          scale:2, useCORS:true, logging:false, backgroundColor:'#ffffff',
+          width:794, windowWidth:794, windowHeight:fullH, x:0, y:0, scrollX:0, scrollY:0
+        })
+        const imgData = canvas.toDataURL('image/jpeg', 0.95)
+        const JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF
+        if(!JsPDF) throw new Error('jsPDF não disponível')
+        const pdf = new JsPDF({ unit:'mm', format:'a4', orientation:'portrait' })
+        const pageW = 210, pageH = 297
+        const imgH = canvas.height * pageW / canvas.width
+        let heightLeft = imgH, position = 0
         pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH, undefined, 'FAST')
         heightLeft -= pageH
+        while(heightLeft > 12){
+          position -= pageH
+          pdf.addPage()
+          pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH, undefined, 'FAST')
+          heightLeft -= pageH
+        }
+        const pdfBlob = pdf.output('blob')
+        document.body.removeChild(iframe)
+        if(!pdfBlob || pdfBlob.size < 5000) throw new Error('PDF (fallback) inválido: '+(pdfBlob?.size||0)+' bytes')
+        pdfBase64 = await new Promise((res,rej)=>{
+          const r=new FileReader()
+          r.onload=()=>res(String(r.result).split(',')[1])
+          r.onerror=()=>rej(new Error('Erro ao converter PDF para base64'))
+          r.readAsDataURL(pdfBlob)
+        })
       }
-      const pdfBlob = pdf.output('blob')
 
-      document.body.removeChild(iframe)
-      if(!pdfBlob || pdfBlob.size < 5000) throw new Error(`PDF gerado inválido ou pequeno demais (${pdfBlob?.size||0} bytes) — o conteúdo pode não ter renderizado`)
-
-      // 4) converte para base64
-      const pdfBase64 = await new Promise((res,rej)=>{
-        const r=new FileReader()
-        r.onload=()=>res(String(r.result).split(',')[1])
-        r.onerror=()=>rej(new Error('Erro ao converter PDF para base64'))
-        r.readAsDataURL(pdfBlob)
-      })
+      if(!pdfBase64) throw new Error('Não foi possível gerar o PDF do contrato.')
 
       // 5) envia para a função serverless /api/sign
       const resp = await fetch('/api/sign', {

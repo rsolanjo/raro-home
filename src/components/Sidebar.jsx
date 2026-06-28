@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v190 — CORREÇÃO da fonte no PDF de assinatura (palavras grudadas/ilegível). Causa raiz: a EB Garamond era carregada por @import externo do Google Fonts, e o html2canvas mede o texto ANTES da fonte chegar, colando as palavras. Agora a fonte (latin 400/600/itálico) está EMBUTIDA em base64 (src/fontsEmbed.js) e o @import é trocado por ela só no fluxo de assinatura, ficando disponível na hora da captura. Acumula as correções da v189 (logo SVG rasterizada p/ PNG; paginação manual via jsPDF sem corte lateral; sem página em branco). EM ANDAMENTO p/ próximas versões: portar p/ o código os designs aprovados de Proposta e Apresentação, e do Relatório do cliente.
+// v191 — SOLUÇÃO DEFINITIVA do PDF de assinatura: geração no SERVIDOR via Chromium headless (nova função api/render-pdf.js com puppeteer-core + @sparticuz/chromium). O contrato vira PDF com TEXTO VETORIAL de verdade — nítido em qualquer zoom, fonte e layout exatos, fim da ilegibilidade da captura de tela. O método antigo (html2canvas) virou fallback automático, caso o Chromium não suba no deploy. Requer no Vercel: as novas deps no package.json e a função api/render-pdf.js configurada (1024MB / 60s, já no vercel.json). Acumula v189/v190 (logo, paginação, fonte) que seguem valendo no fallback. EM ANDAMENTO: portar p/ o código os designs de Proposta, Apresentação e Relatório do cliente.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v190 · build 2026-06
+          v191 · build 2026-06
         </div>
       </div>
     </div>
