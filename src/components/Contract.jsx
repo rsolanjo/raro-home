@@ -475,7 +475,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         // Forçamos Georgia (serif do sistema), que o html2canvas rasteriza com o espaçamento correto.
         html = html
           .replace(/@import\s+url\(['"]https:\/\/fonts\.googleapis\.com[^'"]*['"]\);?/g, '')
-          .replace('</head>', "<style>*{font-family:Georgia,'Times New Roman','Times',serif !important}</style></head>")
+          .replace('</head>', "<style>*{font-family:Georgia,'Times New Roman','Times',serif !important} body{font-size:12.3px !important}</style></head>")
         const iframe = document.createElement('iframe')
         iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:300px;border:none;background:#fff'
         document.body.appendChild(iframe)
@@ -505,7 +505,14 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         idoc.querySelectorAll('.no-print').forEach(el=>el.remove())
         idoc.body.style.textAlign = 'left'
         try{ if(idoc.fonts && idoc.fonts.ready){ await idoc.fonts.ready } }catch(_){}
-        const fullH = Math.max(idoc.body.scrollHeight, 1123)
+        // altura REAL do conteúdo (fundo do último elemento), ignorando o espaço morto do fim
+        let _cb = idoc.body.scrollHeight
+        try{
+          const _bt = idoc.body.getBoundingClientRect().top
+          const _last = idoc.querySelector('.footer') || idoc.body.lastElementChild
+          if(_last){ _cb = Math.ceil(_last.getBoundingClientRect().bottom - _bt) + 14 }
+        }catch(_){}
+        const fullH = Math.max(_cb, 1123)
         iframe.style.height = fullH+'px'
         await new Promise(r=>setTimeout(r,250))
         const canvas = await window.html2canvas(idoc.body, {
@@ -517,14 +524,23 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         if(!JsPDF) throw new Error('jsPDF não disponível')
         const pdf = new JsPDF({ unit:'mm', format:'a4', orientation:'portrait' })
         const pageW = 210, pageH = 297
-        const imgH = canvas.height * pageW / canvas.width
+        let imgW = pageW
+        let imgH = canvas.height * pageW / canvas.width
+        // se o conteúdo estoura 2 páginas por pouco (até ~2.6), encaixa em 2 páginas exatas,
+        // comprimindo proporcionalmente (sobra uma margem lateral mínima). Mata a 3ª página.
+        const naturalPages = Math.ceil((imgH - 2) / pageH)
+        if(naturalPages >= 3 && imgH <= 2.6 * pageH){
+          const r = (2 * pageH) / imgH
+          imgW = pageW * r; imgH = 2 * pageH
+        }
+        const xOff = (pageW - imgW) / 2
         let heightLeft = imgH, position = 0
-        pdf.addImage(imgData, 'PNG', 0, position, pageW, imgH, undefined, 'FAST')
+        pdf.addImage(imgData, 'PNG', xOff, position, imgW, imgH, undefined, 'FAST')
         heightLeft -= pageH
         while(heightLeft > 12){
           position -= pageH
           pdf.addPage()
-          pdf.addImage(imgData, 'PNG', 0, position, pageW, imgH, undefined, 'FAST')
+          pdf.addImage(imgData, 'PNG', xOff, position, imgW, imgH, undefined, 'FAST')
           heightLeft -= pageH
         }
         const pdfBlob = pdf.output('blob')

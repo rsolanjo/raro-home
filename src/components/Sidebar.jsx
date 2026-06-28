@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v192 — LEGIBILIDADE do PDF de assinatura no navegador (fallback). Causa do texto grudado: a EB Garamond é web font e o html2canvas erra o espaçamento dela mesmo embutida. Agora o PDF do navegador FORÇA Georgia (serif do sistema), que rasteriza com os espaços corretos, em resolução maior (scale 3) e PNG (texto sem artefato). O caminho do servidor (v191, Chromium → texto vetorial) segue como preferencial quando estiver no ar; este Georgia é o que garante um contrato legível mesmo sem o servidor. EM ANDAMENTO: portar p/ o código os designs de Proposta, Apresentação e Relatório do cliente.
+// v193 — Ajuste fino do PDF de assinatura (fallback navegador): (1) mata a 3ª página vazia medindo o FIM REAL do contrato (fundo do rodapé) em vez do espaço morto depois dele, mais um encaixe automático que comprime levemente para 2 páginas exatas se estourar por pouco; (2) legibilidade: nitidez em alta (scale 3 + PNG) e corpo do texto um tico maior (12.3px). Georgia (v192) segue como fonte do PDF p/ não grudar. Caminho do servidor (v191, Chromium → vetorial) continua como preferencial quando estiver no ar. EM ANDAMENTO: portar p/ o código os designs de Proposta, Apresentação e Relatório do cliente.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v192 · build 2026-06
+          v193 · build 2026-06
         </div>
       </div>
     </div>
