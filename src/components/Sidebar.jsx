@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v184 — LOGO oficial: substituído o monograma/wordmark aproximado (Georgia, A com barra) pelo vetor fiel da arte da marca (A triangular, monograma RR real), com dourado em gradiente. Propagado a todos os pontos via logos.js (sidebar, login, contrato, proposta, apresentação, relatórios, diários, mestre). Variantes: DARK/SIDEBAR (texto creme p/ interface escura), COVER/EXEC (texto navy p/ documentos claros), MONO (monograma).
+// v185 — ASSINAFY FIX REAL: reescrito api/sign.js no fluxo oficial do fornecedor (confirmado no CLI @assinafy/cli), parando de chutar endpoint. 4 etapas: upload → AGUARDA processamento (metadata_ready, peça que faltava e derrubava o envio) → cria signers (full_name/whatsapp_phone_number/cpf, idempotente por e-mail) → POST /documents/{id}/assignments dispara os e-mails. Contract.jsx agora envia telefone e CPF do cliente. api/sign-status.js reescrito (removido /progress inexistente; usa /documents/{id} + /assignments + /activities, status traduzidos). Botão Verificar alinhado ao novo retorno.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v184 · build 2026-06
+          v185 · build 2026-06
         </div>
       </div>
     </div>

@@ -320,14 +320,13 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
       const r = await fetch(`/api/sign-status?documentId=${encodeURIComponent(signDocId)}`)
       const j = await r.json().catch(()=>({}))
       setSignStatus(j)
-      const st = j.status||'desconhecido'
-      const prog = j.progress
-      let msg = `Status: ${st.toUpperCase()}\n`
-      if(prog?.signers && Array.isArray(prog.signers)){
+      const st = j.statusLabel || j.status || 'desconhecido'
+      let msg = `Status: ${st}\n`
+      if(Array.isArray(j.signers) && j.signers.length){
         msg += '\nSignatários:\n'
-        prog.signers.forEach(s=>{ msg += `• ${s.name||s.email}: ${s.signed?'✓ ASSINADO'+(s.signed_at?' em '+new Date(s.signed_at).toLocaleDateString('pt-BR'):''):'⏳ Pendente'}\n` })
-      } else if(prog?.total!==undefined){
-        msg += `Progresso: ${prog.signed||0} de ${prog.total} assinaram\n`
+        j.signers.forEach(s=>{ msg += `• ${s.name||s.email}: ${s.signed?'✓ ASSINADO'+(s.signed_at?' em '+new Date(s.signed_at).toLocaleDateString('pt-BR'):''):'⏳ Pendente'}\n` })
+      } else if(j.progress?.total){
+        msg += `Progresso: ${j.progress.signed||0} de ${j.progress.total} assinaram\n`
       }
       msg += `\nAcompanhe em: ${j.url||'app.assinafy.com.br'}`
       alert(msg)
@@ -499,7 +498,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           fileName:`Contrato-${proposal.code||'RARO'}.pdf`, pdfBase64,
-          signers:[ {name:bothNames, email:emailCliente}, {name:'Rogério — RARO Home', email:'contato@rarohome.com.br'} ],
+          signers:[ {name:bothNames, email:emailCliente, phone:client?.phone1, cpf:client?.cpf1}, {name:'Rogério — RARO Home', email:'contato@rarohome.com.br'} ],
           message:`Contrato RARO Home — proposta ${proposal.code||''}. Por favor, assine digitalmente.`
         })
       })
@@ -513,13 +512,13 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         // se o documento foi enviado para a Assinafy (upload ok), salva o ID e oferece link manual
         if(j.documentId){
           salvarSignDocId(j.documentId)
-          const abrir = window.confirm(`O contrato foi enviado para a Assinafy mas o envio automático para assinatura falhou.\n\nO contrato está no seu painel da Assinafy em "Aguardando preparação".\n\n→ Clique OK para abrir o painel da Assinafy e completar manualmente (EDITAR → adicionar signatários → enviar)\n→ Clique Cancelar para ver os detalhes técnicos do erro`)
+          const abrir = window.confirm(`O contrato subiu para a Assinafy, mas o disparo automático não confirmou.\n\nMotivo: ${j.error||'desconhecido'}\n\nMuitas vezes é só o documento ainda processando: aguarde alguns segundos e use "Verificar assinaturas".\n\n→ OK para abrir o painel da Assinafy\n→ Cancelar para ver os detalhes técnicos`)
           if(abrir){
             window.open(`https://app.assinafy.com.br/documents/${j.documentId}`, '_blank')
           } else {
             const det = j.detail ? `\n${JSON.stringify(j.detail).slice(0,300)}` : ''
-            const st = j.steps ? `\nEtapas: ${JSON.stringify(j.steps).slice(0,400)}` : ''
-            alert(`Detalhes técnicos:\n\nDocumento ID: ${j.documentId}\nSignatários adicionados: ${j.signersAdded?'sim':'não'}\n${j.error||''}${det}${st}\n\n${j.dica||''}`)
+            const st = j.steps ? `\nEtapas: ${JSON.stringify(j.steps).slice(0,500)}` : ''
+            alert(`Detalhes técnicos:\n\nDocumento ID: ${j.documentId}\nSignatários criados: ${(j.signerIds&&j.signerIds.length)||0}\n${j.error||''}${det}${st}`)
           }
         } else {
           alert(`Não foi possível enviar para assinatura.\n\nMotivo: ${j.reason||j.error||'desconhecido'}\n\nConfira ASSINAFY_API_KEY e ASSINAFY_ACCOUNT_ID no Vercel e faça Redeploy.`)

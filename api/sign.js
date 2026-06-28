@@ -1,20 +1,37 @@
-// Assinatura digital via Assinafy
-// Diagnóstico: upload funciona (200), mas assignment falha (400)
-// porque o documento precisa de signatários ANTES de ser enviado.
+// api/sign.js — Assinatura digital via Assinafy
+// Fluxo OFICIAL confirmado no CLI do fornecedor (@assinafy/cli, docs/ + dist):
+//   1) UPLOAD:     POST /accounts/{account}/documents   (multipart "file")  → documentId + status inicial
+//   2) PROCESSAR:  GET  /documents/{id}  (polling)       → aguarda status "metadata_ready"
+//   3) SIGNERS:    POST /accounts/{account}/signers      → cria/reusa signatário por e-mail → signerId
+//   4) ASSIGNMENT: POST /documents/{id}/assignments      → DISPARA o e-mail de assinatura → assignmentId
 //
-// Fluxo correto da Assinafy (3 etapas):
-//   1) Upload: POST /documents          → documentId
-//   2) Signatários: POST /documents/{id}/signatories  → adiciona quem vai assinar
-//   3) Enviar: POST /documents/{id}/send  → dispara os e-mails
-//
-// Tenta múltiplas variações de endpoints para descobrir o correto.
+// Campos exatos da API (não inventar):
+//   signer  = { full_name, email, whatsapp_phone_number, cpf }   (cpf só dígitos)
+//   assignment = { method:"virtual", signers:[{id, verification_method:"Email", notification_methods:["Email"]}], message }
+//   READY  = metadata_ready | pending_signature | certificated
+//   FAILED = failed | rejected_by_signer | rejected_by_user | expired
+//   Auth   = header X-Api-Key
 
-module.exports = async function handler(req, res) {
+const READY  = new Set(['metadata_ready','pending_signature','certificated'])
+const FAILED = new Set(['failed','rejected_by_signer','rejected_by_user','expired'])
+const sleep  = ms => new Promise(r => setTimeout(r, ms))
+
+// telefone BR -> E.164 (+55...). Retorna '' se não parecer válido.
+function toE164(raw){
+  if(!raw) return ''
+  let d = String(raw).replace(/\D/g,'')
+  if(d.length < 10) return ''
+  if(!d.startsWith('55')) d = '55' + d
+  return '+' + d
+}
+const pick = j => (j && j.data !== undefined ? j.data : j) || {}
+
+module.exports = async function handler(req, res){
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') { res.status(200).end(); return }
-  if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return }
+  if (req.method !== 'POST')   { res.status(405).json({ error:'Method not allowed' }); return }
 
   const API_KEY = process.env.ASSINAFY_API_KEY
   const ACCOUNT = process.env.ASSINAFY_ACCOUNT_ID
@@ -23,117 +40,85 @@ module.exports = async function handler(req, res) {
   if (!ACCOUNT) { res.status(200).json({ sent:false, reason:'Defina ASSINAFY_ACCOUNT_ID no Vercel.' }); return }
 
   const auth = { 'X-Api-Key': API_KEY }
-  const jsonAuth = { ...auth, 'Content-Type': 'application/json' }
+  const jsonAuth = { ...auth, 'Content-Type':'application/json' }
   const steps = []
-
-  // helper: tenta POST e retorna {ok, status, body}
-  async function tryPost(url, body) {
-    const r = await fetch(url, { method:'POST', headers: jsonAuth, body: JSON.stringify(body) })
-    const j = await r.json().catch(()=>({}))
-    return { ok:r.ok, status:r.status, body:j }
-  }
-  async function tryPut(url, body) {
-    const r = await fetch(url, { method:'PUT', headers: jsonAuth, body: JSON.stringify(body) })
-    const j = await r.json().catch(()=>({}))
-    return { ok:r.ok, status:r.status, body:j }
-  }
 
   try {
     let body = req.body
     if (typeof body === 'string') body = JSON.parse(body)
     const { fileName, pdfBase64, signers, message } = body || {}
     if (!pdfBase64 || !Array.isArray(signers) || !signers.length) {
-      res.status(400).json({ error:'Faltam pdfBase64 e/ou signers [{name,email}]' }); return
+      res.status(400).json({ error:'Faltam pdfBase64 e/ou signers [{name,email,phone?,cpf?}]' }); return
     }
 
-    // ══════ ETAPA 1: UPLOAD ══════
-    const pdfBuffer = Buffer.from(pdfBase64, 'base64')
+    // ─────────── 1) UPLOAD ───────────
     const form = new FormData()
-    form.append('file', new Blob([pdfBuffer], { type:'application/pdf' }), fileName || 'Contrato.pdf')
+    form.append('file', new Blob([Buffer.from(pdfBase64,'base64')], { type:'application/pdf' }), fileName || 'Contrato.pdf')
     const upR = await fetch(`${BASE}/accounts/${ACCOUNT}/documents`, { method:'POST', headers:auth, body:form })
-    const upJson = await upR.json().catch(()=>({}))
-    const documentId = upJson?.data?.id || upJson?.id
-    steps.push({ step:'upload', status:upR.status, id:documentId||null })
-    if (!documentId) { res.status(502).json({ sent:false, error:'Falha no upload', detail:upJson, steps }); return }
+    const upDoc = pick(await upR.json().catch(()=>({})))
+    const documentId = upDoc.id
+    let docStatus = upDoc.status
+    steps.push({ step:'upload', status:upR.status, id:documentId||null, docStatus:docStatus||null })
+    if (!documentId) { res.status(502).json({ sent:false, error:'Falha no upload do PDF', detail:upDoc, steps }); return }
 
-    // ══════ ETAPA 2: ADICIONAR SIGNATÁRIOS AO DOCUMENTO ══════
-    // Tenta várias rotas possíveis da API
-    let signersAdded = false
-    const signerPayloads = signers.map(s => ({ name:s.name, email:s.email, action:'sign' }))
+    // ─────────── 2) AGUARDAR PROCESSAMENTO (metadata_ready) ───────────
+    // O documento NÃO fica pronto na hora; sem isso o assignment falha (era a causa do envio não sair).
+    for (let i=0; i<7 && !READY.has(docStatus) && !FAILED.has(docStatus); i++){
+      await sleep(1200)
+      const sR = await fetch(`${BASE}/documents/${documentId}`, { headers:auth })
+      docStatus = pick(await sR.json().catch(()=>({}))).status || docStatus
+    }
+    steps.push({ step:'process', docStatus:docStatus||null })
+    if (FAILED.has(docStatus)) {
+      res.status(502).json({ sent:false, documentId, error:`Documento falhou no processamento (${docStatus})`, steps }); return
+    }
+    const processedOk = READY.has(docStatus)
 
-    // Tentativa A: POST /documents/{id}/signatories (uma por signatário)
-    for (const sp of signerPayloads) {
-      const r = await tryPost(`${BASE}/documents/${documentId}/signatories`, sp)
-      steps.push({ step:'signatory-single', email:sp.email, status:r.status })
-      if (r.ok) signersAdded = true
+    // ─────────── 3) CRIAR SIGNATÁRIOS (idempotente por e-mail) ───────────
+    const signerIds = []
+    for (const s of signers){
+      const payload = { full_name: s.name, email: s.email }
+      const phone = toE164(s.phone)
+      if (phone) payload.whatsapp_phone_number = phone
+      if (s.cpf) { const c = String(s.cpf).replace(/\D/g,''); if(c) payload.cpf = c }
+      const r = await fetch(`${BASE}/accounts/${ACCOUNT}/signers`, { method:'POST', headers:jsonAuth, body:JSON.stringify(payload) })
+      const sid = pick(await r.json().catch(()=>({}))).id
+      steps.push({ step:'signer', email:s.email, status:r.status, id:sid||null })
+      if (sid) signerIds.push(sid)
+    }
+    if (!signerIds.length){
+      res.status(502).json({ sent:false, documentId, error:'Não foi possível criar os signatários', steps }); return
     }
 
-    // Se A falhou, tentativa B: POST /documents/{id}/signatories com array
-    if (!signersAdded) {
-      const r = await tryPost(`${BASE}/documents/${documentId}/signatories`, { signatories: signerPayloads })
-      steps.push({ step:'signatories-array', status:r.status })
-      if (r.ok) signersAdded = true
+    // ─────────── 4) ASSIGNMENT (dispara os e-mails) ───────────
+    const assignmentBody = {
+      method: 'virtual',
+      signers: signerIds.map(id => ({ id, verification_method:'Email', notification_methods:['Email'] })),
+      message: message || 'Segue o contrato RARO Home para assinatura digital.'
     }
+    const aR = await fetch(`${BASE}/documents/${documentId}/assignments`, { method:'POST', headers:jsonAuth, body:JSON.stringify(assignmentBody) })
+    const aBody = await aR.json().catch(()=>({}))
+    const assignmentId = pick(aBody).id
+    steps.push({ step:'assignment', status:aR.status, id:assignmentId||null })
 
-    // Se B falhou, tentativa C: POST /documents/{id}/signers
-    if (!signersAdded) {
-      for (const sp of signerPayloads) {
-        const r = await tryPost(`${BASE}/documents/${documentId}/signers`, sp)
-        steps.push({ step:'signer-doc', email:sp.email, status:r.status })
-        if (r.ok) signersAdded = true
-      }
-    }
-
-    // Se C falhou, tentativa D: POST /accounts/{id}/documents/{id}/signatories
-    if (!signersAdded) {
-      for (const sp of signerPayloads) {
-        const r = await tryPost(`${BASE}/accounts/${ACCOUNT}/documents/${documentId}/signatories`, sp)
-        steps.push({ step:'signatory-acct', email:sp.email, status:r.status })
-        if (r.ok) signersAdded = true
-      }
-    }
-
-    // ══════ ETAPA 3: ENVIAR PARA ASSINATURA ══════
-    let sent = false
-    let sendResult = null
-
-    // Tentativa A: POST /documents/{id}/send
-    const sendA = await tryPost(`${BASE}/documents/${documentId}/send`, { message: message || 'Assine o contrato RARO Home.' })
-    steps.push({ step:'send', status:sendA.status })
-    if (sendA.ok) { sent = true; sendResult = sendA.body }
-
-    // Se A falhou, tentativa B: PUT /documents/{id} com status "sent"
-    if (!sent) {
-      const sendB = await tryPut(`${BASE}/documents/${documentId}`, { status:'sent', message: message || 'Assine o contrato RARO Home.' })
-      steps.push({ step:'put-status', status:sendB.status })
-      if (sendB.ok) { sent = true; sendResult = sendB.body }
-    }
-
-    // Se B falhou, tentativa C: POST /documents/{id}/assignments (original)
-    if (!sent) {
-      const sendC = await tryPost(`${BASE}/documents/${documentId}/assignments`, { 
-        signers: signerPayloads,
-        message: message || 'Assine o contrato RARO Home.'
-      })
-      steps.push({ step:'assignment-retry', status:sendC.status })
-      if (sendC.ok) { sent = true; sendResult = sendC.body }
-    }
-
-    if (sent) {
+    if (aR.ok && assignmentId){
       res.status(200).json({
-        sent: true, documentId, signersAdded,
-        url: sendResult?.data?.url || `https://app.assinafy.com.br/documents/${documentId}`,
+        sent:true, documentId, assignmentId, signerIds,
+        url:`https://app.assinafy.com.br/documents/${documentId}`,
         steps
-      })
-    } else {
-      res.status(502).json({
-        sent: false, documentId, signersAdded,
-        error: signersAdded ? 'Signatários adicionados mas falhou ao enviar' : 'Não foi possível adicionar signatários nem enviar',
-        steps,
-        dica: 'O documento foi enviado para a Assinafy (veja no painel). Pode ser necessário clicar EDITAR no painel da Assinafy, posicionar os campos de assinatura e enviar manualmente. Enquanto isso, estamos investigando o endpoint correto.'
-      })
+      }); return
     }
+
+    // Upload+signers OK, mas assignment recusou: devolve diagnóstico real (sem chute).
+    res.status(502).json({
+      sent:false, documentId, signerIds,
+      error: processedOk
+        ? 'Upload e signatários OK, mas a Assinafy recusou o assignment (envio).'
+        : `O documento ainda estava processando (${docStatus}) quando tentamos enviar. Use Verificar em alguns segundos ou reenvie.`,
+      detail: aBody, steps,
+      dica:'O documento está na Assinafy. Verifique o status pelo botão Verificar ou conclua pelo painel.'
+    })
   } catch (e) {
-    res.status(500).json({ sent:false, error: e.message, steps })
+    res.status(500).json({ sent:false, error:e.message, steps })
   }
 }
