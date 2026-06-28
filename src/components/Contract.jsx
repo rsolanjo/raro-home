@@ -471,8 +471,11 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         if(!(window.jspdf && window.jspdf.jsPDF)) throw new Error('jsPDF não carregou do CDN')
 
         let html = htmlBase
-        const { FONT_FACE_EBGARAMOND } = await import('../fontsEmbed.js')
-        html = html.replace(/@import\s+url\(['"]https:\/\/fonts\.googleapis\.com[^'"]*['"]\);?/g, FONT_FACE_EBGARAMOND)
+        // a EB Garamond (web font) sai com as PALAVRAS GRUDADAS no html2canvas mesmo embutida.
+        // Forçamos Georgia (serif do sistema), que o html2canvas rasteriza com o espaçamento correto.
+        html = html
+          .replace(/@import\s+url\(['"]https:\/\/fonts\.googleapis\.com[^'"]*['"]\);?/g, '')
+          .replace('</head>', "<style>*{font-family:Georgia,'Times New Roman','Times',serif !important}</style></head>")
         const iframe = document.createElement('iframe')
         iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:300px;border:none;background:#fff'
         document.body.appendChild(iframe)
@@ -506,22 +509,22 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         iframe.style.height = fullH+'px'
         await new Promise(r=>setTimeout(r,250))
         const canvas = await window.html2canvas(idoc.body, {
-          scale:2, useCORS:true, logging:false, backgroundColor:'#ffffff',
+          scale:3, useCORS:true, logging:false, backgroundColor:'#ffffff',
           width:794, windowWidth:794, windowHeight:fullH, x:0, y:0, scrollX:0, scrollY:0
         })
-        const imgData = canvas.toDataURL('image/jpeg', 0.95)
+        const imgData = canvas.toDataURL('image/png')
         const JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF
         if(!JsPDF) throw new Error('jsPDF não disponível')
         const pdf = new JsPDF({ unit:'mm', format:'a4', orientation:'portrait' })
         const pageW = 210, pageH = 297
         const imgH = canvas.height * pageW / canvas.width
         let heightLeft = imgH, position = 0
-        pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH, undefined, 'FAST')
+        pdf.addImage(imgData, 'PNG', 0, position, pageW, imgH, undefined, 'FAST')
         heightLeft -= pageH
         while(heightLeft > 12){
           position -= pageH
           pdf.addPage()
-          pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH, undefined, 'FAST')
+          pdf.addImage(imgData, 'PNG', 0, position, pageW, imgH, undefined, 'FAST')
           heightLeft -= pageH
         }
         const pdfBlob = pdf.output('blob')
