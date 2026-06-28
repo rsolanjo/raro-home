@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v186 — ASSINAFY FIX "funcionou uma vez e parou": a API de signatários NÃO é idempotente, e-mail repetido derruba o POST (cliente reenviado + Rogério de e-mail fixo já existiam → "não foi possível criar os signatários"). Agora api/sign.js busca o signatário por e-mail antes (GET /accounts/{id}/signers?search=) e, se o POST falhar por duplicado, rebusca e reusa — exatamente como o CLI oficial faz. Resolve o reenvio repetido.
+// v187 — FIX PDF de assinatura (Assinafy): o PDF que ia pro Assinafy saía cortado (só 1ª página) e com a barra "Salvar como PDF" dentro. Causa: o iframe gerador tinha altura fixa de 1123px (1 página A4) e o html2canvas ignora @media print. Correção em Contract.jsx enviarParaAssinatura: remove os elementos .no-print antes de capturar, solta a altura do iframe pro conteúdo inteiro (scrollHeight) e adiciona pagebreak A4. Agora sobe o contrato completo e limpo. (Os demais documentos imprimem via window.print do navegador, que já pagina certo e esconde a barra.)
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v186 · build 2026-06
+          v187 · build 2026-06
         </div>
       </div>
     </div>

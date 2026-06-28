@@ -464,26 +464,35 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js')
       if(!window.html2pdf) throw new Error('html2pdf não carregou do CDN')
 
-      // 2) renderiza o contrato num iframe oculto (para que o CSS seja aplicado corretamente)
+      // 2) renderiza o contrato num iframe oculto com largura A4 e altura AUTO
       const html = buildContract(proposal, client, opts)
       const iframe = document.createElement('iframe')
-      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:1123px;border:none'
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:300px;border:none;background:#fff'
       document.body.appendChild(iframe)
       const idoc = iframe.contentDocument || iframe.contentWindow.document
       idoc.open(); idoc.write(html); idoc.close()
       // espera fontes e imagens renderizarem
-      await new Promise(r=>setTimeout(r,1500))
+      await new Promise(r=>setTimeout(r,1800))
 
-      // 3) gera o PDF a partir do body do iframe
-      const bodyEl = idoc.body
+      // remove a barra de controle ("Salvar como PDF"): html2canvas ignora @media print,
+      // então ela vazaria pro PDF. E solta a altura do iframe pro conteúdo INTEIRO,
+      // senão o html2canvas captura só a primeira página.
+      idoc.querySelectorAll('.no-print').forEach(el=>el.remove())
+      const fullH = Math.max(idoc.body.scrollHeight, idoc.documentElement.scrollHeight, 1123)
+      iframe.style.height = fullH+'px'
+      await new Promise(r=>setTimeout(r,250))
+
+      // 3) gera o PDF (A4, conteúdo completo, paginado)
       const pdfBlob = await window.html2pdf().set({
         margin:[10,10,10,10], filename:`Contrato-${proposal.code||'RARO'}.pdf`,
-        image:{type:'jpeg',quality:0.92}, html2canvas:{scale:2,useCORS:true,logging:false},
-        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
-      }).from(bodyEl).outputPdf('blob')
+        image:{type:'jpeg',quality:0.95},
+        html2canvas:{ scale:2, useCORS:true, logging:false, backgroundColor:'#ffffff', windowWidth:794, windowHeight:fullH, scrollX:0, scrollY:0 },
+        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
+        pagebreak:{ mode:['css','legacy'] }
+      }).from(idoc.body).outputPdf('blob')
 
       document.body.removeChild(iframe)
-      if(!pdfBlob || pdfBlob.size < 1000) throw new Error(`PDF gerado inválido (${pdfBlob?.size||0} bytes)`)
+      if(!pdfBlob || pdfBlob.size < 5000) throw new Error(`PDF gerado inválido ou pequeno demais (${pdfBlob?.size||0} bytes) — o conteúdo pode não ter renderizado`)
 
       // 4) converte para base64
       const pdfBase64 = await new Promise((res,rej)=>{
