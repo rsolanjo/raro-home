@@ -486,10 +486,19 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
       }catch(_){}
 
       // remove a barra de controle ("Salvar como PDF"): html2canvas ignora @media print,
-      // então ela vazaria pro PDF. E solta a altura do iframe pro conteúdo INTEIRO,
-      // senão o html2canvas captura só a primeira página.
+      // então ela vazaria pro PDF.
       idoc.querySelectorAll('.no-print').forEach(el=>el.remove())
-      const fullH = Math.max(idoc.body.scrollHeight, idoc.documentElement.scrollHeight, 1123)
+
+      // CORREÇÃO: html2canvas renderiza text-align:justify com as PALAVRAS GRUDADAS (bug
+      // conhecido — ele come os espaços que a justificação distribui entre as palavras).
+      // Trocamos justify por left só na captura; os títulos têm text-align:center próprio e não mudam.
+      idoc.body.style.textAlign = 'left'
+      // garante a fonte EB Garamond pronta antes de rasterizar (senão mede os espaços errado)
+      try{ if(idoc.fonts && idoc.fonts.ready){ await idoc.fonts.ready } }catch(_){}
+
+      // solta a altura do iframe pro conteúdo inteiro (só o body — documentElement inflava
+      // a altura e gerava uma 3ª página em branco no fim)
+      const fullH = Math.max(idoc.body.scrollHeight, 1123)
       iframe.style.height = fullH+'px'
       await new Promise(r=>setTimeout(r,250))
 
@@ -510,7 +519,9 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
       let heightLeft = imgH, position = 0
       pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH, undefined, 'FAST')
       heightLeft -= pageH
-      while(heightLeft > 0){
+      // tolerância de 12mm: se o que sobra é só margem/padding do rodapé (não conteúdo),
+      // não cria mais uma página — era a 3ª página em branco.
+      while(heightLeft > 12){
         position -= pageH
         pdf.addPage()
         pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH, undefined, 'FAST')
