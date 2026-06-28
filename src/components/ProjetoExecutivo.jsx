@@ -2868,7 +2868,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   }
 
   async function exportPdf(){
-    const w=window.open('','_blank')
+    const w=window.open('','_blank')   // abre no gesto do clique (não bloqueia popup) e serve de feedback
+    try{ if(w){ w.document.write('<!doctype html><meta charset="utf-8"><body style="font-family:system-ui,sans-serif;padding:48px;color:#334155;font-size:15px;line-height:1.6">Gerando o PDF fiel à tela, aguarde alguns segundos…</body>') } }catch(_){}
     const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
     const codigo=(fromProposal?.code||'').replace(/[\\/:*?"<>|]/g,'')
     const nomeDoc = execMode==='obra' ? 'Plano de Obra' : execMode==='eletrica' ? 'Planta Elétrica' : execMode==='conduites' ? 'Conduites' : 'Projeto Executivo'
@@ -2890,12 +2891,39 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       pageCss = (execMode==='obra'||execMode==='eletrica'||execMode==='conduites') ? '@page{size:A3 landscape;margin:10mm}' : '@page{size:A4;margin:12mm}'
       body = (execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execMode==='conduites'?execDocConduites:execDoc)||''
     }
-    w.document.write(`<html><head><title>${tituloPdf}</title><meta charset="utf-8">
-      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-      <style>${pageCss} body{margin:0}${execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style></head><body>
-      ${body}
-      </body></html>`)
-    w.document.close(); setTimeout(()=>w.print(),700)
+    const fontLink='<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
+
+    // ── 1) Render FIEL À TELA no servidor: Chromium em media screen, na MESMA largura do
+    //    preview (820px completo / 1180px obra-elétrica). Neutraliza as quebras forçadas e o
+    //    min-height das capas, pra fluir contínuo como na tela (sem folhas pela metade).
+    const screenW = (execMode==='obra'||execMode==='eletrica'||execMode==='conduites') ? 1180 : 820
+    try{
+      const override='<style>.ex-sec,.ex-sec.ex-breakable,.ex-obra-page,.ex-doc-cover,.ex-cover{page-break-before:auto!important;page-break-inside:auto!important;break-before:auto!important;break-inside:auto!important;min-height:0!important}</style>'
+      const fullHtml=`<!doctype html><html><head><meta charset="utf-8">${fontLink}${override}</head><body style="margin:0;background:#fff">${body}</body></html>`
+      const rr=await fetch('/api/render-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({html:fullHtml,emulateScreen:true,pageWidthPx:screenW})})
+      if(rr.ok){
+        const rj=await rr.json().catch(()=>({}))
+        if(rj&&rj.pdfBase64&&rj.pdfBase64.length>5000){
+          const bin=atob(rj.pdfBase64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i)
+          const url=URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))
+          const a=document.createElement('a'); a.href=url; a.download=tituloPdf+'.pdf'; document.body.appendChild(a); a.click(); a.remove()
+          setTimeout(()=>URL.revokeObjectURL(url),5000)
+          try{ if(w) w.close() }catch(_){}
+          return
+        }
+      }
+    }catch(_){ /* servidor indisponível ou erro → cai na janela de impressão abaixo */ }
+
+    // ── 2) FALLBACK: janela de impressão (comportamento anterior), reusando a janela já aberta ──
+    try{
+      const win = w || window.open('','_blank')
+      win.document.open()
+      win.document.write(`<html><head><title>${tituloPdf}</title><meta charset="utf-8">${fontLink}
+        <style>${pageCss} body{margin:0}${execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style></head><body>
+        ${body}
+        </body></html>`)
+      win.document.close(); setTimeout(()=>win.print(),700)
+    }catch(_){}
   }
 
   async function saveToProposal(docOverride){
