@@ -451,7 +451,12 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
       if(!(window.jspdf && window.jspdf.jsPDF)) throw new Error('jsPDF não carregou do CDN')
 
       // 2) renderiza o contrato num iframe oculto com largura A4 e altura AUTO
-      const html = buildContract(proposal, client, opts)
+      let html = buildContract(proposal, client, opts)
+      // troca o @import externo da fonte (que o html2canvas não carrega a tempo, fazendo as
+      // palavras grudarem) pela EB Garamond embutida em base64 — pronta na hora da captura.
+      // Carregada sob demanda p/ não pesar o bundle principal.
+      const { FONT_FACE_EBGARAMOND } = await import('../fontsEmbed.js')
+      html = html.replace(/@import\s+url\(['"]https:\/\/fonts\.googleapis\.com[^'"]*['"]\);?/g, FONT_FACE_EBGARAMOND)
       const iframe = document.createElement('iframe')
       iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:300px;border:none;background:#fff'
       document.body.appendChild(iframe)

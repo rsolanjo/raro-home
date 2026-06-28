@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v189 — CORREÇÃO CRÍTICA do PDF de assinatura (Assinafy), dois bugs: (1) a logo da RARO é um SVG (viewBox 600×694) e o html2canvas a rasterizava no tamanho intrínseco ignorando o width:120px do CSS, estourando a capa — agora a logo vira PNG no tamanho certo antes da captura; (2) o wrapper html2pdf posicionava a imagem com offset e cortava a lateral esquerda do texto — trocado por paginação MANUAL via jsPDF (html2canvas + jsPDF de CDNs próprios), com a página ocupando a largura cheia (x=0) e a margem vinda do padding do contrato. Resultado: contrato completo, legível e paginado. EM ANDAMENTO p/ próximas versões: portar p/ o código os designs aprovados de Proposta e Apresentação, e do Relatório do cliente (projeto / registro técnico / entrega e uso).
+// v190 — CORREÇÃO da fonte no PDF de assinatura (palavras grudadas/ilegível). Causa raiz: a EB Garamond era carregada por @import externo do Google Fonts, e o html2canvas mede o texto ANTES da fonte chegar, colando as palavras. Agora a fonte (latin 400/600/itálico) está EMBUTIDA em base64 (src/fontsEmbed.js) e o @import é trocado por ela só no fluxo de assinatura, ficando disponível na hora da captura. Acumula as correções da v189 (logo SVG rasterizada p/ PNG; paginação manual via jsPDF sem corte lateral; sem página em branco). EM ANDAMENTO p/ próximas versões: portar p/ o código os designs aprovados de Proposta e Apresentação, e do Relatório do cliente.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v189 · build 2026-06
+          v190 · build 2026-06
         </div>
       </div>
     </div>
