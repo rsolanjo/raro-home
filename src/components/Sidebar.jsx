@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v182 — (1)Assinafy FIX: signatários inline no assignment em vez de criar separado (endpoint /signers retornava 400); tenta 3 formatos de assignment (inline/virtual/account); (2)Comparação reescrita: compara proposta vs tipos de contrato (Total/Projeto/Ocultas por categoria) mostrando itens, categorias e diferença de valor para cada opção
+// v183 — Assinafy FIX: fluxo de 3 etapas (upload→signatários→enviar) com multiplas tentativas de endpoint (signatories/signers single/array, send/put-status/assignments). Quando upload OK mas envio falha, oferece link direto pro painel da Assinafy p/ completar manualmente (EDITAR→posicionar campos→enviar). Salva documentId mesmo em caso de falha parcial.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v182 · build 2026-06
+          v183 · build 2026-06
         </div>
       </div>
     </div>

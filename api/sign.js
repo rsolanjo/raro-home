@@ -1,7 +1,13 @@
-// Assinatura digital via Assinafy — corrigido: signatários inline no assignment
-// O upload funciona, mas o endpoint /signers retorna 400.
-// Solução: pular criação separada, passar signatários direto no assignment.
-// Isso é o que o comando "assinafy send" faz internamente.
+// Assinatura digital via Assinafy
+// Diagnóstico: upload funciona (200), mas assignment falha (400)
+// porque o documento precisa de signatários ANTES de ser enviado.
+//
+// Fluxo correto da Assinafy (3 etapas):
+//   1) Upload: POST /documents          → documentId
+//   2) Signatários: POST /documents/{id}/signatories  → adiciona quem vai assinar
+//   3) Enviar: POST /documents/{id}/send  → dispara os e-mails
+//
+// Tenta múltiplas variações de endpoints para descobrir o correto.
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -17,7 +23,20 @@ module.exports = async function handler(req, res) {
   if (!ACCOUNT) { res.status(200).json({ sent:false, reason:'Defina ASSINAFY_ACCOUNT_ID no Vercel.' }); return }
 
   const auth = { 'X-Api-Key': API_KEY }
+  const jsonAuth = { ...auth, 'Content-Type': 'application/json' }
   const steps = []
+
+  // helper: tenta POST e retorna {ok, status, body}
+  async function tryPost(url, body) {
+    const r = await fetch(url, { method:'POST', headers: jsonAuth, body: JSON.stringify(body) })
+    const j = await r.json().catch(()=>({}))
+    return { ok:r.ok, status:r.status, body:j }
+  }
+  async function tryPut(url, body) {
+    const r = await fetch(url, { method:'PUT', headers: jsonAuth, body: JSON.stringify(body) })
+    const j = await r.json().catch(()=>({}))
+    return { ok:r.ok, status:r.status, body:j }
+  }
 
   try {
     let body = req.body
@@ -27,7 +46,7 @@ module.exports = async function handler(req, res) {
       res.status(400).json({ error:'Faltam pdfBase64 e/ou signers [{name,email}]' }); return
     }
 
-    // 1) UPLOAD do PDF
+    // ══════ ETAPA 1: UPLOAD ══════
     const pdfBuffer = Buffer.from(pdfBase64, 'base64')
     const form = new FormData()
     form.append('file', new Blob([pdfBuffer], { type:'application/pdf' }), fileName || 'Contrato.pdf')
@@ -35,50 +54,85 @@ module.exports = async function handler(req, res) {
     const upJson = await upR.json().catch(()=>({}))
     const documentId = upJson?.data?.id || upJson?.id
     steps.push({ step:'upload', status:upR.status, id:documentId||null })
-    if (!upR.ok || !documentId) { res.status(502).json({ sent:false, error:'Falha no upload', detail:upJson, steps }); return }
+    if (!documentId) { res.status(502).json({ sent:false, error:'Falha no upload', detail:upJson, steps }); return }
 
-    // 2) ASSIGNMENT com signatários INLINE (sem criar separado)
-    // Tenta várias formas que a API pode aceitar:
-    const signersList = signers.map(s => ({ name:s.name, email:s.email, notify:'email' }))
+    // ══════ ETAPA 2: ADICIONAR SIGNATÁRIOS AO DOCUMENTO ══════
+    // Tenta várias rotas possíveis da API
+    let signersAdded = false
+    const signerPayloads = signers.map(s => ({ name:s.name, email:s.email, action:'sign' }))
 
-    // Tentativa A: signatários inline no assignment
-    let asgR = await fetch(`${BASE}/documents/${documentId}/assignments`, {
-      method:'POST', headers:{ ...auth, 'Content-Type':'application/json' },
-      body: JSON.stringify({ signers: signersList, message: message || 'Assine o contrato RARO Home.' })
-    })
-    let asgJson = await asgR.json().catch(()=>({}))
-    steps.push({ step:'assignment-inline', status:asgR.status })
+    // Tentativa A: POST /documents/{id}/signatories (uma por signatário)
+    for (const sp of signerPayloads) {
+      const r = await tryPost(`${BASE}/documents/${documentId}/signatories`, sp)
+      steps.push({ step:'signatory-single', email:sp.email, status:r.status })
+      if (r.ok) signersAdded = true
+    }
 
-    // Se inline falhou, tentativa B: com method=virtual
-    if (!asgR.ok) {
-      asgR = await fetch(`${BASE}/documents/${documentId}/assignments`, {
-        method:'POST', headers:{ ...auth, 'Content-Type':'application/json' },
-        body: JSON.stringify({ method:'virtual', signers: signersList, message: message || 'Assine o contrato RARO Home.' })
+    // Se A falhou, tentativa B: POST /documents/{id}/signatories com array
+    if (!signersAdded) {
+      const r = await tryPost(`${BASE}/documents/${documentId}/signatories`, { signatories: signerPayloads })
+      steps.push({ step:'signatories-array', status:r.status })
+      if (r.ok) signersAdded = true
+    }
+
+    // Se B falhou, tentativa C: POST /documents/{id}/signers
+    if (!signersAdded) {
+      for (const sp of signerPayloads) {
+        const r = await tryPost(`${BASE}/documents/${documentId}/signers`, sp)
+        steps.push({ step:'signer-doc', email:sp.email, status:r.status })
+        if (r.ok) signersAdded = true
+      }
+    }
+
+    // Se C falhou, tentativa D: POST /accounts/{id}/documents/{id}/signatories
+    if (!signersAdded) {
+      for (const sp of signerPayloads) {
+        const r = await tryPost(`${BASE}/accounts/${ACCOUNT}/documents/${documentId}/signatories`, sp)
+        steps.push({ step:'signatory-acct', email:sp.email, status:r.status })
+        if (r.ok) signersAdded = true
+      }
+    }
+
+    // ══════ ETAPA 3: ENVIAR PARA ASSINATURA ══════
+    let sent = false
+    let sendResult = null
+
+    // Tentativa A: POST /documents/{id}/send
+    const sendA = await tryPost(`${BASE}/documents/${documentId}/send`, { message: message || 'Assine o contrato RARO Home.' })
+    steps.push({ step:'send', status:sendA.status })
+    if (sendA.ok) { sent = true; sendResult = sendA.body }
+
+    // Se A falhou, tentativa B: PUT /documents/{id} com status "sent"
+    if (!sent) {
+      const sendB = await tryPut(`${BASE}/documents/${documentId}`, { status:'sent', message: message || 'Assine o contrato RARO Home.' })
+      steps.push({ step:'put-status', status:sendB.status })
+      if (sendB.ok) { sent = true; sendResult = sendB.body }
+    }
+
+    // Se B falhou, tentativa C: POST /documents/{id}/assignments (original)
+    if (!sent) {
+      const sendC = await tryPost(`${BASE}/documents/${documentId}/assignments`, { 
+        signers: signerPayloads,
+        message: message || 'Assine o contrato RARO Home.'
       })
-      asgJson = await asgR.json().catch(()=>({}))
-      steps.push({ step:'assignment-virtual', status:asgR.status })
+      steps.push({ step:'assignment-retry', status:sendC.status })
+      if (sendC.ok) { sent = true; sendResult = sendC.body }
     }
 
-    // Se ambos falharam, tentativa C: com account_id no body
-    if (!asgR.ok) {
-      asgR = await fetch(`${BASE}/accounts/${ACCOUNT}/documents/${documentId}/assignments`, {
-        method:'POST', headers:{ ...auth, 'Content-Type':'application/json' },
-        body: JSON.stringify({ signers: signersList, message: message || 'Assine o contrato RARO Home.' })
+    if (sent) {
+      res.status(200).json({
+        sent: true, documentId, signersAdded,
+        url: sendResult?.data?.url || `https://app.assinafy.com.br/documents/${documentId}`,
+        steps
       })
-      asgJson = await asgR.json().catch(()=>({}))
-      steps.push({ step:'assignment-account', status:asgR.status })
+    } else {
+      res.status(502).json({
+        sent: false, documentId, signersAdded,
+        error: signersAdded ? 'Signatários adicionados mas falhou ao enviar' : 'Não foi possível adicionar signatários nem enviar',
+        steps,
+        dica: 'O documento foi enviado para a Assinafy (veja no painel). Pode ser necessário clicar EDITAR no painel da Assinafy, posicionar os campos de assinatura e enviar manualmente. Enquanto isso, estamos investigando o endpoint correto.'
+      })
     }
-
-    if (!asgR.ok) {
-      res.status(502).json({ sent:false, error:'Documento enviado mas falhou ao solicitar assinatura', documentId, detail:asgJson, steps })
-      return
-    }
-
-    res.status(200).json({
-      sent:true, documentId,
-      url: asgJson?.data?.url || `https://app.assinafy.com.br/documents/${documentId}`,
-      steps
-    })
   } catch (e) {
     res.status(500).json({ sent:false, error: e.message, steps })
   }

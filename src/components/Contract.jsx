@@ -509,12 +509,21 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         alert(`✓ Contrato enviado para assinatura!\n\nOs signatários receberão um e-mail da Assinafy.\n${j.url?'\nAcompanhe em: '+j.url:''}`)
         setSaved(true); if(onGenerated) onGenerated(proposal)
       } else {
-        const motivo = j.reason || j.error || 'desconhecido'
-        const http = j.http ? `\nHTTP: ${j.http}` : ''
-        const det = j.detail ? `\n\nResposta da Assinafy:\n${JSON.stringify(j.detail).slice(0,400)}` : ''
-        const steps = j.steps ? `\n\nEtapas: ${JSON.stringify(j.steps).slice(0,300)}` : ''
         console.error('Assinafy /api/sign falhou:', j)
-        alert(`Não foi possível enviar para assinatura.\n\nMotivo: ${motivo}${http}${det}${steps}\n\nDica: confira ASSINAFY_API_KEY e ASSINAFY_ACCOUNT_ID no Vercel (e Redeploy). Detalhes completos no Console do navegador (F12).`)
+        // se o documento foi enviado para a Assinafy (upload ok), salva o ID e oferece link manual
+        if(j.documentId){
+          salvarSignDocId(j.documentId)
+          const abrir = window.confirm(`O contrato foi enviado para a Assinafy mas o envio automático para assinatura falhou.\n\nO contrato está no seu painel da Assinafy em "Aguardando preparação".\n\n→ Clique OK para abrir o painel da Assinafy e completar manualmente (EDITAR → adicionar signatários → enviar)\n→ Clique Cancelar para ver os detalhes técnicos do erro`)
+          if(abrir){
+            window.open(`https://app.assinafy.com.br/documents/${j.documentId}`, '_blank')
+          } else {
+            const det = j.detail ? `\n${JSON.stringify(j.detail).slice(0,300)}` : ''
+            const st = j.steps ? `\nEtapas: ${JSON.stringify(j.steps).slice(0,400)}` : ''
+            alert(`Detalhes técnicos:\n\nDocumento ID: ${j.documentId}\nSignatários adicionados: ${j.signersAdded?'sim':'não'}\n${j.error||''}${det}${st}\n\n${j.dica||''}`)
+          }
+        } else {
+          alert(`Não foi possível enviar para assinatura.\n\nMotivo: ${j.reason||j.error||'desconhecido'}\n\nConfira ASSINAFY_API_KEY e ASSINAFY_ACCOUNT_ID no Vercel e faça Redeploy.`)
+        }
       }
     }catch(e){
       console.error('Erro assinatura:', e)
