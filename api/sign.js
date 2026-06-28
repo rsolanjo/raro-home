@@ -25,6 +25,7 @@ function toE164(raw){
   return '+' + d
 }
 const pick = j => (j && j.data !== undefined ? j.data : j) || {}
+const arr  = j => Array.isArray(j) ? j : (Array.isArray(j?.data) ? j.data : [])
 
 module.exports = async function handler(req, res){
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -74,20 +75,39 @@ module.exports = async function handler(req, res){
     }
     const processedOk = READY.has(docStatus)
 
-    // ─────────── 3) CRIAR SIGNATÁRIOS (idempotente por e-mail) ───────────
+    // ─────────── 3) CRIAR / REUSAR SIGNATÁRIOS ───────────
+    // A API NÃO é idempotente: e-mail repetido derruba o POST. Então buscamos antes (como o CLI faz)
+    // e, se o POST falhar por duplicado, buscamos de novo e reusamos.
+    // (Esta era a causa do "funcionou uma vez e parou": cliente repetido + Rogério de e-mail fixo já existiam.)
+    async function findSignerId(email){
+      try{
+        const r = await fetch(`${BASE}/accounts/${ACCOUNT}/signers?search=${encodeURIComponent(email)}&per_page=100`, { headers:auth })
+        if(!r.ok) return null
+        const lower = (email||'').toLowerCase()
+        const hit = arr(await r.json().catch(()=>({}))).find(x => ((x && x.email)||'').toLowerCase() === lower)
+        return (hit && hit.id) || null
+      }catch{ return null }
+    }
     const signerIds = []
     for (const s of signers){
-      const payload = { full_name: s.name, email: s.email }
-      const phone = toE164(s.phone)
-      if (phone) payload.whatsapp_phone_number = phone
-      if (s.cpf) { const c = String(s.cpf).replace(/\D/g,''); if(c) payload.cpf = c }
-      const r = await fetch(`${BASE}/accounts/${ACCOUNT}/signers`, { method:'POST', headers:jsonAuth, body:JSON.stringify(payload) })
-      const sid = pick(await r.json().catch(()=>({}))).id
-      steps.push({ step:'signer', email:s.email, status:r.status, id:sid||null })
-      if (sid) signerIds.push(sid)
+      const email = (s.email||'').trim()
+      if(!email) continue
+      let id = await findSignerId(email)               // 1) reusa existente
+      let how = id ? 'reused' : null
+      if(!id){
+        const payload = { full_name: s.name, email }   // 2) cria
+        const phone = toE164(s.phone); if (phone) payload.whatsapp_phone_number = phone
+        if (s.cpf) { const c = String(s.cpf).replace(/\D/g,''); if(c) payload.cpf = c }
+        const r = await fetch(`${BASE}/accounts/${ACCOUNT}/signers`, { method:'POST', headers:jsonAuth, body:JSON.stringify(payload) })
+        id = pick(await r.json().catch(()=>({}))).id
+        how = id ? 'created' : null
+        if(!id){ id = await findSignerId(email); how = id ? 'recovered' : null }  // 3) POST falhou: rebusca
+      }
+      steps.push({ step:'signer', email, id:id||null, how })
+      if (id) signerIds.push(id)
     }
     if (!signerIds.length){
-      res.status(502).json({ sent:false, documentId, error:'Não foi possível criar os signatários', steps }); return
+      res.status(502).json({ sent:false, documentId, error:'Não foi possível criar nem localizar os signatários', steps }); return
     }
 
     // ─────────── 4) ASSIGNMENT (dispara os e-mails) ───────────

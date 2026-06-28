@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v185 — ASSINAFY FIX REAL: reescrito api/sign.js no fluxo oficial do fornecedor (confirmado no CLI @assinafy/cli), parando de chutar endpoint. 4 etapas: upload → AGUARDA processamento (metadata_ready, peça que faltava e derrubava o envio) → cria signers (full_name/whatsapp_phone_number/cpf, idempotente por e-mail) → POST /documents/{id}/assignments dispara os e-mails. Contract.jsx agora envia telefone e CPF do cliente. api/sign-status.js reescrito (removido /progress inexistente; usa /documents/{id} + /assignments + /activities, status traduzidos). Botão Verificar alinhado ao novo retorno.
+// v186 — ASSINAFY FIX "funcionou uma vez e parou": a API de signatários NÃO é idempotente, e-mail repetido derruba o POST (cliente reenviado + Rogério de e-mail fixo já existiam → "não foi possível criar os signatários"). Agora api/sign.js busca o signatário por e-mail antes (GET /accounts/{id}/signers?search=) e, se o POST falhar por duplicado, rebusca e reusa — exatamente como o CLI oficial faz. Resolve o reenvio repetido.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v185 · build 2026-06
+          v186 · build 2026-06
         </div>
       </div>
     </div>
