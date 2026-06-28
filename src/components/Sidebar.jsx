@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v197 — Relatório (Projeto Executivo): (1) corrige ícones/pinos brancos e formatação quebrada ao salvar em PDF — adicionado print-color-adjust:exact (premium e clássico), que força os fundos coloridos (pinos por categoria, cabeçalho navy das tabelas, zebra) a imprimirem sempre, em vez de sumirem quando o navegador desliga 'gráficos de plano de fundo'; (2) 'Planta de Pontos' deixa de ser seção numerada (é figura de referência) — sai o '1' ao lado do título e as seções reais passam a numerar a partir de 1. Mantém v196 (redação do contrato) e anteriores.
+// v199 — Relatório (Projeto Executivo): completa o estilo Novo (premium). Antes só a casca era premium (capa, fonte serifada, navy+dourado) e o miolo saía com cyan cravado, então o documento parecia tema pela metade. Agora o miolo segue o tema: número e linha de capítulo, badges de número nas tabelas, badge dos símbolos elétricos e pontos genéricos das plantas usam dourado/navy no premium e cyan no clássico. NÃO toca cor que é dado (legenda de categoria, cor de cabo, série de gráfico) nem as telas de app simuladas (UniFi/app RARO). Clássico fica byte-idêntico ao anterior. Mantém v198 (download desacoplado + contrato) e anteriores.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v197 · build 2026-06
+          v199 · build 2026-06
         </div>
       </div>
     </div>

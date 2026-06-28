@@ -225,9 +225,9 @@ export function buildContract(proposal, client, opts={}) {
 
   <div class="preamble">
     <p>Pelo presente instrumento particular, as partes a seguir qualificadas:</p>
-    <div class="party-line"><span class="lbl">Contratada:</span> <strong>RARO Home Tecnologia</strong>, prestadora de serviços de automação residencial, com sede no Rio de Janeiro/RJ, neste ato representada por <strong>Rogério Silva</strong>; e</div>
+    <div class="party-line"><span class="lbl">Contratada:</span> <strong>RARO Home Tecnologia</strong>, prestadora de serviços de automação residencial, com sede no Rio de Janeiro/RJ, neste ato representada por <strong>Rogério Silva</strong>.</div>
     <div class="party-line"><span class="lbl">Contratante:</span> ${contratanteQualif}</div>
-    <p>têm entre si, de comum acordo, justo e contratado o que segue, mediante as cláusulas e condições adiante estabelecidas.</p>
+    <p>As partes, de comum acordo, resolvem celebrar o presente contrato, que se regerá pelas cláusulas e condições a seguir.</p>
   </div>
 
   <div class="clause">

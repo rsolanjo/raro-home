@@ -1535,6 +1535,17 @@ Responda APENAS JSON válido:
   function buildExecHtml(d, mode='completo', versao){
     const _ver = versao || execVersao
     const isObra = mode==='obra'
+    const _prem = _ver==='nova'
+    // Tema do miolo do documento: no premium acompanha a casca (navy + dourado);
+    // no clássico, cyan. NÃO mexe em cor que é dado (cabo, categoria, gráfico, telas de app).
+    const TH = _prem
+      ? { rule:'#1A2740', pin:'#1A2740', accent:'#9C7B45' }
+      : { rule:'#0EA5E9', pin:'#0EA5E9', accent:'#0EA5E9' }
+    // Número de capítulo: premium = algarismo dourado inline (estilizado pelo CSS .ex-sec-num);
+    // clássico = bolinha cyan inline.
+    const _capNum = n => _prem
+      ? `<span class="ex-sec-num">${n}</span>`
+      : `<span class="ex-sec-num" style="background:#0EA5E9;color:#fff;padding:3px 10px;border-radius:5px;font-size:13px;margin-right:10px">${n}</span>`
 
     // ── PLANTA ELÉTRICA (ABNT NBR 5444) — símbolos técnicos sobre a planta ──
     // Desenha tomadas, interruptores, pontos de luz e QDL com símbolos normalizados,
@@ -1565,7 +1576,7 @@ Responda APENAS JSON válido:
         <div style="position:absolute;left:${m.x}%;top:${m.y}%;width:${SYM_PX}px;height:${SYM_PX}px;transform:translate(-50%,-50%);z-index:3">
           <svg viewBox="-12 -14 24 30" width="${SYM_PX}" height="${SYM_PX}" style="overflow:visible">
             ${ELE_SYMBOLS[cls.sym]||ELE_SYMBOLS.generico}
-            <circle cx="10" cy="-10" r="6.5" fill="#0EA5E9" stroke="#fff" stroke-width="1.2"/>
+            <circle cx="10" cy="-10" r="6.5" fill="${TH.pin}" stroke="#fff" stroke-width="1.2"/>
             <text x="10" y="-7.5" font-size="8" text-anchor="middle" font-weight="800" fill="#fff">${m.n}</text>
           </svg>
           ${volt?`<div style="position:absolute;left:50%;top:-7px;transform:translateX(-50%);font-size:6.5px;font-weight:800;color:#fff;background:${volt==='220V'?'#DC2626':'#0891B2'};padding:0 3px;border-radius:5px;white-space:nowrap">${volt}</div>`:''}
@@ -1702,7 +1713,7 @@ Responda APENAS JSON válido:
     const T=(rows,cols)=>`<table class="ex-tbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`
     const esc=s=>(s==null?'':String(s))
     // ── Número do pino na planta — para cruzar tabela ↔ planta ──
-    const pin=(n,color='#0EA5E9')=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${color};color:#fff;font-size:9px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);vertical-align:middle">${n}</span>`
+    const pin=(n,color=TH.pin)=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${color};color:#fff;font-size:9px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);vertical-align:middle">${n}</span>`
     const _normKey = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'')
     const pinNum = (...keys)=>{
       for(const k of keys){ if(k==null) continue; const kk=_normKey(k); if(!kk) continue
@@ -1799,7 +1810,7 @@ Responda APENAS JSON válido:
   <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;padding:0 4px">
     <span style="font-size:10px;color:#374151"><b style="color:#16A34A">●</b> APs: <b>${aps}</b></span>
     <span style="font-size:10px;color:#374151"><b style="color:#DC2626">●</b> Câmeras: <b>${cams}</b></span>
-    <span style="font-size:10px;color:#374151"><b style="color:#0EA5E9">●</b> PoE: <b>${totalPoe}/${rackCfg.dream_machine_portas||8}</b></span>
+    <span style="font-size:10px;color:#374151"><b style="color:${TH.accent}">●</b> PoE: <b>${totalPoe}/${rackCfg.dream_machine_portas||8}</b></span>
     ${precisaSwitch?`<span style="font-size:10px;color:#92400E;background:#FEF3C7;padding:2px 8px;border-radius:4px">⚠ Switch PoE+ ${rackCfg.switch_portas||16}p</span>`:`<span style="font-size:10px;color:#065F46;background:#D1FAE5;padding:2px 8px;border-radius:4px">✓ Dream Machine SE suficiente</span>`}
   </div>
 </div>`
@@ -2389,7 +2400,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const itemDots = markers.filter(m=>uidsNaFam.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
           const isR=isRackItem(m.name||'',m.code||'')
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:16px;height:16px;border-radius:50%;background:${isR?'#4C1D95':'#0EA5E9'};color:#fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
+            <div style="width:16px;height:16px;border-radius:50%;background:${isR?'#4C1D95':TH.pin};color:#fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
           </div>`}).join('')
         // caixas
         const caixaDots = caixasConduite.map(m=>`
@@ -2571,7 +2582,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const isR=isRackItem(m.name||'',m.code||'')
           const isCx=classifyEle(m)?.sym==='caixa_conduite'
           const isPrum=classifyEle(m)?.sym==='prumada'
-          const bg=isR?'#4C1D95':isCx?'#1E3A8A':isPrum?'#7C3AED':'#0EA5E9'
+          const bg=isR?'#4C1D95':isCx?'#1E3A8A':isPrum?'#7C3AED':TH.pin
           const label=isCx?'CX':isPrum?'⇵':(isR?'R':m.n)
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
             <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${label}</div>
@@ -2773,7 +2784,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
     // ── capítulos numerados (profissional, sem duplicação) ──
     let _cap = 0
-    const cap = t => `<div class="ex-sec ex-breakable" style="page-break-before:always"><h2 style="border-bottom:3px solid #0EA5E9;padding-bottom:8px;margin-bottom:12px"><span class="ex-sec-num" style="background:#0EA5E9;color:#fff;padding:3px 10px;border-radius:5px;font-size:13px;margin-right:10px">${++_cap}</span>${t}</h2>`
+    const cap = t => `<div class="ex-sec ex-breakable" style="page-break-before:always"><h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:12px">${_capNum(++_cap)}${t}</h2>`
 
     // ── gera os conteúdos de Obra e Conduítes inline (sem duplicação) ──
     let obraInline = '', conduitesInline = ''
@@ -2794,7 +2805,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const allDots = markers.map(m=>{
         const isR=isRackItem(m.name||'',m.code||'')
         const isCx=classifyEle(m)?.sym==='caixa_conduite'
-        const bg=isR?'#4C1D95':isCx?'#1E3A8A':'#0EA5E9'
+        const bg=isR?'#4C1D95':isCx?'#1E3A8A':TH.pin
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
           <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isCx?'CX':(isR?'R':m.n)}</div>
           <div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 3px;font-size:7px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||'')}</div>
@@ -2806,11 +2817,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     hasRack && (d.rack_detalhe||rackItems.length) ? cap('Rack / CPD — Equipamentos e Portas') + (list(d.rack_detalhe)+(rackEquipTable?`<h3 class="ex-amb">Equipamentos do Rack</h3>${rackEquipTable}`:'')+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Cabos de Rede</h3>${rackCableTableHtml}`:'')) + '</div>' : '',
 
     // 4. PLANTA ELÉTRICA
-    buildPlantaEletrica(()=>`<span class="ex-sec-num" style="background:#0EA5E9;color:#fff;padding:3px 10px;border-radius:5px;font-size:13px;margin-right:10px">${++_cap}</span>`),
+    buildPlantaEletrica(()=>_capNum(++_cap)),
 
     // 5. MAPA DE CALOR WI-FI
     (()=>{ const aps=markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
-      return (showHeatmap && aps.length) ? (()=>{_cap++; return buildHeatmap(()=>`<span class="ex-sec-num" style="background:#0EA5E9;color:#fff;padding:3px 10px;border-radius:5px;font-size:13px;margin-right:10px">${_cap}</span>`)})() : '' })(),
+      return (showHeatmap && aps.length) ? (()=>{_cap++; return buildHeatmap(()=>_capNum(_cap))})() : '' })(),
 
     // 6. PLANTA DE TETO
     plantaTeto ? cap('Planta de Teto — Itens sobre Forro e Laje') + plantaTeto.replace(/<div class="ex-sec[^>]*><h2[^<]*<[^>]*>[^<]*<\/span>[^<]*<\/h2>/,'') + '</div>' : '',
@@ -2885,11 +2896,6 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       ${body}
       </body></html>`)
     w.document.close(); setTimeout(()=>w.print(),700)
-  }
-
-  async function exportPdfAndSave(){
-    await saveToProposal()
-    setTimeout(()=>exportPdf(), 200)
   }
 
   async function saveToProposal(docOverride){
@@ -4087,7 +4093,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           <button onClick={generateExecManual} disabled={loading} style={{...btnGhost,borderColor:'rgba(148,163,184,0.5)',color:'#CBD5E1',gap:6}} title="Regera os 3 documentos a partir dos pontos, sem IA">
             <i className="ti ti-refresh" aria-hidden/> Regerar sem IA
           </button>
-          <button onClick={exportPdfAndSave} style={btnPrimary}><i className="ti ti-file-download" aria-hidden/> Baixar PDF ({execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':'Completo'}) e salvar</button>
+          {(fromProposal?.id || onSaveToProposal) && <button onClick={saveToProposal} disabled={loading} style={{...btnGhost,borderColor:'rgba(56,189,248,0.4)',color:'#38BDF8',gap:6}} title="Grava o documento no orçamento. É uma ação separada do download, e só ela toca o banco."><i className="ti ti-device-floppy" aria-hidden/> Salvar no orçamento</button>}
+          <button onClick={exportPdf} style={btnPrimary} title="Gera o PDF para imprimir ou salvar como PDF pelo navegador. Não grava no banco."><i className="ti ti-file-download" aria-hidden/> Baixar PDF ({execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='conduites'?'Conduítes':'Completo'})</button>
         </div>
       )}
       <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes progslide{0%{margin-left:-40%}100%{margin-left:100%}}`}</style>
