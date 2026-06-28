@@ -1,12 +1,7 @@
-// Assinatura digital via Assinafy (https://api.assinafy.com.br/v1)
-// Confirmado pela CLI oficial (github.com/assinafy/assinafy-cli):
-//   - auth: header X-Api-Key
-//   - fluxo: documents upload -> signers create -> assignments create (com signer-ids)
-//
-// Vercel -> Settings -> Environment Variables:
-//   ASSINAFY_API_KEY    = sua API Key (Configuracoes/Desenvolvedor/API no painel)
-//   ASSINAFY_ACCOUNT_ID = id da conta/workspace
-//   (opcional) ASSINAFY_BASE_URL  = https://api.assinafy.com.br/v1  (ou sandbox)
+// Assinatura digital via Assinafy — corrigido: signatários inline no assignment
+// O upload funciona, mas o endpoint /signers retorna 400.
+// Solução: pular criação separada, passar signatários direto no assignment.
+// Isso é o que o comando "assinafy send" faz internamente.
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -21,9 +16,7 @@ module.exports = async function handler(req, res) {
   if (!API_KEY) { res.status(200).json({ sent:false, reason:'Defina ASSINAFY_API_KEY no Vercel.' }); return }
   if (!ACCOUNT) { res.status(200).json({ sent:false, reason:'Defina ASSINAFY_ACCOUNT_ID no Vercel.' }); return }
 
-  // auth: X-Api-Key (principal) + Authorization Bearer como fallback que algumas contas aceitam
-  const auth = { 'X-Api-Key': API_KEY, 'Authorization': `Bearer ${API_KEY}` }
-  const pickId = j => j?.data?.id || j?.id || j?.data?.document?.id || j?.document?.id
+  const auth = { 'X-Api-Key': API_KEY }
   const steps = []
 
   try {
@@ -34,52 +27,52 @@ module.exports = async function handler(req, res) {
       res.status(400).json({ error:'Faltam pdfBase64 e/ou signers [{name,email}]' }); return
     }
 
-    // 1) UPLOAD (multipart) — POST /accounts/{id}/documents  campo "file"
+    // 1) UPLOAD do PDF
     const pdfBuffer = Buffer.from(pdfBase64, 'base64')
     const form = new FormData()
     form.append('file', new Blob([pdfBuffer], { type:'application/pdf' }), fileName || 'Contrato.pdf')
     const upR = await fetch(`${BASE}/accounts/${ACCOUNT}/documents`, { method:'POST', headers:auth, body:form })
     const upJson = await upR.json().catch(()=>({}))
-    steps.push({ step:'upload', status:upR.status })
-    const documentId = pickId(upJson)
-    if (!upR.ok || !documentId) { res.status(502).json({ sent:false, error:'Falha no upload', http:upR.status, detail:upJson, steps }); return }
+    const documentId = upJson?.data?.id || upJson?.id
+    steps.push({ step:'upload', status:upR.status, id:documentId||null })
+    if (!upR.ok || !documentId) { res.status(502).json({ sent:false, error:'Falha no upload', detail:upJson, steps }); return }
 
-    // 2) SIGNERS — POST /accounts/{id}/signers (name, email). Reaproveita por e-mail se já existir.
-    const signerIds = []
-    for (const s of signers) {
-      let sid = null
-      const sR = await fetch(`${BASE}/accounts/${ACCOUNT}/signers`, {
-        method:'POST', headers:{ ...auth, 'Content-Type':'application/json' },
-        body: JSON.stringify({ name:s.name, email:s.email })
-      })
-      const sJson = await sR.json().catch(()=>({}))
-      sid = pickId(sJson)
-      // se falhou por já existir, tenta achar por e-mail
-      if (!sid) {
-        const fR = await fetch(`${BASE}/accounts/${ACCOUNT}/signers?email=${encodeURIComponent(s.email)}`, { headers:auth })
-        const fJson = await fR.json().catch(()=>({}))
-        const arr = fJson?.data || fJson
-        if (Array.isArray(arr) && arr.length) sid = arr[0].id
-      }
-      if (sid) signerIds.push(sid)
-      steps.push({ step:'signer', email:s.email, status:sR.status, id:sid||null })
-    }
-    if (!signerIds.length) { res.status(502).json({ sent:false, error:'Não foi possível criar signatários', detail:steps }); return }
+    // 2) ASSIGNMENT com signatários INLINE (sem criar separado)
+    // Tenta várias formas que a API pode aceitar:
+    const signersList = signers.map(s => ({ name:s.name, email:s.email, notify:'email' }))
 
-    // 3) ASSIGNMENT — POST /documents/{id}/assignments  com signer_ids (envio para assinatura)
-    const asgPayload = {
-      method: 'virtual',
-      signer_ids: signerIds,
-      signers: signerIds,                  // alguns ambientes aceitam "signers"
-      message: message || 'Por favor, assine o contrato da RARO Home.'
-    }
-    const asgR = await fetch(`${BASE}/documents/${documentId}/assignments`, {
+    // Tentativa A: signatários inline no assignment
+    let asgR = await fetch(`${BASE}/documents/${documentId}/assignments`, {
       method:'POST', headers:{ ...auth, 'Content-Type':'application/json' },
-      body: JSON.stringify(asgPayload)
+      body: JSON.stringify({ signers: signersList, message: message || 'Assine o contrato RARO Home.' })
     })
-    const asgJson = await asgR.json().catch(()=>({}))
-    steps.push({ step:'assignment', status:asgR.status })
-    if (!asgR.ok) { res.status(502).json({ sent:false, error:'Documento enviado mas falhou ao solicitar assinatura', http:asgR.status, documentId, detail:asgJson, steps }); return }
+    let asgJson = await asgR.json().catch(()=>({}))
+    steps.push({ step:'assignment-inline', status:asgR.status })
+
+    // Se inline falhou, tentativa B: com method=virtual
+    if (!asgR.ok) {
+      asgR = await fetch(`${BASE}/documents/${documentId}/assignments`, {
+        method:'POST', headers:{ ...auth, 'Content-Type':'application/json' },
+        body: JSON.stringify({ method:'virtual', signers: signersList, message: message || 'Assine o contrato RARO Home.' })
+      })
+      asgJson = await asgR.json().catch(()=>({}))
+      steps.push({ step:'assignment-virtual', status:asgR.status })
+    }
+
+    // Se ambos falharam, tentativa C: com account_id no body
+    if (!asgR.ok) {
+      asgR = await fetch(`${BASE}/accounts/${ACCOUNT}/documents/${documentId}/assignments`, {
+        method:'POST', headers:{ ...auth, 'Content-Type':'application/json' },
+        body: JSON.stringify({ signers: signersList, message: message || 'Assine o contrato RARO Home.' })
+      })
+      asgJson = await asgR.json().catch(()=>({}))
+      steps.push({ step:'assignment-account', status:asgR.status })
+    }
+
+    if (!asgR.ok) {
+      res.status(502).json({ sent:false, error:'Documento enviado mas falhou ao solicitar assinatura', documentId, detail:asgJson, steps })
+      return
+    }
 
     res.status(200).json({
       sent:true, documentId,

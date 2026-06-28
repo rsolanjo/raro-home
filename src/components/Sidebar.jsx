@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v181 — (1)FIX "bothNames is not defined" ao enviar para assinatura (variavel estava no escopo errado); (2)Proposta: categorias (Sonorizacao, Automacao, Redes, Seguranca) com valores DENTRO de cada card de comodo; (3)Resumo do investimento simplificado: so categorias → equipamentos → mao de obra → total (removido o detalhamento por comodo do resumo)
+// v182 — (1)Assinafy FIX: signatários inline no assignment em vez de criar separado (endpoint /signers retornava 400); tenta 3 formatos de assignment (inline/virtual/account); (2)Comparação reescrita: compara proposta vs tipos de contrato (Total/Projeto/Ocultas por categoria) mostrando itens, categorias e diferença de valor para cada opção
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v181 · build 2026-06
+          v182 · build 2026-06
         </div>
       </div>
     </div>

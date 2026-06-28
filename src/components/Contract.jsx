@@ -1,26 +1,5 @@
 import { useState } from 'react'
 import { LOGO_COVER } from '../logos.js'
-import { getProposals, getProjects } from '../db/supabase.js'
-
-// extrai itens (nome+qtd) e total de uma proposta/projeto (mesma estrutura floors[].rooms[].items[])
-function extrairItensETotal(obj){
-  if(!obj) return { itens:{}, total:0 }
-  let floors = obj.floors
-  if(typeof floors==='string'){ try{ floors=JSON.parse(floors||'[]') }catch{ floors=[] } }
-  floors = Array.isArray(floors)?floors:[]
-  const itens={}
-  let total=0
-  floors.forEach(f=>(f.rooms||[]).forEach(r=>{
-    total += Number(r.price)||0
-    ;(r.items||[]).forEach(it=>{
-      if(!it.name) return
-      const key=(it.name||'').trim()
-      itens[key]=(itens[key]||0)+(parseInt(it.qty)||1)
-    })
-  }))
-  const approved = Number(obj.approved_value)>0?Number(obj.approved_value):0
-  return { itens, total: approved||total }
-}
 
 // Logo do contrato — fundo transparente blenda no #fff do corpo do contrato
 const LOGO_CONTRACT = LOGO_COVER
@@ -358,28 +337,40 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
   async function compararPropostaProjeto(){
     setCmpLoading(true)
     try{
-      const [props, projs] = await Promise.all([getProposals(), getProjects()])
-      const cid = Number(proposal?.client_id)
-      // última proposta do cliente
-      const minhasProps = (props||[]).filter(p=>Number(p.client_id)===cid)
-      const ultProp = minhasProps.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0))[0] || proposal
-      // último projeto ligado à proposta (ou do cliente)
-      const meusProjs = (projs||[]).filter(p=>String(p.proposal_id)===String(ultProp?.id) || String(p.proposal_code)===String(ultProp?.code))
-      const ultProj = meusProjs.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0))[0]
-      if(!ultProj){ setCmpData({ semProjeto:true }); setCmpOpen(true); setCmpLoading(false); return }
-      const P = extrairItensETotal(ultProp)
-      const J = extrairItensETotal(ultProj)
-      // diff de itens
-      const todasChaves = [...new Set([...Object.keys(P.itens), ...Object.keys(J.itens)])].sort()
-      const diffs = todasChaves.map(k=>{
-        const qp=P.itens[k]||0, qj=J.itens[k]||0
-        let status='igual'
-        if(qp&&!qj) status='só proposta'
-        else if(!qp&&qj) status='só projeto'
-        else if(qp!==qj) status='qtd diferente'
-        return { nome:k, qtdProp:qp, qtdProj:qj, status }
-      }).filter(d=>d.status!=='igual')
-      setCmpData({ ultProp, ultProj, P, J, diffs, precoDif: P.total!==J.total })
+      // extrai itens e totais da proposta atual
+      const fl = Array.isArray(proposal.floors)?proposal.floors:(typeof proposal.floors==='string'?JSON.parse(proposal.floors||'[]'):[])
+      const todosItens = []
+      let totalProp = 0
+      const porCat = {}
+      fl.forEach(f=>(f.rooms||[]).forEach(r=>{
+        totalProp += Number(r.price)||0
+        ;(r.items||[]).forEach(it=>{
+          if(!it.name) return
+          const cat = it.category||'Outros'
+          const qty = parseInt(it.qty)||1
+          const val = (it.sale_price||0)*qty
+          todosItens.push({name:it.name, qty, cat, val})
+          porCat[cat] = (porCat[cat]||0) + val
+        })
+      }))
+      const approved = Number(proposal.approved_value)>0 ? Number(proposal.approved_value) : 0
+      totalProp = approved || totalProp
+      const laborVal = Number(proposal.labor_value)||0
+
+      // simula cada tipo de contrato
+      const tipos = [
+        { id:'total', nome:'Contrato Total', desc:'Inclui todos os equipamentos + mão de obra', total: totalProp+laborVal, itens: todosItens.length, cats: Object.keys(porCat) },
+        { id:'projeto', nome:'Contrato de Projeto', desc:'Só o projeto (sem custo de equipamentos)', total: laborVal||0, itens: 0, cats:[], nota:'Cliente compra os equipamentos à parte' },
+      ]
+      // ocultas: para cada combinação possível de categorias ocultas
+      const catEntries = Object.entries(porCat).sort((a,b)=>b[1]-a[1])
+      if(catEntries.length>1){
+        catEntries.forEach(([cat,val])=>{
+          const restante = totalProp - val + laborVal
+          tipos.push({ id:'ocultas', nome:`Ocultar "${cat}"`, desc:`Esconde ${cat} do contrato (R$ ${Number(val).toLocaleString('pt-BR')})`, total: restante, itens: todosItens.filter(i=>i.cat!==cat).length, cats: Object.keys(porCat).filter(c=>c!==cat), oculta:cat })
+        })
+      }
+      setCmpData({ totalProp, laborVal, todosItens, porCat, catEntries, tipos })
       setCmpOpen(true)
     }catch(e){ alert('Erro ao comparar: '+e.message) }
     setCmpLoading(false)
@@ -536,65 +527,51 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
     <div className="modal-overlay" style={{alignItems:'stretch',padding:0,zIndex:1000}}>
       {/* ── Modal de comparação proposta × projeto ── */}
       {cmpOpen && <div className="modal-overlay" style={{zIndex:2000,padding:20}} onClick={()=>setCmpOpen(false)}>
-        <div style={{background:'var(--surf)',borderRadius:12,maxWidth:560,width:'100%',maxHeight:'85vh',overflow:'auto',padding:20}} onClick={e=>e.stopPropagation()}>
+        <div style={{background:'var(--surf)',borderRadius:12,maxWidth:600,width:'100%',maxHeight:'85vh',overflow:'auto',padding:20}} onClick={e=>e.stopPropagation()}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
             <i className="ti ti-git-compare" style={{color:'var(--accent)',fontSize:20}} aria-hidden/>
-            <b style={{fontSize:15}}>Proposta × Projeto</b>
+            <b style={{fontSize:15}}>Comparação: Proposta × Contratos</b>
             <button className="btn" style={{marginLeft:'auto',padding:'4px 8px'}} onClick={()=>setCmpOpen(false)}>✕</button>
           </div>
-          {cmpData?.semProjeto
-            ? <div style={{color:'var(--text2)',fontSize:13}}>Não há projeto executivo salvo para esta proposta ainda. Salve o projeto no editor para poder comparar.</div>
-            : cmpData && <>
-              {/* Resumo */}
-              <div style={{display:'flex',gap:10,marginBottom:14}}>
-                <div style={{flex:1,background:'var(--bg)',borderRadius:8,padding:'10px 12px'}}>
-                  <div style={{fontSize:10,color:'var(--text2)',textTransform:'uppercase'}}>Proposta {cmpData.ultProp?.code||''}</div>
-                  <div style={{fontSize:16,fontWeight:700}}>{fmt(cmpData.P.total)}</div>
-                  <div style={{fontSize:10,color:'var(--text2)'}}>{Object.keys(cmpData.P.itens).length} tipos de item</div>
-                </div>
-                <div style={{flex:1,background:'var(--bg)',borderRadius:8,padding:'10px 12px'}}>
-                  <div style={{fontSize:10,color:'var(--text2)',textTransform:'uppercase'}}>Projeto</div>
-                  <div style={{fontSize:16,fontWeight:700}}>{fmt(cmpData.J.total)}</div>
-                  <div style={{fontSize:10,color:'var(--text2)'}}>{Object.keys(cmpData.J.itens).length} tipos de item</div>
-                </div>
+          {cmpData && <>
+            {/* Proposta atual */}
+            <div style={{background:'var(--bg)',borderRadius:8,padding:'12px 14px',marginBottom:14}}>
+              <div style={{fontSize:10,color:'var(--text2)',textTransform:'uppercase',marginBottom:4}}>Proposta atual — {proposal?.code||''}</div>
+              <div style={{fontSize:18,fontWeight:700}}>{fmt(cmpData.totalProp)}</div>
+              <div style={{fontSize:10,color:'var(--text2)',marginTop:4}}>{cmpData.todosItens.length} itens · {cmpData.catEntries.length} categorias</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:4,marginTop:6}}>
+                {cmpData.catEntries.map(([cat,val])=>(
+                  <span key={cat} style={{fontSize:9,padding:'2px 7px',borderRadius:4,border:'1px solid var(--border)',background:'var(--surf)',color:'var(--text1)'}}>{cat}: {fmt(val)}</span>
+                ))}
               </div>
-              {cmpData.precoDif && <div style={{background:'rgba(234,179,8,0.12)',border:'1px solid var(--amber)',borderRadius:8,padding:'8px 12px',marginBottom:12,fontSize:12,color:'var(--amber)'}}>
-                ⚠ Preço total diferente: proposta {fmt(cmpData.P.total)} vs projeto {fmt(cmpData.J.total)} (diferença {fmt(Math.abs(cmpData.P.total-cmpData.J.total))})
-              </div>}
-              {/* Diferenças de itens */}
-              {cmpData.diffs.length===0
-                ? <div style={{color:'var(--green)',fontSize:13,marginBottom:12}}>✓ Itens idênticos entre proposta e projeto.</div>
-                : <div style={{marginBottom:14}}>
-                    <div style={{fontSize:11,color:'var(--text2)',textTransform:'uppercase',marginBottom:6}}>{cmpData.diffs.length} diferença(s) de item</div>
-                    <div style={{maxHeight:240,overflow:'auto'}}>
-                      {cmpData.diffs.map((d,i)=>(
-                        <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',background:'var(--bg)',borderRadius:6,marginBottom:4}}>
-                          <span style={{flex:1,fontSize:12}}>{d.nome}</span>
-                          <span style={{fontSize:11,color:'var(--text2)',fontFamily:'monospace'}}>P:{d.qtdProp} · J:{d.qtdProj}</span>
-                          <span style={{fontSize:9,fontWeight:700,padding:'2px 6px',borderRadius:5,background:d.status==='qtd diferente'?'rgba(234,179,8,0.2)':d.status==='só proposta'?'rgba(59,130,246,0.2)':'rgba(190,24,93,0.2)',color:d.status==='qtd diferente'?'var(--amber)':d.status==='só proposta'?'#60A5FA':'#F472B6'}}>{d.status}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>}
-              {/* Ação: escolher master e sincronizar */}
-              {(cmpData.diffs.length>0||cmpData.precoDif) && <div style={{borderTop:'1px solid var(--border)',paddingTop:12}}>
-                <div style={{fontSize:12,color:'var(--text1)',marginBottom:8}}>Qual é o <b>master</b> (versão correta)?</div>
-                <div style={{display:'flex',gap:8}}>
-                  <button className="btn" style={{flex:1}} onClick={()=>{
-                    if(window.confirm(`Sincronizar usando a PROPOSTA ${cmpData.ultProp?.code||''} como master?\n\nO contrato passará a usar os itens e o valor da proposta.`)){
-                      alert('✓ OK — a proposta será usada como base para este contrato.')
-                      setCmpOpen(false)
-                    }
-                  }}>Proposta é o master</button>
-                  <button className="btn" style={{flex:1}} onClick={()=>{
-                    if(window.confirm('Sincronizar usando o PROJETO como master?\n\nO contrato passará a usar os itens e o valor do projeto executivo.')){
-                      alert('✓ OK — o projeto será usado como base para este contrato.')
-                      setCmpOpen(false)
-                    }
-                  }}>Projeto é o master</button>
+              {cmpData.laborVal>0 && <div style={{fontSize:10,color:'var(--text2)',marginTop:4}}>Mão de obra: {fmt(cmpData.laborVal)}</div>}
+            </div>
+            {/* Tipos de contrato */}
+            <div style={{fontSize:11,color:'var(--text2)',textTransform:'uppercase',letterSpacing:1,marginBottom:8}}>Opções de contrato</div>
+            {cmpData.tipos.map((t,i)=>{
+              const diff = t.total - (cmpData.totalProp + cmpData.laborVal)
+              const isSelected = (tipo===t.id) || (tipo==='ocultas' && t.oculta)
+              return <div key={i} style={{background:isSelected?'rgba(14,165,233,0.08)':'var(--bg)',border:`1.5px solid ${isSelected?'var(--accent)':'var(--border)'}`,borderRadius:8,padding:'10px 14px',marginBottom:8,cursor:'pointer'}} onClick={()=>{
+                if(t.id==='ocultas' && t.oculta){ /* poderia selecionar automaticamente */ }
+              }}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:'var(--text1)'}}>{t.nome}</div>
+                    <div style={{fontSize:10,color:'var(--text2)',marginTop:2}}>{t.desc}</div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div style={{fontSize:16,fontWeight:700,color:'var(--text1)'}}>{fmt(t.total)}</div>
+                    {diff!==0 && <div style={{fontSize:9,color:diff<0?'#DC2626':'#059669'}}>{diff>0?'+':''}{fmt(diff)}</div>}
+                  </div>
                 </div>
-              </div>}
-            </>}
+                {t.nota && <div style={{fontSize:9,color:'var(--amber)',marginTop:4,fontStyle:'italic'}}>{t.nota}</div>}
+                {t.cats?.length>0 && <div style={{display:'flex',flexWrap:'wrap',gap:3,marginTop:6}}>
+                  {t.cats.map(c=><span key={c} style={{fontSize:8,padding:'1px 5px',borderRadius:3,border:'1px solid var(--border)',color:'var(--text2)'}}>{c}</span>)}
+                </div>}
+                {isSelected && <div style={{fontSize:9,color:'var(--accent)',marginTop:4,fontWeight:600}}>← tipo selecionado atualmente</div>}
+              </div>
+            })}
+          </>}
         </div>
       </div>}
       <div style={{width:'100%',height:'100%',background:'var(--bg)',display:'flex',flexDirection:'column'}}>
@@ -616,8 +593,8 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
               <i className="ti ti-check" aria-hidden/>Contrato salvo
             </span>
           )}
-          <button className="btn" style={{padding:'5px 10px'}} onClick={compararPropostaProjeto} disabled={cmpLoading} title="Comparar última proposta salva com o último projeto salvo">
-            <i className={cmpLoading?'ti ti-loader':'ti ti-git-compare'} aria-hidden/>{cmpLoading?'Comparando…':'Comparar proposta × projeto'}
+          <button className="btn" style={{padding:'5px 10px'}} onClick={compararPropostaProjeto} disabled={cmpLoading} title="Comparar a proposta com os tipos de contrato disponíveis">
+            <i className={cmpLoading?'ti ti-loader':'ti ti-git-compare'} aria-hidden/>{cmpLoading?'…':'Comparar contratos'}
           </button>
           <button className="btn" style={{padding:'5px 10px',borderColor:'#0A6BC0',color:'#0A6BC0'}} onClick={enviarParaAssinatura} disabled={signing} title="Enviar o contrato para assinatura digital (Assinafy / ICP-Brasil)">
             <i className={signing?'ti ti-loader':'ti ti-signature'} aria-hidden/>{signing?'Enviando…':'Enviar p/ assinatura'}
