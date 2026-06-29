@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v206 — Contrato, margem que funciona de verdade: o render do servidor (render-pdf) não roda neste Vercel (Chromium serverless falha), então o v205 caía na janela de impressão e a margem controlada nunca chegava. Agora a margem é controlada pelo CONTEÚDO: @page com margin:0 e a margem real vem do padding do corpo no @media print (14mm topo, 15mm laterais, 12mm base). O diálogo de impressão não sobrescreve padding, então a margem é sempre essa, independente do navegador. Download voltou ao fluxo simples de janela de impressão (sem chamar o servidor que trava). Espaçamento apertado do v205 mantido. Cabe em 2 páginas. Mantém v204/v205 e anteriores.
+// v207 — Contrato, margem RESOLVIDA de verdade. Causa real (medida rasterizando os PDFs dela): as duas vias, v204 e v206, saíam com margem lateral ZERO (texto encostando nas bordas). O diálogo de impressão dela está em 'Margens: Nenhuma', que ignora o @page (seja 18mm ou 0) E o Chrome ignora padding no body em impressão. Por isso nada no @page/body mudava a lateral. Correção: todo o conteúdo do contrato agora é envolvido numa div .sheet com padding:14mm 15mm 12mm. Padding de div interna é conteúdo, sempre desenha, o diálogo não tem como remover. Validado com wkhtmltopdf renderizando com margem de página zero: conteúdo ficou afastado das bordas mesmo assim. Vale em tela e impressão (preview agora bate com o PDF). .sigs usa padding-top (não margin) pra sobreviver à quebra de página. body padding removido. Mantém v206 e anteriores.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v206 · build 2026-06
+          v207 · build 2026-06
         </div>
       </div>
     </div>

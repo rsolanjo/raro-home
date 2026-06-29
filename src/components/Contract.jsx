@@ -172,8 +172,9 @@ export function buildContract(proposal, client, opts={}) {
   @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
   @page{ size:A4; margin:0 }
-  body{ font-family:'EB Garamond','Georgia',serif; font-size:11.7px; line-height:1.57; color:#23282F; text-align:justify; background:#fff; padding:30px 40px; hyphens:auto; -webkit-font-smoothing:antialiased }
-  @media print{ body{padding:14mm 15mm 12mm} .no-print{display:none!important} }
+  body{ font-family:'EB Garamond','Georgia',serif; font-size:11.7px; line-height:1.57; color:#23282F; text-align:justify; background:#fff; padding:0; hyphens:auto; -webkit-font-smoothing:antialiased }
+  .sheet{ padding:14mm 15mm 12mm }
+  @media print{ .no-print{display:none!important} }
   .head{ text-align:center; margin-bottom:6px }
   .head img{ width:120px; height:auto; margin:0 auto 8px; display:block }
   .head .firm{ font-size:10px; color:#5C6470; line-height:1.5 }
@@ -199,7 +200,7 @@ export function buildContract(proposal, client, opts={}) {
   strong{ font-weight:600; color:#1A2740 }
   .nota{ font-style:italic; color:#5C6470; font-size:10.5px; margin-top:6px }
   .closing{ margin:12px 0 6px }
-  .sigs{ display:flex; gap:50px; margin-top:26px; break-inside:avoid }
+  .sigs{ display:flex; gap:50px; padding-top:14mm; break-inside:avoid }
   .sig{ flex:1; text-align:center }
   .sigspace{ height:42px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:3px }
   .sigline{ border-top:1px solid #23282F; margin-bottom:5px }
@@ -214,6 +215,7 @@ export function buildContract(proposal, client, opts={}) {
     <button onclick="window.print()" style="background:#9C7B45;color:#fff;border:none;padding:6px 16px;border-radius:4px;font-size:11px;cursor:pointer;font-family:sans-serif">⬇ Salvar como PDF</button>
   </div>
 
+  <div class="sheet">
   <div class="head">
     <img src="${LOGO_CONTRACT}" alt="RARO Home"/>
     <div class="firm"><strong>RARO Home Tecnologia</strong> · contato@rarohome.com.br · (21) 98170-9009<br/>www.rarohome.com.br · @rarohome</div>
@@ -269,6 +271,7 @@ export function buildContract(proposal, client, opts={}) {
   <div class="footer">
     RARO Home Tecnologia · contato@rarohome.com.br · (21) 98170-9009 · www.rarohome.com.br<br/>
     Contrato nº ${proposal.code||proposal.id} · Emitido em ${today}${proposal.valid_days?' · Proposta válida por '+proposal.valid_days+' dias':''}
+  </div>
   </div>
 </body></html>`
 }
