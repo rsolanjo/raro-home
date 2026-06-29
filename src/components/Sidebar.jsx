@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v200 — Projeto Executivo: o PDF agora sai FIEL À TELA. Causa do layout horrível: o cap() forçava page-break-before:always em cada capítulo (toda seção começava em folha nova, capítulo curto deixava o resto em branco) e o A4 (~700px) é mais estreito que o preview (820px), então o PDF nunca batia com a tela. Correção: 'Baixar PDF' passa a renderizar no servidor (Chromium em emulateMediaType('screen'), na MESMA largura do preview — 820px completo / 1180px obra-elétrica), neutralizando as quebras forçadas e o min-height das capas, gerando o documento contínuo como aparece na tela. render-pdf.js ganhou modo screen opcional (emulateScreen+pageWidthPx), retrocompatível: o contrato segue em A4 de impressão. Rede de segurança: se o servidor falhar, cai na janela de impressão anterior (não fica pior que antes). Mantém v199 (premium) e anteriores.
+// v201 — Projeto Executivo: PDF agora flui CONTÍNUO como na tela. O v200 (render no servidor) travava nesse documento (50 páginas, várias plantas em base64 — pesado demais pro Chromium serverless), então caía sempre na janela de impressão antiga = mesmo resultado. Correção definitiva e do lado do cliente: 'Baixar PDF' injeta um override que neutraliza as quebras forçadas — o cap() punha page-break-before:always em cada capítulo (toda seção começava em folha nova; capítulo curto deixava o resto em branco) e as capas tinham min-height:90vh. Com isso neutralizado, o documento corre contínuo igual ao preview, sem folhas pela metade. Mantém integridade de LINHA de tabela (não corta linha no meio). Instantâneo, sem servidor, funciona em qualquer tamanho. render-pdf.js volta a ser usado só pelo contrato. Mantém v199 (premium) e anteriores.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v200 · build 2026-06
+          v201 · build 2026-06
         </div>
       </div>
     </div>
