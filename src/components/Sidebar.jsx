@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v207 — Contrato, margem RESOLVIDA de verdade. Causa real (medida rasterizando os PDFs dela): as duas vias, v204 e v206, saíam com margem lateral ZERO (texto encostando nas bordas). O diálogo de impressão dela está em 'Margens: Nenhuma', que ignora o @page (seja 18mm ou 0) E o Chrome ignora padding no body em impressão. Por isso nada no @page/body mudava a lateral. Correção: todo o conteúdo do contrato agora é envolvido numa div .sheet com padding:14mm 15mm 12mm. Padding de div interna é conteúdo, sempre desenha, o diálogo não tem como remover. Validado com wkhtmltopdf renderizando com margem de página zero: conteúdo ficou afastado das bordas mesmo assim. Vale em tela e impressão (preview agora bate com o PDF). .sigs usa padding-top (não margin) pra sobreviver à quebra de página. body padding removido. Mantém v206 e anteriores.
+// v208 — Contrato em 1 página. Medi rasterizando: a versão v207 tinha 264... na verdade 321mm de conteúdo (A4=297), por isso estourava pra 2 páginas. Compactei pra caber em 1: line-height 1.57→1.5, logo 120→80px, espaçamento entre cláusulas 10→6px, bloco do valor menor (fonte 23→19, padding/margem cortados), margem acima das assinaturas 14→7mm, sigspace 42→34px, margens da folha topo/base 14/12→11/9mm (LATERAIS mantidas em 15mm, a margem que ela aprovou). Resultado validado por pixel com a fonte EB Garamond real instalada e escala calibrada contra o Chrome: 264mm de conteúdo + 20mm de margem = 284mm, cabe em 297 com ~13mm de folga. Mantém a .sheet do v207 (margem à prova de diálogo) e tudo anterior.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v207 · build 2026-06
+          v208 · build 2026-06
         </div>
       </div>
     </div>

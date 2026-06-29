@@ -172,26 +172,26 @@ export function buildContract(proposal, client, opts={}) {
   @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
   @page{ size:A4; margin:0 }
-  body{ font-family:'EB Garamond','Georgia',serif; font-size:11.7px; line-height:1.57; color:#23282F; text-align:justify; background:#fff; padding:0; hyphens:auto; -webkit-font-smoothing:antialiased }
-  .sheet{ padding:14mm 15mm 12mm }
+  body{ font-family:'EB Garamond','Georgia',serif; font-size:11.7px; line-height:1.5; color:#23282F; text-align:justify; background:#fff; padding:0; hyphens:auto; -webkit-font-smoothing:antialiased }
+  .sheet{ padding:11mm 15mm 9mm }
   @media print{ .no-print{display:none!important} }
-  .head{ text-align:center; margin-bottom:6px }
-  .head img{ width:120px; height:auto; margin:0 auto 8px; display:block }
+  .head{ text-align:center; margin-bottom:3px }
+  .head img{ width:80px; height:auto; margin:0 auto 4px; display:block }
   .head .firm{ font-size:10px; color:#5C6470; line-height:1.5 }
   .head .firm strong{ color:#1A2740 }
-  .rule{ border:none; border-top:1px solid #9C7B45; width:60%; margin:9px auto 3px }
-  .rule.thin{ border-top:1px solid #E3E6EB; width:100%; margin:16px auto }
-  .title{ text-align:center; font-weight:600; font-size:18px; color:#1A2740; letter-spacing:.4px; margin:10px 0 4px; line-height:1.25 }
-  .subtitle{ text-align:center; font-size:10.5px; font-style:italic; color:#5C6470; margin-bottom:13px }
-  .preamble p{ margin-bottom:7px }
-  .party-line{ margin:8px 0; padding-left:16px }
+  .rule{ border:none; border-top:1px solid #9C7B45; width:60%; margin:5px auto 2px }
+  .rule.thin{ border-top:1px solid #E3E6EB; width:100%; margin:8px auto }
+  .title{ text-align:center; font-weight:600; font-size:16px; color:#1A2740; letter-spacing:.4px; margin:5px 0 3px; line-height:1.2 }
+  .subtitle{ text-align:center; font-size:10.5px; font-style:italic; color:#5C6470; margin-bottom:7px }
+  .preamble p{ margin-bottom:4px }
+  .party-line{ margin:4px 0; padding-left:16px }
   .party-line .lbl{ font-variant:small-caps; font-weight:600; letter-spacing:.5px; color:#1A2740 }
-  .clause{ margin:10px 0; break-inside:avoid }
-  .clause-h{ font-weight:600; font-size:12px; color:#1A2740; letter-spacing:.6px; margin-bottom:4px; text-align:left }
-  .clause-b p{ margin-bottom:6px }
-  .value{ text-align:center; margin:10px auto; padding:8px 0; border-top:1px solid #CDD2DA; border-bottom:1px solid #CDD2DA; width:78% }
+  .clause{ margin:6px 0; break-inside:avoid }
+  .clause-h{ font-weight:600; font-size:12px; color:#1A2740; letter-spacing:.6px; margin-bottom:3px; text-align:left }
+  .clause-b p{ margin-bottom:4px }
+  .value{ text-align:center; margin:5px auto; padding:4px 0; border-top:1px solid #CDD2DA; border-bottom:1px solid #CDD2DA; width:78% }
   .value .vl{ font-variant:small-caps; letter-spacing:2px; font-size:10px; color:#9C7B45 }
-  .value .vn{ font-size:23px; font-weight:600; color:#1A2740; line-height:1.2; margin:3px 0 2px }
+  .value .vn{ font-size:19px; font-weight:600; color:#1A2740; line-height:1.15; margin:2px 0 1px }
   .value .ve{ font-size:10.5px; font-style:italic; color:#5C6470 }
   table.scope{ width:100%; border-collapse:collapse; margin:9px 0; font-size:10.7px }
   table.scope td{ padding:7px 4px; border-bottom:1px solid #E3E6EB; vertical-align:top }
@@ -199,15 +199,15 @@ export function buildContract(proposal, client, opts={}) {
   table.scope tr:first-child td{ border-top:1px solid #CDD2DA }
   strong{ font-weight:600; color:#1A2740 }
   .nota{ font-style:italic; color:#5C6470; font-size:10.5px; margin-top:6px }
-  .closing{ margin:12px 0 6px }
-  .sigs{ display:flex; gap:50px; padding-top:14mm; break-inside:avoid }
+  .closing{ margin:6px 0 3px }
+  .sigs{ display:flex; gap:50px; padding-top:7mm; break-inside:avoid }
   .sig{ flex:1; text-align:center }
-  .sigspace{ height:42px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:3px }
+  .sigspace{ height:34px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:3px }
   .sigline{ border-top:1px solid #23282F; margin-bottom:5px }
   .signame{ font-weight:600; color:#1A2740; font-size:11px }
   .sigrole{ font-size:9.5px; font-style:italic; color:#5C6470 }
   .hand{ font-style:italic; font-size:19px; color:#1A2740 }
-  .footer{ margin-top:16px; padding-top:9px; border-top:1px solid #E3E6EB; font-size:8.5px; color:#9AA1AB; text-align:center; line-height:1.6 }
+  .footer{ margin-top:9px; padding-top:6px; border-top:1px solid #E3E6EB; font-size:8.5px; color:#9AA1AB; text-align:center; line-height:1.6 }
   </style>
 </head><body>
   <div class="no-print" style="position:sticky;top:0;background:#1A2740;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;font-size:11px;z-index:99">
@@ -260,7 +260,7 @@ export function buildContract(proposal, client, opts={}) {
   <hr class="rule thin"/>
   <div class="closing">
     <p>E, por estarem assim justas e contratadas, as partes assinam o presente instrumento em 2 (duas) vias de igual teor e forma, declarando tê-lo lido, compreendido e aceito integralmente.</p>
-    <p style="margin-top:7px"><strong>Rio de Janeiro, ${today}.</strong></p>
+    <p style="margin-top:4px"><strong>Rio de Janeiro, ${today}.</strong></p>
   </div>
 
   <div class="sigs">
