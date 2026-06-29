@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v208 — Contrato em 1 página. Medi rasterizando: a versão v207 tinha 264... na verdade 321mm de conteúdo (A4=297), por isso estourava pra 2 páginas. Compactei pra caber em 1: line-height 1.57→1.5, logo 120→80px, espaçamento entre cláusulas 10→6px, bloco do valor menor (fonte 23→19, padding/margem cortados), margem acima das assinaturas 14→7mm, sigspace 42→34px, margens da folha topo/base 14/12→11/9mm (LATERAIS mantidas em 15mm, a margem que ela aprovou). Resultado validado por pixel com a fonte EB Garamond real instalada e escala calibrada contra o Chrome: 264mm de conteúdo + 20mm de margem = 284mm, cabe em 297 com ~13mm de folga. Mantém a .sheet do v207 (margem à prova de diálogo) e tudo anterior.
+// v209 — (1) Contrato: no v208 sobrou o rodapé na pág 2. Minha medição estava ~8% otimista (a fonte real renderiza mais alta que o motor de teste). Recalibrei com fator 1.08 e cortei mais: line-height 1.5→1.47, assinaturas subidas (padding-top 7→3mm), sigspace 34→27px, margens da folha 11/9→10/7mm (laterais 15mm mantidas), cláusulas 6→5px, rodapé e fechos apertados. Validado por pixel: ~265mm conteúdo + 17mm margem = 282mm de 297, 15mm de folga, rodapé volta pra pág 1. (2) Projeto executivo: quadrado em volta dos pins SÓ no mobile. Causa: transform:translate(-50%,-50%) nos pins cria camada composta e no mobile a box-shadow não respeita o border-radius, vira quadrado. Removidas as 7 box-shadow dos pins sobrepostos na planta (borda branca 2px mantém destaque). Sombras de rack/cards/legenda preservadas. Mantém v207/v208.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v208 · build 2026-06
+          v209 · build 2026-06
         </div>
       </div>
     </div>

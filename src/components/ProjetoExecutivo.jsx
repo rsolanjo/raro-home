@@ -2041,7 +2041,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   ${(()=>{ if(isObra||_eletr) return ''
     if(bgImage){
       const dots=markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
-        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:${st.c};color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${m.n}</div>`}).join('')
+        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:${st.c};color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2.5px solid #fff">${m.n}</div>`}).join('')
       return `<div class="ex-sec"><h2>Planta de Pontos</h2><div style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${dots}</div></div>`
     }
     return ''
@@ -2191,7 +2191,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const plantaTeto = (bgImage && tetoMarkers.length) ? (() => {
       const ratio=imgRatio||0.66
       const dots=tetoMarkers.map(m=>`<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-        <div style="width:20px;height:20px;border-radius:50%;background:#0891B2;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${m.n}</div>
+        <div style="width:20px;height:20px;border-radius:50%;background:#0891B2;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${m.n}</div>
         <div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);font-size:7.5px;font-weight:700;color:#0D1420;white-space:nowrap;background:rgba(255,255,255,0.9);padding:0 2px;border-radius:2px;pointer-events:none">${esc(m.id||m.code||'')}</div>
         </div>`).join('')
       const cabosLinha=(cables||[]).filter(c=>!c.free&&tetoMarkers.some(m=>m.uid===c.fromUid||m.uid===c.toUid)).map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''; return `<path d="${pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')}" fill="none" stroke="${c.color||'#0891B2'}" stroke-dasharray="4,2.5" vector-effect="non-scaling-stroke" style="stroke-width:2px"/>`}).join('')
@@ -2400,7 +2400,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const itemDots = markers.filter(m=>uidsNaFam.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
           const isR=isRackItem(m.name||'',m.code||'')
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:16px;height:16px;border-radius:50%;background:${isR?'#4C1D95':(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c};color:#fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
+            <div style="width:16px;height:16px;border-radius:50%;background:${isR?'#4C1D95':(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c};color:#fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${isR?'R':m.n}</div>
           </div>`}).join('')
         // caixas
         const caixaDots = caixasConduite.map(m=>`
@@ -2585,7 +2585,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const bg=isR?'#4C1D95':isCx?'#1E3A8A':isPrum?'#7C3AED':(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
           const label=isCx?'CX':isPrum?'⇵':(isR?'R':m.n)
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${label}</div>
+            <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${label}</div>
             <div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 3px;font-size:7px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||'')}</div>
           </div>`}).join('')
         return `<div style="position:relative;display:inline-block;width:100%;margin-top:8px">
@@ -2603,7 +2603,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const dots = markers.filter(m=> uids.has(m.uid) && (isRackItem(m.name,m.code) || isItemDaFamilia(m,t) || uids.has(m.uid))).map(m=>{
           const isR=isRackItem(m.name||'',m.code||''); const c2=isR?'#4C1D95':col
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:20px;height:20px;border-radius:50%;background:${c2};color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
+            <div style="width:20px;height:20px;border-radius:50%;background:${c2};color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${isR?'R':m.n}</div>
             <div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>
           </div>`}).join('')
         const lines = arr.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
@@ -2624,7 +2624,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const dots = markers.filter(m=>uidsNaFam.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
           const isR=isRackItem(m.name||'',m.code||'')
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:18px;height:18px;border-radius:50%;background:${isR?'#4C1D95':col};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
+            <div style="width:18px;height:18px;border-radius:50%;background:${isR?'#4C1D95':col};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${isR?'R':m.n}</div>
           </div>`}).join('')
         const caixaDots = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
           <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
@@ -2807,7 +2807,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const isCx=classifyEle(m)?.sym==='caixa_conduite'
         const bg=isCx?'#1E3A8A':isR?'#4C1D95':(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-          <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isCx?'CX':(isR?'R':m.n)}</div>
+          <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${isCx?'CX':(isR?'R':m.n)}</div>
           <div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 3px;font-size:7px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||'')}</div>
         </div>`}).join('')
       return `<div style="position:relative;display:inline-block;max-width:100%;margin-top:8px"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>${allDots}</div>`
