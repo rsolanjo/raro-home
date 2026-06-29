@@ -2400,7 +2400,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const itemDots = markers.filter(m=>uidsNaFam.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
           const isR=isRackItem(m.name||'',m.code||'')
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:16px;height:16px;border-radius:50%;background:${isR?'#4C1D95':TH.pin};color:#fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
+            <div style="width:16px;height:16px;border-radius:50%;background:${isR?'#4C1D95':(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c};color:#fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isR?'R':m.n}</div>
           </div>`}).join('')
         // caixas
         const caixaDots = caixasConduite.map(m=>`
@@ -2582,7 +2582,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const isR=isRackItem(m.name||'',m.code||'')
           const isCx=classifyEle(m)?.sym==='caixa_conduite'
           const isPrum=classifyEle(m)?.sym==='prumada'
-          const bg=isR?'#4C1D95':isCx?'#1E3A8A':isPrum?'#7C3AED':TH.pin
+          const bg=isR?'#4C1D95':isCx?'#1E3A8A':isPrum?'#7C3AED':(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
           const label=isCx?'CX':isPrum?'⇵':(isR?'R':m.n)
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
             <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${label}</div>
@@ -2805,12 +2805,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const allDots = markers.map(m=>{
         const isR=isRackItem(m.name||'',m.code||'')
         const isCx=classifyEle(m)?.sym==='caixa_conduite'
-        const bg=isR?'#4C1D95':isCx?'#1E3A8A':TH.pin
+        const bg=isCx?'#1E3A8A':isR?'#4C1D95':(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
           <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${isCx?'CX':(isR?'R':m.n)}</div>
           <div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 3px;font-size:7px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||'')}</div>
         </div>`}).join('')
-      return `<div style="position:relative;display:inline-block;width:100%;margin-top:8px"><img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/><svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></svg>${allDots}</div>`
+      return `<div style="position:relative;display:inline-block;max-width:100%;margin-top:8px"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>${allDots}</div>`
     })() + '</div>' : '',
 
     // 3. RACK / CPD

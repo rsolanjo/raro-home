@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v201 — Projeto Executivo: PDF agora flui CONTÍNUO como na tela. O v200 (render no servidor) travava nesse documento (50 páginas, várias plantas em base64 — pesado demais pro Chromium serverless), então caía sempre na janela de impressão antiga = mesmo resultado. Correção definitiva e do lado do cliente: 'Baixar PDF' injeta um override que neutraliza as quebras forçadas — o cap() punha page-break-before:always em cada capítulo (toda seção começava em folha nova; capítulo curto deixava o resto em branco) e as capas tinham min-height:90vh. Com isso neutralizado, o documento corre contínuo igual ao preview, sem folhas pela metade. Mantém integridade de LINHA de tabela (não corta linha no meio). Instantâneo, sem servidor, funciona em qualquer tamanho. render-pdf.js volta a ser usado só pelo contrato. Mantém v199 (premium) e anteriores.
+// v202 — Projeto Executivo, 2 correções pós-v201: (1) Planta Geral do cap.2 vinha SEM a imagem da planta no PDF — havia um <svg> vazio sobreposto à imagem (position:absolute, 100%x100%) que sumia com ela na impressão; removido, e markup alinhado com a Planta de Pontos (que funciona). (2) Pinos das plantas de 'todos os itens' (Planta Geral cap.2, plantas por família, Visão Completa) agora usam a COR DA CATEGORIA via EQUIP_STYLE[equipType(name)] — keypad verde, câmera vermelha, AP/Wi-Fi teal, som magenta, etc. — em vez do navy único que o v199 tinha posto (o 'preto e branco' que a Ful apontou). Rack (roxo), caixa (azul) e prumada (roxo) seguem com suas cores. Mantém v201 (PDF contínuo como na tela) e anteriores.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v201 · build 2026-06
+          v202 · build 2026-06
         </div>
       </div>
     </div>
