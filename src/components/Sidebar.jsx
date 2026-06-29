@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v205 — Contrato: margem melhor e cabe em 2 páginas. (1) 'Salvar contrato (PDF)' agora gera no SERVIDOR (render-pdf, Chromium) com margem controlada (14mm topo, 16mm laterais, 12mm base) e baixa direto com nome 'Contrato {código}.pdf', sem depender do diálogo de impressão do navegador (que antes mandava na margem e era imprevisível). render-pdf.js ganhou parâmetro margin opcional, retrocompatível. Fallback pra janela de impressão se o servidor falhar. (2) Espaçamento interno apertado (cláusulas 15→10px, assinaturas 40→26px, bloco de valor, títulos, rodapé, entrelinha 1.62→1.57) pra fechar em 2 páginas com folga. Mantém v204 (linha de assinatura em branco) e anteriores.
+// v206 — Contrato, margem que funciona de verdade: o render do servidor (render-pdf) não roda neste Vercel (Chromium serverless falha), então o v205 caía na janela de impressão e a margem controlada nunca chegava. Agora a margem é controlada pelo CONTEÚDO: @page com margin:0 e a margem real vem do padding do corpo no @media print (14mm topo, 15mm laterais, 12mm base). O diálogo de impressão não sobrescreve padding, então a margem é sempre essa, independente do navegador. Download voltou ao fluxo simples de janela de impressão (sem chamar o servidor que trava). Espaçamento apertado do v205 mantido. Cabe em 2 páginas. Mantém v204/v205 e anteriores.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v205 · build 2026-06
+          v206 · build 2026-06
         </div>
       </div>
     </div>

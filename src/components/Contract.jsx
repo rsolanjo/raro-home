@@ -171,9 +171,9 @@ export function buildContract(proposal, client, opts={}) {
   <style>
   @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
-  @page{ size:A4; margin:18mm 18mm }
+  @page{ size:A4; margin:0 }
   body{ font-family:'EB Garamond','Georgia',serif; font-size:11.7px; line-height:1.57; color:#23282F; text-align:justify; background:#fff; padding:30px 40px; hyphens:auto; -webkit-font-smoothing:antialiased }
-  @media print{ body{padding:0} .no-print{display:none!important} }
+  @media print{ body{padding:14mm 15mm 12mm} .no-print{display:none!important} }
   .head{ text-align:center; margin-bottom:6px }
   .head img{ width:120px; height:auto; margin:0 auto 8px; display:block }
   .head .firm{ font-size:10px; color:#5C6470; line-height:1.5 }
@@ -413,33 +413,13 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
 
   function openContract() { downloadContract() }
 
-  async function downloadContract() {
+  function downloadContract() {
+    // Abre via document.write para que o <title> vire o nome sugerido do PDF.
+    // (Não usamos o render do servidor aqui: o Chromium serverless não roda de forma
+    //  confiável neste Vercel; a margem é controlada pelo padding do corpo no @media print.)
     const html = buildContract(proposal, client, opts)
-    const fileName = `Contrato ${proposal.code||proposal.id||'RARO'}.pdf`
-    const w = window.open('', '_blank')   // no gesto do clique: feedback + libera o popup + serve de fallback
-    try{ if(w){ w.document.write('<!doctype html><meta charset="utf-8"><body style="font-family:system-ui,sans-serif;padding:40px;color:#334155;font-size:15px">Gerando o PDF do contrato…</body>') } }catch(_){}
-    // 1) Gera no SERVIDOR com margem controlada (não depende do diálogo de impressão do navegador).
-    try{
-      const htmlSrv = html.replace(/<div class="no-print"[\s\S]*?<\/div>/, '').replace('</head>', '<style>body{padding:0 !important}</style></head>')
-      const rr = await fetch('/api/render-pdf', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ html: htmlSrv, margin:{ top:'14mm', right:'16mm', bottom:'12mm', left:'16mm' } })
-      })
-      if(rr.ok){
-        const rj = await rr.json().catch(()=>({}))
-        if(rj && rj.pdfBase64 && rj.pdfBase64.length > 3000){
-          const bin=atob(rj.pdfBase64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i)
-          const url=URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))
-          const a=document.createElement('a'); a.href=url; a.download=fileName; document.body.appendChild(a); a.click(); a.remove()
-          setTimeout(()=>URL.revokeObjectURL(url),5000)
-          try{ if(w) w.close() }catch(_){}
-          return
-        }
-      }
-    }catch(_){ /* cai na janela de impressão abaixo */ }
-    // 2) Fallback: mostra o contrato na janela já aberta pra salvar via impressão
-    try{ if(w){ w.document.open(); w.document.write(html); w.document.close(); return } }catch(_){}
-    // 3) Último fallback: blob
+    const w = window.open('', '_blank')
+    if (w) { w.document.open(); w.document.write(html); w.document.close(); return }
     try {
       const blob = new Blob([html], {type:'text/html;charset=utf-8'})
       const url = URL.createObjectURL(blob)
