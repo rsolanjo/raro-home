@@ -94,7 +94,7 @@ export function buildContract(proposal, client, opts={}) {
   }
 
   const totalExtenso = numPorExtenso(total)
-  const ROG_SIG = `<div style="position:relative;display:inline-block"><div style="font-family:'Dancing Script',cursive;font-size:28px;color:#0369A1;opacity:0.9;letter-spacing:1px;line-height:1">Rogério Silva</div><div style="position:absolute;bottom:-2px;left:0;right:0;height:0.5px;background:#0369A1;opacity:0.4"></div></div>`
+  const ROG_SIG = `<div style="position:relative;display:inline-block"><div style="font-family:'Dancing Script',cursive;font-size:28px;color:#0369A1;opacity:0.9;letter-spacing:1px;line-height:1">RARO Home</div><div style="position:absolute;bottom:-2px;left:0;right:0;height:0.5px;background:#0369A1;opacity:0.4"></div></div>`
 
   // ── Configuração por TIPO de contrato ──────────────────────────────
   const ehProjeto = tipo==='projeto'
@@ -225,7 +225,7 @@ export function buildContract(proposal, client, opts={}) {
 
   <div class="preamble">
     <p>Pelo presente instrumento particular, as partes a seguir qualificadas:</p>
-    <div class="party-line"><span class="lbl">Contratada:</span> <strong>RARO Home Tecnologia</strong>, prestadora de serviços de automação residencial, com sede no Rio de Janeiro/RJ, neste ato representada por <strong>Rogério Silva</strong>.</div>
+    <div class="party-line"><span class="lbl">Contratada:</span> <strong>RARO Home Tecnologia</strong>, prestadora de serviços de automação residencial, com sede no Rio de Janeiro/RJ, neste ato representada por <strong>seu representante legal</strong>.</div>
     <div class="party-line"><span class="lbl">Contratante:</span> ${contratanteQualif}</div>
     <p>As partes, de comum acordo, resolvem celebrar o presente contrato, que se regerá pelas cláusulas e condições a seguir.</p>
   </div>
@@ -263,7 +263,7 @@ export function buildContract(proposal, client, opts={}) {
 
   <div class="sigs">
     <div class="sig"><div class="sigspace"></div><div class="sigline"></div><div class="signame">${name1}</div><div class="sigrole">Contratante${(!hideCpf&&client?.cpf1)?' · CPF '+client.cpf1:''}</div></div>
-    <div class="sig"><div class="sigspace"><span class="hand">Rogério Silva</span></div><div class="sigline"></div><div class="signame">Rogério Silva</div><div class="sigrole">RARO Home Tecnologia — Contratada</div></div>
+    <div class="sig"><div class="sigspace"><span class="hand">RARO Home</span></div><div class="sigline"></div><div class="signame">RARO Home Tecnologia</div><div class="sigrole">RARO Home Tecnologia — Contratada</div></div>
   </div>
 
   <div class="footer">
@@ -436,7 +436,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
       const eq = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(r.price||0),s),0)
       return eq + (Number(proposal.labor)||0)
     })()
-    const msg = encodeURIComponent(`Olá ${name}! 🏠\n\nSeguem os documentos do seu projeto RARO Home:\n📋 *Proposta:* ${proposal.code}\n💰 *Total:* R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}\n\nO contrato foi enviado em anexo nesta conversa para sua assinatura.\n\nQualquer dúvida estou à disposição!\n— Rogério | RARO Home\n📱 (21) 98170-9009`)
+    const msg = encodeURIComponent(`Olá ${name}! 🏠\n\nSeguem os documentos do seu projeto RARO Home:\n📋 *Proposta:* ${proposal.code}\n💰 *Total:* R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}\n\nO contrato foi enviado em anexo nesta conversa para sua assinatura.\n\nQualquer dúvida estou à disposição!\n— RARO Home\n📱 (21) 98170-9009`)
     setTimeout(() => window.open(`https://wa.me/${phone.replace(/\D/g,'').replace(/^(?!55)/,'55')}?text=${msg}`, '_blank'), 800)
   }
 
@@ -453,10 +453,17 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
     if(document.querySelector(`script[src="${src}"]`)) return resolve()
     const s=document.createElement('script'); s.src=src; s.onload=resolve; s.onerror=reject; document.body.appendChild(s)
   })}
+  function abrirWhatsappCliente(){
+    const tel = String(client?.phone1||'').replace(/\D/g,'')
+    if(!tel){ alert('O cliente não tem telefone cadastrado. Adicione o telefone nos dados do cliente acima.'); return }
+    const num = tel.startsWith('55') ? tel : '55'+tel
+    const msg = encodeURIComponent(`Olá ${client?.name||''}! 👋\n\nSegue o link para você assinar digitalmente o contrato da RARO Home (validade jurídica, ICP-Brasil):\n\n👉 cole aqui o link copiado da Assinafy\n\nQualquer dúvida, é só chamar.`)
+    window.open(`https://wa.me/${num}?text=${msg}`,'_blank')
+  }
   async function enviarParaAssinatura(){
     const emailCliente = (client?.email||'').trim()
     if(!emailCliente){ alert('O cliente não tem e-mail cadastrado. Adicione o e-mail nos dados acima para enviar para assinatura.'); return }
-    if(!window.confirm(`Enviar o contrato para assinatura digital?\n\nSerá enviado para:\n• ${bothNames} <${emailCliente}>\n• Rogério (RARO Home)\n\nVia Assinafy (ICP-Brasil).`)) return
+    if(!window.confirm(`Enviar o contrato para assinatura digital?\n\nSerá enviado para:\n• ${bothNames} <${emailCliente}>\n• RARO Home <contato@rarohome.com.br>\n\nVia Assinafy (ICP-Brasil).`)) return
     setSigning(true)
     try{
       const htmlBase = buildContract(proposal, client, opts)
@@ -576,7 +583,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           fileName:`Contrato-${proposal.code||'RARO'}.pdf`, pdfBase64,
-          signers:[ {name:bothNames, email:emailCliente, phone:client?.phone1, cpf:client?.cpf1}, {name:'Rogério — RARO Home', email:'contato@rarohome.com.br'} ],
+          signers:[ {name:bothNames, email:emailCliente, phone:client?.phone1, cpf:client?.cpf1}, {name:'RARO Home', email:'contato@rarohome.com.br'} ],
           message:`Contrato RARO Home — proposta ${proposal.code||''}. Por favor, assine digitalmente.`
         })
       })
@@ -684,6 +691,15 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
           </button>
           <button className="btn" style={{padding:'5px 10px',borderColor:'#0A6BC0',color:'#0A6BC0'}} onClick={enviarParaAssinatura} disabled={signing} title="Enviar o contrato para assinatura digital (Assinafy / ICP-Brasil)">
             <i className={signing?'ti ti-loader':'ti ti-signature'} aria-hidden/>{signing?'Enviando…':'Enviar p/ assinatura'}
+          </button>
+          <button className="btn" style={{padding:'5px 10px',borderColor:'#7C3AED',color:'#7C3AED'}} onClick={()=>window.open('https://app.assinafy.com.br','_blank')} title="Abrir a Assinafy para assinar como RARO Home e acompanhar">
+            <i className="ti ti-external-link" aria-hidden/>Abrir Assinafy
+          </button>
+          <button className="btn" style={{padding:'5px 10px',borderColor:'#16A34A',color:'#16A34A'}} onClick={abrirWhatsappCliente} title="Abrir o WhatsApp do cliente para enviar o link de assinatura">
+            <i className="ti ti-brand-whatsapp" aria-hidden/>WhatsApp pro cliente
+          </button>
+          <button className="btn" style={{padding:'5px 10px',borderColor:'#D97706',color:'#D97706'}} onClick={()=>window.open('https://webmail.rarohome.com.br','_blank')} title="Abrir o webmail da RARO Home (HostGator) para ver o e-mail de assinatura">
+            <i className="ti ti-mail" aria-hidden/>E-mail RARO Home
           </button>
           {signDocId && <button className="btn" style={{padding:'5px 10px',borderColor:'#16A34A',color:'#16A34A'}} onClick={verificarAssinatura} disabled={checkingSign} title="Verificar se os signatários já assinaram">
             <i className={checkingSign?'ti ti-loader':'ti ti-checks'} aria-hidden/>{checkingSign?'Verificando…':'Verificar assinaturas'}
