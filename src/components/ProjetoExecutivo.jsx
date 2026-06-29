@@ -31,7 +31,7 @@ function equipType(name='') {
   if(n.includes('interruptor')) return 'Interruptor'
   if(n.includes('módulo')||n.includes('modulo')||n.includes('qarz')||n.includes('cortina')||n.includes('persiana')) return 'Módulo'
   if(n.includes('subwoofer')||n.includes('amplificador')||n.includes('som')||n.includes('caixa ac')||n.includes('caixa de som')||n.includes('receiver')||n.includes('soundbar')) return 'Som'
-  if(n.includes('access point')||/\bap\b/.test(n)||n.includes('wi-fi')||n.includes('wifi')||n.includes('u6')) return 'Wi-Fi'
+  if(n.includes('access point')||n.includes('ponto de acesso')||/\bap\b/.test(n)||n.includes('wi-fi')||n.includes('wifi')||n.includes('u6')||n.includes('u7')||n.includes('uap')) return 'Wi-Fi'
   if(n.includes('ont')||n.includes('modem')||n.includes('fibra')||n.includes('onu')||n.includes('operadora')) return 'Modem'
   if(n.includes('roteador')||n.includes('router')) return 'Roteador'
   if(n.includes('switch')) return 'Switch'
@@ -2025,15 +2025,16 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 </div>`
 
     const _eletr = mode==='eletrica'
+    const _temWifi = showHeatmap && markers.some(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
     return `<style>${_ver==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
 <div class="ex-doc">
   <!-- CAPA -->
   <div class="ex-cover">
-    <div class="ex-cover-top">${_eletr?'DOCUMENTO TÉCNICO · ELÉTRICA E Wi-Fi':isObra?'DOCUMENTO DE OBRA · INFRAESTRUTURA':'DOCUMENTO TÉCNICO · PROJETO EXECUTIVO'}</div>
+    <div class="ex-cover-top">${_eletr?(_temWifi?'DOCUMENTO TÉCNICO · ELÉTRICA E Wi-Fi':'DOCUMENTO TÉCNICO · ELÉTRICA'):isObra?'DOCUMENTO DE OBRA · INFRAESTRUTURA':'DOCUMENTO TÉCNICO · PROJETO EXECUTIVO'}</div>
     <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:170px;max-width:50%;margin:0 auto 8px;display:block"/>
     <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
-    <div class="ex-cover-title">${_eletr?'Planta Elétrica e Cobertura Wi-Fi':isObra?'Plano de Obra — Cabos e Infraestrutura':'Projeto Executivo de Automação'}</div>
-    <div class="ex-cover-sub">${_eletr?'Símbolos ABNT NBR 5444 · Quadro de cargas · Mapa de calor Wi-Fi<br>Pontos elétricos e cobertura aproximada':isObra?'Caminho dos cabos · Metragens · Alturas · Caixas 4×4<br>Guia direto para o eletricista e o pedreiro':'Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto'}</div>
+    <div class="ex-cover-title">${_eletr?(_temWifi?'Planta Elétrica e Cobertura Wi-Fi':'Planta Elétrica'):isObra?'Plano de Obra — Cabos e Infraestrutura':'Projeto Executivo de Automação'}</div>
+    <div class="ex-cover-sub">${_eletr?(_temWifi?'Símbolos ABNT NBR 5444 · Quadro de cargas · Mapa de calor Wi-Fi<br>Pontos elétricos e cobertura aproximada':'Símbolos ABNT NBR 5444 · Quadro de cargas<br>Pontos e circuitos elétricos'):isObra?'Caminho dos cabos · Metragens · Alturas · Caixas 4×4<br>Guia direto para o eletricista e o pedreiro':'Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto'}</div>
     <div class="ex-cover-client"><div class="ex-cc-name">${esc(cliente)}</div><div class="ex-cc-meta">${hoje} · RARO Home</div></div>
     <div class="ex-cover-foot">RARO Home · contato@rarohome.com.br · (21) 98170-9009</div>
   </div>
@@ -2644,10 +2645,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       }
 
       // ── planta COMPLETA (cabos + conduítes sobrepostos) ──
-      const pagePlantaCompleta = (cabos, conduites, col)=>{
+      const pagePlantaCompleta = (cabos, conduites, col, catFiltro)=>{
         if(!bgImage) return ''
         const uids = new Set(); cabos.forEach(c=>{uids.add(c.fromUid);uids.add(c.toUid)})
-        const dots = markers.filter(m=>uids.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
+        const dots = markers.filter(m=>isRackItem(m.name,m.code)||(uids.has(m.uid)&&(!catFiltro||equipType(m.name)===catFiltro))).map(m=>{
           const isR=isRackItem(m.name||'',m.code||'')
           return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
             <div style="width:20px;height:20px;border-radius:50%;background:${isR?'#4C1D95':col};color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${isR?'R':m.n}</div>
@@ -2673,13 +2674,25 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
       // ── uma página por família ──
       const conduitesMostrados = new Set()
+      // deriva o trecho real (Rack -> Cômodo) a partir das pontas dos cabos dentro do conduíte
+      const trechoCond = cabosD => {
+        const ends=[]; cabosD.forEach(c=>{ if(c.fromUid)ends.push(c.fromUid); if(c.toUid)ends.push(c.toUid) })
+        const uniq=[...new Set(ends)].map(uid=>markers.find(m=>m.uid===uid)).filter(Boolean)
+        if(!uniq.length) return '—'
+        const rk=uniq.find(m=>isRackItem(m.name,m.code))
+        const dest=uniq.filter(m=>!isRackItem(m.name,m.code))
+        const origem=rk?'Rack':(`#${uniq[0].n} ${uniq[0].name}`)
+        const comodos=[...new Set(dest.map(m=>m.room).filter(Boolean))]
+        const destTxt=comodos.length?comodos.join(', '):(dest.length?dest.map(m=>`#${m.n} ${m.name}`).join(', '):'—')
+        return `${esc(origem)} → ${esc(destTxt)}`
+      }
       const categoriaPaginas = tipos.map((t,idx)=>{
         const arr=byType[t], col=CABLE_PALETTE[t]||'#374151', lb=CABLE_LABELS[t]||t, sp=CABLE_SPEC[t]||{spec:'—',conector:'—'}
         // tabela de cabos com info útil: origem, destino, cômodo, spec, metros, conduíte
         const rows=arr.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid); const mt=cableMeters(c)
           return `<tr>
             ${pinCell(to?.id,to?.code,to?.n)}
-            <td style="font-size:11px">${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td>
+            <td style="font-size:11px">${f?`<b>#${f.n}</b> ${esc(f.name)}`:'—'} <span style="color:#94A3B8">→</span> ${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td>
             <td style="font-size:11px">${esc(to?.room||'—')}</td>
             <td style="font-size:10px;color:#475569">${esc(sp.spec)}</td>
             <td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td>
@@ -2702,8 +2715,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const fPara=cond.toSnapName||(cond.toCaixaUid?`CX#${markers.find(m=>m.uid===cond.toCaixaUid)?.n||'?'}`:'até')
           const cabosLinha=cabosD.map(c=>{ const f2=markers.find(m=>m.uid===c.fromUid),to2=markers.find(m=>m.uid===c.toUid); return `#${f2?.n||'?'}→#${to2?.n||'?'}` }).join(', ')
           return `<tr>
-            <td style="font-family:monospace;font-weight:800;color:#0369A1;font-size:12px">${esc(cond.conduiteId||chv)}</td>
-            <td style="font-size:10px">${esc(fDe)} → ${esc(fPara)}</td>
+            <td style="font-family:monospace;font-weight:800;color:#0369A1;font-size:12px">${esc(cond.conduiteId||cond.label||'—')}</td>
+            <td style="font-size:10px">${(cond.fromSnapName||cond.toSnapName)?`${esc(fDe)} → ${esc(fPara)}`:trechoCond(cabosD)}</td>
             <td style="text-align:center;font-weight:700">${n}×</td>
             <td style="text-align:center;font-weight:700">${bitola}</td>
             <td style="text-align:right">${mtTxt}</td>
@@ -2718,17 +2731,23 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <div style="font-size:12px;color:#64748B">${arr.length} cabo(s) · ${sp.spec} · ${sp.conector}${totM>0?` · total ~${Math.round(totM)}m`:''}${conduitesFamilia.length?` · ${conduitesFamilia.length} conduíte(s)`:''}</div></div>
           </div>
 
+          <div style="break-inside:avoid;page-break-inside:avoid">
           <h3 class="ex-amb" style="color:${col};margin-bottom:4px">Cabos — ${lb}</h3>
           ${pagePlantaCabos(t,arr,col)}
-          ${T(rows,['Nº','Destino','Cômodo','Cabo','Metros','Conduíte'])}
+          ${T(rows,['Nº','Origem → Destino','Cômodo','Cabo','Metros','Conduíte'])}
+          </div>
 
           ${conduitesFamilia.length ? `
+          <div style="break-inside:avoid;page-break-inside:avoid">
           <h3 class="ex-amb" style="color:${col};margin-top:18px;margin-bottom:4px">Conduítes — ${lb}</h3>
           ${pagePlantaConduites(conduitesFamilia, col)}
           ${T(rowsCond,['ID','Trecho','Nº','Eletroduto','Metros','Cabos dentro','Obs'])}
+          </div>
 
+          <div style="break-inside:avoid;page-break-inside:avoid">
           <h3 class="ex-amb" style="color:${col};margin-top:18px;margin-bottom:4px">Visão completa — Cabos + Conduítes</h3>
-          ${pagePlantaCompleta(arr, conduitesFamilia, col)}
+          ${pagePlantaCompleta(arr, conduitesFamilia, col, {ap:'Wi-Fi',camera:'Câmera',som:'Som'}[t])}
+          </div>
           ` : ''}
         </div>`
       })
@@ -2744,8 +2763,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const fPara=cond.toSnapName||(cond.toCaixaUid?`CX#${markers.find(m=>m.uid===cond.toCaixaUid)?.n||'?'}`:'até')
           const cabosLinha=cabosD.map(c=>{ const f2=markers.find(m=>m.uid===c.fromUid),to2=markers.find(m=>m.uid===c.toUid); return `#${f2?.n||'?'}→#${to2?.n||'?'}` }).join(', ')||'(sem cabos atribuídos)'
           return `<tr>
-            <td style="font-family:monospace;font-weight:800;color:#0369A1;font-size:12px">${esc(cond.conduiteId||chv)}</td>
-            <td style="font-size:10px">${esc(fDe)} → ${esc(fPara)}</td>
+            <td style="font-family:monospace;font-weight:800;color:#0369A1;font-size:12px">${esc(cond.conduiteId||cond.label||'—')}</td>
+            <td style="font-size:10px">${(cond.fromSnapName||cond.toSnapName)?`${esc(fDe)} → ${esc(fPara)}`:trechoCond(cabosD)}</td>
             <td style="text-align:center;font-weight:700">${n}×</td>
             <td style="text-align:center;font-weight:700">${bitola}</td>
             <td style="text-align:right">${mtTxt}</td>
@@ -2754,8 +2773,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         return `<div class="ex-obra-page" style="page-break-before:always">
           <h3 class="ex-amb" style="color:#0D1420;margin-bottom:4px">Outros Conduítes</h3>
           <p class="ex-p" style="color:#64748B;font-size:11px;margin-bottom:6px">Conduítes que não se encaixaram numa família específica de cabo acima.</p>
+          <div style="break-inside:avoid;page-break-inside:avoid">
           ${pagePlantaConduites(conduitesRestantes,'#0D1420')}
           ${T(rowsR,['ID','Trecho','Nº','Eletroduto','Metros','Cabos dentro'])}
+          </div>
         </div>`
       })() : ''
       // notas finais
@@ -2763,21 +2784,18 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const obraSections = [
         `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Plano de Obra — Guia do Eletricista / Pedreiro</h2>
           <p class="ex-p" style="color:#6B7280">Para impressão em A3. Cada tópico tem: planta dos cabos + tabela, planta dos conduítes + tabela, e visão completa sobreposta.</p></div>`,
-        bgImage ? `<div class="ex-obra-page">
-          <div style="font-size:18px;font-weight:800;color:#0D1420;border-bottom:3px solid #0D1420;padding-bottom:8px;margin-bottom:10px">Planta Geral — Todos os Itens</div>
-          <p class="ex-p" style="color:#64748B;margin-bottom:6px">Posicionamento completo de todos os itens. Sem cabos ou conduítes.</p>
-          ${plantaGeralItens}
-        </div>` : '',
+        '', // Planta Geral removida do Plano de Obra: já consta na seção 2 do Executivo (evita duplicar)
         ...(categoriaPaginas.length?categoriaPaginas:[`<p class="ex-p" style="color:#B45309">⚠ Nenhum cabo desenhado na planta. Use o modo "Cabos" no editor.</p>`]),
         paginaRestantes,
         `<div class="ex-obra-page" style="page-break-before:always">
+          <div style="break-inside:avoid;page-break-inside:avoid">
           <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Notas de Infraestrutura</h2>
           ${list(eletrodutoNotas.length?eletrodutoNotas:[
             'Usar eletroduto 3/4" para conduítes de dados; 3/4"–1" para conduítes elétricos.',
             'Conduítes compartilhados: passar cabos de DADOS e ELÉTRICA em eletrodutos SEPARADOS.',
             'Deixar fio-guia em todos os conduítes.',
             'Caixa 4×4 em todos os pontos com mais de um cabo chegando.',
-          ])}</div>`,
+          ])}</div></div>`,
       ].filter(Boolean)
       return obraSections.join('\n') + '</div>'
     }
@@ -2882,9 +2900,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(execMode==='completo'){
       // item 7: TUDO em 1 PDF — Executivo + Plano de Obra + Planta Elétrica, separados por capa
       pageCss='@page{size:A4;margin:12mm} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}'
+      const quebraPag='<div style="break-before:page;page-break-before:always;height:0;margin:0;border:0"></div>'
       body = (execDoc||'')
-        + (execDocObra ? capa('Plano de Obra','Infraestrutura · cabos · conduítes','#0D1420')+execDocObra : '')
-        + (execDocEletrica ? capa('Planta Elétrica','Pontos · circuitos · NBR 5444','#16A34A')+execDocEletrica : '')
+        + (execDocObra ? quebraPag+execDocObra : '')
+        + (execDocEletrica ? quebraPag+execDocEletrica : '')
     } else {
       pageCss = (execMode==='obra'||execMode==='eletrica'||execMode==='conduites') ? '@page{size:A3 landscape;margin:10mm}' : '@page{size:A4;margin:12mm}'
       body = (execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execMode==='conduites'?execDocConduites:execDoc)||''

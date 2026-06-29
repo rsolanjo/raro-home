@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v209 — (1) Contrato: no v208 sobrou o rodapé na pág 2. Minha medição estava ~8% otimista (a fonte real renderiza mais alta que o motor de teste). Recalibrei com fator 1.08 e cortei mais: line-height 1.5→1.47, assinaturas subidas (padding-top 7→3mm), sigspace 34→27px, margens da folha 11/9→10/7mm (laterais 15mm mantidas), cláusulas 6→5px, rodapé e fechos apertados. Validado por pixel: ~265mm conteúdo + 17mm margem = 282mm de 297, 15mm de folga, rodapé volta pra pág 1. (2) Projeto executivo: quadrado em volta dos pins SÓ no mobile. Causa: transform:translate(-50%,-50%) nos pins cria camada composta e no mobile a box-shadow não respeita o border-radius, vira quadrado. Removidas as 7 box-shadow dos pins sobrepostos na planta (borda branca 2px mantém destaque). Sombras de rack/cards/legenda preservadas. Mantém v207/v208.
+// v212 — Tabelas do Plano de Obra: (1) Trecho do conduíte agora deriva 'Rack → Cômodo' a partir das pontas dos cabos que passam dentro (antes mostrava 'de → até' literal). Ex: C1 #59→#34 = Rack → Suíte Master. (2) ID do conduíte nunca mostra mais o id interno (ex 'cabmqtdxlre...'): usa conduiteId||label||'—'; conduíte sem código aparece '—' e é identificado pelo Trecho. (3) Tabela de cabos agora mostra Origem → Destino com o número de cada item (antes só destino). (4) Cada planta fica colada na sua tabela (break-inside:avoid), pra não quebrar página entre planta e tabela. Vale pro Plano de Obra standalone e pro capítulo de cabeamento do Executivo completo. Mantém v207-v211.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v209 · build 2026-06
+          v212 · build 2026-06
         </div>
       </div>
     </div>
