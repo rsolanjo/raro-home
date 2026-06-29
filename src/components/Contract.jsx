@@ -263,7 +263,7 @@ export function buildContract(proposal, client, opts={}) {
 
   <div class="sigs">
     <div class="sig"><div class="sigspace"></div><div class="sigline"></div><div class="signame">${name1}</div><div class="sigrole">Contratante${(!hideCpf&&client?.cpf1)?' · CPF '+client.cpf1:''}</div></div>
-    <div class="sig"><div class="sigspace"><span class="hand">RARO Home</span></div><div class="sigline"></div><div class="signame">RARO Home Tecnologia</div><div class="sigrole">RARO Home Tecnologia — Contratada</div></div>
+    <div class="sig"><div class="sigspace"></div><div class="sigline"></div><div class="signame">RARO Home Tecnologia</div><div class="sigrole">Contratada</div></div>
   </div>
 
   <div class="footer">

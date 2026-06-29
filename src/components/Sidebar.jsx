@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v203 — Contrato/Assinatura: (1) removido 'Rogério Silva' de todo o contrato — assinatura, linha das partes (vira 'representante legal'), bloco de firma e signatário da Assinafy agora são nominal RARO Home / RARO Home Tecnologia, e-mail contato@rarohome.com.br. (2) Três botões novos na área do contrato: 'Abrir Assinafy' (assinar como RARO Home e acompanhar), 'WhatsApp pro cliente' (abre wa.me do cliente com mensagem pronta pra colar o link de assinatura), 'E-mail RARO Home' (abre o webmail HostGator em webmail.rarohome.com.br). Fluxo: envia/sobe na Assinafy → RARO Home assina (pelo painel ou pelo e-mail) → manda o link pro cliente no WhatsApp → acompanha. Mantém v202 (cores por categoria + planta cap.2) e anteriores.
+// v204 — Contrato: bloco de assinatura da Contratada agora com a LINHA EM BRANCO, igual à do Contratante. Removida a assinatura cursiva 'RARO Home' que ficava na linha; papel simplificado para 'Contratada' (era 'RARO Home Tecnologia — Contratada', redundante). As duas firmas ficam simétricas (espaço em branco, linha, nome, papel) e a assinatura digital da Assinafy entra na linha. Mantém v203 (botões Assinafy/WhatsApp/e-mail + nominal RARO Home) e anteriores.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v203 · build 2026-06
+          v204 · build 2026-06
         </div>
       </div>
     </div>
