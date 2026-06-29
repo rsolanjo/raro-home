@@ -172,23 +172,23 @@ export function buildContract(proposal, client, opts={}) {
   @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
   @page{ size:A4; margin:18mm 18mm }
-  body{ font-family:'EB Garamond','Georgia',serif; font-size:11.7px; line-height:1.62; color:#23282F; text-align:justify; background:#fff; padding:30px 40px; hyphens:auto; -webkit-font-smoothing:antialiased }
+  body{ font-family:'EB Garamond','Georgia',serif; font-size:11.7px; line-height:1.57; color:#23282F; text-align:justify; background:#fff; padding:30px 40px; hyphens:auto; -webkit-font-smoothing:antialiased }
   @media print{ body{padding:0} .no-print{display:none!important} }
   .head{ text-align:center; margin-bottom:6px }
   .head img{ width:120px; height:auto; margin:0 auto 8px; display:block }
   .head .firm{ font-size:10px; color:#5C6470; line-height:1.5 }
   .head .firm strong{ color:#1A2740 }
-  .rule{ border:none; border-top:1px solid #9C7B45; width:60%; margin:13px auto 4px }
+  .rule{ border:none; border-top:1px solid #9C7B45; width:60%; margin:9px auto 3px }
   .rule.thin{ border-top:1px solid #E3E6EB; width:100%; margin:16px auto }
-  .title{ text-align:center; font-weight:600; font-size:18px; color:#1A2740; letter-spacing:.4px; margin:15px 0 4px; line-height:1.25 }
-  .subtitle{ text-align:center; font-size:10.5px; font-style:italic; color:#5C6470; margin-bottom:20px }
-  .preamble p{ margin-bottom:9px }
+  .title{ text-align:center; font-weight:600; font-size:18px; color:#1A2740; letter-spacing:.4px; margin:10px 0 4px; line-height:1.25 }
+  .subtitle{ text-align:center; font-size:10.5px; font-style:italic; color:#5C6470; margin-bottom:13px }
+  .preamble p{ margin-bottom:7px }
   .party-line{ margin:8px 0; padding-left:16px }
   .party-line .lbl{ font-variant:small-caps; font-weight:600; letter-spacing:.5px; color:#1A2740 }
-  .clause{ margin:15px 0; break-inside:avoid }
+  .clause{ margin:10px 0; break-inside:avoid }
   .clause-h{ font-weight:600; font-size:12px; color:#1A2740; letter-spacing:.6px; margin-bottom:4px; text-align:left }
   .clause-b p{ margin-bottom:6px }
-  .value{ text-align:center; margin:13px auto; padding:11px 0; border-top:1px solid #CDD2DA; border-bottom:1px solid #CDD2DA; width:78% }
+  .value{ text-align:center; margin:10px auto; padding:8px 0; border-top:1px solid #CDD2DA; border-bottom:1px solid #CDD2DA; width:78% }
   .value .vl{ font-variant:small-caps; letter-spacing:2px; font-size:10px; color:#9C7B45 }
   .value .vn{ font-size:23px; font-weight:600; color:#1A2740; line-height:1.2; margin:3px 0 2px }
   .value .ve{ font-size:10.5px; font-style:italic; color:#5C6470 }
@@ -198,15 +198,15 @@ export function buildContract(proposal, client, opts={}) {
   table.scope tr:first-child td{ border-top:1px solid #CDD2DA }
   strong{ font-weight:600; color:#1A2740 }
   .nota{ font-style:italic; color:#5C6470; font-size:10.5px; margin-top:6px }
-  .closing{ margin:18px 0 8px }
-  .sigs{ display:flex; gap:50px; margin-top:40px; break-inside:avoid }
+  .closing{ margin:12px 0 6px }
+  .sigs{ display:flex; gap:50px; margin-top:26px; break-inside:avoid }
   .sig{ flex:1; text-align:center }
   .sigspace{ height:42px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:3px }
   .sigline{ border-top:1px solid #23282F; margin-bottom:5px }
   .signame{ font-weight:600; color:#1A2740; font-size:11px }
   .sigrole{ font-size:9.5px; font-style:italic; color:#5C6470 }
   .hand{ font-style:italic; font-size:19px; color:#1A2740 }
-  .footer{ margin-top:24px; padding-top:9px; border-top:1px solid #E3E6EB; font-size:8.5px; color:#9AA1AB; text-align:center; line-height:1.6 }
+  .footer{ margin-top:16px; padding-top:9px; border-top:1px solid #E3E6EB; font-size:8.5px; color:#9AA1AB; text-align:center; line-height:1.6 }
   </style>
 </head><body>
   <div class="no-print" style="position:sticky;top:0;background:#1A2740;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;font-size:11px;z-index:99">
@@ -413,13 +413,33 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
 
   function openContract() { downloadContract() }
 
-  function downloadContract() {
-    // Abre via document.write para que o <title> vire o nome sugerido do PDF
-    // (blob/URL.createObjectURL faz o navegador ignorar o título e usar um nome genérico)
+  async function downloadContract() {
     const html = buildContract(proposal, client, opts)
-    const w = window.open('', '_blank')
-    if (w) { w.document.open(); w.document.write(html); w.document.close(); return }
-    // fallback: blob (caso pop-up bloqueie a janela vazia)
+    const fileName = `Contrato ${proposal.code||proposal.id||'RARO'}.pdf`
+    const w = window.open('', '_blank')   // no gesto do clique: feedback + libera o popup + serve de fallback
+    try{ if(w){ w.document.write('<!doctype html><meta charset="utf-8"><body style="font-family:system-ui,sans-serif;padding:40px;color:#334155;font-size:15px">Gerando o PDF do contrato…</body>') } }catch(_){}
+    // 1) Gera no SERVIDOR com margem controlada (não depende do diálogo de impressão do navegador).
+    try{
+      const htmlSrv = html.replace(/<div class="no-print"[\s\S]*?<\/div>/, '').replace('</head>', '<style>body{padding:0 !important}</style></head>')
+      const rr = await fetch('/api/render-pdf', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ html: htmlSrv, margin:{ top:'14mm', right:'16mm', bottom:'12mm', left:'16mm' } })
+      })
+      if(rr.ok){
+        const rj = await rr.json().catch(()=>({}))
+        if(rj && rj.pdfBase64 && rj.pdfBase64.length > 3000){
+          const bin=atob(rj.pdfBase64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i)
+          const url=URL.createObjectURL(new Blob([u8],{type:'application/pdf'}))
+          const a=document.createElement('a'); a.href=url; a.download=fileName; document.body.appendChild(a); a.click(); a.remove()
+          setTimeout(()=>URL.revokeObjectURL(url),5000)
+          try{ if(w) w.close() }catch(_){}
+          return
+        }
+      }
+    }catch(_){ /* cai na janela de impressão abaixo */ }
+    // 2) Fallback: mostra o contrato na janela já aberta pra salvar via impressão
+    try{ if(w){ w.document.open(); w.document.write(html); w.document.close(); return } }catch(_){}
+    // 3) Último fallback: blob
     try {
       const blob = new Blob([html], {type:'text/html;charset=utf-8'})
       const url = URL.createObjectURL(blob)

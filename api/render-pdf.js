@@ -22,7 +22,7 @@ module.exports = async function handler(req, res){
   try{
     let body = req.body
     if (typeof body === 'string') body = JSON.parse(body)
-    const { html, emulateScreen, pageWidthPx, pageHeightPx } = body || {}
+    const { html, emulateScreen, pageWidthPx, pageHeightPx, margin } = body || {}
     if (!html || typeof html !== 'string' || html.length < 50){
       res.status(400).json({ error:'Falta o html do contrato' }); return
     }
@@ -54,7 +54,7 @@ module.exports = async function handler(req, res){
       : await page.pdf({
           format: 'A4',
           printBackground: true,
-          margin: { top:'18mm', right:'16mm', bottom:'15mm', left:'16mm' }
+          margin: margin || { top:'18mm', right:'16mm', bottom:'15mm', left:'16mm' }
         })
     await browser.close(); browser = null
 

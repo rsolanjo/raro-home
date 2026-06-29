@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v204 — Contrato: bloco de assinatura da Contratada agora com a LINHA EM BRANCO, igual à do Contratante. Removida a assinatura cursiva 'RARO Home' que ficava na linha; papel simplificado para 'Contratada' (era 'RARO Home Tecnologia — Contratada', redundante). As duas firmas ficam simétricas (espaço em branco, linha, nome, papel) e a assinatura digital da Assinafy entra na linha. Mantém v203 (botões Assinafy/WhatsApp/e-mail + nominal RARO Home) e anteriores.
+// v205 — Contrato: margem melhor e cabe em 2 páginas. (1) 'Salvar contrato (PDF)' agora gera no SERVIDOR (render-pdf, Chromium) com margem controlada (14mm topo, 16mm laterais, 12mm base) e baixa direto com nome 'Contrato {código}.pdf', sem depender do diálogo de impressão do navegador (que antes mandava na margem e era imprevisível). render-pdf.js ganhou parâmetro margin opcional, retrocompatível. Fallback pra janela de impressão se o servidor falhar. (2) Espaçamento interno apertado (cláusulas 15→10px, assinaturas 40→26px, bloco de valor, títulos, rodapé, entrelinha 1.62→1.57) pra fechar em 2 páginas com folga. Mantém v204 (linha de assinatura em branco) e anteriores.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v204 · build 2026-06
+          v205 · build 2026-06
         </div>
       </div>
     </div>
