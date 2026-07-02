@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v227 — CAUSA RAIZ dos ajustes 'não aparecerem': preview e exportação usavam o HTML SALVO do documento (gerado com código antigo), então rotação da planta, filtros PDF e o layout novo (planta em página inteira) não surtiam efeito. Agora: (1) os dados crus da IA (exec_data) são persistidos em planta_data; (2) o PREVIEW reconstrói o documento na hora quando exec_data existe (rotação, filtros, IDs e layout refletem imediatamente); (3) a EXPORTAÇÃO idem. Projetos antigos sem exec_data caem no HTML salvo e precisam de UMA regeneração para destravar tudo. Mantém v207-v226.
+// v228 — (1) Cabos giram JUNTO com a planta: o traçado nas plantas geradas agora busca as pontas nos markers da visão do documento (girados), corrigindo o v226 em que só os pontos intermediários giravam e as pontas ficavam na posição antiga. (2) Controle de tamanho da planta na tela: 'Planta −/+ %' na barra (40–100%) ajusta a largura da planta nas páginas do documento, com efeito imediato no preview e no PDF. Mantém v207-v227.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v227 · build 2026-07
+          v228 · build 2026-07
         </div>
       </div>
     </div>

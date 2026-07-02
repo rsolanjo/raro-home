@@ -566,6 +566,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [hidePdfConduites, setHidePdfConduites] = useState(false) // tirar todos os conduítes do PDF
   const [pageOrient, setPageOrient] = useState('original') // orientação da PLANTA no documento: 'original' | 'paisagem' | 'retrato' — o app gira a imagem e converte pins/cabos
   const [rotBg, setRotBg] = useState(null) // planta girada 90° (gerada em canvas quando necessário)
+  const [plantPct, setPlantPct] = useState(100) // largura da planta nas páginas do documento (%) — ajustável na tela
   const [execData, setExecData] = useState(()=> fromProposal?.planta_data?.exec_data || null) // dados crus da IA — persistidos p/ reconstruir o documento com as opções atuais
   const [execVersao, setExecVersao] = useState('nova') // 'nova' (premium) | 'antiga' (clássico cyan)
   const [execProgress, setExecProgress] = useState('')
@@ -1673,6 +1674,12 @@ Responda APENAS JSON válido:
   }
   function buildExecHtml(d, mode='completo', versao){
     const { bg:bgImage, mks:markers, cbs:cables, ratio:imgRatio } = _docView()
+    // Traçado dos cabos na visão do documento: as PONTAS vêm destes markers (girados quando a planta gira)
+    const cablePolyPoints = c => {
+      if(c.free) return c.points||[]
+      const f=markers.find(m=>m.uid===c.fromUid), t=markers.find(m=>m.uid===c.toUid)
+      return (f&&t) ? [{x:f.x,y:f.y}, ...(c.points||[]), {x:t.x,y:t.y}] : []
+    }
     const _ver = versao || execVersao
     const isObra = mode==='obra'
     const _prem = _ver==='nova'
@@ -3072,16 +3079,17 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const _fresh = m => { if(!execData) return null; try{ return buildExecHtml(execData, m) }catch(e){ console.warn('rebuild export falhou:',e.message); return null } }
     const _full=_fresh('completo')||execDoc, _obra=_fresh('obra')||execDocObra,
           _ele=_fresh('eletrica')||execDocEletrica, _cond=_fresh('conduites')||execDocConduites
+    const _plantSizeCss = plantPct!==100 ? ` .ex-plant img{max-width:${plantPct}%!important}` : ''
     if(execMode==='completo'){
       // item 7: TUDO em 1 PDF — Executivo + Plano de Obra + Planta Elétrica, separados por capa
-      pageCss='@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}'
+      pageCss='@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}'+_plantSizeCss
       const quebraPag='<div style="break-before:page;page-break-before:always;height:0;margin:0;border:0"></div>'
       body = (_full||'')
         + (_obra ? quebraPag+_obra : '')
         + (_ele ? quebraPag+_ele : '')
     } else {
       const _isA3=(execMode==='obra'||execMode==='eletrica'||execMode==='conduites')
-      pageCss = (_isA3 ? '@page{size:A3 landscape;margin:10mm} .ex-plant img{max-height:245mm!important}' : '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important}')
+      pageCss = (_isA3 ? '@page{size:A3 landscape;margin:10mm} .ex-plant img{max-height:245mm!important}' : '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important}')+_plantSizeCss
       body = (execMode==='obra'?_obra:execMode==='eletrica'?_ele:execMode==='conduites'?_cond:_full)||''
     }
     const fontLink='<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
@@ -3701,6 +3709,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <button onClick={()=>setPageOrient(o=>o==='original'?'paisagem':o==='paisagem'?'retrato':'original')} style={{height:32,borderRadius:6,border:`1px solid ${pageOrient!=='original'?'#0EA5E9aa':'rgba(255,255,255,0.2)'}`,background:pageOrient!=='original'?'rgba(14,165,233,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Orientação da PLANTA no documento — o app gira a imagem e reposiciona pins e cabos. A metragem não muda.">
                   <i className={pageOrient==='retrato'?'ti ti-rectangle-vertical':'ti ti-rectangle'} aria-hidden/>Planta: {pageOrient==='original'?'Original':pageOrient==='paisagem'?'Paisagem':'Retrato'}
                 </button>
+                <div style={{height:32,borderRadius:6,border:`1px solid ${plantPct!==100?'#0EA5E9aa':'rgba(255,255,255,0.2)'}`,background:plantPct!==100?'rgba(14,165,233,0.18)':'rgba(255,255,255,0.08)',color:'#fff',fontSize:12,padding:'0 6px',display:'flex',alignItems:'center',gap:4,fontFamily:'inherit'}} title="Tamanho da planta nas páginas do documento (largura). Ajusta na tela e vale no PDF.">
+                  <span style={{fontSize:10.5,opacity:0.7}}>Planta</span>
+                  <button onClick={()=>setPlantPct(v=>Math.max(40,v-10))} style={{width:22,height:22,borderRadius:4,border:'1px solid rgba(255,255,255,0.25)',background:'transparent',color:'#fff',cursor:'pointer',fontSize:13,lineHeight:1}}>−</button>
+                  <b style={{minWidth:34,textAlign:'center'}}>{plantPct}%</b>
+                  <button onClick={()=>setPlantPct(v=>Math.min(100,v+10))} style={{width:22,height:22,borderRadius:4,border:'1px solid rgba(255,255,255,0.25)',background:'transparent',color:'#fff',cursor:'pointer',fontSize:13,lineHeight:1}}>+</button>
+                </div>
                 {pdfFiltersOpen && (()=>{
                   const famList=['dados','ap','camera','som','eletrica','hdmi','uplink','fibra']
                   const catList=[...new Set(markers.map(m=>equipType(m.name)))].sort()
@@ -4229,6 +4243,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 const _stored = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:m==='conduites'?execDocConduites:execDoc
                 let doc=_stored
                 if(execData){ try{ doc=buildExecHtml(execData, m) }catch(e){ console.warn('re-render preview falhou, usando salvo:',e.message); doc=_stored } }
+                if(doc && plantPct!==100) doc = `<style>.ex-plant img{max-width:${plantPct}%!important}.ex-plant{margin-left:auto;margin-right:auto}</style>` + doc
                 return (
                 <button key={m} onClick={()=>{
                   setExecMode(m)
