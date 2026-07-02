@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v216 — Anti-órfão no Plano de Obra: título de tópico nunca fica sozinho no rodapé. Cabeçalho da família + título 'Cabos' + planta agrupados num único bloco break-inside:avoid (com break-after:avoid no cabeçalho e break-before:avoid no .ex-plant), então o conjunto sobe inteiro pra próxima página deixando espaço, em vez de orfanar o título. max-height da planta 225→190mm pra o conjunto caber numa página A3. Tabela segue paginando sozinha. Mantém v207-v215.
+// v217 — Planta de teto (pontos aéreos) consertada e ampliada. isTeto passou a usar mountOf, então TODO ponto aéreo entra (câmeras, APs, sensores, luzes, som embutido e pontos elétricos de teto), não só os elétricos de teto — era por isso que a planta sumia em projetos cujos itens de teto eram câmeras/APs. Planta de teto agora usa .ex-plant (não racha, altura limitada). Passou a aparecer TAMBÉM no Plano de Obra (antes só no Executivo completo). Mantém v207-v216.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v216 · build 2026-07
+          v217 · build 2026-07
         </div>
       </div>
     </div>

@@ -2259,7 +2259,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
     // ── Seção de Itens no Teto (planta + tabela) ──────────────────────────────
     const tetoSyms = new Set(['tomada_teto','keystone_teto','ponto_som_teto'])
-    const isTeto = m => { const sym=classifyEle(m)?.sym||''; return tetoSyms.has(sym)||(sym==='ponto_luz'&&/teto/.test((m.note||'').toLowerCase())) }
+    // "Pontos aéreos" = tudo que é instalado no teto/forro: câmeras, APs, sensores, luzes,
+    // som embutido e os pontos elétricos de teto. Usa o mesmo detector de local dos pins.
+    const isTeto = m => mountOf(m)==='teto'
     const tetoMarkers = markers.filter(isTeto)
     const tblTetoSec = tetoMarkers.length ? `
       <h3 class="ex-amb" style="margin-top:14px">Itens no Teto — tabela</h3>
@@ -2276,9 +2278,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       }).join('')
       const cabosLinha=(cables||[]).filter(c=>!c.free&&tetoMarkers.some(m=>m.uid===c.fromUid||m.uid===c.toUid)).map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''; return `<path d="${pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')}" fill="none" stroke="${c.color||'#0891B2'}" stroke-dasharray="4,2.5" vector-effect="non-scaling-stroke" style="stroke-width:2px"/>`}).join('')
       return `<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>
-        <p class="ex-p" style="margin-bottom:8px">Somente pontos no teto (tomadas, keystones, caixas de som e luz embutidos). Cabos em tracejado (passam pelo forro).</p>
-        <div style="position:relative;width:100%;padding-bottom:${(ratio*100).toFixed(1)}%;border:1px solid #CBD5E1;border-radius:8px;overflow:hidden">
-          <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.4)"/>
+        <p class="ex-p" style="margin-bottom:8px">Pontos aéreos (teto/forro): câmeras, access points, sensores, luzes, som embutido e pontos elétricos de teto. Cabos em tracejado passam pelo forro.</p>
+        <div class="ex-plant" style="border:1px solid #CBD5E1;border-radius:8px;overflow:hidden">
+          <img src="${bgImage}" style="filter:grayscale(0.4)"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${cabosLinha}</svg>${dots}
         </div>${tblTetoSec}</div>`
     })() : ''
@@ -2882,6 +2884,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         '', // Planta Geral removida do Plano de Obra: já consta na seção 2 do Executivo (evita duplicar)
         ...(categoriaPaginas.length?categoriaPaginas:[`<p class="ex-p" style="color:#B45309">⚠ Nenhum cabo desenhado na planta. Use o modo "Cabos" no editor.</p>`]),
         paginaRestantes,
+        plantaTeto ? `<div class="ex-obra-page" style="page-break-before:always">${plantaTeto.replace('<div class="ex-sec ex-breakable">','<div>')}</div>` : '',
         `<div class="ex-obra-page" style="page-break-before:always">
           <div style="break-inside:avoid;page-break-inside:avoid">
           <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Notas de Infraestrutura</h2>
