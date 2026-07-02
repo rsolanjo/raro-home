@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v223 — Barra do editor deixa de competir com a planta: virou faixa opaca de largura total no topo do canvas (a planta começa abaixo dela), fixa na rolagem vertical e horizontal, em vez de cartão translúcido flutuando a 70% por cima da planta. No celular a barra é UMA linha rolável na horizontal (botões de 34px, sem espremer), em vez de 3 linhas comendo meia tela; o painel de Filtros PDF no celular abre como cartão sobreposto próprio. Mantém v207-v222.
+// v224 — Paginação determinística nos relatórios: cada tópico do Plano de Obra (Cabos, Conduítes, Visão completa) começa SEMPRE em página nova, com a planta dimensionada para caber inteira (max 190mm) junto do título; a tabela vem abaixo e, se longa, continua na página seguinte com cabeçalho repetido (quebra limpa entre linhas). Acaba a quebra imprevisível no meio de bloco. Print CSS: h2/h3 nunca soltam do conteúdo seguinte, linha de tabela nunca racha. Mantém v207-v223.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v223 · build 2026-07
+          v224 · build 2026-07
         </div>
       </div>
     </div>

@@ -2862,14 +2862,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           ${T(rows,['Nº','Origem → Destino','Cômodo','Cabo','Metros','Conduíte'])}
 
           ${conduitesFamilia.length ? `
-          <div style="break-inside:avoid;page-break-inside:avoid">
-          <h3 class="ex-amb" style="color:${col};margin-top:18px;margin-bottom:4px">Conduítes — ${lb}</h3>
+          <div style="break-inside:avoid;page-break-inside:avoid;page-break-before:always;break-before:page">
+          <h3 class="ex-amb" style="color:${col};margin-top:0;margin-bottom:4px">Conduítes — ${lb}</h3>
           ${pagePlantaConduites(conduitesFamilia, col)}
           </div>
           ${T(rowsCond,['ID','Trecho','Nº','Eletroduto','Metros','Cabos dentro','Obs'])}
 
-          <div style="break-inside:avoid;page-break-inside:avoid">
-          <h3 class="ex-amb" style="color:${col};margin-top:18px;margin-bottom:4px">Visão completa — Cabos + Conduítes</h3>
+          <div style="break-inside:avoid;page-break-inside:avoid;page-break-before:always;break-before:page">
+          <h3 class="ex-amb" style="color:${col};margin-top:0;margin-bottom:4px">Visão completa — Cabos + Conduítes</h3>
           ${pagePlantaCompleta(arr, conduitesFamilia, col, {ap:'Wi-Fi',camera:'Câmera',som:'Som'}[t])}
           </div>
           ` : ''}
@@ -4360,6 +4360,8 @@ const EXEC_CSS=`
 /* ── Print ───────────────────────────────────────────────────────────────── */
 @media print{
   .no-print{display:none!important}
+  h2,h3{page-break-after:avoid;break-after:avoid}
+  .ex-tbl tbody tr{page-break-inside:avoid;break-inside:avoid}
   .ex-cover{page-break-after:always;break-after:page}
   .ex-sec{page-break-inside:avoid;break-inside:avoid;padding:16px 28px 20px}
   /* Seções longas PODEM quebrar — desativa avoid nelas */
@@ -4410,6 +4412,8 @@ const EXEC_CSS_PREMIUM=`
 .ex-plant img{width:auto!important;height:auto;max-width:100%;max-height:190mm;display:block;border:1px solid #CDD2DA;border-radius:6px}
 @media print{
   .no-print{display:none!important}
+  h2,h3{page-break-after:avoid;break-after:avoid}
+  .ex-tbl tbody tr{page-break-inside:avoid;break-inside:avoid}
   .ex-cover{page-break-after:always;break-after:page}
   .ex-sec{page-break-inside:avoid;break-inside:avoid;padding:18px 28px 20px}
   .ex-sec.ex-breakable{page-break-inside:auto;break-inside:auto}
