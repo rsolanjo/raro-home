@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v218 — (1) IDs/códigos dos pinos agora respeitam o toggle 'IDs ocultos' também nas plantas GERADAS (antes só no editor); default limpo, sem IDs. (2) Local de instalação (mount) manda na planta de teto: marcar um item como Teto no painel joga ele pra planta de teto, independente do nome. (3) Automatizações de local+cabo: caixa de som e IR/infravermelho -> teto; sensor/presença/mmWave -> teto + cabo elétrico; AP -> teto + rede; interruptor -> parede + elétrica; câmera -> teto + rede. (4) Label do seletor virou 'Tipo do ponto' (sem 'planta elétrica'). Reestruturação do dropdown família x altura fica pra próxima (mexe na planta elétrica NBR). Mantém v207-v217.
+// v219 — IDs no relatório separados do editor. Antes um único toggle controlava os códigos no editor E no PDF: ligar os IDs pra trabalhar no editor sujava o relatório. Agora há dois: 'IDs visíveis' (editor, pra trabalhar) e 'IDs no PDF' (relatório), este último OFF por padrão, então o relatório sai sempre limpo independthe do editor. Mantém v207-v218.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v218 · build 2026-07
+          v219 · build 2026-07
         </div>
       </div>
     </div>

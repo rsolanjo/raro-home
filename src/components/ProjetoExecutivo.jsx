@@ -554,7 +554,8 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [execDocConduites, setExecDocConduites] = useState(()=> fromProposal?.exec_doc_conduites || null) // relatório de conduítes (HTML)
   const [execMode, setExecMode] = useState('completo') // 'completo' | 'obra' | 'eletrica'
   const [showHeatmap, setShowHeatmap] = useState(true)  // mostrar mapa de calor de Wi-Fi no executivo
-  const [showIds, setShowIds] = useState(false)  // mostrar os códigos/IDs nos pinos da planta (default: limpo)
+  const [showIds, setShowIds] = useState(false)  // códigos nos pinos DO EDITOR (para trabalhar)
+  const [showIdsPdf, setShowIdsPdf] = useState(false)  // códigos nas plantas DO RELATÓRIO/PDF (default: limpo)
   const [showTeto, setShowTeto] = useState(true)   // mostrar indicador de itens no teto (pontinho azul)
   const [showCabo, setShowCabo] = useState(true)   // mostrar a legenda de cabo (E/S/R) ao lado do pin
   const [showLegenda, setShowLegenda] = useState(true) // incluir o bloco de legenda (formas + cabos) nas plantas geradas
@@ -2275,7 +2276,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const dots=tetoMarkers.map(m=>{
         const color=(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
         const badgeFam=showCabo?cableFamily(m.cableType||guessCableType(m,m)):null
-        return drawPin({...m,mount:'teto'},{size:20,color,idLabel:showIds?esc(m.id||m.code||''):'',badgeFam})
+        return drawPin({...m,mount:'teto'},{size:20,color,idLabel:showIdsPdf?esc(m.id||m.code||''):'',badgeFam})
       }).join('')
       const cabosLinha=(cables||[]).filter(c=>!c.free&&tetoMarkers.some(m=>m.uid===c.fromUid||m.uid===c.toUid)).map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''; return `<path d="${pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')}" fill="none" stroke="${c.color||'#0891B2'}" stroke-dasharray="4,2.5" vector-effect="non-scaling-stroke" style="stroke-width:2px"/>`}).join('')
       return `<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>
@@ -2667,7 +2668,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const isR=isRackItem(m.name||'',m.code||'')
           const isCx=classifyEle(m)?.sym==='caixa_conduite'
           const isPrum=classifyEle(m)?.sym==='prumada'
-          const idLabel=showIds?esc(m.id||m.code||''):''
+          const idLabel=showIdsPdf?esc(m.id||m.code||''):''
           if(isR||isCx||isPrum){
             const bg=isR?'#4C1D95':isCx?'#1E3A8A':'#7C3AED'
             const label=isCx?'CX':isPrum?'⇵':'R'
@@ -2696,9 +2697,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const isR=isRackItem(m.name||'',m.code||'')
           if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
             <div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
-            ${showIds?`<div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>`:''}
+            ${showIdsPdf?`<div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>`:''}
           </div>`
-          return drawPin(m,{size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIds?esc(m.id||m.code||m.name||''):''})
+          return drawPin(m,{size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):''})
         }).join('')
         const lines = arr.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
           return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:${condW}px" vector-effect="non-scaling-stroke"/>` }).join('')
@@ -2747,10 +2748,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const isR=isRackItem(m.name||'',m.code||'')
           if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
             <div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
-            ${showIds?`<div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>`:''}
+            ${showIdsPdf?`<div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>`:''}
           </div>`
           const badgeFam=showCabo?cableFamily(m.cableType||guessCableType(m,m)):null
-          return drawPin(m,{size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIds?esc(m.id||m.code||m.name||''):'',badgeFam})
+          return drawPin(m,{size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):'',badgeFam})
         }).join('')
         const caixaDots = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
           <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
@@ -2925,7 +2926,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const bg=isCx?'#1E3A8A':isR?'#4C1D95':(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
           <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${isCx?'CX':(isR?'R':m.n)}</div>
-          ${showIds?`<div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 3px;font-size:7px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||'')}</div>`:''}
+          ${showIdsPdf?`<div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 3px;font-size:7px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||'')}</div>`:''}
         </div>`}).join('')
       return `<div class="ex-plant"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>${allDots}</div>`
     })() + '</div>' : '',
@@ -3614,6 +3615,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 </button>
                 <button onClick={()=>setShowLegenda(v=>!v)} style={{height:32,borderRadius:6,border:`1px solid ${showLegenda?'#64748B88':'rgba(255,255,255,0.2)'}`,background:showLegenda?'rgba(100,116,139,0.22)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={showLegenda?'Não incluir o quadro de legenda nas plantas geradas':'Incluir o quadro de legenda (formas + cabos) nas plantas geradas'}>
                   <i className="ti ti-list-details" aria-hidden/>{showLegenda?'Legenda on':'Legenda off'}
+                </button>
+                <button onClick={()=>setShowIdsPdf(v=>!v)} style={{height:32,borderRadius:6,border:`1px solid ${showIdsPdf?'#B45309aa':'rgba(255,255,255,0.2)'}`,background:showIdsPdf?'rgba(180,83,9,0.22)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={showIdsPdf?'O relatório sairá COM os códigos dos pontos':'O relatório sai limpo, sem os códigos (recomendado)'}>
+                  <i className={showIdsPdf?'ti ti-tag':'ti ti-tag-off'} aria-hidden/>{showIdsPdf?'IDs no PDF: on':'IDs no PDF: off'}
                 </button>
                 {(()=>{ const temEle=markers.some(m=>classifyEle(m)); const qdls=markers.filter(m=>classifyEle(m)?.sym==='quadro').length
                   // prumadas pareadas indicam que há mais de um pavimento na planta
