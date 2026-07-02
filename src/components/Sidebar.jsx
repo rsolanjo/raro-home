@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v212 — Tabelas do Plano de Obra: (1) Trecho do conduíte agora deriva 'Rack → Cômodo' a partir das pontas dos cabos que passam dentro (antes mostrava 'de → até' literal). Ex: C1 #59→#34 = Rack → Suíte Master. (2) ID do conduíte nunca mostra mais o id interno (ex 'cabmqtdxlre...'): usa conduiteId||label||'—'; conduíte sem código aparece '—' e é identificado pelo Trecho. (3) Tabela de cabos agora mostra Origem → Destino com o número de cada item (antes só destino). (4) Cada planta fica colada na sua tabela (break-inside:avoid), pra não quebrar página entre planta e tabela. Vale pro Plano de Obra standalone e pro capítulo de cabeamento do Executivo completo. Mantém v207-v211.
+// v213 — Pin por local de instalação: forma indica onde o item é montado (○ parede, △ teto, □ chão), mantendo a cor da categoria/tipo. Legenda de cabo (E/S/R = Elétrico/Som/Rede) ao lado de cada pin, com toggle 'Cabo E/S/R'. Seletor de local no painel do item (auto/teto/parede/chão via m.mount). Mesma linguagem replicada nas 'Plantas de Pontos' geradas + bloco de legenda. Nota: a antiga NBR 5444 (cancelada 2014) usava ○=teto/△=tomada/□=piso; aqui seguimos a convenção pedida pela operação (inverter em SHAPE_BY_MOUNT). Mantém v207-v212.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v212 · build 2026-06
+          v213 · build 2026-07
         </div>
       </div>
     </div>
