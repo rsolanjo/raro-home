@@ -2677,7 +2677,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const badgeFam=showCabo?cableFamily(m.cableType||guessCableType(m,m)):null
           return drawPin(m,{size:18,color,idLabel,badgeFam})
         }).join('')
-        return `<div style="position:relative;display:inline-block;width:100%;margin-top:8px">
+        return `<div class="ex-plant">
           <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></svg>${allDots}
         </div>${showLegenda?pontosLegenda():''}`
@@ -2699,7 +2699,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         }).join('')
         const lines = arr.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
           return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:${condW}px" vector-effect="non-scaling-stroke"/>` }).join('')
-        return `<div style="position:relative;display:inline-block;width:100%;margin-top:8px">
+        return `<div class="ex-plant">
           <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}
         </div>`
@@ -2730,7 +2730,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const idLabel=c.conduiteId||(c.label||'').slice(0,6)||''; if(!idLabel)return''
           const mid=pts[Math.floor(pts.length/2)]
           return `<div style="position:absolute;left:${mid.x}%;top:${mid.y}%;transform:translate(-50%,-50%);z-index:5;background:${c.color||col};color:#fff;font-size:9px;font-weight:800;font-family:monospace;padding:1px 5px;border-radius:7px;border:1px solid #fff;white-space:nowrap">${esc(idLabel)}</div>`}).join('')
-        return `<div style="position:relative;display:inline-block;width:100%;margin-top:8px">
+        return `<div class="ex-plant">
           <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px;filter:grayscale(0.3)"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}${caixaDots}${condLabels}
         </div>`
@@ -2761,7 +2761,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const idLabel=c.conduiteId||(c.label||'').slice(0,6)||''; if(!idLabel)return''
           const mid=pts[Math.floor(pts.length/2)]
           return `<div style="position:absolute;left:${mid.x}%;top:${mid.y}%;transform:translate(-50%,-50%);z-index:5;background:${c.color||col};color:#fff;font-size:8.5px;font-weight:800;font-family:monospace;padding:1px 4px;border-radius:6px;border:1px solid #fff;white-space:nowrap;opacity:0.85">${esc(idLabel)}</div>`}).join('')
-        return `<div style="position:relative;display:inline-block;width:100%;margin-top:8px">
+        return `<div class="ex-plant">
           <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${linesCabos}${linesCond}</svg>${dots}${caixaDots}${condLabelsC}
         </div>`
@@ -2829,15 +2829,15 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           <div style="break-inside:avoid;page-break-inside:avoid">
           <h3 class="ex-amb" style="color:${col};margin-bottom:4px">Cabos — ${lb}</h3>
           ${pagePlantaCabos(t,arr,col)}
-          ${T(rows,['Nº','Origem → Destino','Cômodo','Cabo','Metros','Conduíte'])}
           </div>
+          ${T(rows,['Nº','Origem → Destino','Cômodo','Cabo','Metros','Conduíte'])}
 
           ${conduitesFamilia.length ? `
           <div style="break-inside:avoid;page-break-inside:avoid">
           <h3 class="ex-amb" style="color:${col};margin-top:18px;margin-bottom:4px">Conduítes — ${lb}</h3>
           ${pagePlantaConduites(conduitesFamilia, col)}
-          ${T(rowsCond,['ID','Trecho','Nº','Eletroduto','Metros','Cabos dentro','Obs'])}
           </div>
+          ${T(rowsCond,['ID','Trecho','Nº','Eletroduto','Metros','Cabos dentro','Obs'])}
 
           <div style="break-inside:avoid;page-break-inside:avoid">
           <h3 class="ex-amb" style="color:${col};margin-top:18px;margin-bottom:4px">Visão completa — Cabos + Conduítes</h3>
@@ -2870,8 +2870,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           <p class="ex-p" style="color:#64748B;font-size:11px;margin-bottom:6px">Conduítes que não se encaixaram numa família específica de cabo acima.</p>
           <div style="break-inside:avoid;page-break-inside:avoid">
           ${pagePlantaConduites(conduitesRestantes,'#0D1420')}
-          ${T(rowsR,['ID','Trecho','Nº','Eletroduto','Metros','Cabos dentro'])}
           </div>
+          ${T(rowsR,['ID','Trecho','Nº','Eletroduto','Metros','Cabos dentro'])}
         </div>`
       })() : ''
       // notas finais
@@ -2924,7 +2924,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${isCx?'CX':(isR?'R':m.n)}</div>
           <div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 3px;font-size:7px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||'')}</div>
         </div>`}).join('')
-      return `<div style="position:relative;display:inline-block;max-width:100%;margin-top:8px"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>${allDots}</div>`
+      return `<div class="ex-plant"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>${allDots}</div>`
     })() + '</div>' : '',
 
     // 3. RACK / CPD
@@ -4299,6 +4299,8 @@ const EXEC_CSS=`
 /* plantas grandes e legíveis: imagem ocupa a largura toda, com altura mínima generosa */
 .ex-plant-wrap{position:relative;width:100%;margin:8px 0}
 .ex-plant-wrap img{width:100%;display:block}
+.ex-plant{position:relative;display:block;width:fit-content;max-width:100%;margin:8px auto;break-inside:avoid;page-break-inside:avoid}
+.ex-plant img{width:auto!important;height:auto;max-width:100%;max-height:225mm;display:block;border:1px solid #CDD2DA;border-radius:6px}
 
 /* ── Print ───────────────────────────────────────────────────────────────── */
 @media print{
@@ -4307,7 +4309,7 @@ const EXEC_CSS=`
   .ex-sec{page-break-inside:avoid;break-inside:avoid;padding:16px 28px 20px}
   /* Seções longas PODEM quebrar — desativa avoid nelas */
   .ex-sec.ex-breakable{page-break-inside:auto;break-inside:auto}
-  .ex-obra-page{page-break-inside:avoid;break-inside:avoid}
+  .ex-obra-page{page-break-inside:auto;break-inside:auto}
   .ex-tbl thead{display:table-header-group}
   .ex-tbl{font-size:10px}
   .ex-tbl th{padding:5px 7px;font-size:9px}
@@ -4349,12 +4351,14 @@ const EXEC_CSS_PREMIUM=`
 .ex-obra-page img{width:100%;display:block;border:1px solid #CDD2DA;border-radius:6px}
 .ex-plant-wrap{position:relative;width:100%;margin:8px 0}
 .ex-plant-wrap img{width:100%;display:block}
+.ex-plant{position:relative;display:block;width:fit-content;max-width:100%;margin:8px auto;break-inside:avoid;page-break-inside:avoid}
+.ex-plant img{width:auto!important;height:auto;max-width:100%;max-height:225mm;display:block;border:1px solid #CDD2DA;border-radius:6px}
 @media print{
   .no-print{display:none!important}
   .ex-cover{page-break-after:always;break-after:page}
   .ex-sec{page-break-inside:avoid;break-inside:avoid;padding:18px 28px 20px}
   .ex-sec.ex-breakable{page-break-inside:auto;break-inside:auto}
-  .ex-obra-page{page-break-inside:avoid;break-inside:avoid}
+  .ex-obra-page{page-break-inside:auto;break-inside:auto}
   .ex-tbl thead{display:table-header-group}
   .ex-tbl{font-size:9px}.ex-tbl th{padding:5px 7px;font-size:8px}.ex-tbl td{padding:5px 7px}
   h2{font-size:16px}.ex-amb{font-size:12px}
