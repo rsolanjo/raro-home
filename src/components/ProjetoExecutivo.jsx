@@ -3588,7 +3588,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <span style={{color:'#FDE68A',fontWeight:600}}>Atenção: {colaboradores.length} outro{colaboradores.length>1?'s':''} usuário{colaboradores.length>1?'s':''} {colaboradores.length>1?'estão':'está'} editando esta planta ao mesmo tempo</span>
                 <span style={{color:'rgba(253,230,138,0.6)',fontSize:10}}>Salve com frequência para evitar conflitos</span>
               </div>}
-              <div style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content',flexWrap:'wrap',justifyContent:'flex-end',maxWidth:'70%'}}>
+              <div className="pe-toolbar" style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content',flexWrap:'wrap',justifyContent:'flex-end',maxWidth:'70%'}}>
                 <button onClick={()=>setCableMode(m=>!m)} style={{height:32,borderRadius:6,border:`1px solid ${cableMode?'#F59E0B':'#F59E0B88'}`,background:cableMode?'#F59E0B':'rgba(245,158,11,0.15)',color:cableMode?'#1a1a2e':'#FBBf24',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Traçar cabos ligando item a item">
                   <i className="ti ti-route" aria-hidden/>{cableMode?'Cabos: ON':'Cabos'}
                 </button>

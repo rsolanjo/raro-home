@@ -137,6 +137,7 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
 
   function onWheel(e){ if(!bgImage) return; e.preventDefault(); const d=e.deltaY<0?0.12:-0.12; setZoom(z=>Math.min(4,Math.max(0.4,+(z+d).toFixed(2)))) }
   function onStageMouseDown(e){ if(e.target.closest('.mk')) return; setPanning({sx:e.clientX,sy:e.clientY,ox:pan.x,oy:pan.y}) }
+  function onStageTouchStart(e){ if(e.target.closest('.mk')) return; const t=e.touches[0]; if(!t) return; setPanning({sx:t.clientX,sy:t.clientY,ox:pan.x,oy:pan.y}) }
   const onMouseMove = useCallback((e)=>{
     if(dragMarker){
       const rect=stageRef.current.getBoundingClientRect()
@@ -148,8 +149,11 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
   const onMouseUp = useCallback(()=>{ setDragMarker(null); setPanning(null) },[])
   useEffect(()=>{
     if(dragMarker||panning){
+      const onTouchMove = e => { const t=e.touches[0]; if(!t) return; e.preventDefault(); onMouseMove({clientX:t.clientX,clientY:t.clientY}) }
       window.addEventListener('mousemove',onMouseMove); window.addEventListener('mouseup',onMouseUp)
-      return ()=>{ window.removeEventListener('mousemove',onMouseMove); window.removeEventListener('mouseup',onMouseUp) }
+      window.addEventListener('touchmove',onTouchMove,{passive:false}); window.addEventListener('touchend',onMouseUp); window.addEventListener('touchcancel',onMouseUp)
+      return ()=>{ window.removeEventListener('mousemove',onMouseMove); window.removeEventListener('mouseup',onMouseUp)
+        window.removeEventListener('touchmove',onTouchMove); window.removeEventListener('touchend',onMouseUp); window.removeEventListener('touchcancel',onMouseUp) }
     }
   },[dragMarker,panning,onMouseMove,onMouseUp])
 
@@ -301,7 +305,7 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
     <div style={{...SC.full,userSelect:'none'}}>
       <input ref={fileRef} type="file" accept="image/*,application/pdf,.pdf" style={{display:'none'}} onChange={handleFile}/>
       {/* Topo */}
-      <div style={{...SC.topbar,gap:14}}>
+      <div className="ac-topbar" style={{...SC.topbar,gap:14}}>
         <button onClick={()=>{ if(dirty&&!window.confirm('Há alterações não salvas. Sair mesmo assim?'))return; setSelProposal(null) }} style={SC.ghost}>‹ Clientes</button>
         <div style={{flex:1}}>
           <div onClick={discreteTap} title="" style={{fontFamily:"'DM Serif Display',serif",fontSize:18,cursor:'default'}}>{clientName(selProposal)}</div>
@@ -315,9 +319,9 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
         <button onClick={onClose} style={SC.ghost}>✕ Sair</button>
       </div>
 
-      <div style={{flex:1,display:'flex',minHeight:0}}>
+      <div className="ac-body" style={{flex:1,display:'flex',minHeight:0}}>
         {/* Sidebar categorias */}
-        <div style={{width:210,borderRight:'1px solid rgba(148,163,184,0.15)',padding:'16px 14px',overflowY:'auto',flexShrink:0}}>
+        <div className="ac-cats" style={{width:210,borderRight:'1px solid rgba(148,163,184,0.15)',padding:'16px 14px',overflowY:'auto',flexShrink:0}}>
           <div style={SC.sectLabel}>Categorias</div>
           {cats.map(c=>{
             const color=CAT_COLOR[c]||'#6B7280'; const n=markers.filter(m=>catOf(m)===c).length; const off=hiddenCats.has(c)
@@ -338,7 +342,7 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
         </div>
 
         {/* Palco */}
-        <div ref={stageRef} onWheel={onWheel} onMouseDown={onStageMouseDown} style={{flex:1,overflow:'hidden',position:'relative',background:'#0E1622',cursor:panning?'grabbing':'grab'}}>
+        <div ref={stageRef} className="ac-stage" onWheel={onWheel} onMouseDown={onStageMouseDown} onTouchStart={onStageTouchStart} style={{flex:1,overflow:'hidden',position:'relative',background:'#0E1622',cursor:panning?'grabbing':'grab',touchAction:'none'}}>
           {!bgImage
             ? <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',gap:14,alignItems:'center',justifyContent:'center',color:'#64748B',fontSize:14}}>
                 <i className="ti ti-map-off" style={{fontSize:32}} aria-hidden/>
@@ -355,6 +359,7 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
                   const st=styleOf(m); const sel=selMarker===m.id; const rack=isRackItemAC(nameOf(m),codeOf(m))
                   const label=m.n||st.s
                   return <div key={m.id} className="mk" onMouseDown={e=>{ e.stopPropagation(); setSelMarker(m.id); setDragMarker(m.id) }}
+                    onTouchStart={e=>{ e.stopPropagation(); setSelMarker(m.id); setDragMarker(m.id) }}
                     style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,transform:'translate(-50%,-50%)',zIndex:sel?20:10,cursor:'move'}}>
                     {rack
                       ? <div style={{width:sel?32:28,height:sel?32:28,borderRadius:6,background:'#4C1D95',color:'#C4B5FD',fontSize:13,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:`2px solid ${sel?'#E8CFA0':'#7C3AED'}`,boxShadow:'0 2px 6px rgba(0,0,0,0.6)'}}><i className="ti ti-server" aria-hidden style={{fontSize:15}}/></div>
@@ -373,17 +378,17 @@ export default function AreaClientes({ clients=[], proposals=[], catalog=[], onR
             </div>}
 
           {/* zoom */}
-          <div style={{position:'absolute',right:16,bottom:16,display:'flex',flexDirection:'column',gap:6}}>
+          <div className="ac-zoom" style={{position:'absolute',right:16,bottom:16,display:'flex',flexDirection:'column',gap:6}}>
             <button onClick={()=>setZoom(z=>Math.min(4,+(z+0.2).toFixed(2)))} style={SC.zbtn}>+</button>
             <div style={{textAlign:'center',fontSize:10,color:'#94A3B8'}}>{Math.round(zoom*100)}%</div>
             <button onClick={()=>setZoom(z=>Math.max(0.4,+(z-0.2).toFixed(2)))} style={SC.zbtn}>−</button>
             <button onClick={()=>{setZoom(1);setPan({x:0,y:0})}} title="Resetar" style={{...SC.zbtn,fontSize:13}}><i className="ti ti-focus-2" aria-hidden/></button>
           </div>
-          <div style={{position:'absolute',left:16,bottom:16,fontSize:11,color:'#64748B'}}>Arraste a planta · role para zoom · arraste os pontos · toque num ponto para ver o que é</div>
+          <div className="ac-hint" style={{position:'absolute',left:16,bottom:16,fontSize:11,color:'#64748B'}}>Arraste a planta · role para zoom · arraste os pontos · toque num ponto para ver o que é</div>
         </div>
 
         {/* Painel ADICIONAR ITENS (item 7) */}
-        {showEditor && <div style={{width:280,borderLeft:'1px solid rgba(148,163,184,0.15)',display:'flex',flexDirection:'column',flexShrink:0}}>
+        {showEditor && <div className="ac-editor" style={{width:280,borderLeft:'1px solid rgba(148,163,184,0.15)',display:'flex',flexDirection:'column',flexShrink:0}}>
           <div style={{padding:'12px 14px',borderBottom:'1px solid rgba(148,163,184,0.15)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <span style={{fontSize:13,fontWeight:600}}>Adicionar itens</span>
             <button onClick={()=>setShowEditor(false)} style={{background:'none',border:'none',color:'#64748B',cursor:'pointer',fontSize:16}}>×</button>
