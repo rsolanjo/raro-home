@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v215 — Conserto de layout do Plano de Obra (impressão A3): plantas não racham mais entre páginas (novo .ex-plant com width:fit-content + max-height:225mm, centrado), o que elimina os códigos dos pins vazando pro topo da página. .ex-obra-page deixa de forçar break-inside:avoid (o bloco da família era maior que a página). Tabela separada do bloco da planta (pagina sozinha com cabeçalho repetido), acabando com planta órfã, título solto e páginas quase vazias. Aplica também à Planta Geral de Itens do Executivo. Mantém v207-v214.
+// v216 — Anti-órfão no Plano de Obra: título de tópico nunca fica sozinho no rodapé. Cabeçalho da família + título 'Cabos' + planta agrupados num único bloco break-inside:avoid (com break-after:avoid no cabeçalho e break-before:avoid no .ex-plant), então o conjunto sobe inteiro pra próxima página deixando espaço, em vez de orfanar o título. max-height da planta 225→190mm pra o conjunto caber numa página A3. Tabela segue paginando sozinha. Mantém v207-v215.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v215 · build 2026-07
+          v216 · build 2026-07
         </div>
       </div>
     </div>

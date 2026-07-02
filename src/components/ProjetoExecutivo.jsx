@@ -2820,13 +2820,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           </tr>` }).join('')
 
         return `<div class="ex-obra-page" style="page-break-before:${idx===0?'auto':'always'}">
-          <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid ${col};padding-bottom:8px;margin-bottom:10px">
+          <div style="break-inside:avoid;page-break-inside:avoid">
+          <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid ${col};padding-bottom:8px;margin-bottom:10px;break-after:avoid;page-break-after:avoid">
             <div style="width:30px;height:30px;border-radius:8px;background:${col};display:flex;align-items:center;justify-content:center"><span style="width:18px;height:4px;background:#fff;border-radius:2px"></span></div>
             <div><div style="font-size:20px;font-weight:800;color:#0D1420">${lb}</div>
             <div style="font-size:12px;color:#64748B">${arr.length} cabo(s) · ${sp.spec} · ${sp.conector}${totM>0?` · total ~${Math.round(totM)}m`:''}${conduitesFamilia.length?` · ${conduitesFamilia.length} conduíte(s)`:''}</div></div>
           </div>
-
-          <div style="break-inside:avoid;page-break-inside:avoid">
           <h3 class="ex-amb" style="color:${col};margin-bottom:4px">Cabos — ${lb}</h3>
           ${pagePlantaCabos(t,arr,col)}
           </div>
@@ -4299,8 +4298,8 @@ const EXEC_CSS=`
 /* plantas grandes e legíveis: imagem ocupa a largura toda, com altura mínima generosa */
 .ex-plant-wrap{position:relative;width:100%;margin:8px 0}
 .ex-plant-wrap img{width:100%;display:block}
-.ex-plant{position:relative;display:block;width:fit-content;max-width:100%;margin:8px auto;break-inside:avoid;page-break-inside:avoid}
-.ex-plant img{width:auto!important;height:auto;max-width:100%;max-height:225mm;display:block;border:1px solid #CDD2DA;border-radius:6px}
+.ex-plant{position:relative;display:block;width:fit-content;max-width:100%;margin:8px auto;break-inside:avoid;page-break-inside:avoid;break-before:avoid;page-break-before:avoid}
+.ex-plant img{width:auto!important;height:auto;max-width:100%;max-height:190mm;display:block;border:1px solid #CDD2DA;border-radius:6px}
 
 /* ── Print ───────────────────────────────────────────────────────────────── */
 @media print{
@@ -4351,8 +4350,8 @@ const EXEC_CSS_PREMIUM=`
 .ex-obra-page img{width:100%;display:block;border:1px solid #CDD2DA;border-radius:6px}
 .ex-plant-wrap{position:relative;width:100%;margin:8px 0}
 .ex-plant-wrap img{width:100%;display:block}
-.ex-plant{position:relative;display:block;width:fit-content;max-width:100%;margin:8px auto;break-inside:avoid;page-break-inside:avoid}
-.ex-plant img{width:auto!important;height:auto;max-width:100%;max-height:225mm;display:block;border:1px solid #CDD2DA;border-radius:6px}
+.ex-plant{position:relative;display:block;width:fit-content;max-width:100%;margin:8px auto;break-inside:avoid;page-break-inside:avoid;break-before:avoid;page-break-before:avoid}
+.ex-plant img{width:auto!important;height:auto;max-width:100%;max-height:190mm;display:block;border:1px solid #CDD2DA;border-radius:6px}
 @media print{
   .no-print{display:none!important}
   .ex-cover{page-break-after:always;break-after:page}
