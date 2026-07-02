@@ -566,7 +566,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [hidePdfConduites, setHidePdfConduites] = useState(false) // tirar todos os conduítes do PDF
   const [pageOrient, setPageOrient] = useState('original') // orientação da PLANTA no documento: 'original' | 'paisagem' | 'retrato' — o app gira a imagem e converte pins/cabos
   const [rotBg, setRotBg] = useState(null) // planta girada 90° (gerada em canvas quando necessário)
-  const [execData, setExecData] = useState(null)       // dados crus da IA (p/ re-render das 2 versões)
+  const [execData, setExecData] = useState(()=> fromProposal?.planta_data?.exec_data || null) // dados crus da IA — persistidos p/ reconstruir o documento com as opções atuais
   const [execVersao, setExecVersao] = useState('nova') // 'nova' (premium) | 'antiga' (clássico cyan)
   const [execProgress, setExecProgress] = useState('')
   const [zoom, setZoom] = useState(1)
@@ -1530,7 +1530,7 @@ Responda APENAS JSON válido:
       setStep('exec')
       if(fromProposal?.id){
         import('../db/supabase.js').then(({saveProposal})=>{
-          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
+          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct,exec_data:data} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
         })
       }
     } catch(err){
@@ -1628,7 +1628,7 @@ Responda APENAS JSON válido:
       if(fromProposal?.id){
         try{
           const { saveProposal } = await import('../db/supabase.js')
-          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct} }
+          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct,exec_data:data} }
           await saveProposal(updated)
         }catch(e){ console.warn('Auto-save falhou:', e.message) }
       }
@@ -3067,17 +3067,22 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       <div style="font-size:13px;opacity:0.6;margin-top:30px">${cliNome}${codigo?' · '+codigo:''}</div>
     </div>`
     let body, pageCss
+    // Reconstrói FRESCO a partir dos dados crus (rotação da planta, filtros PDF, IDs, layout novo).
+    // Sem execData (projeto antigo, nunca regenerado), cai no HTML salvo.
+    const _fresh = m => { if(!execData) return null; try{ return buildExecHtml(execData, m) }catch(e){ console.warn('rebuild export falhou:',e.message); return null } }
+    const _full=_fresh('completo')||execDoc, _obra=_fresh('obra')||execDocObra,
+          _ele=_fresh('eletrica')||execDocEletrica, _cond=_fresh('conduites')||execDocConduites
     if(execMode==='completo'){
       // item 7: TUDO em 1 PDF — Executivo + Plano de Obra + Planta Elétrica, separados por capa
       pageCss='@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}'
       const quebraPag='<div style="break-before:page;page-break-before:always;height:0;margin:0;border:0"></div>'
-      body = (execDoc||'')
-        + (execDocObra ? quebraPag+execDocObra : '')
-        + (execDocEletrica ? quebraPag+execDocEletrica : '')
+      body = (_full||'')
+        + (_obra ? quebraPag+_obra : '')
+        + (_ele ? quebraPag+_ele : '')
     } else {
       const _isA3=(execMode==='obra'||execMode==='eletrica'||execMode==='conduites')
       pageCss = (_isA3 ? '@page{size:A3 landscape;margin:10mm} .ex-plant img{max-height:245mm!important}' : '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important}')
-      body = (execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execMode==='conduites'?execDocConduites:execDoc)||''
+      body = (execMode==='obra'?_obra:execMode==='eletrica'?_ele:execMode==='conduites'?_cond:_full)||''
     }
     const fontLink='<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
     // ── FLUXO CONTÍNUO COMO NA TELA ──
@@ -3110,7 +3115,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(fromProposal?.id){
       try{
         const { saveProposal } = await import('../db/supabase.js')
-        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct}, exec_api_cost:apiCost }
+        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct,exec_data:execData}, exec_api_cost:apiCost }
         await saveProposal(updated)
         alert(`✅ Salvo no orçamento! A página vai atualizar.`)
         onClose && onClose()
@@ -3118,7 +3123,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         return
       }catch(e){ alert('Erro ao salvar: '+e.message); return }
     }
-    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, exec_api_cost:apiCost })
+    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct,exec_data:execData}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, exec_api_cost:apiCost })
   }
 
   const catGroups={}
@@ -4221,7 +4226,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <div style={{maxWidth:820,margin:'0 auto 14px',display:'flex',gap:8,alignItems:'center',padding:'0 4px',flexWrap:'wrap'}}>
               <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:4}}>Documento:</span>
               {[['completo','Completo','ti-file-text'],['obra','Obra / Pedreiro','ti-tools'],['eletrica','Elétrica','ti-bolt'],['conduites','Conduítes','ti-route']].map(([m,label,icon])=>{
-                const doc = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:m==='conduites'?execDocConduites:execDoc
+                const _stored = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:m==='conduites'?execDocConduites:execDoc
+                let doc=_stored
+                if(execData){ try{ doc=buildExecHtml(execData, m) }catch(e){ console.warn('re-render preview falhou, usando salvo:',e.message); doc=_stored } }
                 return (
                 <button key={m} onClick={()=>{
                   setExecMode(m)
@@ -4313,7 +4320,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             if(!fromProposal?.id){ alert('Abra o executivo a partir de um orçamento para poder salvar.'); return }
             try{
               const { saveProposal, addAuditLog } = await import('../db/supabase.js')
-              const updated = { ...fromProposal, planta_data:{image:bgImage, markers, cables, scale:plantScale, imgRatio, folgaPct} }
+              const updated = { ...fromProposal, planta_data:{image:bgImage, markers, cables, scale:plantScale, imgRatio, folgaPct, exec_data:execData} }
               await saveProposal(updated)
               await addAuditLog({ type:'exec_save_markers', user_name:currentUser?.name||'—',
                 after:JSON.stringify({markers:markers.length, rooms:rooms.length, proposal_id:fromProposal.id}) })

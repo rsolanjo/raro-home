@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v226 — Orientação da PLANTA dentro do documento (não da página de impressão): botão 'Planta: Original/Paisagem/Retrato' gira a imagem 90° via canvas quando a orientação pedida difere da natural, convertendo pins e cabos junto ((x,y)->(100-y,x)); metragem carimbada antes da rotação para não distorcer metros. Página do PDF volta a ser fixa (A3 landscape obra / A4 completo). Confirma layout do v225: tópico+tabela numa página e planta grande em página inteira logo abaixo do tópico (max 245mm A3 / 250mm A4). Mantém v207-v225.
+// v227 — CAUSA RAIZ dos ajustes 'não aparecerem': preview e exportação usavam o HTML SALVO do documento (gerado com código antigo), então rotação da planta, filtros PDF e o layout novo (planta em página inteira) não surtiam efeito. Agora: (1) os dados crus da IA (exec_data) são persistidos em planta_data; (2) o PREVIEW reconstrói o documento na hora quando exec_data existe (rotação, filtros, IDs e layout refletem imediatamente); (3) a EXPORTAÇÃO idem. Projetos antigos sem exec_data caem no HTML salvo e precisam de UMA regeneração para destravar tudo. Mantém v207-v226.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v226 · build 2026-07
+          v227 · build 2026-07
         </div>
       </div>
     </div>
