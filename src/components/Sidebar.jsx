@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v224 — Paginação determinística nos relatórios: cada tópico do Plano de Obra (Cabos, Conduítes, Visão completa) começa SEMPRE em página nova, com a planta dimensionada para caber inteira (max 190mm) junto do título; a tabela vem abaixo e, se longa, continua na página seguinte com cabeçalho repetido (quebra limpa entre linhas). Acaba a quebra imprevisível no meio de bloco. Print CSS: h2/h3 nunca soltam do conteúdo seguinte, linha de tabela nunca racha. Mantém v207-v223.
+// v225 — Layout por página nos relatórios de obra: cada tópico agora é 'título + tabela' numa página e a PLANTA GRANDE numa página só dela, ocupando o tamanho da página (max-height dinâmico por formato). Novo botão 'Paisagem/Retrato' na barra define a orientação do PDF (@page A3/A4 portrait|landscape) e a planta se adequa: A3 paisagem 248mm, A3 retrato 370mm, A4 paisagem 165mm, A4 retrato 250mm. Vale para Plano de Obra, Planta Elétrica, Conduítes e Executivo completo. Mantém v207-v224.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v224 · build 2026-07
+          v225 · build 2026-07
         </div>
       </div>
     </div>
