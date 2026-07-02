@@ -564,7 +564,8 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [hideFams, setHideFams] = useState(new Set())      // famílias de cabo fora do PDF (dados, som, camera...)
   const [hideCats, setHideCats] = useState(new Set())      // categorias de equipamento fora das plantas do PDF
   const [hidePdfConduites, setHidePdfConduites] = useState(false) // tirar todos os conduítes do PDF
-  const [pageOrient, setPageOrient] = useState('paisagem') // orientação da página no PDF: 'paisagem' | 'retrato' — a planta se adequa
+  const [pageOrient, setPageOrient] = useState('original') // orientação da PLANTA no documento: 'original' | 'paisagem' | 'retrato' — o app gira a imagem e converte pins/cabos
+  const [rotBg, setRotBg] = useState(null) // planta girada 90° (gerada em canvas quando necessário)
   const [execData, setExecData] = useState(null)       // dados crus da IA (p/ re-render das 2 versões)
   const [execVersao, setExecVersao] = useState('nova') // 'nova' (premium) | 'antiga' (clássico cyan)
   const [execProgress, setExecProgress] = useState('')
@@ -1635,7 +1636,43 @@ Responda APENAS JSON válido:
     setLoading(false)
   }
 
+  // Gera a planta girada 90° (horário) num canvas, quando a orientação pedida exigir
+  useEffect(()=>{
+    let vivo=true
+    const naturalRetrato=(imgRatio||0.75)>1
+    const girar = pageOrient!=='original' && ((pageOrient==='paisagem'&&naturalRetrato)||(pageOrient==='retrato'&&!naturalRetrato))
+    if(!bgImage || !girar){ setRotBg(null); return }
+    const img=new Image()
+    img.onload=()=>{ if(!vivo) return
+      const cv=document.createElement('canvas'); cv.width=img.height; cv.height=img.width
+      const ctx=cv.getContext('2d'); ctx.translate(cv.width,0); ctx.rotate(Math.PI/2); ctx.drawImage(img,0,0)
+      setRotBg(cv.toDataURL('image/jpeg',0.9)) }
+    img.src=bgImage
+    return ()=>{ vivo=false }
+  },[bgImage, pageOrient, imgRatio])
+
+  // A planta deve ser girada? Compara a orientação pedida com a natural (imgRatio>1 = retrato)
+  function _precisaGirar(){
+    if(pageOrient==='original') return false
+    const naturalRetrato = (imgRatio||0.75) > 1
+    return (pageOrient==='paisagem' && naturalRetrato) || (pageOrient==='retrato' && !naturalRetrato)
+  }
+  // Visão do documento: se girar, converte imagem, pins e cabos (90° horário: x,y -> 100-y, x)
+  // Metragem é carimbada ANTES da rotação para não distorcer os metros.
+  function _docView(){
+    if(!_precisaGirar() || !rotBg) return { bg:bgImage, mks:markers, cbs:cables, ratio:imgRatio }
+    const T=(x,y)=>({ x:+(100-(y??0)).toFixed(2), y:+(x??0).toFixed(2) })
+    return {
+      bg: rotBg,
+      mks: markers.map(m=>({ ...m, ...T(m.x,m.y) })),
+      cbs: cables.map(c=>({ ...c,
+        meters: (c.meters!=null&&c.meters!=='') ? c.meters : (cableMeters(c) ?? undefined),
+        points: (c.points||[]).map(pt=>({ ...pt, ...T(pt.x,pt.y) })) })),
+      ratio: 1/(imgRatio||0.75),
+    }
+  }
   function buildExecHtml(d, mode='completo', versao){
+    const { bg:bgImage, mks:markers, cbs:cables, ratio:imgRatio } = _docView()
     const _ver = versao || execVersao
     const isObra = mode==='obra'
     const _prem = _ver==='nova'
@@ -3032,18 +3069,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     let body, pageCss
     if(execMode==='completo'){
       // item 7: TUDO em 1 PDF — Executivo + Plano de Obra + Planta Elétrica, separados por capa
-      const _o=pageOrient==='retrato'?'portrait':'landscape'
-      const _ph=pageOrient==='retrato'?'250mm':'165mm' // altura útil da planta em A4
-      pageCss=`@page{size:A4 ${_o};margin:12mm} .ex-plant img{max-height:${_ph}!important} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}`
+      pageCss='@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}'
       const quebraPag='<div style="break-before:page;page-break-before:always;height:0;margin:0;border:0"></div>'
       body = (execDoc||'')
         + (execDocObra ? quebraPag+execDocObra : '')
         + (execDocEletrica ? quebraPag+execDocEletrica : '')
     } else {
-      const _o=pageOrient==='retrato'?'portrait':'landscape'
       const _isA3=(execMode==='obra'||execMode==='eletrica'||execMode==='conduites')
-      const _ph=_isA3?(pageOrient==='retrato'?'370mm':'248mm'):(pageOrient==='retrato'?'250mm':'165mm')
-      pageCss = (_isA3 ? `@page{size:A3 ${_o};margin:10mm}` : `@page{size:A4 ${_o};margin:12mm}`) + ` .ex-plant img{max-height:${_ph}!important}`
+      pageCss = (_isA3 ? '@page{size:A3 landscape;margin:10mm} .ex-plant img{max-height:245mm!important}' : '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important}')
       body = (execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execMode==='conduites'?execDocConduites:execDoc)||''
     }
     const fontLink='<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
@@ -3660,8 +3693,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <button onClick={()=>setPdfFiltersOpen(v=>!v)} style={{height:32,borderRadius:6,border:`1px solid ${(hideFams.size||hideCats.size||hidePdfConduites)?'#DC2626aa':'rgba(255,255,255,0.2)'}`,background:pdfFiltersOpen?'rgba(255,255,255,0.18)':(hideFams.size||hideCats.size||hidePdfConduites)?'rgba(220,38,38,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Escolher o que NÃO entra no relatório (famílias de cabo, categorias, conduítes)">
                   <i className="ti ti-filter" aria-hidden/>Filtros PDF{(hideFams.size+hideCats.size+(hidePdfConduites?1:0))>0?` (${hideFams.size+hideCats.size+(hidePdfConduites?1:0)})`:''}
                 </button>
-                <button onClick={()=>setPageOrient(o=>o==='paisagem'?'retrato':'paisagem')} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Orientação da página do PDF — a planta se adequa ao formato">
-                  <i className={pageOrient==='paisagem'?'ti ti-rectangle':'ti ti-rectangle-vertical'} aria-hidden/>{pageOrient==='paisagem'?'Paisagem':'Retrato'}
+                <button onClick={()=>setPageOrient(o=>o==='original'?'paisagem':o==='paisagem'?'retrato':'original')} style={{height:32,borderRadius:6,border:`1px solid ${pageOrient!=='original'?'#0EA5E9aa':'rgba(255,255,255,0.2)'}`,background:pageOrient!=='original'?'rgba(14,165,233,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Orientação da PLANTA no documento — o app gira a imagem e reposiciona pins e cabos. A metragem não muda.">
+                  <i className={pageOrient==='retrato'?'ti ti-rectangle-vertical':'ti ti-rectangle'} aria-hidden/>Planta: {pageOrient==='original'?'Original':pageOrient==='paisagem'?'Paisagem':'Retrato'}
                 </button>
                 {pdfFiltersOpen && (()=>{
                   const famList=['dados','ap','camera','som','eletrica','hdmi','uplink','fibra']
