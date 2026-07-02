@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v217 — Planta de teto (pontos aéreos) consertada e ampliada. isTeto passou a usar mountOf, então TODO ponto aéreo entra (câmeras, APs, sensores, luzes, som embutido e pontos elétricos de teto), não só os elétricos de teto — era por isso que a planta sumia em projetos cujos itens de teto eram câmeras/APs. Planta de teto agora usa .ex-plant (não racha, altura limitada). Passou a aparecer TAMBÉM no Plano de Obra (antes só no Executivo completo). Mantém v207-v216.
+// v218 — (1) IDs/códigos dos pinos agora respeitam o toggle 'IDs ocultos' também nas plantas GERADAS (antes só no editor); default limpo, sem IDs. (2) Local de instalação (mount) manda na planta de teto: marcar um item como Teto no painel joga ele pra planta de teto, independente do nome. (3) Automatizações de local+cabo: caixa de som e IR/infravermelho -> teto; sensor/presença/mmWave -> teto + cabo elétrico; AP -> teto + rede; interruptor -> parede + elétrica; câmera -> teto + rede. (4) Label do seletor virou 'Tipo do ponto' (sem 'planta elétrica'). Reestruturação do dropdown família x altura fica pra próxima (mexe na planta elétrica NBR). Mantém v207-v217.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v217 · build 2026-07
+          v218 · build 2026-07
         </div>
       </div>
     </div>
