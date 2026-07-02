@@ -27,7 +27,7 @@ function equipType(name='') {
   if(n.includes('nvr')||n.includes('gravador')||n.includes('dvr')) return 'NVR'
   if(n.includes('câmera')||n.includes('camera')||n.includes('dome')||n.includes('bullet')) return 'Câmera'
   if(n.includes('hub ir')||n.includes('qair')) return 'Hub IR'
-  if(n.includes('keypad')||n.includes('botão')) return 'Keypad'
+  if(n.includes('keypad')||n.includes('botão')||n.includes('pulsador')||n.includes('pulsante')) return 'Keypad'
   if(n.includes('interruptor')) return 'Interruptor'
   if(n.includes('módulo')||n.includes('modulo')||n.includes('qarz')||n.includes('cortina')||n.includes('persiana')) return 'Módulo'
   if(n.includes('subwoofer')||n.includes('amplificador')||n.includes('som')||n.includes('caixa ac')||n.includes('caixa de som')||n.includes('receiver')||n.includes('soundbar')) return 'Som'
@@ -559,6 +559,11 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [showTeto, setShowTeto] = useState(true)   // mostrar indicador de itens no teto (pontinho azul)
   const [showCabo, setShowCabo] = useState(true)   // mostrar a legenda de cabo (E/S/R) ao lado do pin
   const [showLegenda, setShowLegenda] = useState(true) // incluir o bloco de legenda (formas + cabos) nas plantas geradas
+  // ── Filtros do relatório (ocultar coisas na GERAÇÃO, sem apagar nada do projeto) ──
+  const [pdfFiltersOpen, setPdfFiltersOpen] = useState(false)
+  const [hideFams, setHideFams] = useState(new Set())      // famílias de cabo fora do PDF (dados, som, camera...)
+  const [hideCats, setHideCats] = useState(new Set())      // categorias de equipamento fora das plantas do PDF
+  const [hidePdfConduites, setHidePdfConduites] = useState(false) // tirar todos os conduítes do PDF
   const [execData, setExecData] = useState(null)       // dados crus da IA (p/ re-render das 2 versões)
   const [execVersao, setExecVersao] = useState('nova') // 'nova' (premium) | 'antiga' (clássico cyan)
   const [execProgress, setExecProgress] = useState('')
@@ -1165,7 +1170,7 @@ Responda APENAS JSON válido:
     if(/som|caixa ac[uú]stica|caixa de som|amplificador|receiver|subwoofer|sub /.test(n)) return 'som'
     if(/tv|hdmi|tel[aã]o|projetor|matriz de v[ií]deo/.test(n)) return 'hdmi'
     if(/sensor|presen[çc]a|mmwave|infraverm|receptor ir/.test(n)) return 'eletrica'
-    if(/keypad|interruptor|tomada|m[óo]dulo|cortina|hub ir|quadro|qdl/.test(n)) return 'eletrica'
+    if(/keypad|interruptor|tomada|m[óo]dulo|cortina|hub ir|quadro|qdl|pulsador|pulsante/.test(n)) return 'eletrica'
     return 'dados'
   }
   function onCableItemClick(uid){
@@ -1208,12 +1213,33 @@ Responda APENAS JSON válido:
       const newCable={ id:uniqId('cab'), fromUid:cableDraft.fromUid, toUid:uid,
         points:pts, color:CABLE_PALETTE[type], type }
 
+      // Continuação de um percurso vindo da prumada (fluxo contínuo)
+      if(cableDraft._run){
+        newCable.runId=cableDraft._run.runId; newCable.runFromUid=cableDraft._run.runFromUid
+        newCable.type=cableDraft._run.type; newCable.color=cableDraft._run.color
+      }
+
       // ── INTELIGÊNCIA DA PRUMADA ──
-      // Se este trecho SAI de uma prumada (ex: prumada de baixo → CPD), pergunta de qual item
-      // do outro andar ele vem, e casa os dois trechos como o MESMO cabo lógico.
+      // FLUXO CONTÍNUO: se o cabo CHEGA numa prumada que tem par no outro pavimento,
+      // o traçado continua automaticamente a partir do par — basta clicar no destino final.
       const fromEhPrumada = classifyEle(from)?.sym==='prumada'
       const toEhPrumada   = classifyEle(to)?.sym==='prumada'
-      const prumadaUid = fromEhPrumada ? from.uid : null
+      if(toEhPrumada && !fromEhPrumada){
+        const cod=(to.prumadaCode||'').trim().toLowerCase()
+        const par = cod ? markers.find(m=>m.uid!==to.uid && classifyEle(m)?.sym==='prumada' && (m.prumadaCode||'').trim().toLowerCase()===cod) : null
+        if(par){
+          const runId = newCable.runId || uniqId('run')
+          newCable.runId = runId
+          newCable.runToUid = par.uid
+          if(!newCable.runFromUid) newCable.runFromUid = from.uid
+          setCables(cs=>[...cs,newCable]); setSelCable(newCable.id)
+          // continua o traçado a partir do par no outro pavimento
+          setCableDraft({ fromUid:par.uid, _run:{ runId, runFromUid:newCable.runFromUid, type:newCable.type, color:newCable.color } })
+          return true
+        }
+      }
+      // FLUXO LEGADO: se este trecho SAI de uma prumada sem continuação armada, pergunta de qual item vem
+      const prumadaUid = (fromEhPrumada && !cableDraft._run) ? from.uid : null
       if(prumadaUid){
         const cod=(from.prumadaCode||'').trim().toLowerCase()
         // prumadas do mesmo par (mesmo código), incluindo a do outro andar
@@ -1806,7 +1832,7 @@ Responda APENAS JSON válido:
     // Planta com marcadores
     let planta=''
     if(bgImage){
-      const dots=markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
+      const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         const f=cableFamily(m.cableType||guessCableType(m,m))
         const badge=showCabo?`<div style="position:absolute;top:-6px;right:-7px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({mount:mountOf(m),color:st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
@@ -2119,7 +2145,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
   ${(()=>{ if(isObra||_eletr) return ''
     if(bgImage){
-      const dots=markers.map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
+      const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         const f=cableFamily(m.cableType||guessCableType(m,m))
         const badge=showCabo?`<div style="position:absolute;top:-6px;right:-7px;min-width:13px;height:13px;padding:0 1px;border-radius:7px;background:${f.cor};color:#fff;font-size:8.5px;font-weight:800;line-height:13px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:24px;height:24px">${pinShapeSVG({mount:mountOf(m),color:st.c,label:String(m.n??''),size:24})}${badge}</div>`}).join('')
@@ -2264,7 +2290,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // "Pontos aéreos" = tudo que é instalado no teto/forro: câmeras, APs, sensores, luzes,
     // som embutido e os pontos elétricos de teto. Usa o mesmo detector de local dos pins.
     const isTeto = m => mountOf(m)==='teto'
-    const tetoMarkers = markers.filter(isTeto)
+    const tetoMarkers = markers.filter(m=>isTeto(m) && !hideCats.has(equipType(m.name)))
     const tblTetoSec = tetoMarkers.length ? `
       <h3 class="ex-amb" style="margin-top:14px">Itens no Teto — tabela</h3>
       ${T(tetoMarkers.map(m=>{ const cab=(cables||[]).find(c=>!c.free&&(c.toUid===m.uid||c.fromUid===m.uid)); const mt=cab?cableMeters(cab):null
@@ -2646,7 +2672,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const byType={}
       usados.forEach(c=>{ const t=c.type||'dados'; (byType[t]=byType[t]||[]).push(c) })
       const ordem=['dados','ap','camera','uplink','hdmi','som','conduite_dados']
-      const tipos = Object.keys(byType).sort((a,b)=>(ordem.indexOf(a)+99)-(ordem.indexOf(b)+99))
+      const tipos = Object.keys(byType).filter(t=>!hideFams.has(t)).sort((a,b)=>(ordem.indexOf(a)+99)-(ordem.indexOf(b)+99))
 
       // ── classificadores precisos de itens por família ──
       const lc = s => (s||'').toLowerCase()
@@ -2664,7 +2690,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       // ── planta de TODOS os itens (sem cabos/conduítes) ── igual ao relatório de conduítes
       const plantaGeralItens = bgImage ? (()=>{
         // todos os itens do projeto/proposta posicionados na planta, sem nenhum filtro
-        const allDots = markers.map(m=>{
+        const allDots = markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{
           const isR=isRackItem(m.name||'',m.code||'')
           const isCx=classifyEle(m)?.sym==='caixa_conduite'
           const isPrum=classifyEle(m)?.sym==='prumada'
@@ -2799,7 +2825,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           </tr>` }).join('')
         const totM=arr.reduce((s,c)=>s+(cableMeters(c)||0),0)
         // conduítes desta família
-        const conduitesFamilia = (cables||[]).filter(c2=>{
+        const conduitesFamilia = hidePdfConduites ? [] : (cables||[]).filter(c2=>{
           if(!c2.free) return false
           const chave = c2.conduiteId||(c2.label||'').trim()||c2._chave||c2.id
           return arr.some(cabo=>cabo.conduite && (cabo.conduite===chave||cabo.conduite===c2.id||cabo.conduite===(c2.label||'').trim()||(c2._chave&&cabo.conduite===c2._chave)))
@@ -2850,7 +2876,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         </div>`
       })
       // conduítes que NÃO apareceram em nenhuma família (mas têm cabos ou existem na planta)
-      const conduitesRestantes = (cables||[]).filter(c=>c.free && !conduitesMostrados.has(c.id))
+      const conduitesRestantes = hidePdfConduites ? [] : (cables||[]).filter(c=>c.free && !conduitesMostrados.has(c.id))
       const paginaRestantes = conduitesRestantes.length ? (()=>{
         const rowsR = conduitesRestantes.map(cond=>{
           const chv = cond.conduiteId||(cond.label||'').trim()||cond._chave||cond.id
@@ -2948,7 +2974,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     obraInline ? cap('Cabeamento e Conduítes — Plantas por Família') + `<p class="ex-p" style="margin-bottom:10px">Cada família de cabo (Dados, AP, Câmera, Som) com a planta dos cabos, tabela, planta dos conduítes e visão completa sobreposta. Para impressão em A3.</p>` + obraInline + '</div>' : '',
 
     // 8. CONDUÍTES — relatório dedicado
-    conduitesInline ? cap('Relatório de Conduítes') + `<p class="ex-p" style="margin-bottom:10px">Detalhamento de cada conduíte com cabos dentro, bitola estimada e percurso.</p>` + conduitesInline + '</div>' : '',
+    (conduitesInline && !hidePdfConduites) ? cap('Relatório de Conduítes') + `<p class="ex-p" style="margin-bottom:10px">Detalhamento de cada conduíte com cabos dentro, bitola estimada e percurso.</p>` + conduitesInline + '</div>' : '',
 
     // 9. SEGURANÇA
     tblSeguranca ? cap('Segurança — Câmeras e Sensores') + tblSeguranca + '</div>' : '',
@@ -3588,7 +3614,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <span style={{color:'#FDE68A',fontWeight:600}}>Atenção: {colaboradores.length} outro{colaboradores.length>1?'s':''} usuário{colaboradores.length>1?'s':''} {colaboradores.length>1?'estão':'está'} editando esta planta ao mesmo tempo</span>
                 <span style={{color:'rgba(253,230,138,0.6)',fontSize:10}}>Salve com frequência para evitar conflitos</span>
               </div>}
-              <div className="pe-toolbar" style={{position:'sticky',top:0,right:0,zIndex:30,display:'flex',gap:6,alignSelf:'flex-start',marginLeft:'auto',background:'rgba(0,0,0,0.5)',borderRadius:8,padding:4,height:'fit-content',flexWrap:'wrap',justifyContent:'flex-end',maxWidth:'70%'}}>
+              <div className="pe-toolbar" style={{position:'sticky',top:-20,left:-20,right:-20,zIndex:30,display:'flex',gap:6,background:'#0d1322',borderBottom:'1px solid rgba(255,255,255,0.1)',padding:'8px 10px',margin:'-20px -20px 14px',height:'fit-content',flexWrap:'wrap',justifyContent:'flex-start',alignItems:'center',width:'calc(100% + 40px)',boxShadow:'0 2px 10px rgba(0,0,0,0.35)'}}>
                 <button onClick={()=>setCableMode(m=>!m)} style={{height:32,borderRadius:6,border:`1px solid ${cableMode?'#F59E0B':'#F59E0B88'}`,background:cableMode?'#F59E0B':'rgba(245,158,11,0.15)',color:cableMode?'#1a1a2e':'#FBBf24',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Traçar cabos ligando item a item">
                   <i className="ti ti-route" aria-hidden/>{cableMode?'Cabos: ON':'Cabos'}
                 </button>
@@ -3619,6 +3645,26 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <button onClick={()=>setShowIdsPdf(v=>!v)} style={{height:32,borderRadius:6,border:`1px solid ${showIdsPdf?'#B45309aa':'rgba(255,255,255,0.2)'}`,background:showIdsPdf?'rgba(180,83,9,0.22)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={showIdsPdf?'O relatório sairá COM os códigos dos pontos':'O relatório sai limpo, sem os códigos (recomendado)'}>
                   <i className={showIdsPdf?'ti ti-tag':'ti ti-tag-off'} aria-hidden/>{showIdsPdf?'IDs no PDF: on':'IDs no PDF: off'}
                 </button>
+                <button onClick={()=>setPdfFiltersOpen(v=>!v)} style={{height:32,borderRadius:6,border:`1px solid ${(hideFams.size||hideCats.size||hidePdfConduites)?'#DC2626aa':'rgba(255,255,255,0.2)'}`,background:pdfFiltersOpen?'rgba(255,255,255,0.18)':(hideFams.size||hideCats.size||hidePdfConduites)?'rgba(220,38,38,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Escolher o que NÃO entra no relatório (famílias de cabo, categorias, conduítes)">
+                  <i className="ti ti-filter" aria-hidden/>Filtros PDF{(hideFams.size+hideCats.size+(hidePdfConduites?1:0))>0?` (${hideFams.size+hideCats.size+(hidePdfConduites?1:0)})`:''}
+                </button>
+                {pdfFiltersOpen && (()=>{
+                  const famList=['dados','ap','camera','som','eletrica','hdmi','uplink','fibra']
+                  const catList=[...new Set(markers.map(m=>equipType(m.name)))].sort()
+                  const chip=(on,label,onClick)=><button key={label} onClick={onClick} style={{fontSize:10.5,padding:'4px 10px',borderRadius:14,border:`1px solid ${on?'#DC2626':'rgba(255,255,255,0.25)'}`,background:on?'rgba(220,38,38,0.25)':'rgba(255,255,255,0.06)',color:on?'#FCA5A5':'rgba(255,255,255,0.75)',cursor:'pointer',fontFamily:'inherit',textDecoration:on?'line-through':'none'}}>{label}</button>
+                  return <div className="pe-pdf-filters" style={{width:'100%',display:'flex',flexDirection:'column',gap:6,padding:'6px 4px 2px',borderTop:'1px solid rgba(255,255,255,0.12)'}}>
+                    <div style={{fontSize:10,color:'rgba(255,255,255,0.5)'}}>Clique para <b style={{color:'#FCA5A5'}}>tirar do relatório</b> (riscado = fora). Não apaga nada do projeto.</div>
+                    <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
+                      <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Cabos</span>
+                      {famList.map(f=>chip(hideFams.has(f), CABLE_LABELS[f]||f, ()=>setHideFams(p=>{const x=new Set(p); x.has(f)?x.delete(f):x.add(f); return x})))}
+                      {chip(hidePdfConduites,'Conduítes (todos)',()=>setHidePdfConduites(v=>!v))}
+                    </div>
+                    <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
+                      <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Categorias</span>
+                      {catList.map(c=>chip(hideCats.has(c), c, ()=>setHideCats(p=>{const x=new Set(p); x.has(c)?x.delete(c):x.add(c); return x})))}
+                    </div>
+                  </div>
+                })()}
                 {(()=>{ const temEle=markers.some(m=>classifyEle(m)); const qdls=markers.filter(m=>classifyEle(m)?.sym==='quadro').length
                   // prumadas pareadas indicam que há mais de um pavimento na planta
                   const pares=new Set(markers.filter(m=>classifyEle(m)?.sym==='prumada'&&(m.prumadaCode||'').trim()).map(m=>(m.prumadaCode||'').trim().toLowerCase()))
@@ -3952,7 +3998,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <div style={{color:'#FBBf24',fontWeight:700,marginBottom:6,fontSize:12}}><i className="ti ti-route" aria-hidden/> Modo cabos</div>
                 {!cableDraft
                   ? <div style={{color:'rgba(255,255,255,0.55)',fontSize:10,lineHeight:1.5}}>Clique no item de <b>origem</b>, depois no <b>destino</b>. O cabo é traçado automaticamente.</div>
-                  : <div style={{color:'#FBBf24',fontSize:10,lineHeight:1.5}}>Origem: <b>{mk(cableDraft.fromUid)?.name}</b><br/>Agora clique no destino. <span onClick={()=>setCableDraft(null)} style={{textDecoration:'underline',cursor:'pointer',color:'rgba(255,255,255,0.5)'}}>cancelar</span></div>}
+                  : <div style={{color:'#FBBf24',fontSize:10,lineHeight:1.5}}>{cableDraft._run
+                      ? <>Cabo atravessou a prumada. Continuando do par <b>{mk(cableDraft.fromUid)?.name}</b> no outro pavimento — clique no <b>destino final</b>.</>
+                      : <>Origem: <b>{mk(cableDraft.fromUid)?.name}</b><br/>Agora clique no destino.</>} <span onClick={()=>setCableDraft(null)} style={{textDecoration:'underline',cursor:'pointer',color:'rgba(255,255,255,0.5)'}}>cancelar</span></div>}
               </div>}
               {selected ? (()=>{const m=markers.find(x=>x.uid===selected); if(!m)return null
                 const rNames=[...new Set([...rooms.map(r=>r.name), ...markers.map(x=>x.room).filter(Boolean)])].filter(Boolean).sort((a,b)=>a.localeCompare(b,'pt'))

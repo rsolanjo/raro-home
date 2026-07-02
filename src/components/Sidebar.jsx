@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v221 — Reforma mobile/tablet para uso em obra. ÁREA DE CLIENTES: ganhou TOQUE (antes pan e arrastar pin só funcionavam com mouse): touchstart no palco e nos pins, touchmove/touchend globais com preventDefault, touchAction:none no palco. Layout responsivo: corpo empilha (ac-body), categorias viram faixa horizontal de chips no topo (ac-cats), painel 'Adicionar itens' vira folha inferior fixa acima da tab bar (ac-editor), zoom com botões de 44px (ac-zoom), topbar compacta rolável (ac-topbar), dica de mouse oculta. GLOBAL: inputs 16px no mobile (mata o zoom automático do iOS), painéis do editor de Projeto com 42vh em vez de 200px. Editor de Projeto já tinha toque nos pins (v212) e barra responsiva (v220). Mantém v207-v220.
+// v223 — Barra do editor deixa de competir com a planta: virou faixa opaca de largura total no topo do canvas (a planta começa abaixo dela), fixa na rolagem vertical e horizontal, em vez de cartão translúcido flutuando a 70% por cima da planta. No celular a barra é UMA linha rolável na horizontal (botões de 34px, sem espremer), em vez de 3 linhas comendo meia tela; o painel de Filtros PDF no celular abre como cartão sobreposto próprio. Mantém v207-v222.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v221 · build 2026-07
+          v223 · build 2026-07
         </div>
       </div>
     </div>
