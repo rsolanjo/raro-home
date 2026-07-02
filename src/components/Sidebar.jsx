@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v213 — Pin por local de instalação: forma indica onde o item é montado (○ parede, △ teto, □ chão), mantendo a cor da categoria/tipo. Legenda de cabo (E/S/R = Elétrico/Som/Rede) ao lado de cada pin, com toggle 'Cabo E/S/R'. Seletor de local no painel do item (auto/teto/parede/chão via m.mount). Mesma linguagem replicada nas 'Plantas de Pontos' geradas + bloco de legenda. Nota: a antiga NBR 5444 (cancelada 2014) usava ○=teto/△=tomada/□=piso; aqui seguimos a convenção pedida pela operação (inverter em SHAPE_BY_MOUNT). Mantém v207-v212.
+// v214 — Forma por local de instalação aplicada em TODAS as plantas geradas (Planta de Pontos, Planta Geral de Itens, plantas de cabos/conduítes por família, planta completa sobreposta e planta de teto): ○ parede, △ teto, □ chão, cor = categoria/tipo. Selo de cabo E/S/R (Elétrico/Som/Rede) nos pins e legenda de formas+cabos no topo do Plano de Obra e sob as plantas. Novo toggle 'Legenda on/off' (showLegenda) além do 'Cabo E/S/R'. Rack/CX/prumada mantêm símbolo próprio. Corrige v213, que só trocara a Planta de Pontos. Mantém v207-v213.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v213 · build 2026-07
+          v214 · build 2026-07
         </div>
       </div>
     </div>
