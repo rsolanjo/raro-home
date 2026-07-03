@@ -646,7 +646,8 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   const [showPdfVersionModal, setShowPdfVersionModal] = useState(false)  // escolher versão ao gerar PDF
   const [showLoadVersionModal, setShowLoadVersionModal] = useState(false) // carregar versão antiga p/ edição
   const [apresVersion, setApresVersion] = useState(0)   // índice da versão escolhida (0 = atual/mais recente)
-  const [apresLayout, setApresLayout] = useState('v2')  // 'v1' (institucional) | 'v2' (O Seu Investimento)
+  const [apresLayout, setApresLayout] = useState('v2')
+  const [apresShowInvest, setApresShowInvest] = useState(true) // mostrar estimativas de investimento na apresentação (pode ocultar ao gerar)  // 'v1' (institucional) | 'v2' (O Seu Investimento)
   const [apresKeep,      setApresKeep]      = useState({})   // {key:true} itens de rack a MANTER
   const [apresExec,      setApresExec]      = useState('3000')
   const [apresPlanta,    setApresPlanta]    = useState(null)   // imagem da planta para a apresentação
@@ -1204,7 +1205,8 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
         laborTotal: laborVisible,
         plantaImage: apresPlanta,
       }
-      const { html } = apresLayout==='v2' ? buildApresentacaoV2(apresArgs) : buildApresentacaoComercial(apresArgs)
+      const _args={...apresArgs, showInvest:apresShowInvest}
+      const { html } = apresLayout==='v2' ? buildApresentacaoV2(_args) : buildApresentacaoComercial(_args)
       setShowApresModal(false)
       try {
         const blob = new Blob([html], {type:'text/html;charset=utf-8'})
@@ -2210,7 +2212,14 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
 
           {/* seletor de versão salva (item 2) */}
           {savedVersions.length>0 && <div style={{background:'var(--surf)',borderRadius:8,padding:'12px 14px',marginBottom:12}}>
-            <div className="flabel" style={{marginBottom:10}}>Qual versão usar na apresentação?</div>
+            <div style={{margin:'0 0 14px'}}>
+            <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12.5}}>
+              <input type="checkbox" checked={apresShowInvest} onChange={e=>setApresShowInvest(e.target.checked)} style={{width:16,height:16,accentColor:'var(--accent)'}}/>
+              Mostrar estimativas de investimento
+            </label>
+            <div style={{fontSize:10.5,color:'var(--text3)',marginTop:3,paddingLeft:24}}>Desmarque para gerar a apresentação sem valores (o investimento fica só na proposta).</div>
+          </div>
+          <div className="flabel" style={{marginBottom:10}}>Qual versão usar na apresentação?</div>
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
               {[{i:0,label:'Versão atual',sub:'em edição agora',val:null},
                 ...savedVersions.map((v,idx)=>({i:idx+1,label:v.label||`Versão ${idx+1}`,sub:null,val:v.grand_total||0}))

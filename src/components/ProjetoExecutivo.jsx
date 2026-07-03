@@ -1860,19 +1860,25 @@ Responda APENAS JSON válido:
     const T=(rows,cols)=>`<table class="ex-tbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`
     const esc=s=>(s==null?'':String(s))
     // ── Número do pino na planta — para cruzar tabela ↔ planta ──
+    // Mesma linguagem da planta: forma pelo local de instalação (○ parede △ teto □ chão), cor pela categoria.
     const pin=(n,color=TH.pin)=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${color};color:#fff;font-size:9px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);vertical-align:middle">${n}</span>`
+    // versão fiel à planta: recebe o próprio marker
+    const pinMk = m => { if(!m) return ''
+      const cor=(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
+      return `<span style="display:inline-flex;vertical-align:middle">${pinShapeSVG({mount:mountOf(m),color:cor,label:String(m.n??''),size:20})}</span>` }
     const _normKey = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'')
-    const pinNum = (...keys)=>{
+    const _findMk = (...keys)=>{
       for(const k of keys){ if(k==null) continue; const kk=_normKey(k); if(!kk) continue
         const hit = markers.find(m=> _normKey(m.id)===kk || _normKey(m.code)===kk || _normKey(m.n)===kk || _normKey('#'+m.n)===kk )
-        if(hit) return hit.n
+        if(hit) return hit
         const byName = markers.find(m=> (m.code && kk.includes(_normKey(m.code))) || (m.name && _normKey(m.name).includes(kk) && kk.length>=3) )
-        if(byName) return byName.n
+        if(byName) return byName
       }
       return null
     }
-    // célula <td> com o número do pino (ou — quando não casar)
-    const pinCell = (...keys)=>{ const n=pinNum(...keys); return `<td style="text-align:center">${n!=null?pin(n):'<span style="color:#CBD5E1">—</span>'}</td>` }
+    const pinNum = (...keys)=>{ const m=_findMk(...keys); return m?m.n:null }
+    // célula <td> com o pino fiel à planta (forma + cor), ou — quando não casar
+    const pinCell = (...keys)=>{ const m=_findMk(...keys); return `<td style="text-align:center">${m?pinMk(m):'<span style="color:#CBD5E1">—</span>'}</td>` }
 
     // Planta com marcadores
     let planta=''

@@ -26,7 +26,7 @@ const fmt = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFracti
  * Gera o HTML da apresentação comercial (paleta clara/azul da proposta).
  * Retorna { html, excludedTotal, excludedNames, grandTotal }
  */
-export function buildApresentacaoComercial({ clientName, neighborhood, code, floors, execValue, laborByCat, laborTotal, plantaImage }) {
+export function buildApresentacaoComercial({ clientName, neighborhood, code, floors, execValue, laborByCat, laborTotal, plantaImage, showInvest=true }) {
   laborByCat = laborByCat || {}
   laborTotal = laborTotal || 0
   const catTotals = {}
@@ -349,7 +349,7 @@ function baixarHTML(){
       </div>
     </section>
 
-    <section class="section" style="border-bottom:none">
+    ${showInvest?`<section class="section" style="border-bottom:none">
       <h2>O Seu <span class="highlight">Investimento</span></h2>
       <p class="section-sub">Transparência total. Veja abaixo o valor do projeto executivo e uma estimativa de investimento por categoria para preparar a sua casa.</p>
 
@@ -404,7 +404,7 @@ function baixarHTML(){
         </table>
         <div class="grand" style="background:var(--ink);border-color:var(--ink);margin-top:12px"><span class="l" style="color:var(--accent)">Investimento Total da Proposta</span><span class="v" style="color:#F0F6FF">${fmt(totalProposta)}</span></div>
       </div>
-    </section>
+    </section>`:``}
 
   </div>
 
@@ -436,7 +436,7 @@ const CAT_COLORS_V2 = {
 }
 const normV2 = c => (c==='Rede'?'Redes': (c==='Som'?'Sonorização': c))
 
-export function buildApresentacaoV2({ clientName, neighborhood, code, floors, execValue, laborByCat, laborTotal, plantaImage }){
+export function buildApresentacaoV2({ clientName, neighborhood, code, floors, execValue, laborByCat, laborTotal, plantaImage, showInvest=true }){
   laborByCat = laborByCat || {}
   execValue = parseFloat(execValue||0)
   const fmtV = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
@@ -609,7 +609,7 @@ td.sub{font-weight:800;font-size:1rem}
     </div>
   </div>
 
-  <div class="sec">
+  ${showInvest?`<div class="sec">
     <div class="sec-h"><div class="sec-n">1</div><h2>Valor do Projeto</h2></div>
     <div class="two">
       <div class="txt">Preparar a sua casa para receber a automação mais moderna do mercado começa por um <b>projeto executivo de engenharia</b>: o documento que garante que cada ponto, cabo e medida estejam corretos antes da obra. Além do projeto, você conta com um <b>acompanhamento adicional na sua obra</b>, garantindo que tudo seja executado conforme o planejado.</div>
@@ -621,8 +621,9 @@ td.sub{font-weight:800;font-size:1rem}
       </div>
     </div>
   </div>
-${secPlanta}
-  <div class="sec">
+`:``}
+  ${secPlanta}
+  ${showInvest?`<div class="sec">
     <div class="sec-h"><div class="sec-n">${nCat}</div><h2>Estimativa de Investimento por Categoria</h2></div>
     <div class="sec-sub">Um compilado de valores aproximados por categoria, separando os equipamentos da mão de obra de instalação e programação, para você dimensionar cada frente da sua casa inteligente.</div>
     <table>
@@ -636,7 +637,8 @@ ${secPlanta}
     <div class="big">${fmtV(totalGeral)}</div>
   </div>
 
-  <div class="foot">RARO HOME · <b>TECNOLOGIA · CONFORTO · EXCLUSIVIDADE</b><br>contato@rarohome.com.br · (21) 98170-9009 · @rarohome</div>
+  `:``}
+  <div class="foot">RARO HOME · <b>CASA · TECNOLOGIA · LAZER</b><br>contato@rarohome.com.br · (21) 98170-9009 · @rarohome</div>
 
 </div></div>
 </body></html>`

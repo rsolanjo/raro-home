@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v228 — (1) Cabos giram JUNTO com a planta: o traçado nas plantas geradas agora busca as pontas nos markers da visão do documento (girados), corrigindo o v226 em que só os pontos intermediários giravam e as pontas ficavam na posição antiga. (2) Controle de tamanho da planta na tela: 'Planta −/+ %' na barra (40–100%) ajusta a largura da planta nas páginas do documento, com efeito imediato no preview e no PDF. Mantém v207-v227.
+// v231 — (1) Menu 'Criar documento' reordenado: Proposta para Clientes, Apresentação Comercial, Projeto Executivo (com dica de que inclui Plano de Obra e Planta Elétrica), Contrato, separador, Proposta para Administradores. (2) Slogan trocado: TECNOLOGIA·CONFORTO·EXCLUSIVIDADE -> CASA·TECNOLOGIA·LAZER (apresentação; contrato e executivo já usavam). (3) Apresentação ganhou checkbox 'Mostrar estimativas de investimento' (ligado por padrão): desmarcado, V1 e V2 saem sem os blocos de valores — nada foi removido, os formatos atuais continuam intactos com o toggle ligado. Mantém v207-v230.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v228 · build 2026-07
+          v231 · build 2026-07
         </div>
       </div>
     </div>
