@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v232 — Simbologia unificada nos 3 documentos (Executivo, Plano de Obra, Elétrica) e refletida nas tabelas. TRÊS EIXOS: COR=categoria (Keypad verde, AP amarelo, Câmera vermelho, Som roxo, Ponto de energia preto, Sensor mmW laranja); FORMA=local+altura em 5 níveis (quadrado chão; círculo com tracinho baixo/meio/alto para parede 0,30/1,10/1,80; triângulo teto); SELO=cabo (E/S/R). Tabelas usam pinMk/pinCell (mesma forma+cor+selo da planta), com coluna de altura. Legenda do documento reescrita explicando os 3 eixos separados. Seletor de 5 alturas no painel do item (manual sobrepõe o automático). Mantém v207-v231.
+// v234 — Menu 'Criar documento' reordenado na hierarquia da Ful: Proposta para Clientes, Apresentação Comercial, [espaço], Projeto Executivo, Plano de Obra, Planta Elétrica (os três explícitos, cada um com sua entrada), [espaço], Contrato, [espaço maior], Proposta para Administradores. Separadores com dois tamanhos (gap:1 fino, gap:2 maior). Mantém v207-v233.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v232 · build 2026-07
+          v234 · build 2026-07
         </div>
       </div>
     </div>

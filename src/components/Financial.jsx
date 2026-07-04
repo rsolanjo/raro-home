@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import CaixaRaro from './CaixaRaro.jsx'
 
 const fmt  = v => 'R$\u202f'+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
 const pct  = (a,b) => b>0?Math.round(a/b*100):0
@@ -65,7 +66,8 @@ export default function Financial({ proposals=[], projects=[] }) {
   const convRate    = fp.length>0?pct(approved.length,fp.length):0
 
   const TABS = [
-    {k:'overview',l:'Visão Geral',i:'ti-layout-dashboard'},
+    {k:'caixa',l:'Caixa (pagamentos & rateio)',i:'ti-cash-register'},
+    {k:'overview',l:'Análise de margem',i:'ti-layout-dashboard'},
     {k:'by_project',l:'Por Projeto',i:'ti-layout-kanban'},
     {k:'proposals_list',l:'Propostas',i:'ti-file-text'},
   ]
@@ -126,6 +128,7 @@ export default function Financial({ proposals=[], projects=[] }) {
       </div>
 
       {/* ── OVERVIEW ── */}
+      {tab==='caixa' && <CaixaRaro proposals={proposals} projects={projects} />}
       {tab==='overview' && (
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
 

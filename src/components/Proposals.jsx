@@ -573,10 +573,13 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
       { label:'Proposta para Clientes', icon:'ti-file-invoice', color:'#1A56DB', onClick:()=>onEdit(p) },
       { label:'Apresentação Comercial', icon:'ti-presentation', color:'#DB2777', hint:'gerada no editor da proposta', onClick:()=>onEdit(p,'apres') },
       ...(onGenerateExec&&!cancelled?[
-        { label:'Projeto Executivo', icon:'ti-brain', color:'#0369A1', hint:'inclui Plano de Obra e Planta Elétrica', onClick:()=>onGenerateExec(p) },
+        { gap:1 },
+        { label:'Projeto Executivo', icon:'ti-brain', color:'#0369A1', onClick:()=>onGenerateExec(p) },
+        { label:'Plano de Obra / Pedreiro', icon:'ti-tools', color:'#B45309', hint:'sai junto do executivo', onClick:()=>onGenerateExec(p) },
+        { label:'Planta Elétrica (NBR 5444)', icon:'ti-bolt', color:'#16A34A', hint:'sai junto do executivo', onClick:()=>onGenerateExec(p) },
       ]:[]),
-      ...(!cancelled?[{ label:'Contrato', icon:'ti-license', color:'#059669', onClick:()=>setContractProposal(p) }]:[]),
-      { divider:true },
+      ...(!cancelled?[{ gap:1 }, { label:'Contrato', icon:'ti-license', color:'#059669', onClick:()=>setContractProposal(p) }]:[]),
+      { gap:2 },
       { label:'Proposta para Administradores', icon:'ti-shield', color:'#7C3AED', hint:'mesma proposta, com custos', onClick:()=>onEdit(p) },
     ]
     const toggle=(kind,items)=>(e)=>{
@@ -1059,8 +1062,10 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
           <div style={{padding:isMobile?'4px 0 8px':4}}>
             <div style={{fontSize:isMobile?11:9,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:.5,padding:isMobile?'10px 16px 8px':'4px 10px'}}>{title}</div>
             {items.length===0 && <div style={{padding:'10px 14px',fontSize:12,color:'var(--text3)'}}>Nenhum documento disponível.</div>}
-            {items.map((d,i)=> d.divider
-              ? <div key={i} style={{height:1,background:'var(--border)',margin:'6px 8px'}}/>
+            {items.map((d,i)=> (d.divider || d.gap)
+              ? <div key={i} style={d.gap===2
+                  ? {height:1,background:'var(--border)',margin:'12px 8px'}
+                  : {height:1,background:'var(--border)',margin:'6px 8px'}}/>
               : (
               <button key={i} onClick={()=>{ const fn=d.onClick; setOpenMenu(null); setTimeout(fn,0) }}
                 style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:2,width:'100%',
