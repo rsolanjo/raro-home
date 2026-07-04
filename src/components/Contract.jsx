@@ -407,7 +407,7 @@ function buildContractClassico(D){
 
     <div class="sigs">
       <div class="sig"><div class="sigline"></div><div class="signame">${name1||'—'}</div><div class="sigrole">Contratante · CPF: ${hideCpf?'—':(client?.cpf1||'___.___.___-__')}</div></div>
-      <div class="sig"><div class="hand">Rogério Silva</div><div class="sigline" style="border-top:none;height:0;margin-bottom:5px"></div><div class="signame">Rogério Silva</div><div class="sigrole">RARO Home Tecnologia · Contratada</div></div>
+      <div class="sig"><div class="sigline"></div><div class="signame">RARO Home Tecnologia</div><div class="sigrole">Contratada</div></div>
     </div>
 
     <div class="foot">

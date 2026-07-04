@@ -20,22 +20,25 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 
 /* ── CAPA (sem depoimento) ── */
 .cover{page-break-after:always;min-height:calc(297mm - 26mm);display:flex;flex-direction:column}
+.cover-mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding:6px 2px}
 .cover-top{background:#0B1830;color:#fff;border-radius:10px;padding:26px 30px;display:flex;justify-content:space-between;align-items:flex-start}
 .cover-ey{font-size:8px;letter-spacing:3px;color:#38BDF8;text-transform:uppercase;font-weight:600}
 .cover-logo{height:88px;width:auto;display:block;margin:6px 0 2px;border-radius:8px}
 .cover-slogan{font-size:8px;letter-spacing:4px;color:rgba(226,240,255,.65);text-transform:uppercase;margin-top:6px}
 .cover-meta{text-align:right;font-size:9px;color:rgba(226,240,255,.7);line-height:1.9}
-.cover-hero{margin:22px 2px 0}
+.cover-hero{margin:0 2px}
 .cover-kick{font-size:9px;letter-spacing:4px;color:#0369A1;text-transform:uppercase;font-weight:600}
-.cover-h{font-family:'DM Serif Display',serif;font-size:34px;line-height:1.1;color:#0B1830;margin-top:8px}
+.cover-rule{width:44px;height:3px;background:#0EA5E9;border-radius:2px;margin:14px 0 4px}
+.cover-h{font-family:'DM Serif Display',serif;font-size:44px;line-height:1.06;color:#0B1830;margin-top:6px}
 .cover-h em{font-style:italic;color:#0369A1}
-.cover-lead{font-size:12px;color:#3D5A80;margin-top:10px;max-width:520px}
-.cover-band{margin-top:18px;display:flex;gap:14px;flex-wrap:wrap}
-.cover-band .bd{background:#EEF6FF;border:1px solid #D1E6F8;border-radius:8px;padding:9px 14px;font-size:11px;color:#0B1830}
-.cover-band .bd b{color:#0369A1}
+.cover-lead{font-size:12.5px;color:#3D5A80;margin-top:14px;max-width:540px;line-height:1.6}
+.cover-band{margin-top:26px;display:flex;gap:12px;flex-wrap:wrap}
+.cover-band .bd{background:#0B1830;color:#E4ECF7;border-radius:9px;padding:12px 18px;font-size:11px;display:flex;flex-direction:column;gap:2px}
+.cover-band .bd b{font-family:'DM Serif Display',serif;font-size:22px;color:#38BDF8;font-weight:400}
+.cover-band .bd.plain{background:#EEF6FF;color:#0B1830;border:1px solid #D1E6F8;justify-content:center;font-weight:500}
 
 /* faixa institucional honesta (substitui os depoimentos) */
-.inst{margin-top:auto;padding-top:20px}
+.inst{padding-top:18px}
 .inst-lbl{font-size:8px;letter-spacing:3px;color:#0369A1;text-transform:uppercase;font-weight:600;border-top:1px solid #D1E6F8;padding-top:14px;margin-bottom:10px}
 .inst-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .inst-card{background:#fff;border:1px solid #D1E6F8;border-radius:8px;padding:12px 14px}
@@ -76,6 +79,9 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 .room-val{display:flex;justify-content:space-between;align-items:baseline;margin-top:9px;padding-top:8px;border-top:.5px solid #E3EDF7}
 .room-val .l{font-size:7px;letter-spacing:2px;color:#7A96B4;text-transform:uppercase;font-weight:600}
 .room-val .v{font-family:'DM Serif Display',serif;font-size:15px;color:#0B1830}
+.room-cats{display:flex;flex-wrap:wrap;gap:3px;margin-top:8px;padding-top:7px;border-top:.5px solid #E3EDF7}
+.rcat{display:inline-flex;align-items:center;gap:3px;font-size:7px;color:#22405F;background:#F7FBFF;border:.5px solid #D8E8F6;border-left-width:2px;border-radius:3px;padding:2px 5px}
+.rcat span{font-weight:700;text-transform:uppercase;letter-spacing:.3px}
 /* admin */
 .room-adm{display:flex;justify-content:space-between;margin-top:9px;padding-top:8px;border-top:.5px solid #E3EDF7;font-size:9px}
 .room-adm .a{color:#D97706}.room-adm .b{color:#7C3AED;font-weight:700}.room-adm .c{font-family:'DM Serif Display',serif;font-size:14px;color:#0B1830}
@@ -126,10 +132,19 @@ export function buildProposalNovo(data, adminMode=false){
   const roomCard = r => {
     const rows = (r.items||[]).filter(i=>i.name).map(i=>{
       const qty = parseInt(i.qty)||1
-      return `<tr><td class="it-nm">${i.name}</td><td class="it-cd">${i.code||''}</td><td class="it-qt">${qty>1?qty:''}</td></tr>`
+      return `<tr><td class="it-nm">${i.name}</td><td class="it-cd">${i.code||''}</td><td class="it-qt">${qty}</td></tr>`
     }).join('')
     const items = rows ? `<table class="itbl">${rows}</table>` : ''
     const pitch = (r.pitch && !adminMode) ? `<div class="room-pitch">${r.pitch}</div>` : ''
+    const catBadges = (()=>{
+      const bc={}; (r.items||[]).filter(i=>i.name).forEach(i=>{ const c=i.category||'Outros'; bc[c]=(bc[c]||0)+(i.sale_price||0)*(parseInt(i.qty)||1) })
+      const ent=Object.entries(bc).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])
+      if(!ent.length) return ''
+      return `<div class="room-cats">${ent.map(([cat,v])=>{
+        const col=CAT_COLORS[cat]||'#6B7280'
+        return `<span class="rcat" style="border-left-color:${col}"><span style="color:${col}">${cat}</span> ${fmt(v)}</span>`
+      }).join('')}</div>`
+    })()
     let foot
     if(adminMode){
       const cost=(r.items||[]).reduce((s,i)=>s+(i.cost_price||0)*(parseInt(i.qty)||1),0)
@@ -138,7 +153,7 @@ export function buildProposalNovo(data, adminMode=false){
     } else {
       foot=`<div class="room-val"><span class="l">Investimento</span><span class="v">${fmt(parse(r.price))}</span></div>`
     }
-    return `<div class="room${r.highlight?' hl':''}"><div class="room-hd"><span class="ri">${r.icon||'◈'}</span><span class="rn">${r.name||''}</span></div><div class="room-bd">${items}${pitch}${foot}</div></div>`
+    return `<div class="room${r.highlight?' hl':''}"><div class="room-hd"><span class="ri">${r.icon||'◈'}</span><span class="rn">${r.name||''}</span></div><div class="room-bd">${items}${pitch}${catBadges}${foot}</div></div>`
   }
 
   const floorBlock = (fl,fi) => {
@@ -182,14 +197,17 @@ export function buildProposalNovo(data, adminMode=false){
       </div>
       <div class="cover-meta">${date_str}<br/>Válido por 30 dias<br/><span class="mono">${proposal_code}</span></div>
     </div>
-    <div class="cover-hero">
-      <div class="cover-kick">Projeto de automação de alto padrão</div>
-      <div class="cover-h">Projeto <em>${client_name}</em></div>
-      <div class="cover-lead">Um sistema pensado ambiente por ambiente, com equipamentos definidos e investimento aberto por cômodo.</div>
-      <div class="cover-band">
-        <div class="bd"><b>${nRooms}</b> ambiente${nRooms!==1?'s':''}</div>
-        <div class="bd"><b>${floors.length}</b> pavimento${floors.length!==1?'s':''}</div>
-        <div class="bd">${neighborhood||'—'}</div>
+    <div class="cover-mid">
+      <div class="cover-hero">
+        <div class="cover-kick">Projeto de automação de alto padrão</div>
+        <div class="cover-rule"></div>
+        <div class="cover-h">Projeto <em>${client_name}</em></div>
+        <div class="cover-lead">Um sistema pensado ambiente por ambiente, com equipamentos definidos e investimento aberto por cômodo.</div>
+        <div class="cover-band">
+          <div class="bd"><b>${nRooms}</b>ambiente${nRooms!==1?'s':''}</div>
+          <div class="bd"><b>${floors.length}</b>pavimento${floors.length!==1?'s':''}</div>
+          <div class="bd plain">${neighborhood||'—'}</div>
+        </div>
       </div>
     </div>
     <div class="inst">
@@ -212,13 +230,6 @@ export function buildProposalNovo(data, adminMode=false){
     <div class="tot-row"><span class="tl">Equipamentos — ${floors.length} pavimento${floors.length>1?'s':''}</span><span class="tv">${fmt(equipTotal)}</span></div>
     <div class="tot-row"><span class="tl">Mão de obra — instalação e programação</span><span class="tv">${fmt(laborVal)}</span></div>
     <div class="tot-main"><span class="tl">Investimento total do projeto</span><span class="tv">${fmt(grandTotal)}</span></div>
-    <div class="sign">
-      <div class="sign-ey">Aprovação e assinatura</div>
-      <div class="sign-grid">
-        <div class="sign-f"><div class="ln"></div><div class="cap">Cliente — nome e assinatura</div></div>
-        <div class="sign-f"><div class="ln"></div><div class="cap">RARO Home</div></div>
-      </div>
-    </div>
     <div class="contact">
       <div><div class="nm">Rogério Silva</div><div class="ph">+55 21 98170-9009</div></div>
       <div class="rt">contato@rarohome.com.br<br/>@rarohome · www.rarohome.com.br</div>

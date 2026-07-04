@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v237 — VISITA À OBRA: rascunho paralelo da proposta, editavel na obra sem tocar no oficial. Inicia congelando o oficial (snapshot com vids estaveis), edita no editor normal, auto-salva o rascunho (visitaStore: coluna proposals.visita jsonb + fallback localStorage). Botoes: Visita a obra / Retomar / Sair / Descartar / Comparar e aplicar. Merge POR COMODO casando por vid (alterado/novo/removido/igual), modal decide cada um, aplica nos comodos e ela revisa+Salva pro oficial. Salvar oficial travado enquanto em visita. Uma visita por proposta. Mantem v207-v236.
+// v239 — PROPOSTA NOVA: capa refeita (hero centralizado, acaba o vao em branco da 1a pagina, nome maior + regua accent + numeros em destaque); quantidade sempre visivel (inclusive 1); badges de valor por categoria dentro do comodo (igual classico); tirado bloco Aprovacao e assinatura (vai ter contrato). CONTRATO CLASSICO: assinatura da RARO agora e linha em branco + RARO Home Tecnologia / Contratada (igual ao novo, sem cursiva do Rogerio). EXECUTIVO: titulo do Plano de Obra sem "Guia do Eletricista / Pedreiro". Mantem v207-v238.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v237 · build 2026-07
+          v239 · build 2026-07
         </div>
       </div>
     </div>

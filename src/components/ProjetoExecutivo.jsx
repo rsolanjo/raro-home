@@ -3014,7 +3014,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       // notas finais
       const eletrodutoNotas = (d.checklist_obra||[]).filter(x=>/eletroduto|caixa 4|4×4|4x4|sangria|passagem|fio-guia|condu/i.test(x))
       const obraSections = [
-        `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Plano de Obra — Guia do Eletricista / Pedreiro</h2>
+        `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Plano de Obra</h2>
           <p class="ex-p" style="color:#6B7280">Para impressão em A3. Cada tópico tem: planta dos cabos + tabela, planta dos conduítes + tabela, e visão completa sobreposta.</p>
           ${showLegenda?pontosLegenda():''}</div>`,
         '', // Planta Geral removida do Plano de Obra: já consta na seção 2 do Executivo (evita duplicar)
@@ -4297,7 +4297,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             {/* Seletor de versão do documento (Completo · Obra · Elétrica) */}
             <div style={{maxWidth:820,margin:'0 auto 14px',display:'flex',gap:8,alignItems:'center',padding:'0 4px',flexWrap:'wrap'}}>
               <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:4}}>Documento:</span>
-              {[['completo','Completo','ti-file-text'],['obra','Obra / Pedreiro','ti-tools'],['eletrica','Elétrica','ti-bolt'],['conduites','Conduítes','ti-route']].map(([m,label,icon])=>{
+              {[['completo','Completo','ti-file-text'],['obra','Obra','ti-tools'],['eletrica','Elétrica','ti-bolt'],['conduites','Conduítes','ti-route']].map(([m,label,icon])=>{
                 const _stored = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:m==='conduites'?execDocConduites:execDoc
                 let doc=_stored
                 if(execData){ try{ doc=buildExecHtml(execData, m) }catch(e){ console.warn('re-render preview falhou, usando salvo:',e.message); doc=_stored } }
@@ -4347,7 +4347,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             </div>
             <div style={{maxWidth:(execMode==='obra'||execMode==='eletrica'||execMode==='conduites')?1180:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)',transition:'max-width 0.2s'}}>
               {(()=>{ const cur = execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execMode==='conduites'?execDocConduites:execDoc
-                const nome = execMode==='obra'?'Obra / Pedreiro':execMode==='eletrica'?'Elétrica':'Completa'
+                const nome = execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':'Completa'
                 return cur
                 ? <div dangerouslySetInnerHTML={{__html:cur}}/>
                 : <div style={{padding:'48px 32px',textAlign:'center',color:'#64748B'}}>
