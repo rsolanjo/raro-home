@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v231 — (1) Menu 'Criar documento' reordenado: Proposta para Clientes, Apresentação Comercial, Projeto Executivo (com dica de que inclui Plano de Obra e Planta Elétrica), Contrato, separador, Proposta para Administradores. (2) Slogan trocado: TECNOLOGIA·CONFORTO·EXCLUSIVIDADE -> CASA·TECNOLOGIA·LAZER (apresentação; contrato e executivo já usavam). (3) Apresentação ganhou checkbox 'Mostrar estimativas de investimento' (ligado por padrão): desmarcado, V1 e V2 saem sem os blocos de valores — nada foi removido, os formatos atuais continuam intactos com o toggle ligado. Mantém v207-v230.
+// v232 — Simbologia unificada nos 3 documentos (Executivo, Plano de Obra, Elétrica) e refletida nas tabelas. TRÊS EIXOS: COR=categoria (Keypad verde, AP amarelo, Câmera vermelho, Som roxo, Ponto de energia preto, Sensor mmW laranja); FORMA=local+altura em 5 níveis (quadrado chão; círculo com tracinho baixo/meio/alto para parede 0,30/1,10/1,80; triângulo teto); SELO=cabo (E/S/R). Tabelas usam pinMk/pinCell (mesma forma+cor+selo da planta), com coluna de altura. Legenda do documento reescrita explicando os 3 eixos separados. Seletor de 5 alturas no painel do item (manual sobrepõe o automático). Mantém v207-v231.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v231 · build 2026-07
+          v232 · build 2026-07
         </div>
       </div>
     </div>
