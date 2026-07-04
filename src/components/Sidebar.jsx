@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v235 — Contrato ganhou EIXO DE MODELO VISUAL, independente do tipo. Dois modelos: 'Novo' (layout atual, serifado EB Garamond, detalhado) e 'Clássico' (layout enxuto e institucional fiel ao contrato R&-5683: cabeçalho azul, seções 1..5, partes em small-caps, ambientes em grid com contagem, valor destacado, cláusulas 4.1..4.x, assinatura cursiva do Rogério). Qualquer tipo (projeto/total/ocultas/avulsa) sai em qualquer modelo. Seletor Clássico/Novo no painel de geração; opts.modelo propaga para preview e PDF. buildContractClassico() nova função; buildContract (novo) intacto. Mantém v207-v234.
+// v237 — VISITA À OBRA: rascunho paralelo da proposta, editavel na obra sem tocar no oficial. Inicia congelando o oficial (snapshot com vids estaveis), edita no editor normal, auto-salva o rascunho (visitaStore: coluna proposals.visita jsonb + fallback localStorage). Botoes: Visita a obra / Retomar / Sair / Descartar / Comparar e aplicar. Merge POR COMODO casando por vid (alterado/novo/removido/igual), modal decide cada um, aplica nos comodos e ela revisa+Salva pro oficial. Salvar oficial travado enquanto em visita. Uma visita por proposta. Mantem v207-v236.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v235 · build 2026-07
+          v237 · build 2026-07
         </div>
       </div>
     </div>

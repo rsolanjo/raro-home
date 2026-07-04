@@ -1,7 +1,9 @@
 import { openProposalPDF } from './proposalPDF.js'
+import { buildProposalNovo } from './proposalNovo.js'
+import { saveVisita, loadVisita, clearVisita } from './visitaStore.js'
 import { LOGO_COVER } from '../logos.js'
 import { buildApresentacaoComercial, buildApresentacaoV2 } from './apresentacaoComercial.js'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { saveProposal, getCatalog, getStockWithReservations, getCatalogCategories,
          generateProposalCode, auditedSave, checkProposalStock, checkPINSession, setPINSession, verifyPIN, addAuditLog } from '../db/supabase.js'
 import PINModal from './PINModal.jsx'
@@ -361,12 +363,12 @@ function buildPDF(data, adminMode=false){
       <div class="qc lft"><span class="qi">◉</span><div class="qt">RARO Experience</div><div class="qb">Você tem um consultor dedicado do projeto à entrega. Instalação profissional, treinamento personalizado e suporte contínuo via WhatsApp — sem terceiros, sem surpresas.</div></div>
     </div>
     <div class="testi-section">
-      <div class="testi-lbl">★ O Q U E N O S S O S C L I E N T E S D I Z E M</div>
+      <div class="testi-lbl">C O M O &nbsp; T R A B A L H A M O S</div>
       <div class="testi-grid">
-        <div class="testi"><div class="tq-stars">${'<div class="tq-star"></div>'.repeat(5)}</div><div class="tq">"A casa cuida de tudo. Hoje o WhatsApp me avisa de qualquer coisa."</div><div class="testi-author"><div class="testi-av">CM</div><div><div class="tn">Carlos M.</div><div class="tc">Barra da Tijuca, RJ</div></div></div></div>
-        <div class="testi"><div class="tq-stars">${'<div class="tq-star"></div>'.repeat(5)}</div><div class="tq">"Receber visitas ficou outro nível. Ligo o som e o gourmet com uma mensagem."</div><div class="testi-author"><div class="testi-av">FR</div><div><div class="tn">Fernanda R.</div><div class="tc">Recreio, RJ</div></div></div></div>
-        <div class="testi"><div class="tq-stars">${'<div class="tq-star"></div>'.repeat(5)}</div><div class="tq">"A segurança me deu paz de espírito. Acesso as câmeras 4K de qualquer lugar."</div><div class="testi-author"><div class="testi-av">R&amp;</div><div><div class="tn">Ricardo &amp; Ana L.</div><div class="tc">Itaipava, RJ</div></div></div></div>
-        <div class="testi"><div class="tq-stars">${'<div class="tq-star"></div>'.repeat(5)}</div><div class="tq">"Internet em 100% dos cômodos. Som integrado na sala, gourmet e varanda."</div><div class="testi-author"><div class="testi-av">MF</div><div><div class="tn">Marcelo F.</div><div class="tc">Niterói, RJ</div></div></div></div>
+        <div class="testi"><div class="tq">Projeto desenhado ambiente a ambiente para esta casa, não um pacote pronto.</div><div class="testi-author"><div class="testi-av">◈</div><div><div class="tn">Projeto exclusivo</div><div class="tc">do levantamento à entrega</div></div></div></div>
+        <div class="testi"><div class="tq">Zigbee, Matter e Tuya. Compatível com Alexa, Google Home e Apple HomeKit.</div><div class="testi-author"><div class="testi-av">◆</div><div><div class="tn">Tecnologia integrada</div><div class="tc">padrões abertos de mercado</div></div></div></div>
+        <div class="testi"><div class="tq">Instalação, programação e treinamento pela própria equipe, sem terceiros.</div><div class="testi-author"><div class="testi-av">◇</div><div><div class="tn">Execução própria</div><div class="tc">responsabilidade de ponta a ponta</div></div></div></div>
+        <div class="testi"><div class="tq">Acompanhamento após a entrega, direto pelo WhatsApp.</div><div class="testi-author"><div class="testi-av">◉</div><div><div class="tn">Suporte contínuo</div><div class="tc">RARO Experience</div></div></div></div>
       </div>
     </div>
     ${contactStrip()}
@@ -566,6 +568,84 @@ ${cover}${roomPagesHtml.join('\n')}${totalPage}
 
 
 // ── COMPONENT ──────────────────────────────────────────────
+// ── VISITA À OBRA: helpers de identidade estável, diff e merge ──
+let _vseq = 0
+const _newVid = () => `vid_${Date.now().toString(36)}_${(_vseq++).toString(36)}${Math.random().toString(36).slice(2,6)}`
+// Carimba vid estável em pavimentos e cômodos que não têm (deep clone).
+function stampVids(floors){
+  return (floors||[]).map(f=>({ ...f, vid: f.vid||_newVid(),
+    rooms:(f.rooms||[]).map(r=>({ ...r, vid: r.vid||_newVid() })) }))
+}
+const _cloneFloors = fl => JSON.parse(JSON.stringify(fl||[]))
+// Compara conteúdo de dois cômodos (nome, preço, pitch, itens).
+function _roomEqual(a,b){
+  if(!a||!b) return false
+  if((a.name||'')!==(b.name||'')) return false
+  if(String(a.price||'')!==String(b.price||'')) return false
+  if((a.pitch||'')!==(b.pitch||'')) return false
+  const ia=(a.items||[]).filter(i=>i.name), ib=(b.items||[]).filter(i=>i.name)
+  if(ia.length!==ib.length) return false
+  const key=i=>`${i.code||''}|${i.name}|${parseInt(i.qty)||1}`
+  const sa=ia.map(key).sort().join('¬'), sb=ib.map(key).sort().join('¬')
+  return sa===sb
+}
+// Achata cômodos preservando o pavimento a que pertencem.
+function _flattenRooms(floors){
+  const out=[]
+  ;(floors||[]).forEach((f,fi)=>(f.rooms||[]).forEach(r=>out.push({ floorVid:f.vid, floorName:f.name, floorIdx:fi, room:r })))
+  return out
+}
+// Gera o diff cômodo a cômodo entre oficial e rascunho da visita.
+function diffVisita(oficial, draft){
+  const oMap=new Map(_flattenRooms(oficial).map(x=>[x.room.vid,x]))
+  const dList=_flattenRooms(draft)
+  const dMap=new Map(dList.map(x=>[x.room.vid,x]))
+  const seen=new Set(), rows=[]
+  // ordem do rascunho primeiro (ordem em que ela mexeu na obra)
+  dList.forEach(d=>{
+    seen.add(d.room.vid)
+    const o=oMap.get(d.room.vid)
+    if(o) rows.push({ vid:d.room.vid, status:_roomEqual(o.room,d.room)?'igual':'alterado', o, d })
+    else  rows.push({ vid:d.room.vid, status:'novo', d })
+  })
+  // removidos: estavam no oficial e sumiram no rascunho
+  _flattenRooms(oficial).forEach(o=>{ if(!seen.has(o.room.vid)) rows.push({ vid:o.room.vid, status:'removido', o }) })
+  return rows
+}
+// Aplica as escolhas e devolve os floors finais.
+// choices: { [vid]: 'visita' | 'oficial' | 'remover' | 'incluir' }
+function applyMerge(oficial, draft, rows, choices){
+  // Base = estrutura do rascunho (ordem/pavimentos que ela deixou na obra).
+  const finalFloors = _cloneFloors(draft).map(f=>({ ...f, rooms:[] }))
+  const floorByVid = new Map(finalFloors.map(f=>[f.vid,f]))
+  const oficialFloorByVid = new Map((oficial||[]).map(f=>[f.vid,f]))
+  const draftRoomByVid = new Map(_flattenRooms(draft).map(x=>[x.room.vid,x]))
+  const oficialRoomByVid = new Map(_flattenRooms(oficial).map(x=>[x.room.vid,x]))
+
+  const ensureFloor = (vid, nameFallback) => {
+    if(floorByVid.has(vid)) return floorByVid.get(vid)
+    const src=oficialFloorByVid.get(vid)
+    const nf={ ...(src||{}), vid, id:Date.now()+Math.random(), name:(src?.name||nameFallback||'Pavimento'), rooms:[] }
+    finalFloors.push(nf); floorByVid.set(vid,nf); return nf
+  }
+
+  rows.forEach(row=>{
+    const ch = choices[row.vid]
+    if(row.status==='igual'){
+      const d=draftRoomByVid.get(row.vid); ensureFloor(d.floorVid,d.floorName).rooms.push(d.room)
+    } else if(row.status==='alterado'){
+      if(ch==='oficial'){ const o=oficialRoomByVid.get(row.vid); ensureFloor(o.floorVid,o.floorName).rooms.push(o.room) }
+      else { const d=draftRoomByVid.get(row.vid); ensureFloor(d.floorVid,d.floorName).rooms.push(d.room) } // default visita
+    } else if(row.status==='novo'){
+      if(ch!=='descartar'){ const d=draftRoomByVid.get(row.vid); ensureFloor(d.floorVid,d.floorName).rooms.push(d.room) }
+    } else if(row.status==='removido'){
+      if(ch==='manter'){ const o=oficialRoomByVid.get(row.vid); ensureFloor(o.floorVid,o.floorName).rooms.push(o.room) } // senão fica removido
+    }
+  })
+  // remove pavimentos que ficaram sem cômodo
+  return finalFloors.filter(f=>(f.rooms||[]).length>0)
+}
+
 export default function ProposalBuilder({ clients, onRefresh, onSaved, editProposal, editIntent, execSeed, onGenerateExec, isAdmin, currentUser }) {
   const [catalog, setCatalog] = useState([])
   const [mobilePanel, setMobilePanel] = useState('rooms') // 'rooms' | 'edit' (only affects mobile)
@@ -644,6 +724,17 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   const [showApresModal, setShowApresModal] = useState(false)
   useEffect(()=>{ if(editIntent==='apres'){ const t=setTimeout(()=>setShowApresModal(true),300); return ()=>clearTimeout(t) } }, [editIntent])
   const [showPdfVersionModal, setShowPdfVersionModal] = useState(false)  // escolher versão ao gerar PDF
+  const [propModel, setPropModel] = useState('novo')  // 'novo' (mold executivo) | 'classico' (buildPDF original)
+  // ── VISITA À OBRA ──
+  const [emVisita, setEmVisita] = useState(false)        // editando o rascunho da visita agora
+  const [oficialSnapshot, setOficialSnapshot] = useState(null) // floors do oficial congelados (com vids)
+  const [visitaPendente, setVisitaPendente] = useState(false)  // existe rascunho salvo não aplicado
+  const [visitaMeta, setVisitaMeta] = useState(null)     // { started_at } do rascunho
+  const [showMergeModal, setShowMergeModal] = useState(false)
+  const [mergeRows, setMergeRows] = useState([])
+  const [mergeChoices, setMergeChoices] = useState({})
+  const visitaSaveTimer = useRef(null)
+  const _mergeSides = useRef({})
   const [showLoadVersionModal, setShowLoadVersionModal] = useState(false) // carregar versão antiga p/ edição
   const [apresVersion, setApresVersion] = useState(0)   // índice da versão escolhida (0 = atual/mais recente)
   const [apresLayout, setApresLayout] = useState('v2')
@@ -1005,7 +1096,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
     setShowSendModal(false)
   }
 
-  function openPDF(admin=false, preview=false, srcFloors=null, srcLabor=null){
+  function openPDF(admin=false, preview=false, srcFloors=null, srcLabor=null, model=propModel){
     try {
       const previewCode = proposalCode || 'PRÉVIA'
       const cl = clients.find(c=>c.id===Number(clientId))
@@ -1020,7 +1111,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           return {...r, items:visItems, price:String(visPrice)}
         }).filter(r=>parse(r.price)>0)      // remove cômodos zerados/vazios
       })).filter(f=>(f.rooms||[]).length>0) // remove pavimentos que ficaram sem cômodos
-      const html = buildPDF({
+      const pdfData = {
         catalog,
         client_name: cl ? `${cl.name1} & ${cl.name2}` : clientName,
         proposal_code: previewCode,
@@ -1028,7 +1119,8 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
         date_str: new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),
         floors: floorsFiltered, labor:baseLaborVisible, margin, itemFontSize:pdfFontSize,
         client_phone1: cl?.phone1, client_phone2: cl?.phone2
-      }, admin)
+      }
+      const html = model==='novo' ? buildProposalNovo(pdfData, admin) : buildPDF(pdfData, admin)
       // Try window.open with blob
       try {
         const blob = new Blob([html], {type:'text/html;charset=utf-8'})
@@ -1055,9 +1147,84 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   }
 
   // Ao gerar PDF: se houver versões salvas, pergunta qual usar; senão gera direto
-  function pedirVersaoPdf(){
-    if(savedVersions.length>0) setShowPdfVersionModal(true)
-    else openPDF(false,false)
+  function pedirVersaoPdf(){ setShowPdfVersionModal(true) }
+
+  // ── VISITA À OBRA: efeitos e handlers ──
+  const _pid = () => savedProposal?.id || init?.id
+  // detecta rascunho pendente quando a proposta salva aparece
+  useEffect(()=>{
+    const id=_pid(); if(!id){ setVisitaPendente(false); return }
+    let alive=true
+    ;(async()=>{ const blob=await loadVisita(id)
+      if(!alive) return
+      if(blob&&blob.draft){ setVisitaPendente(true); setVisitaMeta({started_at:blob.started_at}) }
+      else setVisitaPendente(false)
+    })()
+    return ()=>{ alive=false }
+  }, [savedProposal?.id])
+  // auto-save do rascunho enquanto em visita (debounce)
+  useEffect(()=>{
+    if(!emVisita) return
+    const id=_pid(); if(!id||!oficialSnapshot) return
+    if(visitaSaveTimer.current) clearTimeout(visitaSaveTimer.current)
+    visitaSaveTimer.current=setTimeout(()=>{
+      saveVisita(id, { started_at: visitaMeta?.started_at||new Date().toISOString(),
+        oficial: oficialSnapshot, draft: stampVids(floors) })
+    }, 900)
+    return ()=>{ if(visitaSaveTimer.current) clearTimeout(visitaSaveTimer.current) }
+  }, [floors, emVisita, oficialSnapshot])
+
+  async function startVisita(){
+    const id=_pid()
+    if(!id){ alert('Salve a proposta primeiro para iniciar uma visita à obra.'); return }
+    const stamped=stampVids(floors), started=new Date().toISOString()
+    setOficialSnapshot(_cloneFloors(stamped))
+    setFloors(_cloneFloors(stamped)); setCf(0); setCr(-1)
+    setVisitaMeta({started_at:started}); setEmVisita(true); setVisitaPendente(true)
+    await saveVisita(id, { started_at:started, oficial:_cloneFloors(stamped), draft:_cloneFloors(stamped) })
+    setSavedMsg('Modo visita iniciado. A proposta oficial está congelada.')
+    setTimeout(()=>setSavedMsg(''), 4000)
+  }
+  async function retomarVisita(){
+    const id=_pid(); const blob=await loadVisita(id)
+    if(!blob||!blob.draft){ alert('Nenhuma visita em andamento.'); setVisitaPendente(false); return }
+    setOficialSnapshot(_cloneFloors(blob.oficial||[]))
+    setFloors(_cloneFloors(blob.draft)); setCf(0); setCr(-1)
+    setVisitaMeta({started_at:blob.started_at}); setEmVisita(true)
+  }
+  function sairVisita(){
+    if(oficialSnapshot){ setFloors(_cloneFloors(oficialSnapshot)); setCf(0); setCr(-1) }
+    setEmVisita(false)  // rascunho continua salvo (visitaPendente)
+    setSavedMsg('Você saiu da visita. O rascunho ficou salvo para retomar.')
+    setTimeout(()=>setSavedMsg(''), 4000)
+  }
+  async function descartarVisita(){
+    if(!window.confirm('Descartar a visita à obra? O rascunho será apagado. A proposta oficial não muda.')) return
+    await clearVisita(_pid())
+    if(oficialSnapshot){ setFloors(_cloneFloors(oficialSnapshot)); setCf(0); setCr(-1) }
+    setEmVisita(false); setVisitaPendente(false); setOficialSnapshot(null); setVisitaMeta(null)
+  }
+  async function abrirMerge(){
+    let oficial=oficialSnapshot, draft=emVisita?floors:null
+    if(!draft){ const blob=await loadVisita(_pid())
+      if(!blob?.draft){ alert('Nenhuma visita para comparar.'); return }
+      oficial=blob.oficial; draft=blob.draft }
+    const rows=diffVisita(oficial, draft)
+    if(!rows.some(r=>r.status!=='igual')){ alert('A visita está igual à proposta oficial. Nada para mesclar.'); return }
+    const ch={}
+    rows.forEach(r=>{ ch[r.vid]= r.status==='alterado'?'visita' : r.status==='novo'?'incluir' : r.status==='removido'?'remover':'igual' })
+    _mergeSides.current={oficial,draft}
+    setMergeRows(rows); setMergeChoices(ch); setShowMergeModal(true)
+  }
+  async function aplicarMerge(){
+    const {oficial,draft}=_mergeSides.current
+    const final=applyMerge(oficial, draft, mergeRows, mergeChoices)
+    setFloors(final); setCf(0); setCr(-1); setSaved(false)
+    setEmVisita(false); setVisitaPendente(false); setOficialSnapshot(null); setVisitaMeta(null)
+    await clearVisita(_pid())
+    setShowMergeModal(false)
+    setSavedMsg('✓ Visita mesclada nos cômodos. Revise e clique em Salvar proposta para gravar no oficial.')
+    setTimeout(()=>setSavedMsg(''), 7000)
   }
   // Gera o PDF de uma versão específica (idx 0 = atual)
   // ── Validação de categoria (regra RARO: NÃO existe "Outros") ──
@@ -1330,9 +1497,39 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
             <span style={{fontSize:11,color:'var(--text3)',letterSpacing:0.5}}>A</span>
           </div>
           {/* SALVAR */}
-          <button className="btn" onClick={()=>setShowSaveModal(true)}>
+          <button className="btn" onClick={()=>setShowSaveModal(true)} disabled={emVisita}
+            title={emVisita?'Você está no modo Visita. Aplique ou saia da visita para salvar o oficial.':''}
+            style={emVisita?{opacity:.45,cursor:'not-allowed'}:undefined}>
             <i className="ti ti-device-floppy" aria-hidden/>Salvar proposta
           </button>
+          {/* VISITA À OBRA */}
+          {!emVisita && !visitaPendente && (
+            <button className="btn" title="Criar um rascunho paralelo para editar na obra sem mexer no oficial"
+              style={{gap:6,color:'#B45309',borderColor:'#D97706'}} onClick={startVisita}>
+              <i className="ti ti-map-pin" aria-hidden/>Visita à obra
+            </button>
+          )}
+          {!emVisita && visitaPendente && (<>
+            <button className="btn" style={{gap:6,color:'#B45309',borderColor:'#D97706'}} onClick={retomarVisita}
+              title="Continuar editando o rascunho da visita">
+              <i className="ti ti-map-pin" aria-hidden/>Retomar visita
+            </button>
+            <button className="btn" style={{gap:6,color:'#0369A1',borderColor:'#0369A1'}} onClick={abrirMerge}
+              title="Comparar o rascunho da visita com o oficial">
+              <i className="ti ti-arrows-diff" aria-hidden/>Comparar e aplicar
+            </button>
+          </>)}
+          {emVisita && (<>
+            <button className="btn primary" style={{gap:6}} onClick={abrirMerge}>
+              <i className="ti ti-arrows-diff" aria-hidden/>Comparar e aplicar
+            </button>
+            <button className="btn" style={{gap:6}} onClick={sairVisita} title="Sair sem aplicar (mantém o rascunho)">
+              <i className="ti ti-arrow-back-up" aria-hidden/>Sair
+            </button>
+            <button className="btn" style={{gap:6,color:'#B91C1C',borderColor:'#DC2626'}} onClick={descartarVisita}>
+              <i className="ti ti-trash" aria-hidden/>Descartar
+            </button>
+          </>)}
           {/* CARREGAR VERSÃO ANTIGA */}
           {savedVersions.length>0 && <button className="btn" title="Carregar uma versão salva anterior para edição"
             style={{gap:6}} onClick={()=>setShowLoadVersionModal(true)}>
@@ -1359,6 +1556,22 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           </button>
         </div>
       </div>
+
+      {(emVisita || visitaPendente) && (
+        <div style={{display:'flex',alignItems:'center',gap:10,padding:'7px 14px',
+          background: emVisita?'#FEF3C7':'#FFF7ED', borderBottom:`1px solid ${emVisita?'#F59E0B':'#FDBA74'}`,
+          fontSize:12, color:'#7C2D12'}}>
+          <i className={`ti ${emVisita?'ti-map-pin':'ti-map-pin-pause'}`} aria-hidden style={{fontSize:15}}/>
+          <span style={{fontWeight:600}}>
+            {emVisita ? 'Modo Visita à Obra' : 'Visita à obra em andamento'}
+          </span>
+          <span style={{color:'#9A5B2E'}}>
+            {emVisita
+              ? 'A proposta oficial está congelada. As mudanças ficam só no rascunho até você comparar e aplicar.'
+              : 'Existe um rascunho de visita não aplicado. Retome para continuar ou compare para decidir cômodo a cômodo.'}
+          </span>
+        </div>
+      )}
 
       <div className={`builder mp-${mobilePanel}`} style={{height:'calc(100% - 46px)',display:'flex',gap:0}}>
         {/* Mobile tab bar — só aparece no celular via CSS */}
@@ -2143,10 +2356,23 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
       {/* ── MODAL: escolher versão ao GERAR PDF ── */}
       {showPdfVersionModal && <div className="modal-overlay" onClick={()=>setShowPdfVersionModal(false)}><div className="modal" style={{width:460,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title"><i className="ti ti-file-invoice" style={{marginRight:6}} aria-hidden/>Gerar Proposta — qual versão?</div>
+          <div className="modal-title"><i className="ti ti-file-invoice" style={{marginRight:6}} aria-hidden/>Gerar Proposta</div>
           <button className="modal-close" onClick={()=>setShowPdfVersionModal(false)}>×</button>
         </div>
-        <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:8}}>
+        <div className="flabel" style={{marginTop:8,marginBottom:8}}>Modelo do documento</div>
+        <div style={{display:'flex',gap:8,marginBottom:14}}>
+          {[['novo','Novo','Mold do executivo, sem quebra de página'],['classico','Clássico','Layout original']].map(([v,t,d])=>(
+            <button key={v} type="button" onClick={()=>setPropModel(v)}
+              style={{flex:1,textAlign:'left',padding:'10px 12px',borderRadius:8,cursor:'pointer',
+                border:`1.5px solid ${propModel===v?'var(--accent)':'var(--border)'}`,
+                background:propModel===v?'rgba(14,165,233,0.08)':'var(--surf)'}}>
+              <div style={{fontSize:12.5,fontWeight:propModel===v?700:500,color:propModel===v?'var(--accent)':'var(--text)'}}>{t}</div>
+              <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>{d}</div>
+            </button>
+          ))}
+        </div>
+        <div className="flabel" style={{marginBottom:8}}>Qual versão dos itens?</div>
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
           <button className="btn" style={{justifyContent:'space-between',padding:'12px 14px'}} onClick={()=>gerarPdfVersao(0)}>
             <span style={{fontWeight:600}}>Versão atual (em edição)</span>
             <i className="ti ti-chevron-right" aria-hidden/>
@@ -2160,6 +2386,63 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
         </div>
         <div style={{fontSize:10.5,color:'var(--text3)',marginTop:10}}>O PDF usa exatamente os itens e valores da versão escolhida.</div>
       </div></div>}
+
+      {/* ── MODAL: comparar e mesclar VISITA × OFICIAL (por cômodo) ── */}
+      {showMergeModal && (()=>{
+        const fmtP = v => 'R$\u00a0'+Number(parse(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
+        const nItens = r => (r?.items||[]).filter(i=>i.name).length
+        const label = {alterado:'Alterado na visita',novo:'Novo na visita',removido:'Removido na visita',igual:'Sem mudança'}
+        const cor   = {alterado:'#D97706',novo:'#059669',removido:'#DC2626',igual:'#94A3B8'}
+        const setCh = (vid,val)=>setMergeChoices(c=>({...c,[vid]:val}))
+        const mudados = mergeRows.filter(r=>r.status!=='igual')
+        return <div className="modal-overlay"><div className="modal" style={{width:640,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+          <div className="modal-header">
+            <div className="modal-title"><i className="ti ti-arrows-diff" style={{marginRight:6}} aria-hidden/>Comparar visita × oficial</div>
+            <button className="modal-close" onClick={()=>setShowMergeModal(false)}>×</button>
+          </div>
+          <div style={{fontSize:11.5,color:'var(--text3)',margin:'6px 0 12px'}}>
+            Decida cômodo a cômodo o que entra na proposta oficial. Nada é gravado até você aplicar e depois salvar.
+          </div>
+          {mudados.length===0
+            ? <div style={{fontSize:13,color:'var(--text3)',padding:'10px 0'}}>Nenhuma diferença entre a visita e o oficial.</div>
+            : <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {mudados.map(r=>{
+                const nm = (r.d?.room||r.o?.room)?.name || '(sem nome)'
+                const opts = r.status==='alterado'
+                  ? [['visita',`Usar da visita · ${fmtP(r.d.room.price)} · ${nItens(r.d.room)} itens`],['oficial',`Manter oficial · ${fmtP(r.o.room.price)} · ${nItens(r.o.room)} itens`]]
+                  : r.status==='novo'
+                  ? [['incluir',`Incluir · ${fmtP(r.d.room.price)} · ${nItens(r.d.room)} itens`],['descartar','Não incluir']]
+                  : [['remover','Remover (como na visita)'],['manter',`Manter no oficial · ${fmtP(r.o.room.price)}`]]
+                return <div key={r.vid} style={{border:'1px solid var(--border)',borderRadius:8,padding:'10px 12px'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                    <span style={{fontSize:9,fontWeight:700,letterSpacing:.5,textTransform:'uppercase',color:cor[r.status],
+                      border:`1px solid ${cor[r.status]}`,borderRadius:4,padding:'1px 6px'}}>{label[r.status]}</span>
+                    <span style={{fontWeight:600,fontSize:13}}>{nm}</span>
+                  </div>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {opts.map(([v,t])=>{
+                      const sel=mergeChoices[r.vid]===v
+                      return <button key={v} type="button" onClick={()=>setCh(r.vid,v)}
+                        style={{flex:'1 1 46%',textAlign:'left',padding:'8px 10px',borderRadius:6,cursor:'pointer',fontSize:11.5,
+                          border:`1.5px solid ${sel?'var(--accent)':'var(--border)'}`,
+                          background:sel?'rgba(14,165,233,0.08)':'var(--surf)',
+                          color:sel?'var(--accent)':'var(--text2)',fontWeight:sel?600:400}}>{t}</button>
+                    })}
+                  </div>
+                </div>
+              })}
+            </div>}
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:14}}>
+            <button className="btn" onClick={()=>setShowMergeModal(false)}>Cancelar</button>
+            <button className="btn primary" onClick={aplicarMerge} disabled={mudados.length===0}>
+              <i className="ti ti-check" aria-hidden style={{marginRight:5}}/>Aplicar aos cômodos
+            </button>
+          </div>
+          <div style={{fontSize:10.5,color:'var(--text3)',marginTop:10}}>
+            Depois de aplicar, revise e clique em <b>Salvar proposta</b> para gravar no oficial.
+          </div>
+        </div></div>
+      })()}
 
       {/* ── MODAL: carregar versão antiga para edição ── */}
       {showLoadVersionModal && <div className="modal-overlay" onClick={()=>setShowLoadVersionModal(false)}><div className="modal" style={{width:460,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
