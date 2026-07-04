@@ -166,6 +166,17 @@ export function buildContract(proposal, client, opts={}) {
   const _cpf1q = hideCpf ? '' : (client?.cpf1 ? `, portador do CPF nº ${client.cpf1}` : ', portador do CPF nº ___.___.___-__')
   const contratanteQualif = `<strong>${name1}</strong>${_cpf1q}.`
 
+  // ── MODELO CLÁSSICO ────────────────────────────────────────────────
+  // Layout enxuto e institucional (fiel ao contrato R&-5683). Vale para QUALQUER tipo.
+  // Reaproveita todo o cálculo acima (total, extenso, cláusulas, escopo). Só muda a diagramação.
+  if(opts.modelo==='classico'){
+    return buildContractClassico({
+      proposal, client, tipo, ehProjeto, tituloDoc, objetoTxt, pagamentoTxt,
+      scopeRooms, mostraEscopoItens, total, totalExtenso, clausulas,
+      name1, housing, hideCpf, today
+    })
+  }
+
   return `<!DOCTYPE html><html lang="pt-BR"><head>
   <meta charset="UTF-8"><title>${tituloDoc} — ${client?.name1||proposal.client_name||'Cliente'}${proposal.code?' ('+proposal.code+')':''}</title>
   <style>
@@ -276,6 +287,137 @@ export function buildContract(proposal, client, opts={}) {
 </body></html>`
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MODELO CLÁSSICO — layout enxuto e institucional, fiel ao contrato R&-5683.
+// Recebe os dados já calculados pelo buildContract. Vale para qualquer tipo.
+// Cabeçalho azul, seções numeradas 1..5, cláusulas 4.1..4.x, assinatura cursiva.
+// ═══════════════════════════════════════════════════════════════════════════
+function buildContractClassico(D){
+  const { proposal, client, ehProjeto, tituloDoc, objetoTxt, pagamentoTxt,
+    scopeRooms, mostraEscopoItens, total, totalExtenso, clausulas,
+    name1, housing, hideCpf, today } = D
+  const code = proposal.code || proposal.id
+  const contato = [client?.phone1, client?.email].filter(Boolean).join(' · ') || '— · —'
+  const _rua = [client?.street, client?.number].filter(Boolean).join(', ')
+  const _resto = [client?.neighborhood, client?.city, client?.state].filter(Boolean).join(', ')
+  const local = [_rua, _resto, client?.cep?('CEP '+client.cep):''].filter(Boolean).join(' — ') || '—'
+  // ambientes em grid (nome + contagem), como no PDF
+  const ambientes = scopeRooms.map(r=>`<div class="amb-item"><span class="dia">◈</span> ${r.name} <span class="cnt">(${r.total} ${r.total===1?'item':'itens'})</span></div>`).join('')
+  // cláusulas numeradas 4.1, 4.2... (tira <strong> do título, mantém no corpo)
+  const clausulasHtml = clausulas.map((cl,i)=>`<p class="cond"><span class="cnum">4.${i+1}</span> <span class="ctit">${cl[0]}:</span> ${cl[1]}</p>`).join('')
+  const objetoLimpo = objetoTxt.replace(/<\/?strong>/g,'')
+  const pagamentoLimpo = (pagamentoTxt||'').replace(/<\/?strong>/g,'')
+
+  return `<!DOCTYPE html><html lang="pt-BR"><head>
+  <meta charset="UTF-8"><title>${tituloDoc} — ${name1||proposal.client_name||'Cliente'}${code?' ('+code+')':''}</title>
+  <style>
+  @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  @page{ size:A4; margin:0 }
+  body{ font-family:'Helvetica Neue',Arial,sans-serif; font-size:9.4px; line-height:1.5; color:#2B2B2B; background:#fff }
+  .sheet{ padding:14mm 16mm }
+  @media print{ .no-print{display:none!important} }
+  .brandbar{ text-align:center; margin-bottom:10px }
+  .brandbar img{ width:66px; height:auto; margin:0 auto 6px; display:block }
+  .doctitle{ font-size:15px; font-weight:700; color:#1C6AA6; letter-spacing:2px; text-transform:uppercase }
+  .docsub{ font-size:10px; color:#5A6B78; font-style:italic; margin-top:2px }
+  .brandmeta{ font-size:8px; color:#8A97A2; margin-top:6px; line-height:1.6 }
+  .brandmeta b{ color:#1C6AA6; font-weight:600 }
+  .cnumber{ font-size:8.5px; color:#5A6B78; margin-top:5px }
+  .sech{ color:#1C6AA6; font-size:11px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; margin:16px 0 7px; padding-bottom:3px; border-bottom:1.5px solid #DCE6EE }
+  .parties{ display:flex; gap:26px }
+  .party{ flex:1 }
+  .party .role{ font-size:8px; font-weight:700; letter-spacing:1px; color:#1C6AA6; text-transform:uppercase; margin-bottom:5px }
+  .field{ margin-bottom:5px }
+  .field .k{ font-size:7px; letter-spacing:1.5px; color:#9AA7B1; text-transform:uppercase }
+  .field .v{ font-size:9.6px; color:#2B2B2B }
+  .amb-head{ font-size:8px; font-weight:700; letter-spacing:1px; color:#5A6B78; text-transform:uppercase; margin:9px 0 5px }
+  .amb-grid{ display:grid; grid-template-columns:1fr 1fr; gap:3px 20px }
+  .amb-item{ font-size:9.2px; color:#2B2B2B }
+  .amb-item .dia{ color:#1C6AA6 }
+  .amb-item .cnt{ color:#8A97A2 }
+  .valuebox{ text-align:center; margin:6px 0 8px }
+  .valuebox .k{ font-size:8px; letter-spacing:2px; color:#1C6AA6; text-transform:uppercase }
+  .valuebox .v{ font-size:22px; font-weight:700; color:#1A2740; margin:3px 0 1px }
+  .valuebox .e{ font-size:9.5px; font-style:italic; color:#5A6B78 }
+  .obj, .paytext{ text-align:justify; margin-bottom:4px }
+  .nota{ font-size:8.6px; font-style:italic; color:#7A8794; margin-top:5px }
+  .cond{ text-align:justify; margin-bottom:6px }
+  .cnum{ color:#1C6AA6; font-weight:700 }
+  .ctit{ font-weight:700; color:#1A2740; letter-spacing:.3px }
+  .accept{ margin:6px 0 0; text-align:justify }
+  .sigs{ display:flex; gap:60px; margin-top:26px }
+  .sig{ flex:1; text-align:center }
+  .sigline{ border-top:1px solid #9AA7B1; margin-bottom:5px; height:34px }
+  .signame{ font-weight:700; color:#1A2740; font-size:10px }
+  .sigrole{ font-size:8px; color:#7A8794; margin-top:1px }
+  .hand{ font-family:'Dancing Script',cursive; font-size:26px; color:#1C6AA6; line-height:1; margin-bottom:-4px }
+  .foot{ margin-top:16px; padding-top:8px; border-top:1px solid #E4E9ED; text-align:center; font-size:7.8px; color:#9AA7B1; line-height:1.7 }
+  </style>
+</head><body>
+  <div class="no-print" style="position:sticky;top:0;background:#1C6AA6;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;font-size:11px;z-index:99">
+    <span>${tituloDoc} · modelo clássico — ${code} — ${name1||proposal.client_name||''}</span>
+    <button onclick="window.print()" style="background:#fff;color:#1C6AA6;border:none;padding:6px 16px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600">⬇ Salvar como PDF</button>
+  </div>
+
+  <div class="sheet">
+    <div class="brandbar">
+      <img src="${LOGO_CONTRACT}" alt="RARO Home"/>
+      <div class="doctitle">Contrato de Prestação de Serviços</div>
+      <div class="docsub">${ehProjeto?'Termo de Execução de Projeto':'Termo de Execução de Projeto'}</div>
+      <div class="brandmeta">Automação Residencial · Tecnologia · Lazer<br/><b>RARO Home Tecnologia</b><br/>contato@rarohome.com.br · (21) 98170-9009<br/>www.rarohome.com.br · @rarohome</div>
+      <div class="cnumber">Contrato nº ${code} &nbsp;·&nbsp; Rio de Janeiro, ${today}</div>
+    </div>
+
+    <div class="sech">1. Partes Contratantes</div>
+    <div class="parties">
+      <div class="party">
+        <div class="role">Contratada</div>
+        <div class="field"><div class="k">Empresa</div><div class="v">RARO Home Tecnologia</div></div>
+        <div class="field"><div class="k">Responsável</div><div class="v">Rogério Silva</div></div>
+      </div>
+      <div class="party">
+        <div class="role">Contratante</div>
+        <div class="field"><div class="k">Nome completo</div><div class="v">${name1||'—'}</div></div>
+        <div class="field"><div class="k">Contato</div><div class="v">${contato}</div></div>
+        <div class="field"><div class="k">Local de execução</div><div class="v">${local}</div></div>
+        <div class="field"><div class="k">Tipo de imóvel</div><div class="v">${housing||'residencial'}</div></div>
+      </div>
+    </div>
+
+    <div class="sech">2. Objeto do Contrato</div>
+    <div class="obj">${objetoLimpo}</div>
+    ${mostraEscopoItens?`<div class="amb-head">Ambientes contemplados:</div><div class="amb-grid">${ambientes}</div>`:''}
+
+    <div class="sech">3. Valor Total e Forma de Pagamento</div>
+    <div class="valuebox">
+      <div class="k">${ehProjeto?'Valor do projeto e acompanhamento':'Investimento total do projeto'}</div>
+      <div class="v">R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+      <div class="e">(${totalExtenso})</div>
+    </div>
+    <div class="paytext">${pagamentoLimpo || 'O valor total inclui fornecimento de todos os equipamentos, materiais, mão de obra especializada, instalação, configuração, testes e treinamento ao contratante. A forma de pagamento será definida conforme acordado na proposta comercial.'}</div>
+    ${ehProjeto?'':`<div class="nota">Nota: O detalhamento completo dos equipamentos por ambiente consta na Proposta Técnica nº ${code}, parte integrante deste contrato.</div>`}
+
+    <div class="sech">4. Cláusulas e Condições</div>
+    ${clausulasHtml}
+
+    <div class="sech">5. Aceite e Assinaturas</div>
+    <div class="accept">As partes declaram ter lido, compreendido e concordado com todas as cláusulas deste instrumento, assinando-o em duas vias de igual teor e forma.</div>
+    <p style="margin-top:8px"><strong>Rio de Janeiro, ${today}.</strong></p>
+
+    <div class="sigs">
+      <div class="sig"><div class="sigline"></div><div class="signame">${name1||'—'}</div><div class="sigrole">Contratante · CPF: ${hideCpf?'—':(client?.cpf1||'___.___.___-__')}</div></div>
+      <div class="sig"><div class="hand">Rogério Silva</div><div class="sigline" style="border-top:none;height:0;margin-bottom:5px"></div><div class="signame">Rogério Silva</div><div class="sigrole">RARO Home Tecnologia · Contratada</div></div>
+    </div>
+
+    <div class="foot">
+      RARO Home Tecnologia · contato@rarohome.com.br · (21) 98170-9009 · www.rarohome.com.br<br/>
+      Contrato nº ${code} · Emitido em ${today}${proposal.valid_days?' · Proposta válida por '+proposal.valid_days+' dias':' · Proposta válida por 30 dias'}
+    </div>
+  </div>
+</body></html>`
+}
+
 
 export default function Contract({ proposal, clients, onClose, onSend, onGenerated }) {
   const [sending, setSending] = useState(false)
@@ -377,6 +519,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
   }
   // ── Tipo de contrato + opções ──
   const [tipo, setTipo] = useState('total')   // projeto | total | ocultas | avulsa
+  const [modelo, setModelo] = useState('novo')  // 'novo' (layout atual) | 'classico' (layout enxuto R&-5683)
   const [valorManual, setValorManual] = useState('')
   const [hiddenCats, setHiddenCats] = useState([])
   const [pagamentoCustom, setPagamentoCustom] = useState('')
@@ -392,7 +535,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
     if(Number(proposal.labor)>0) arr.push('Mão de obra')   // mão de obra é ocultável
     return arr
   }catch{return []} })()
-  const opts = { tipo, valorManual, hiddenCats, hideCpf,
+  const opts = { tipo, modelo, valorManual, hiddenCats, hideCpf,
     pagamentoCustom,   // editável em qualquer tipo
     prazoCustom, garantiaCustom,
     objetoCustom: tipo==='avulsa'?objetoCustom:'' }
@@ -771,6 +914,27 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
                 <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>{sub}</div>
               </button>
             ))}
+          </div>
+
+          {/* Modelo visual do documento (independente do tipo) */}
+          <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid var(--border)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+              <i className="ti ti-layout-board-split" style={{color:'var(--accent)'}} aria-hidden/>
+              <b style={{fontSize:13}}>Modelo do documento</b>
+              <span style={{fontSize:10.5,color:'var(--text3)'}}>vale para qualquer tipo acima</span>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {[
+                ['novo','Novo','Layout atual, serifado e detalhado','ti-sparkles'],
+                ['classico','Clássico','Enxuto e institucional (modelo R&-5683)','ti-file-text'],
+              ].map(([v,t,sub,ic])=>(
+                <button key={v} onClick={()=>setModelo(v)} style={{textAlign:'left',padding:'10px 12px',borderRadius:8,cursor:'pointer',
+                  border:`1.5px solid ${modelo===v?'var(--accent)':'var(--border)'}`,background:modelo===v?'rgba(14,165,233,0.1)':'var(--bg)',color:'var(--text1)',fontFamily:'inherit'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,fontSize:12.5,fontWeight:600}}><i className={'ti '+ic} aria-hidden/>{t}</div>
+                  <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>{sub}</div>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Opções por tipo */}

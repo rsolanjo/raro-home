@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v234 — Menu 'Criar documento' reordenado na hierarquia da Ful: Proposta para Clientes, Apresentação Comercial, [espaço], Projeto Executivo, Plano de Obra, Planta Elétrica (os três explícitos, cada um com sua entrada), [espaço], Contrato, [espaço maior], Proposta para Administradores. Separadores com dois tamanhos (gap:1 fino, gap:2 maior). Mantém v207-v233.
+// v235 — Contrato ganhou EIXO DE MODELO VISUAL, independente do tipo. Dois modelos: 'Novo' (layout atual, serifado EB Garamond, detalhado) e 'Clássico' (layout enxuto e institucional fiel ao contrato R&-5683: cabeçalho azul, seções 1..5, partes em small-caps, ambientes em grid com contagem, valor destacado, cláusulas 4.1..4.x, assinatura cursiva do Rogério). Qualquer tipo (projeto/total/ocultas/avulsa) sai em qualquer modelo. Seletor Clássico/Novo no painel de geração; opts.modelo propaga para preview e PDF. buildContractClassico() nova função; buildContract (novo) intacto. Mantém v207-v234.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v234 · build 2026-07
+          v235 · build 2026-07
         </div>
       </div>
     </div>
