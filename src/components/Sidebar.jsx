@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v263 — LOGO DA PROPOSTA corrigido (estava cortando a palavra RARO no meio do simbolo). Diagnostico: LOGO_EXEC e LOGO_COVER sao o MESMO arquivo SVG (LOGO_EXEC = LOGO_COVER), entao o logo nunca foi o problema; era CSS. O executivo controla por LARGURA (width:170px, altura livre) e o logo aparece inteiro; a proposta controlava por ALTURA (height:132px) e esmagava/cortava o logo, que tem proporcao propria com o texto RARO HOME embutido. Correcao: cover-logo agora usa width:150px + height:auto (mesma receita do executivo), mantendo o drop-shadow. Logo aparece inteiro e legivel. Mantem v207-v262.
+// v264 — PWA: RARO Home vira app instalavel no iPhone e Android (sem loja). vite-plugin-pwa instalado e configurado no vite.config.js: manifest (name RARO Home, short_name RARO, theme #0B1830, bg #F7F6F3, display standalone, portrait, pt-BR), service worker autoUpdate via workbox, runtimeCaching de fontes Google e CDN jsdelivr (CacheFirst), API/Supabase ficam sempre na rede (navigateFallbackDenylist /api). Icones gerados do LOGO_DARK oficial (simbolo RR + RARO HOME, sem o slogan que borrava em 192px): icon-192, icon-512, icon-maskable-512 (margem de seguranca pro recorte Android), apple-touch-icon-180 em public/icons/. index.html com apple-mobile-web-app-capable/status-bar/title e apple-touch-icon (iOS ignora o manifest, precisa dessas tags). vercel.json: rewrite exclui sw.js/manifest/registerSW/workbox pra servirem como arquivo real, header no-cache no sw.js. Build EXIT:0, gera dist/sw.js + manifest.webmanifest. Instalar: deploy Vercel normal, iPhone Safari > compartilhar > adicionar a tela inicial; Android Chrome > instalar app. Fonte capacidade offline/instalacao: vite-pwa-org.netlify.app e docs Apple Safari web apps. Mantem v207-v263.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v263 · build 2026-07
+          v264 · build 2026-07
         </div>
       </div>
     </div>
