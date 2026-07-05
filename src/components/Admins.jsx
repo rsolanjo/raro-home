@@ -125,6 +125,10 @@ export default function Admins({ admins, clients=[], currentUser, onRefresh }) {
               </div>
             </div>
 
+            <div style={{background:'#EEF4FF',border:'1px solid #C7D7FE',borderRadius:6,padding:'9px 12px',marginBottom:16,fontSize:11.5,color:'#1E40AF',lineHeight:1.5}}>
+              <b><i className="ti ti-shield-lock" aria-hidden/> Como esta pessoa entra:</b> com este e-mail, pelo botão <b>Google</b> (se for conta Google) ou criando a própria <b>senha</b> no primeiro acesso. Só e-mails cadastrados aqui conseguem entrar.
+            </div>
+
             {form.role!=='admin' && (
               <>
                 <div className="form-row full" style={{marginBottom:10}}>

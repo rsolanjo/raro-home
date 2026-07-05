@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v264 — PWA: RARO Home vira app instalavel no iPhone e Android (sem loja). vite-plugin-pwa instalado e configurado no vite.config.js: manifest (name RARO Home, short_name RARO, theme #0B1830, bg #F7F6F3, display standalone, portrait, pt-BR), service worker autoUpdate via workbox, runtimeCaching de fontes Google e CDN jsdelivr (CacheFirst), API/Supabase ficam sempre na rede (navigateFallbackDenylist /api). Icones gerados do LOGO_DARK oficial (simbolo RR + RARO HOME, sem o slogan que borrava em 192px): icon-192, icon-512, icon-maskable-512 (margem de seguranca pro recorte Android), apple-touch-icon-180 em public/icons/. index.html com apple-mobile-web-app-capable/status-bar/title e apple-touch-icon (iOS ignora o manifest, precisa dessas tags). vercel.json: rewrite exclui sw.js/manifest/registerSW/workbox pra servirem como arquivo real, header no-cache no sw.js. Build EXIT:0, gera dist/sw.js + manifest.webmanifest. Instalar: deploy Vercel normal, iPhone Safari > compartilhar > adicionar a tela inicial; Android Chrome > instalar app. Fonte capacidade offline/instalacao: vite-pwa-org.netlify.app e docs Apple Safari web apps. Mantem v207-v263.
+// v265 — LOGIN SEGURO (profissional, verificacao no servidor). Substitui o login antigo que so pedia e-mail (qualquer um que soubesse um e-mail cadastrado entrava, sem senha, verificacao no navegador = furado). Agora via Supabase Auth: (1) senha com bcrypt verificada NO SERVIDOR, (2) botao Entrar com Google (OAuth), (3) primeiro acesso pra pessoa criar a propria senha. TRAVA DA LISTA: mesmo com Google/senha valida, so entra quem esta na tabela admins (findAdminByEmail; se nao esta, signOut). Mantidos os 3 papeis existentes (admin/viewer/mestre). RLS no banco (SUPABASE_LOGIN_SEGURO.sql): liga row level security em todas as tabelas, politica base 'so authenticated acessa' (tranca a porta sem prender por dentro, nao quebra telas; apertar por papel numa 2a rodada). Logout agora chama signOutSeguro (encerra sessao no servidor de verdade, antes so limpava localStorage). Tela Admins ganha aviso de como a pessoa entra. Funcoes novas no supabase.js: signInEmailSenha, signInGoogle, resolveSessao, signOutSeguro, criarAcessoComSenha, findAdminByEmail. Guia COMO-ATIVAR-LOGIN-SEGURO.md (ativar Email provider, Google OAuth no Google Cloud, rodar o SQL). Fontes: supabase.com/docs/guides/auth (bcrypt/JWT), .../row-level-security, .../social-login/auth-google, developers.google.com/identity. Base: v264.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v264 · build 2026-07
+          v265 · build 2026-07
         </div>
       </div>
     </div>
