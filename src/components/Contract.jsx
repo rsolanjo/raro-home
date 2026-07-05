@@ -874,7 +874,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         </div>
         {/* Painel de revisão de dados */}
         {showReview && (
-          <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'14px 16px'}}>
+          <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'14px 16px',maxHeight:'36vh',overflowY:'auto',flexShrink:0}}>
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
               <i className="ti ti-user-check" style={{color:'var(--accent)'}} aria-hidden/>
               <b style={{fontSize:13}}>Confira os dados do cliente antes de gerar o contrato</b>
@@ -1022,7 +1022,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         {/* Contract preview */}
         <iframe
           srcDoc={buildContract(proposal, client, opts)}
-          style={{flex:1,border:'none',width:'100%'}}
+          style={{flex:1,minHeight:0,border:'none',width:'100%'}}
           title="Contrato RARO Home"
         />
       </div>

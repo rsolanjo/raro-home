@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v240 — (1) tirada a assinatura espacada "APROVACAO E ASSINATURA" da proposta CLASSICA (ProposalBuilder buildPDF + proposalPDF.js). (2) barra de rolagem grossa no preview do contrato (novo e classico). (4) senha de acoes destrutivas do editor mudou de 123 p/ 456 (recomecar/apagar/limpar) e o IMPORTAR da proposta agora tambem pede senha 456. (9) seletor Local e altura reordenado: Baixa/Media/Alta em cima, Piso/Teto embaixo. Pendente decisao: 3,5,6,7,8,10 (reestruturacao do editor/simbologia). Mantem v207-v239.
+// v242 — DADOS+AP unificados de vez: guessCableType nao retorna mais "ap", Access Point usa cabo de dados (CAT6); PoE e do switch/fonte, nao do cabo. BOLINHAS: menu Tipo do ponto perdeu keystone_alto/baixo/teto (as 3 bolinhas) e o keystone_teto duplicado; virou uma opcao unica "Keystone de rede" com a altura vindo do seletor. TABELA Posicao e Altura dos Pontos (ID/Item/Local/Altura) por ambiente adicionada ao Projeto Executivo, apos a planta (Local=forma do pino, Altura=nivel). PENDENTE: pedido 6 (controles na tela de PDF) depende de preview ao vivo que nao existe hoje. Mantem v207-v241.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v240 · build 2026-07
+          v242 · build 2026-07
         </div>
       </div>
     </div>
