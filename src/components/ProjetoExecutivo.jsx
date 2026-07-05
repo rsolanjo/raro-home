@@ -57,7 +57,8 @@ const ELE_SYMBOLS = {
   // Tomada baixa (até 0,30m) — círculo com meia-lua preenchida + 2 traços (NBR 5444)
   tomada_baixa: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="0" y1="-11" x2="0" y2="-7" stroke="#111" stroke-width="1.3"/>`,
   // Tomada média/alta (1,30m+) — igual com 3 traços de altura
-  tomada_alta: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="-2" y1="-11" x2="-2" y2="-7" stroke="#111" stroke-width="1.1"/><line x1="2" y1="-11" x2="2" y2="-7" stroke="#111" stroke-width="1.1"/>`,
+  tomada_media: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="-2.5" y1="-11" x2="-2.5" y2="-7" stroke="#111" stroke-width="1.1"/><line x1="2.5" y1="-11" x2="2.5" y2="-7" stroke="#111" stroke-width="1.1"/>`,
+  tomada_alta: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="-4" y1="-11" x2="-4" y2="-7" stroke="#111" stroke-width="1.1"/><line x1="0" y1="-11" x2="0" y2="-7" stroke="#111" stroke-width="1.1"/><line x1="4" y1="-11" x2="4" y2="-7" stroke="#111" stroke-width="1.1"/>`,
   // Tomada de piso — círculo com X dentro
   tomada_piso: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-4.5" y1="-4.5" x2="4.5" y2="4.5" stroke="#111" stroke-width="1.2"/><line x1="-4.5" y1="4.5" x2="4.5" y2="-4.5" stroke="#111" stroke-width="1.2"/>`,
   tomada_teto: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="0" y1="7" x2="0" y2="11" stroke="#111" stroke-width="1.3"/><text x="0" y="-2" font-size="5" text-anchor="middle" fill="#111">T</text>`,
@@ -65,6 +66,11 @@ const ELE_SYMBOLS = {
   keystone_alto: `<rect x="-6.5" y="-6.5" width="13" height="13" rx="2" fill="#fff" stroke="#2563EB" stroke-width="1.3"/><circle cx="0" cy="0" r="3" fill="none" stroke="#2563EB" stroke-width="1.1"/><line x1="0" y1="-10.5" x2="0" y2="-6.5" stroke="#2563EB" stroke-width="1.2"/>`,
   keystone_baixo: `<rect x="-6.5" y="-6.5" width="13" height="13" rx="2" fill="#fff" stroke="#2563EB" stroke-width="1.3"/><circle cx="0" cy="0" r="3" fill="none" stroke="#2563EB" stroke-width="1.1"/><line x1="0" y1="6.5" x2="0" y2="10.5" stroke="#2563EB" stroke-width="1.2"/>`,
   ponto_som_teto: `<circle r="7" fill="#fff" stroke="#BE185D" stroke-width="1.4"/><circle r="3" fill="#BE185D"/><line x1="0" y1="7" x2="0" y2="11" stroke="#BE185D" stroke-width="1.3"/>`,
+  ponto_som_parede: `<circle r="7" fill="#fff" stroke="#BE185D" stroke-width="1.4"/><circle r="3" fill="#BE185D"/><line x1="0" y1="-11" x2="0" y2="-7" stroke="#BE185D" stroke-width="1.3"/>`,
+  ponto_som_piso: `<rect x="-7" y="-7" width="14" height="14" fill="#fff" stroke="#BE185D" stroke-width="1.4"/><circle r="3" fill="#BE185D"/>`,
+  ponto_energia_piso: `<rect x="-7" y="-7" width="14" height="14" fill="#fff" stroke="#16A34A" stroke-width="1.4"/><line x1="-4" y1="0" x2="4" y2="0" stroke="#16A34A" stroke-width="1.3"/><line x1="0" y1="-4" x2="0" y2="4" stroke="#16A34A" stroke-width="1.3"/>`,
+  ponto_energia_parede: `<circle r="7" fill="#fff" stroke="#16A34A" stroke-width="1.5"/><line x1="-4.5" y1="0" x2="4.5" y2="0" stroke="#16A34A" stroke-width="1.3"/><line x1="0" y1="-4.5" x2="0" y2="4.5" stroke="#16A34A" stroke-width="1.3"/><line x1="0" y1="-11" x2="0" y2="-7" stroke="#16A34A" stroke-width="1.2"/>`,
+  interruptor_4: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3.5" font-size="7.5" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S4</text>`,
   // Ponto de energia no teto (fase+neutro) — círculo com cruz (símbolo de ponto de luz/saída no teto, NBR)
   ponto_energia_teto: `<circle r="7" fill="#fff" stroke="#16A34A" stroke-width="1.5"/><line x1="-4.5" y1="0" x2="4.5" y2="0" stroke="#16A34A" stroke-width="1.3"/><line x1="0" y1="-4.5" x2="0" y2="4.5" stroke="#16A34A" stroke-width="1.3"/>`,
   // Interruptor simples — letra S (representação usual em planta)
@@ -89,30 +95,36 @@ const ELE_SYMBOLS = {
 }
 // classifica um marcador em símbolo elétrico NBR
 const ELE_TYPE_INFO = {
-  tomada_baixa:{label:'TUG', tipo:'Tomada baixa (0,30m)'},
-  tomada_alta:{label:'TUG-A', tipo:'Tomada média/alta'},
   tomada_piso:{label:'TUG-P', tipo:'Tomada de piso'},
+  tomada_baixa:{label:'TUG-B', tipo:'Tomada baixa (0,30m)'},
+  tomada_media:{label:'TUG-M', tipo:'Tomada média (1,10m)'},
+  tomada_alta:{label:'TUG-A', tipo:'Tomada alta (1,80m)'},
   tomada_teto:{label:'TUG-T', tipo:'Tomada de teto'},
-  keystone_teto:{label:'KS-T', tipo:'Keystone de teto (rede)'},
-  keystone_alto:{label:'KS-A', tipo:'Keystone alto/bancada (1,10m) CAT6'},
-  keystone_baixo:{label:'KS-B', tipo:'Keystone baixo (0,30m) CAT6'},
-  ponto_som_teto:{label:'♪T', tipo:'Ponto de som (teto)'},
-  ponto_energia_teto:{label:'⊕', tipo:'Ponto de energia no teto (fase+neutro)'},
-  interruptor_simples:{label:'S', tipo:'Interruptor / Keypad'},
-  interruptor_paralelo:{label:'S₃', tipo:'Interruptor paralelo'},
-  interruptor_intermediario:{label:'S₄', tipo:'Interruptor intermediário'},
+  ponto_energia_teto:{label:'⊕T', tipo:'Ponto elétrica no teto (fase+neutro)'},
+  ponto_energia_piso:{label:'⊕P', tipo:'Ponto elétrica no piso'},
+  ponto_energia_parede:{label:'⊕', tipo:'Ponto elétrica na parede'},
+  interruptor_simples:{label:'S1', tipo:'Interruptor 1 tecla'},
+  interruptor_paralelo:{label:'S2', tipo:'Interruptor 2 teclas'},
+  interruptor_intermediario:{label:'S3', tipo:'Interruptor 3 teclas'},
+  interruptor_4:{label:'S4', tipo:'Interruptor 4 teclas'},
   interruptor_6:{label:'S6', tipo:'Interruptor / Keypad 6 teclas'},
+  modulo_cabeceira:{label:'MOD', tipo:'Módulo cabeceira (tomada+interruptor+2 USB)'},
+  keystone_alto:{label:'KS-M', tipo:'Keystone parede média (1,10m) CAT6'},
+  keystone_teto:{label:'KS-T', tipo:'Keystone de teto (rede)'},
+  keystone_baixo:{label:'KS-B', tipo:'Keystone baixo (0,30m) CAT6'},
+  ponto_som_teto:{label:'♪T', tipo:'Ponto de som no teto'},
+  ponto_som_parede:{label:'♪P', tipo:'Ponto de som parede alta'},
+  ponto_som_piso:{label:'♪C', tipo:'Ponto de som no piso'},
   ponto_luz:{label:'L', tipo:'Ponto de luz'},
   arandela:{label:'L', tipo:'Arandela de parede'},
   arandela_teto:{label:'L', tipo:'Arandela de teto'},
   prumada:{label:'⇵', tipo:'Prumada (descida entre pavimentos)'},
   caixa_conduite:{label:'CX', tipo:'Caixa de conduíte (passagem/derivação)'},
-  modulo_cabeceira:{label:'MOD', tipo:'Módulo cabeceira (tomada+interruptor+2 USB)'},
   quadro:{label:'QDL', tipo:'Quadro de Distribuição'},
 }
 // caixa de embutir padrão por tipo: 6 teclas → 4x4; demais interruptores e tomadas → 4x2
 function caixaPadrao(sym){
-  if(sym==='interruptor_6') return '4x4'
+  if(sym==='interruptor_6'||sym==='interruptor_4') return '4x4'
   if(/interruptor/.test(sym||'')) return '4x2'
   if(/tomada|modulo/.test(sym||'')) return '4x2'
   return ''
@@ -136,7 +148,7 @@ function classifyEle(m){
   if(/interruptor.*(paralel|three|hotel)|paralelo/.test(n)) return {sym:'interruptor_paralelo', label:'S₃', tipo:'Interruptor paralelo'}
   // keypad: detecta nº de botões/teclas (ex: "Keypad 2 botões" → interruptor 2 teclas)
   if(/keypad|botão|botões|botoes|tecla|interruptor/.test(n)){
-    const mb=n.match(/(\d+)\s*(bot|tecla|gang|x)/)
+    const mb=n.match(/(\d+)\s*(bot|tecla|gang)/)
     const nb=mb?parseInt(mb[1]):1
     if(nb>=6) return {sym:'interruptor_6', label:'S6', tipo:`Interruptor/Keypad ${nb} teclas`}
     if(nb>=3) return {sym:'interruptor_intermediario', label:`S${nb}`, tipo:`Interruptor/Keypad ${nb} teclas`}
@@ -144,9 +156,15 @@ function classifyEle(m){
     return {sym:'interruptor_simples', label:'S', tipo:'Interruptor / Keypad'}
   }
   if(/tomada.*teto|tomada de teto/.test(n)) return {sym:'tomada_teto', label:'TUG-T', tipo:'Tomada de teto'}
-  if(/tomada.*piso|piso/.test(n)) return {sym:'tomada_piso', label:'TUG-P', tipo:'Tomada de piso'}
-  if(/tomada.*(alta|1,30|bancada|0,90|média|media)/.test(n)) return {sym:'tomada_alta', label:'TUG-A', tipo:'Tomada média/alta'}
-  if(/tomada/.test(n)) return {sym:'tomada_baixa', label:'TUG', tipo:'Tomada baixa (0,30m)'}
+  if(/tomada.*piso|tomada.*ch[ãa]o/.test(n)) return {sym:'tomada_piso', label:'TUG-P', tipo:'Tomada de piso'}
+  if(/tomada.*(alta|1[,.]80|2[,.]00|for[çc]a)/.test(n)) return {sym:'tomada_alta', label:'TUG-A', tipo:'Tomada alta (1,80m)'}
+  if(/tomada.*(m[ée]dia|1[,.]10|1[,.]30|banca|0[,.]90)/.test(n)) return {sym:'tomada_media', label:'TUG-M', tipo:'Tomada média (1,10m)'}
+  if(/tomada/.test(n)) return {sym:'tomada_baixa', label:'TUG-B', tipo:'Tomada baixa (0,30m)'}
+  if(/ponto.*el[ée]tric|ponto.*energia|ponto.*for[çc]a/.test(n)){
+    if(/teto|forro/.test(n)) return {sym:'ponto_energia_teto', label:'⊕T', tipo:'Ponto elétrica no teto'}
+    if(/piso|ch[ãa]o/.test(n)) return {sym:'ponto_energia_piso', label:'⊕P', tipo:'Ponto elétrica no piso'}
+    return {sym:'ponto_energia_parede', label:'⊕', tipo:'Ponto elétrica na parede'}
+  }
   if(/arandela.*teto|arandela de teto/.test(n)) return {sym:'arandela_teto', label:'L', tipo:'Arandela de teto'}
   if(/arandela/.test(n)) return {sym:'arandela', label:'L', tipo:'Arandela de parede'}
   if(/luz|luminária|luminaria|spot|lustre|plafon|ponto de luz/.test(n)) return {sym:'ponto_luz', label:'L', tipo:'Ponto de luz'}
@@ -183,13 +201,20 @@ function _textOn(hex){
 }
 
 // Descobre onde o item é montado: manual (m.mount) tem prioridade; senão infere.
+// Conjunto único do que é ponto ELÉTRICO de verdade (entra na planta elétrica e na lista geral).
+// Rede (keystone), som e dados NÃO entram aqui: têm suas próprias plantas/tabelas.
+const ELE_SYMS_SET = new Set(['tomada_baixa','tomada_media','tomada_alta','tomada_piso','tomada_teto','modulo_cabeceira',
+  'interruptor_simples','interruptor_paralelo','interruptor_intermediario','interruptor_4','interruptor_6',
+  'ponto_luz','ponto_energia_teto','ponto_energia_piso','ponto_energia_parede','arandela','arandela_teto','quadro','prumada'])
+function isPontoEletrico(m){ const c=classifyEle(m); return !!(c && ELE_SYMS_SET.has(c.sym)) }
+
 function mountOf(m){
   const a=((m&&m.altura)||'').toLowerCase()
   if(a){ if(a==='teto'||a==='forro') return 'teto'; if(a==='piso'||a==='chao'||a==='chão') return 'chao'; return 'parede' }
   if(m && (m.mount==='teto'||m.mount==='parede'||m.mount==='chao')) return m.mount
   const n=(((m&&m.name)||'')+' '+((m&&m.note)||'')).toLowerCase()
   const sym=classifyEle(m)?.sym||''
-  if(sym==='tomada_piso' || /\bpiso\b|ch[ãa]o|subwoofer|\bsub\b/.test(n)) return 'chao'
+  if(sym==='tomada_piso' || sym==='ponto_energia_piso' || sym==='ponto_som_piso' || /\bpiso\b|ch[ãa]o|subwoofer|\bsub\b/.test(n)) return 'chao'
   if(['tomada_teto','keystone_teto','ponto_som_teto','ponto_energia_teto','ponto_luz','arandela_teto'].includes(sym)) return 'teto'
   if(/teto|forro|c[âa]mera|dome|bullet|access point|\bap\b|wi-?fi|spot|lustre|plafon|luminári|luminari|sensor|presen[çc]a|mmwave|proje(tor|ção|cao)|caixa (ac[uú]stica|de som|som)|alto-?falante|speaker|\bir\b|infraverm|receptor ir/.test(n)) return 'teto'
   return 'parede'
@@ -208,7 +233,7 @@ function alturaOf(m){
   const n=(((m&&m.name)||'')+' '+((m&&m.note)||'')).toLowerCase()
   const sym=classifyEle(m)?.sym||''
   if(sym==='tomada_baixa'||/rodap|0[.,]30|\bbaixa\b/.test(n)) return 'baixa'
-  if(sym==='tomada_alta'||/1[.,]80|\balta\b|for[çc]a|access point|\bap\b/.test(n)) return 'alta'
+  if(sym==='tomada_alta'||sym==='ponto_som_parede'||/1[.,]80|\balta\b|for[çc]a|access point|\bap\b/.test(n)) return 'alta'
   return 'media'
 }
 
@@ -1752,9 +1777,9 @@ Responda APENAS JSON válido:
     // eletrodutos (linhas) ligando cada ponto ao quadro, legenda e quadro de cargas.
     function buildPlantaEletrica(numFn){
       // SÓ pontos elétricos de verdade — exclui rede/dados (keystone) e som
-      const ELE_ONLY = new Set(['tomada_baixa','tomada_alta','tomada_piso','tomada_teto','modulo_cabeceira',
-        'interruptor_simples','interruptor_paralelo','interruptor_intermediario','interruptor_6',
-        'ponto_luz','ponto_energia_teto','arandela','arandela_teto','quadro','prumada'])
+      const ELE_ONLY = new Set(['tomada_baixa','tomada_media','tomada_alta','tomada_piso','tomada_teto','modulo_cabeceira',
+        'interruptor_simples','interruptor_paralelo','interruptor_intermediario','interruptor_4','interruptor_6',
+        'ponto_luz','ponto_energia_teto','ponto_energia_piso','ponto_energia_parede','arandela','arandela_teto','quadro','prumada'])
       const eleMarks = markers.map(m=>({m, cls:classifyEle(m)})).filter(x=>x.cls && ELE_ONLY.has(x.cls.sym))
       if(!bgImage || !eleMarks.length) return ''
       const qdl = eleMarks.find(x=>x.cls.sym==='quadro')
@@ -1947,7 +1972,7 @@ Responda APENAS JSON válido:
         const f=cableFamily(m.cableType||guessCableType(m,m))
         const badge=showCabo?`<div style="position:absolute;top:-6px;right:-7px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
-      planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>${showLegenda?pontosLegenda():""}</div>`
+      planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>${showLegenda?pontosLegenda():""}</div>`
     }
 
     const sec=(title,inner)=>inner?`<div class="ex-sec"><h2>${title}</h2>${inner}</div>`:''
@@ -2261,7 +2286,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const f=cableFamily(m.cableType||guessCableType(m,m))
         const badge=showCabo?`<div style="position:absolute;top:-6px;right:-7px;min-width:13px;height:13px;padding:0 1px;border-radius:7px;background:${f.cor};color:#fff;font-size:8.5px;font-weight:800;line-height:13px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:24px;height:24px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:24})}${badge}</div>`}).join('')
-      return `<div class="ex-sec"><h2>Planta de Pontos</h2><div style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${dots}</div>${showLegenda?pontosLegenda():""}</div>`
+      return `<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${dots}</div>${showLegenda?pontosLegenda():""}</div>`
     }
     return ''
   })()}
@@ -2395,8 +2420,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
     // ── Tabela Automação (Interruptores, Tomadas, Sensores, Hub IR, Módulos) ──
     const tblAutomacao = (d.tabela_automacao||[]).length
-      ? T((d.tabela_automacao||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Automação'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.funcao)}</td><td style="font-size:10px">${esc(r.protocolo||'Zigbee')}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
-        ['#','ID','Equipamento','Ambiente','Função','Protocolo','Posição/Altura','Obs'])
+      ? T((d.tabela_automacao||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Automação'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.funcao)}</td><td style="font-size:10px">${esc(r.protocolo||'Zigbee')}</td><td style="text-align:center;font-size:10px;font-weight:600">${(()=>{ const m=_findMk(r.id,r.equip); const cx=m?(m.caixaTipo||caixaPadrao(classifyEle(m)?.sym)):''; return cx?esc(cx):'—' })()}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+        ['#','ID','Equipamento','Ambiente','Função','Protocolo','Caixa','Posição/Altura','Obs'])
       : ''
 
     // ── Tabela Segurança (Câmeras, Sensores de Alarme) ────────────────────────
@@ -2772,7 +2797,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if (mode==='eletrica') {
       let _ne=0
       const hasQuadro = markers.some(m=>classifyEle(m)?.sym==='quadro')
-      const eleMarks = markers.filter(m=>classifyEle(m))
+      const eleMarks = markers.filter(isPontoEletrico)
       const ELETR = new Set(['eletrica','conduite_eletrica'])
       const cabosEle = (cables||[]).filter(c=>ELETR.has(c.type||''))
       // tabela de fios elétricos (cabos elétricos desenhados) origem→destino
@@ -3097,7 +3122,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       return (showHeatmap && aps.length) ? (()=>{_cap++; return buildHeatmap(()=>_capNum(_cap))})() : '' })(),
 
     // 6. PLANTA DE TETO
-    plantaTeto ? cap('Planta de Teto — Itens sobre Forro e Laje') + plantaTeto.replace(/<div class="ex-sec[^>]*><h2[^<]*<[^>]*>[^<]*<\/span>[^<]*<\/h2>/,'') + '</div>' : '',
+    plantaTeto ? cap('Planta de Teto — Itens sobre Forro e Laje') + plantaTeto.replace('<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>','') + '</div>' : '',
 
     // 7. CABEAMENTO — plantas por família (dados da Obra, integrado sem duplicação)
     obraInline ? cap('Cabeamento e Conduítes — Plantas por Família') + `<p class="ex-p" style="margin-bottom:10px">Cada família de cabo (Dados, AP, Câmera, Som) com a planta dos cabos, tabela, planta dos conduítes e visão completa sobreposta. Para impressão em A3.</p>` + obraInline + '</div>' : '',
@@ -3174,7 +3199,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   }
   // preview ao vivo: regenera o HTML quando qualquer opção muda (só enquanto o painel está aberto)
   const pdfPreviewHtml = useMemo(()=> showPdfOpts ? buildFullHtml() : '',
-    [showPdfOpts, showLegenda, showIdsPdf, pageOrient, plantPct, hideFams, hideCats, hidePdfConduites, execMode, execData, execVersao]) // eslint-disable-line
+    [showPdfOpts, showLegenda, showIdsPdf, pageOrient, plantPct, hideFams, hideCats, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables]) // eslint-disable-line
 
   async function saveToProposal(docOverride){
     const docToSave = typeof docOverride==='string' ? docOverride : execDoc
@@ -4177,28 +4202,39 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   {(()=>{ const det=classifyEle({...m,eleType:undefined}); const detLabel=det?det.tipo:'não-elétrico (rede/dados/som)'
                     return <select value={m.eleType||'auto'} onChange={e=>{const v=e.target.value; setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,eleType:v==='auto'?undefined:v}:x))}} style={inputDark}>
                     <option value="auto">✨ Automático → {detLabel}</option>
-                    <optgroup label="⚡ ELÉTRICA — selo E">
-                      <option value="tomada_baixa">Tomada baixa (0,30m)</option>
-                      <option value="tomada_alta">Tomada alta / bancada (1,30m)</option>
-                      <option value="tomada_piso">Tomada de piso</option>
-                      <option value="tomada_teto">Tomada de teto (projetor/AP)</option>
-                      <option value="modulo_cabeceira">Módulo cabeceira (tomada+int+2 USB)</option>
-                      <option value="interruptor_simples">Interruptor simples</option>
-                      <option value="interruptor_paralelo">Interruptor paralelo (2 lugares)</option>
-                      <option value="interruptor_intermediario">Interruptor 3+ lugares</option>
-                      <option value="interruptor_6">Interruptor / Keypad 6 teclas</option>
-                      <option value="ponto_luz">Ponto de luz (teto)</option>
-                      <option value="ponto_energia_teto">Ponto de energia no teto (fase+neutro)</option>
-                      <option value="arandela">Arandela (parede)</option>
-                      <option value="arandela_teto">Arandela / luz de teto</option>
+                    <optgroup label="⚡ ELÉTRICA · Tomadas">
+                      <option value="tomada_piso">Tomada Piso</option>
+                      <option value="tomada_baixa">Tomada Baixa (0,30m)</option>
+                      <option value="tomada_media">Tomada Média (1,10m)</option>
+                      <option value="tomada_alta">Tomada Alta (1,80m)</option>
+                      <option value="tomada_teto">Tomada Teto</option>
+                    </optgroup>
+                    <optgroup label="⚡ ELÉTRICA · Ponto de energia">
+                      <option value="ponto_energia_teto">Ponto Elétrica Teto</option>
+                      <option value="ponto_energia_piso">Ponto Elétrica Piso</option>
+                      <option value="ponto_energia_parede">Ponto Elétrica Parede</option>
+                    </optgroup>
+                    <optgroup label="⚡ ELÉTRICA · Interruptores">
+                      <option value="interruptor_simples">Interruptor 1</option>
+                      <option value="interruptor_paralelo">Interruptor 2</option>
+                      <option value="interruptor_intermediario">Interruptor 3</option>
+                      <option value="interruptor_4">Interruptor 4</option>
+                      <option value="interruptor_6">Interruptor / Keypad 6</option>
+                      <option value="modulo_cabeceira">Módulo Cabeceira</option>
+                    </optgroup>
+                    <optgroup label="🔵 DADOS · selo R">
+                      <option value="keystone_alto">Keystone Parede Média</option>
+                      <option value="keystone_teto">Keystone Teto</option>
+                    </optgroup>
+                    <optgroup label="🔊 SOM · selo S">
+                      <option value="ponto_som_teto">Ponto de Som Teto</option>
+                      <option value="ponto_som_parede">Ponto de Som Parede Alta</option>
+                      <option value="ponto_som_piso">Ponto de Som Piso</option>
+                    </optgroup>
+                    <optgroup label="Infraestrutura">
                       <option value="quadro">Quadro de luz (QDL)</option>
-                      <option value="prumada">Prumada (subida/descida entre andares)</option>
-                    </optgroup>
-                    <optgroup label="🔵 REDE / DADOS — selo R">
-                      <option value="keystone_alto">Keystone de rede (altura no seletor acima)</option>
-                    </optgroup>
-                    <optgroup label="🔊 SOM — selo S">
-                      <option value="ponto_som_teto">Ponto de som (teto — caixa embutida)</option>
+                      <option value="prumada">Prumada (entre andares)</option>
+                      <option value="caixa_conduite">Caixa de conduíte</option>
                     </optgroup>
                     <option value="nenhum">— Não é elétrico (rede/dados/som)</option>
                   </select> })()}
@@ -4459,7 +4495,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   </div>
                 </div>
                 <div style={{padding:'12px 0 2px'}}>
-                  <div style={{fontSize:12.5,fontWeight:600,marginBottom:2}}>Filtros do relatório</div>
+                  <div style={{fontSize:12.5,fontWeight:600,marginBottom:2}}>Filtros do relatório <span style={{fontWeight:400,color:'#94A3B8'}}>· {markers.length} {markers.length===1?'item':'itens'} no total</span></div>
                   <div style={{fontSize:10.5,color:'#94A3B8',marginBottom:8}}>Clique para <b style={{color:'#FCA5A5'}}>tirar do PDF</b> (riscado = fora). Não apaga nada do projeto.</div>
                   <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',marginBottom:7}}>
                     <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Cabos</span>
@@ -4468,7 +4504,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   </div>
                   <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
                     <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Categorias</span>
-                    {catList.map(c=>chip(hideCats.has(c), c, ()=>setHideCats(p=>{const x=new Set(p); x.has(c)?x.delete(c):x.add(c); return x})))}
+                    {catList.map(c=>{ const n=markers.filter(m=>equipType(m.name)===c).length; return chip(hideCats.has(c), `${c} · ${n}`, ()=>setHideCats(p=>{const x=new Set(p); x.has(c)?x.delete(c):x.add(c); return x})) })}
                   </div>
                 </div>
               </div>

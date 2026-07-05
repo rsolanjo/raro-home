@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v246 — PREVIEW AO VIVO do documento. Botao "Baixar PDF" agora abre um painel de tela cheia: controles a esquerda (Legenda, IDs, Orientacao, Tamanho, Filtros), previa do documento REAL a direita num iframe. Mexeu num controle, a previa atualiza na hora (buildFullHtml extraido de exportPdf + useMemo reativo). Botao Baixar PDF no topo do painel gera/imprime. Substitui o modal-so-controles da v243. Mantem v207-v245.
+// v249 — PLANTA ELETRICA: filtro unico isPontoEletrico (ELE_SYMS_SET) tira REDE/som/dados da planta e da lista geral eletrica (so eletrica de verdade). Simbolos tecnicos NBR completados para os tipos novos: tomada_media (2 tracos), tomada_alta agora 3 tracos (diferencia de media), ponto_energia_piso (quadrado+cruz), ponto_energia_parede (circulo+cruz+traco), interruptor_4 (S4), ponto_som_parede, ponto_som_piso. Assim nada cai mais no simbolo generico. PENDENTE (roadmap): tomadas 10A/20A, validador de campos vazios/inconsistentes, legenda eletrica profissional completa (padrao da referencia), visao de som (receiver do catalogo). Mantem v207-v248.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v246 · build 2026-07
+          v249 · build 2026-07
         </div>
       </div>
     </div>
