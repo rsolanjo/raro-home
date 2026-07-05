@@ -169,6 +169,19 @@ export function buildContract(proposal, client, opts={}) {
   // ── MODELO CLÁSSICO ────────────────────────────────────────────────
   // Layout enxuto e institucional (fiel ao contrato R&-5683). Vale para QUALQUER tipo.
   // Reaproveita todo o cálculo acima (total, extenso, cláusulas, escopo). Só muda a diagramação.
+  if(opts.modelo==='fable'){
+    // Fable = pele editorial (creme/tinta/dourado + Fraunces) sobre o modelo novo.
+    // O texto jurídico é EXATAMENTE o mesmo; só muda a apresentação.
+    const base = buildContract(proposal, client, {...opts, modelo:undefined})
+    return base
+      .replaceAll('#0369A1','#8A6A38').replaceAll('#1C6AA6','#8A6A38').replaceAll('#0EA5E9','#B0854C').replaceAll('#38BDF8','#D8B476')
+      .replace('</head>', `<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&display=swap" rel="stylesheet"><style>
+        body{background:#FAF5EC!important;color:#1E2536}
+        h1,h2,h3,.doc-title,.title{font-family:'Fraunces','EB Garamond',Georgia,serif!important;color:#131A2C}
+        .sigline{border-color:#131A2C!important}
+        @media print{body{background:#fff!important}}
+      </style></head>`)
+  }
   if(opts.modelo==='classico'){
     return buildContractClassico({
       proposal, client, tipo, ehProjeto, tituloDoc, objetoTxt, pagamentoTxt,
@@ -925,10 +938,11 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
               <b style={{fontSize:13}}>Modelo do documento</b>
               <span style={{fontSize:10.5,color:'var(--text3)'}}>vale para qualquer tipo acima</span>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
               {[
                 ['novo','Novo','Layout atual, serifado e detalhado','ti-sparkles'],
                 ['classico','Clássico','Enxuto e institucional (modelo R&-5683)','ti-file-text'],
+                ['fable','Fable','Editorial: papel creme, tinta e dourado. Mesmas cláusulas.','ti-feather'],
               ].map(([v,t,sub,ic])=>(
                 <button key={v} onClick={()=>setModelo(v)} style={{textAlign:'left',padding:'10px 12px',borderRadius:8,cursor:'pointer',
                   border:`1.5px solid ${modelo===v?'var(--accent)':'var(--border)'}`,background:modelo===v?'rgba(14,165,233,0.1)':'var(--bg)',color:'var(--text1)',fontFamily:'inherit'}}>

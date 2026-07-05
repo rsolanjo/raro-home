@@ -61,7 +61,7 @@ const ELE_SYMBOLS = {
   tomada_alta: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="-4" y1="-11" x2="-4" y2="-7" stroke="#111" stroke-width="1.1"/><line x1="0" y1="-11" x2="0" y2="-7" stroke="#111" stroke-width="1.1"/><line x1="4" y1="-11" x2="4" y2="-7" stroke="#111" stroke-width="1.1"/>`,
   // Tomada de piso — círculo com X dentro
   tomada_piso: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-4.5" y1="-4.5" x2="4.5" y2="4.5" stroke="#111" stroke-width="1.2"/><line x1="-4.5" y1="4.5" x2="4.5" y2="-4.5" stroke="#111" stroke-width="1.2"/>`,
-  tomada_teto: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="0" y1="7" x2="0" y2="11" stroke="#111" stroke-width="1.3"/><text x="0" y="-2" font-size="5" text-anchor="middle" fill="#111">T</text>`,
+  tomada_teto: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="0" y1="7" x2="0" y2="11" stroke="#111" stroke-width="1.3"/><text x="0" y="-1.5" font-size="5.5" font-weight="700" text-anchor="middle" fill="#fff">T</text>`,
   keystone_teto: `<rect x="-7" y="-7" width="14" height="14" rx="2" fill="#fff" stroke="#111" stroke-width="1.2"/><circle cx="0" cy="0" r="3.5" fill="none" stroke="#111" stroke-width="1.1"/><line x1="0" y1="7" x2="0" y2="11" stroke="#111" stroke-width="1.2"/><text x="0" y="-9" font-size="5" text-anchor="middle" fill="#111">KS</text>`,
   keystone_alto: `<rect x="-6.5" y="-6.5" width="13" height="13" rx="2" fill="#fff" stroke="#2563EB" stroke-width="1.3"/><circle cx="0" cy="0" r="3" fill="none" stroke="#2563EB" stroke-width="1.1"/><line x1="0" y1="-10.5" x2="0" y2="-6.5" stroke="#2563EB" stroke-width="1.2"/>`,
   keystone_baixo: `<rect x="-6.5" y="-6.5" width="13" height="13" rx="2" fill="#fff" stroke="#2563EB" stroke-width="1.3"/><circle cx="0" cy="0" r="3" fill="none" stroke="#2563EB" stroke-width="1.1"/><line x1="0" y1="6.5" x2="0" y2="10.5" stroke="#2563EB" stroke-width="1.2"/>`,
@@ -74,11 +74,11 @@ const ELE_SYMBOLS = {
   // Ponto de energia no teto (fase+neutro) — círculo com cruz (símbolo de ponto de luz/saída no teto, NBR)
   ponto_energia_teto: `<circle r="7" fill="#fff" stroke="#16A34A" stroke-width="1.5"/><line x1="-4.5" y1="0" x2="4.5" y2="0" stroke="#16A34A" stroke-width="1.3"/><line x1="0" y1="-4.5" x2="0" y2="4.5" stroke="#16A34A" stroke-width="1.3"/>`,
   // Interruptor simples — letra S (representação usual em planta)
-  interruptor_simples: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3.5" font-size="9" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S</text>`,
+  interruptor_simples: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3" font-size="7.5" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S1</text>`,
   // Interruptor paralelo (three-way) — S com traço
-  interruptor_paralelo: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3.5" font-size="8" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S₃</text>`,
+  interruptor_paralelo: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3" font-size="7.5" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S2</text>`,
   // Interruptor intermediário (four-way)
-  interruptor_intermediario: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3.5" font-size="8" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S₄</text>`,
+  interruptor_intermediario: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3" font-size="7.5" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S3</text>`,
   interruptor_6: `<circle r="7.5" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3" font-size="7" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S6</text>`,
   // Ponto de luz no teto — círculo com 4 traços (luminária)
   ponto_luz: `<circle r="6.5" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="0" x2="-6.5" y2="0" stroke="#111" stroke-width="1.1"/><line x1="6.5" y1="0" x2="9" y2="0" stroke="#111" stroke-width="1.1"/><line x1="0" y1="-9" x2="0" y2="-6.5" stroke="#111" stroke-width="1.1"/><line x1="0" y1="6.5" x2="0" y2="9" stroke="#111" stroke-width="1.1"/><circle r="2" fill="#111"/>`,
@@ -144,8 +144,8 @@ function classifyEle(m){
   if(/caixa.*conduite|conduite.*caixa|caixa.*passagem|caixa.*deriva|junction/.test(n)) return {sym:'caixa_conduite', label:'CX', tipo:'Caixa de conduíte (passagem/derivação)'}
   if(/prumada|shaft|descida.*andar|descida.*pavimento|coluna.*vertical/.test(n)) return {sym:'prumada', label:'⇵', tipo:'Prumada (descida entre pavimentos)'}
   if(/quadro|qdl|qd |distribui/.test(n)) return {sym:'quadro', label:'QDL', tipo:'Quadro de Distribuição'}
-  if(/interruptor.*(intermedi|four)/.test(n)) return {sym:'interruptor_intermediario', label:'S₄', tipo:'Interruptor intermediário'}
-  if(/interruptor.*(paralel|three|hotel)|paralelo/.test(n)) return {sym:'interruptor_paralelo', label:'S₃', tipo:'Interruptor paralelo'}
+  if(/interruptor.*(intermedi|four)/.test(n)) return {sym:'interruptor_intermediario', label:'S3', tipo:'Interruptor 3 teclas'}
+  if(/interruptor.*(paralel|three|hotel)|paralelo/.test(n)) return {sym:'interruptor_paralelo', label:'S2', tipo:'Interruptor 2 teclas'}
   // keypad: detecta nº de botões/teclas (ex: "Keypad 2 botões" → interruptor 2 teclas)
   if(/keypad|botão|botões|botoes|tecla|interruptor/.test(n)){
     const mb=n.match(/(\d+)\s*(bot|tecla|gang)/)
@@ -570,6 +570,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [imgRatio, setImgRatio]     = useState(()=> initPlanta?.imgRatio || 0.75) // altura/largura da imagem (p/ converter % em distância real)
   const [calibMode, setCalibMode]   = useState(false)   // ativa o modo de calibrar clicando 2 pontos
   const [calibPts, setCalibPts]     = useState([])       // [{x,y}] até 2 pontos
+  const [calibSamples, setCalibSamples] = useState(()=> initPlanta?.calibSamples || []) // [{d, metros}] medições de parede (multi-amostra)
   const [folgaPct, setFolgaPct]     = useState(15)       // folga de instalação (%)
   const [cableDraft, setCableDraft] = useState(null)         // {fromUid, points:[]} enquanto desenha
   const [selCable, setSelCable]     = useState(null)
@@ -1006,17 +1007,33 @@ Responda APENAS JSON válido:
       setConduitDraft(prev=>[...prev, pt])
       return
     }
-    // modo calibração: coleta 2 pontos e pergunta a distância real
+    // modo calibração: coleta 2 pontos e pergunta a distância real (precisão: milésimo de %)
     if(calibMode){
       const r=containerRef.current.getBoundingClientRect()
       const x=((e.clientX-r.left)/r.width)*100, y=((e.clientY-r.top)/r.height)*100
       setCalibPts(prev=>{
-        const next=[...prev,{x:+x.toFixed(1),y:+y.toFixed(1)}]
+        const next=[...prev,{x:+x.toFixed(3),y:+y.toFixed(3)}]
         if(next.length===2){
           const d=polyLenWidthUnits(next)  // distância entre os 2 pontos em unidades-de-largura
-          const resp=window.prompt('Quantos METROS tem essa distância que você marcou?\n(ex: 5 para uma parede de 5 metros)')
+          const resp=window.prompt('Quantos METROS tem essa distância que você marcou?\n(ex: 4,52 — use a medida real da parede, quanto mais exata melhor)')
           const metros=parseFloat((resp||'').replace(',','.'))
-          if(metros>0 && d>0){ setPlantScale(metros/d); alert(`✅ Escala definida: a planta inteira tem ~${(metros/d).toFixed(2)}m de largura. Os cabos agora calculam a metragem sozinhos.`) }
+          if(metros>0 && d>0){
+            const novas=[...calibSamples, {d:+d.toFixed(6), metros}]
+            const escalas=novas.map(s=>s.metros/s.d)
+            const media=escalas.reduce((a,b)=>a+b,0)/escalas.length
+            setCalibSamples(novas); setPlantScale(media)
+            let msg=`✅ Medição ${novas.length} registrada: ${metros}m.\nLargura total da planta: ~${media.toFixed(2)}m.`
+            if(escalas.length>1){
+              const desvio=(Math.max(...escalas)-Math.min(...escalas))/media*100
+              msg+=`\n\nConferência cruzada (${escalas.length} paredes): desvio de ${desvio.toFixed(1)}%.`
+              if(desvio>3) msg+=`\n⚠ Acima de 3%: alguma medição está imprecisa. Recomendo zerar a escala e medir de novo com calma (paredes maiores dão mais precisão).`
+              else msg+=`\n✓ Dentro da tolerância profissional. Escala = média das medições.`
+            } else {
+              msg+=`\n\nPara precisão profissional, meça uma SEGUNDA parede (de preferência na outra direção). Eu cruzo as duas e te digo o desvio.`
+            }
+            const outra=window.confirm(msg+'\n\n→ OK para medir OUTRA parede agora\n→ Cancelar para terminar')
+            if(outra){ setCalibPts([]); return [] }
+          }
           setCalibMode(false); return []
         }
         return next
@@ -1413,7 +1430,11 @@ Responda APENAS JSON válido:
     if(!plantScale) return null
     const pts=cablePolyPoints(c); if(pts.length<2) return null
     const base = polyLenWidthUnits(pts)*plantScale            // metros do caminho na planta
-    const subidaDescida = 3.0                                  // ~3m de subida ao forro/descida à caixa
+    // PERCURSO PELA PRUMADA (runId): o cabo é UM só, dividido em trechos.
+    // Cada trecho leva metade da subida/descida (1,5m) e o pé-direito conta UMA vez,
+    // no trecho que CHEGA na prumada (runToUid). Senão o percurso infla 3m + 1 pé-direito.
+    const ehRun = !!c.runId
+    const subidaDescida = ehRun ? 1.5 : 3.0                    // ~3m no total do percurso
     // PRUMADA: soma a altura do PAR (pé-direito). Cada par (mesmo código) conta UMA vez por cabo.
     const prumadas = markers.filter(m=>classifyEle(m)?.sym==='prumada')
     const alturaDoPar = (p)=>{ const cod=(p.prumadaCode||'').trim().toLowerCase()
@@ -1421,16 +1442,41 @@ Responda APENAS JSON válido:
       return parseFloat(p.prumadaAltura)||0 }
     const chaveDoPar = (p)=> (p.prumadaCode||'').trim().toLowerCase() || ('uid'+p.uid)
     let prumadaH = 0
-    const paresContados = new Set()
-    const tocaPrumada = (p)=>{
-      if(!c.free && (c.fromUid===p.uid || c.toUid===p.uid)) return true
-      return pts.some(pt=>{ const dx=(pt.x-p.x), dy=(pt.y-p.y)*imgRatio; return Math.sqrt(dx*dx+dy*dy) < 4 })
-    }
-    for(const p of prumadas){ const chave=chaveDoPar(p); if(paresContados.has(chave)) continue
-      if(tocaPrumada(p)){ prumadaH += alturaDoPar(p); paresContados.add(chave) }
+    if(!ehRun || c.runToUid){  // trecho final de um percurso NÃO soma o pé-direito de novo
+      const paresContados = new Set()
+      const tocaPrumada = (p)=>{
+        if(!c.free && (c.fromUid===p.uid || c.toUid===p.uid)) return true
+        return pts.some(pt=>{ const dx=(pt.x-p.x), dy=(pt.y-p.y)*imgRatio; return Math.sqrt(dx*dx+dy*dy) < 4 })
+      }
+      for(const p of prumadas){ const chave=chaveDoPar(p); if(paresContados.has(chave)) continue
+        if(tocaPrumada(p)){ prumadaH += alturaDoPar(p); paresContados.add(chave) }
+      }
     }
     const comFolga = (base+subidaDescida+prumadaH) * (1+folgaPct/100)
     return Math.round(comFolga*10)/10
+  }
+  // Unifica os trechos de um percurso pela prumada num cabo virtual único:
+  // origem e destino REAIS preservados, metragem = soma dos trechos, marcado "via prumada".
+  function cablesUnificados(cbs=cables, mks=markers){
+    const runs={}, out=[]
+    for(const c of (cbs||[])){
+      if(!c.free && c.runId){ (runs[c.runId]=runs[c.runId]||[]).push(c) }
+      else out.push(c)
+    }
+    const findM = uid => (mks||[]).find(m=>m.uid===uid)
+    for(const grupo of Object.values(runs)){
+      const seg1 = grupo.find(c=>c.runToUid) || grupo[0]
+      const segF = grupo.find(c=>!c.runToUid) || grupo[grupo.length-1]
+      const fromUid = seg1.runFromUid || seg1.fromUid
+      const toUid = segF.toUid
+      const total = grupo.reduce((s,c)=>{ const m=(c.meters!=null&&c.meters!=='')?parseFloat(c.meters):cableMeters(c); return s+(m||0) },0)
+      const pr = findM(seg1.toUid)
+      const cod = (pr?.prumadaCode||'').trim().toUpperCase()
+      out.push({ ...seg1, id:seg1.runId, fromUid, toUid,
+        meters: total>0 ? String(Math.round(total*10)/10) : seg1.meters,
+        _via: `via prumada${cod?' '+cod:''}`, _runSegs: grupo.length })
+    }
+    return out
   }
   function setCableMetersManual(id, val){ setCables(cs=>cs.map(c=>c.id===id?{...c, meters: val===''?undefined:val}:c)) }
   // ── Conduíte compartilhado (MANUAL) ──
@@ -1522,14 +1568,15 @@ Responda APENAS JSON válido:
     }).filter(Boolean)
 
     // cabos de rede a partir dos cabos desenhados na planta (se houver)
+    // Percursos pela prumada entram como UMA linha (origem e destino reais, metragem somada).
     const _portaSeq = {}
-    const rack_cable_table = (cables||[]).map((c,i)=>{
+    const rack_cable_table = cablesUnificados().filter(c=>!c.free).map((c,i)=>{
       const from=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid)
       const mt=cableMeters(c)
       const dev = from?.name||'Rack'
       _portaSeq[dev] = (_portaSeq[dev]||0)+1
       return { porta_patch:`P${String(i+1).padStart(2,'0')}`, device_origem:dev, porta_origem:String(_portaSeq[dev]),
-        destino:to?.name||'—', tipo:(CABLE_SPEC[c.type]?.spec)||'CAT6',
+        destino:(to?.name||'—')+(c._via?` · ${c._via}`:''), tipo:(CABLE_SPEC[c.type]?.spec)||'CAT6',
         metros: mt!=null?String(mt):'—',
         etiqueta:`${(to?.code||to?.name||'PT')}`.toUpperCase().slice(0,16), cor:'' }
     })
@@ -1609,7 +1656,7 @@ Responda APENAS JSON válido:
       setStep('exec')
       if(fromProposal?.id){
         import('../db/supabase.js').then(({saveProposal})=>{
-          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct,exec_data:data} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
+          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:data} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
         })
       }
     } catch(err){
@@ -1707,7 +1754,7 @@ Responda APENAS JSON válido:
       if(fromProposal?.id){
         try{
           const { saveProposal } = await import('../db/supabase.js')
-          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct,exec_data:data} }
+          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:data} }
           await saveProposal(updated)
         }catch(e){ console.warn('Auto-save falhou:', e.message) }
       }
@@ -1758,17 +1805,37 @@ Responda APENAS JSON válido:
       const f=markers.find(m=>m.uid===c.fromUid), t=markers.find(m=>m.uid===c.toUid)
       return (f&&t) ? [{x:f.x,y:f.y}, ...(c.points||[]), {x:t.x,y:t.y}] : []
     }
+    // ── LEGENDA MESTRE (decisão 3): símbolo técnico NBR + pino da planta lado a lado,
+    // só dos tipos presentes no projeto. Mesma legenda em todos os documentos.
+    const legendaMestreHtml = (()=>{
+      const vistos=new Map()
+      markers.forEach(m=>{ const c=classifyEle(m); if(c && !vistos.has(c.sym)) vistos.set(c.sym,{sym:c.sym,tipo:(ELE_TYPE_INFO[c.sym]?.tipo)||c.tipo||'',m}) })
+      const NIVL={piso:'chão',baixa:'0,30 m',media:'1,10 m',alta:'1,80 m',teto:'teto'}
+      const linhas=[...vistos.values()].map(u=>{ const alt=alturaOf(u.m)
+        return `<div style="display:flex;align-items:center;gap:8px;padding:4px 7px;border:1px solid #E2E8F0;border-radius:6px;background:#fff">
+          <svg viewBox="-12 -14 24 32" width="20" height="26">${ELE_SYMBOLS[u.sym]||ELE_SYMBOLS.generico}</svg>
+          <span style="width:20px;height:20px;display:inline-block;flex-shrink:0">${pinShapeSVG({mount:mountOf(u.m),alt,color:catColorOf(u.m)||'#64748B',label:'',size:20})}</span>
+          <span style="font-size:9.5px;color:#334155;line-height:1.3"><b>${String(u.tipo).replace(/</g,'&lt;')}</b><br><span style="color:#94A3B8">${NIVL[alt]||''}</span></span>
+        </div>` }).join('')
+      return pontosLegenda() + (linhas?`<div style="margin-top:8px;padding:10px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#64748B;margin-bottom:7px">Legenda mestre · símbolo técnico (NBR) + pino da planta · tipos usados neste projeto</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:5px">${linhas}</div>
+      </div>`:'')
+    })()
     const _ver = versao || execVersao
     const isObra = mode==='obra'
     const _prem = _ver==='nova'
     // Tema do miolo do documento: no premium acompanha a casca (navy + dourado);
     // no clássico, cyan. NÃO mexe em cor que é dado (cabo, categoria, gráfico, telas de app).
-    const TH = _prem
+    const _fable = _ver==='fable'
+    const TH = _fable
+      ? { rule:'#B0854C', pin:'#131A2C', accent:'#B0854C' }
+      : _prem
       ? { rule:'#1A2740', pin:'#1A2740', accent:'#9C7B45' }
       : { rule:'#0EA5E9', pin:'#0EA5E9', accent:'#0EA5E9' }
-    // Número de capítulo: premium = algarismo dourado inline (estilizado pelo CSS .ex-sec-num);
+    // Número de capítulo: premium/fable = algarismo dourado inline (estilizado pelo CSS .ex-sec-num);
     // clássico = bolinha cyan inline.
-    const _capNum = n => _prem
+    const _capNum = n => (_prem||_fable)
       ? `<span class="ex-sec-num">${n}</span>`
       : `<span class="ex-sec-num" style="background:#0EA5E9;color:#fff;padding:3px 10px;border-radius:5px;font-size:13px;margin-right:10px">${n}</span>`
 
@@ -1972,7 +2039,7 @@ Responda APENAS JSON válido:
         const f=cableFamily(m.cableType||guessCableType(m,m))
         const badge=showCabo?`<div style="position:absolute;top:-6px;right:-7px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
-      planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>${showLegenda?pontosLegenda():""}</div>`
+      planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
     }
 
     const sec=(title,inner)=>inner?`<div class="ex-sec"><h2>${title}</h2>${inner}</div>`:''
@@ -2267,7 +2334,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
     const _eletr = mode==='eletrica'
     const _temWifi = showHeatmap && markers.some(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
-    return `<style>${_ver==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
+    return `<style>${_ver==='fable'?EXEC_CSS_FABLE:_ver==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
 <div class="ex-doc">
   <!-- CAPA -->
   <div class="ex-cover">
@@ -2286,7 +2353,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const f=cableFamily(m.cableType||guessCableType(m,m))
         const badge=showCabo?`<div style="position:absolute;top:-6px;right:-7px;min-width:13px;height:13px;padding:0 1px;border-radius:7px;background:${f.cor};color:#fff;font-size:8.5px;font-weight:800;line-height:13px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:24px;height:24px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:24})}${badge}</div>`}).join('')
-      return `<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${dots}</div>${showLegenda?pontosLegenda():""}</div>`
+      return `<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
     }
     return ''
   })()}
@@ -2799,12 +2866,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const hasQuadro = markers.some(m=>classifyEle(m)?.sym==='quadro')
       const eleMarks = markers.filter(isPontoEletrico)
       const ELETR = new Set(['eletrica','conduite_eletrica'])
-      const cabosEle = (cables||[]).filter(c=>ELETR.has(c.type||''))
+      const cabosEle = cablesUnificados(cables, markers).filter(c=>!c.free && ELETR.has(c.type||''))
       // tabela de fios elétricos (cabos elétricos desenhados) origem→destino
       const tblFios = cabosEle.length ? (()=>{
         const rows=cabosEle.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid); const mt=cableMeters(c)
           const sp=CABLE_SPEC[c.type]||{spec:'3×2,5mm²'}
-          return `<tr>${pinCell(to?.id,to?.code,to?.n)}<td>${f?`<b>#${f.n}</b> ${esc(f.name)}`:'Quadro'}</td><td>${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td><td style="font-size:11px">${esc(to?.room||'—')}</td><td style="font-size:11px">${esc(sp.spec)}</td><td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td></tr>` }).join('')
+          return `<tr>${pinCell(to?.id,to?.code,to?.n)}<td>${f?`<b>#${f.n}</b> ${esc(f.name)}`:'Quadro'}</td><td>${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}${c._via?` <span style="font-size:9px;color:#7C3AED;font-weight:600">· ${esc(c._via)}</span>`:''}</td><td style="font-size:11px">${esc(to?.room||'—')}</td><td style="font-size:11px">${esc(sp.spec)}</td><td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td></tr>` }).join('')
         const totM=cabosEle.reduce((s,c)=>s+(cableMeters(c)||0),0)
         return `<h3 class="ex-amb" style="color:#16A34A">Fios elétricos traçados${totM>0?` · total ~${Math.round(totM)}m`:''}</h3>${T(rows,['Nº','Origem','Destino','Cômodo','Bitola','Metros'])}`
       })() : ''
@@ -2869,7 +2936,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         return `<div class="ex-plant">
           <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></svg>${allDots}
-        </div>${showLegenda?pontosLegenda():''}`
+        </div>${showLegenda?legendaMestreHtml:''}`
       })() : ''
 
       // ── planta de CABOS de uma família (só itens dessa família + rack) ──
@@ -3070,14 +3137,54 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       })() : ''
       // notas finais
       const eletrodutoNotas = (d.checklist_obra||[]).filter(x=>/eletroduto|caixa 4|4×4|4x4|sangria|passagem|fio-guia|condu/i.test(x))
+      // ── Decisão 2: blocos que fecham o serviço do mestre dentro do Plano de Obra ──
+      const NIVL={piso:'chão',baixa:'0,30 m',media:'1,10 m',alta:'1,80 m',teto:'teto'}, LOCL={teto:'Teto',chao:'Piso',parede:'Parede'}
+      const obraPosAlt = (()=>{ const byRoom={}
+        markers.filter(m=>!isRackItem(m.name,m.code)).forEach(m=>{ const r=m.room||'Geral'; (byRoom[r]=byRoom[r]||[]).push(m) })
+        const rooms=Object.entries(byRoom); if(!rooms.length) return ''
+        return `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Posição e Altura dos Pontos</h2>
+          <p class="ex-p" style="color:#6B7280">Onde cada ponto é instalado e em que altura. Cor = categoria, forma = local (△ teto, ○ parede, □ chão), selo = cabo.</p>`+
+          rooms.map(([amb,ms])=>`<h3 class="ex-amb">${esc(amb)} · ${ms.length} ${ms.length===1?'ponto':'pontos'}</h3>`+
+            T(ms.map(m=>`<tr><td style="text-align:center">${pin(m.n,undefined,m)}</td><td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||('#'+m.n))}</b></td><td>${esc(m.name||'')}</td><td>${LOCL[mountOf(m)]||'—'}</td><td style="font-weight:700">${NIVL[alturaOf(m)]||'—'}</td></tr>`).join(''),['Ponto','ID','Item','Local','Altura'])).join('')+`</div>`
+      })()
+      const obraListaEle = (()=>{ const els=markers.filter(isPontoEletrico); if(!els.length) return ''
+        return `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Pontos Elétricos — Caixas e Alturas</h2>
+          <p class="ex-p" style="color:#6B7280">Qual caixa embutir e em que altura, por ponto. A planta com símbolos NBR está no documento Planta Elétrica (A3).</p>`+
+          T(els.map(m=>{ const cls=classifyEle(m); const cx=m.caixaTipo||caixaPadrao(cls.sym)||'—'
+            return `<tr><td style="text-align:center">${pin(m.n,undefined,m)}</td><td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td><td>${esc(cls.tipo)}</td><td>${esc(m.room||'—')}</td><td style="text-align:center;font-weight:700">${esc(cx)}</td><td style="font-weight:700">${NIVL[alturaOf(m)]||'—'}</td></tr>`}).join(''),['Nº','ID','Tipo','Cômodo','Caixa','Altura'])+`</div>`
+      })()
+      const obraQuant = (()=>{
+        const caixas={}; markers.filter(isPontoEletrico).forEach(m=>{ const cx=m.caixaTipo||caixaPadrao(classifyEle(m).sym); if(cx) caixas[cx]=(caixas[cx]||0)+1 })
+        const fams={}; cablesUnificados(cables,markers).filter(c=>!c.free).forEach(c=>{ const f=cableFamily(c.type||'dados'); const mt=cableMeters(c)||0; fams[f.nome]=(fams[f.nome]||0)+mt })
+        const conds=(cables||[]).filter(c=>c.free); const condM=conds.reduce((s,c)=>s+(cableMeters(c)||0),0)
+        const rows=[
+          ...Object.entries(caixas).sort().map(([k,v])=>['Caixa de embutir '+k, v+' un']),
+          ...Object.entries(fams).map(([k,v])=>['Cabo '+k, (plantScale? Math.round(v)+' m':'defina a escala')]),
+          ...(conds.length?[['Eletrodutos (conduítes)', conds.length+' trecho'+(conds.length>1?'s':'')+(plantScale&&condM?' · ~'+Math.round(condM)+' m':'')]]:[]),
+        ]
+        if(!rows.length) return ''
+        return `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Quantitativo de Material</h2>
+          <p class="ex-p" style="color:#6B7280">Metragens já incluem subida/descida ao forro e folga de instalação (${folgaPct}%). Percursos pela prumada contam o pé-direito uma vez.</p>`+
+          T(rows.map(r=>`<tr><td>${r[0]}</td><td style="text-align:right;font-weight:700">${r[1]}</td></tr>`).join(''),['Material','Quantidade'])+`</div>`
+      })()
+      // ── Decisão 5: checklists e alimentação dos keypads migram do Executivo pra cá ──
+      const obraChecklists = `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Checklists de Obra e Instalação</h2>
+        <h3 class="ex-amb">Checklist de Obra — Arquiteto / Eletricista</h3>${list(d.checklist_obra)}
+        <h3 class="ex-amb" style="margin-top:16px">Checklist de Instalação — Equipe RARO Home</h3>${list(d.checklist_raro)}</div>`
+      const obraAlim = (d.alim_keypads||[]).length ? `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Alimentação dos Keypads (Fase + Neutro)</h2>`+
+        T(d.alim_keypads.map(r=>`<tr>${pinCell(r.destino,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x1,5mm²')}</td></tr>`).join(''),['Nº','ID','Origem','Destino (Keypad)','Altura','Cômodo','m','Fios'])+`</div>` : ''
       const obraSections = [
         `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Plano de Obra</h2>
           <p class="ex-p" style="color:#6B7280">Para impressão em A3. Cada tópico tem: planta dos cabos + tabela, planta dos conduítes + tabela, e visão completa sobreposta.</p>
-          ${showLegenda?pontosLegenda():''}</div>`,
-        '', // Planta Geral removida do Plano de Obra: já consta na seção 2 do Executivo (evita duplicar)
+          ${showLegenda?legendaMestreHtml:''}</div>`,
+        obraPosAlt,
+        obraListaEle,
+        obraQuant,
         ...(categoriaPaginas.length?categoriaPaginas:[`<p class="ex-p" style="color:#B45309">⚠ Nenhum cabo desenhado na planta. Use o modo "Cabos" no editor.</p>`]),
         paginaRestantes,
         plantaTeto ? `<div class="ex-obra-page" style="page-break-before:always">${plantaTeto.replace('<div class="ex-sec ex-breakable">','<div>')}</div>` : '',
+        obraAlim,
+        obraChecklists,
         `<div class="ex-obra-page" style="page-break-before:always">
           <div style="break-inside:avoid;page-break-inside:avoid">
           <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Notas de Infraestrutura</h2>
@@ -3106,60 +3213,43 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     } catch(e){ console.warn('inline obra/cond:',e) }
 
     return [
-    // 1. PREMISSAS
+    // 1. PREMISSAS — o que o projeto entrega
     d.premissas?.length ? cap('Premissas e Escopo do Projeto') + list(d.premissas) + '</div>' : '',
 
-    '', // Planta Geral removida: duplica a Planta de Pontos que já vem antes no documento
+    // 2-4. SISTEMAS na ordem do valor percebido pelo contratante
+    (tblAutomacao||pontosHtml) ? cap('Automação — Interruptores, Keypads e Módulos') + (tblAutomacao||pontosHtml) + '</div>' : '',
+    tblSom ? cap('Som Ambiente — Zonas e Caixas') + tblSom + '</div>' : '',
+    tblSeguranca ? cap('Segurança — Câmeras e Sensores') + tblSeguranca + '</div>' : '',
 
-    // 3. RACK / CPD
+    // 5. REDE / RACK
     hasRack && (d.rack_detalhe||rackItems.length) ? cap('Rack / CPD — Equipamentos e Portas') + (list(d.rack_detalhe)+(rackEquipTable?`<h3 class="ex-amb">Equipamentos do Rack</h3>${rackEquipTable}`:'')+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Cabos de Rede</h3>${rackCableTableHtml}`:'')) + '</div>' : '',
 
-    // 4. PLANTA ELÉTRICA
+    // 6. PLANTA ELÉTRICA (NBR) e MAPA WI-FI
     buildPlantaEletrica(()=>_capNum(++_cap)),
-
-    // 5. MAPA DE CALOR WI-FI
     (()=>{ const aps=markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
       return (showHeatmap && aps.length) ? (()=>{_cap++; return buildHeatmap(()=>_capNum(_cap))})() : '' })(),
 
-    // 6. PLANTA DE TETO
+    // 6. TETO
     plantaTeto ? cap('Planta de Teto — Itens sobre Forro e Laje') + plantaTeto.replace('<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>','') + '</div>' : '',
 
-    // 7. CABEAMENTO — plantas por família (dados da Obra, integrado sem duplicação)
-    obraInline ? cap('Cabeamento e Conduítes — Plantas por Família') + `<p class="ex-p" style="margin-bottom:10px">Cada família de cabo (Dados, AP, Câmera, Som) com a planta dos cabos, tabela, planta dos conduítes e visão completa sobreposta. Para impressão em A3.</p>` + obraInline + '</div>' : '',
+    // 7. INFRA: conduítes aqui; o detalhamento de cabeamento vive no Plano de Obra (anexo), sem duplicar
+    (conduitesInline && !hidePdfConduites) ? cap('Cabeamento e Conduítes') + `<p class="ex-p" style="margin-bottom:10px">Detalhamento de cada conduíte com cabos dentro, bitola estimada e percurso. As plantas de cabeamento por família (Dados, Som, Elétrica), com tabelas de execução, estão no <b>Plano de Obra</b>, anexo deste documento.</p>` + conduitesInline + '</div>' : `<div class="ex-sec ex-breakable" style="page-break-before:always"><h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:12px">${_capNum(++_cap)}Cabeamento e Conduítes</h2><p class="ex-p">As plantas de cabeamento por família (Dados, Som, Elétrica), com tabelas de execução, estão no <b>Plano de Obra</b>, anexo deste documento.</p></div>`,
 
-    // 8. CONDUÍTES — relatório dedicado
-    (conduitesInline && !hidePdfConduites) ? cap('Relatório de Conduítes') + `<p class="ex-p" style="margin-bottom:10px">Detalhamento de cada conduíte com cabos dentro, bitola estimada e percurso.</p>` + conduitesInline + '</div>' : '',
-
-    // 9. SEGURANÇA
-    tblSeguranca ? cap('Segurança — Câmeras e Sensores') + tblSeguranca + '</div>' : '',
-
-    // 10. SOM
-    tblSom ? cap('Som Ambiente — Zonas e Caixas') + tblSom + '</div>' : '',
-
-    // 11. AUTOMAÇÃO
-    (tblAutomacao||pontosHtml) ? cap('Automação — Interruptores, Keypads e Módulos') + (tblAutomacao||pontosHtml) + '</div>' : '',
-
-    // 12. ALIMENTAÇÃO KEYPADS
-    (d.alim_keypads||[]).length ? cap('Alimentação dos Keypads (Fase + Neutro)') + T(d.alim_keypads.map(r=>`<tr>${pinCell(r.destino,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x1,5mm²')}</td></tr>`).join(''),['Nº','ID','Origem','Destino (Keypad)','Altura','Cômodo','m','Fios']) + '</div>' : '',
-
-    // 13. EQUIPAMENTOS E PEÇAS
+    // 8. EQUIPAMENTOS E PEÇAS
     cap('Equipamentos por Cômodo e Lista de Peças') +
     (itensComodoHtml ? itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml : '') +
     ((d.pecas||[]).length?'<h3 class="ex-amb" style="margin-top:16px">Lista Completa de Peças</h3>' + T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td style="text-align:center"><b>${esc(r.qtd)}</b></td></tr>`).join(''),['Item','Qtd']):'') + '</div>',
 
-    // 14. CHECKLISTS
-    cap('Checklists de Obra e Instalação') +
-    '<h3 class="ex-amb">Checklist de Obra — Arquiteto / Eletricista</h3>' + list(d.checklist_obra) +
-    '<h3 class="ex-amb" style="margin-top:16px">Checklist de Instalação — Equipe RARO Home</h3>' + list(d.checklist_raro) + '</div>',
-
-    // 15. GRÁFICOS E GESTÃO
+    // 9. GRÁFICOS E GESTÃO
     cap('Gráficos e Gestão do Projeto') + (grafico1 + grafico2 + grafico3 + grafico4) +
     (gestaoTxt ? '<h3 class="ex-amb" style="margin-top:18px">Gestão e Controle</h3>' + gestaoTxt : '') + '</div>',
 
-    // 16. OBSERVAÇÕES E FOTOS
+    // 10. OBSERVAÇÕES E FOTOS
     (tblObservacoes||fotosTxt) ? cap('Observações e Fotos') +
     (tblObservacoes ? '<h3 class="ex-amb">Observações dos Pontos</h3>' + tblObservacoes : '') +
     (fotosTxt ? '<h3 class="ex-amb" style="margin-top:16px">Fotos no Diário de Obra</h3>' + fotosTxt : '') + '</div>' : '',
+
+
 
   ].filter(Boolean).join('\n') })()}
 </div>`
@@ -3184,10 +3274,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       pageCss = (_isA3 ? '@page{size:A3 landscape;margin:10mm} .ex-plant img{max-height:245mm!important}' : '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important}')+_plantSizeCss
       body = (execMode==='obra'?_obra:execMode==='eletrica'?_ele:execMode==='conduites'?_cond:_full)||''
     }
-    const fontLink='<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
+    const fontLink='<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&family=Fraunces:ital,wght@0,400;0,600;1,500&display=swap" rel="stylesheet">'
     const fluido='<style>.ex-sec,.ex-sec.ex-breakable,.ex-obra-page,.ex-doc-cover,.ex-cover{page-break-before:auto!important;page-break-inside:auto!important;break-before:auto!important;break-inside:auto!important;min-height:0!important}.ex-doc-cover,.ex-cover{margin:0!important}</style>'
     return `<html><head><title>${tituloPdf}</title><meta charset="utf-8">${fontLink}
-      <style>${pageCss} body{margin:0}${execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>${fluido}</head><body>
+      <style>${pageCss} body{margin:0}${execVersao==='fable'?EXEC_CSS_FABLE:execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>${fluido}</head><body>
       ${body}
       </body></html>`
   }
@@ -3216,7 +3306,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(fromProposal?.id){
       try{
         const { saveProposal } = await import('../db/supabase.js')
-        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct,exec_data:execData}, exec_api_cost:apiCost }
+        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:execData}, exec_api_cost:apiCost }
         await saveProposal(updated)
         alert(`✅ Salvo no orçamento! A página vai atualizar.`)
         onClose && onClose()
@@ -3224,7 +3314,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         return
       }catch(e){ alert('Erro ao salvar: '+e.message); return }
     }
-    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables,scale:plantScale,imgRatio,folgaPct,exec_data:execData}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, exec_api_cost:apiCost })
+    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:execData}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, exec_api_cost:apiCost })
   }
 
   const catGroups={}
@@ -3791,13 +3881,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   <i className="ti ti-vector" aria-hidden/>{conduitMode?'Conduíte: ON':'Conduíte'}
                 </button>
                 <button onClick={()=>{
-                  const opc=window.prompt('ESCALA DA PLANTA — escolha:\n\n1 = Calibrar clicando 2 pontos numa parede e digitar os metros\n2 = Digitar a largura total da planta em metros\n\nDigite 1 ou 2:', plantScale?'(já calibrado) 1 ou 2':'1')
+                  const opc=window.prompt('ESCALA DA PLANTA — escolha:\n\n1 = Medir parede na planta (clica 2 pontos + digita os metros reais). Pode medir várias paredes: eu cruzo e aviso o desvio.\n2 = Digitar a largura total da planta em metros\n3 = Zerar a escala e as medições (recomeçar a calibração)\n\nDigite 1, 2 ou 3:', plantScale?'(já calibrado) 1, 2 ou 3':'1')
                   if(opc==null) return
                   const o=opc.trim()
                   if(o.startsWith('1')){ setCalibMode(true); setCalibPts([]); setCableMode(false); setAddMode(false) }
-                  else if(o.startsWith('2')){ const w=window.prompt('Largura TOTAL da planta, em metros (ex: 12):'); const wm=parseFloat((w||'').replace(',','.')); if(wm>0){ setPlantScale(wm); alert(`✅ Escala definida: ${wm}m de largura. Cabos com metragem automática.`) } }
-                }} style={{height:32,borderRadius:6,border:`1px solid ${calibMode?'#0EA5E9':(plantScale?'#16A34A88':'rgba(255,255,255,0.2)')}`,background:calibMode?'#0EA5E9':(plantScale?'rgba(22,163,74,0.15)':'rgba(255,255,255,0.08)'),color:calibMode?'#fff':(plantScale?'#6EE7B7':'#fff'),cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Definir a escala em metros para calcular a metragem dos cabos">
-                  <i className="ti ti-ruler-2" aria-hidden/>{calibMode?'Clique 2 pontos...':(plantScale?`Escala ✓ ${(plantScale).toFixed(1)}m`:'Escala')}
+                  else if(o.startsWith('2')){ const w=window.prompt('Largura TOTAL da planta, em metros (ex: 12,40):'); const wm=parseFloat((w||'').replace(',','.')); if(wm>0){ setPlantScale(wm); setCalibSamples([]); alert(`✅ Escala definida: ${wm}m de largura. Cabos com metragem automática.`) } }
+                  else if(o.startsWith('3')){ setPlantScale(null); setCalibSamples([]); setCalibPts([]); alert('Escala zerada. Meça de novo com calma: dica, use as paredes maiores e dê zoom antes de clicar.') }
+                }} style={{height:32,borderRadius:6,border:`1px solid ${calibMode?'#0EA5E9':(plantScale?'#16A34A88':'rgba(255,255,255,0.2)')}`,background:calibMode?'#0EA5E9':(plantScale?'rgba(22,163,74,0.15)':'rgba(255,255,255,0.08)'),color:calibMode?'#fff':(plantScale?'#6EE7B7':'#fff'),cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={plantScale?`Largura total da planta: ${plantScale.toFixed(2)}m · ${calibSamples.length||'?'} medição(ões)${(()=>{ if(calibSamples.length<2) return ''; const es=calibSamples.map(s=>s.metros/s.d); const me=es.reduce((a,b)=>a+b,0)/es.length; return ` · desvio ${(((Math.max(...es)-Math.min(...es))/me)*100).toFixed(1)}%` })()}`:'Definir a escala em metros para calcular a metragem dos cabos'}>
+                  <i className="ti ti-ruler-2" aria-hidden/>{calibMode?(calibPts.length===0?'Clique o 1º ponto...':'Clique o 2º ponto...'):(plantScale?`Escala ✓ ${(plantScale).toFixed(2)}m${calibSamples.length>1?` · ${calibSamples.length}×`:''}`:'Escala')}
                 </button>
                 <button onClick={()=>setShowIds(v=>!v)} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:showIds?'rgba(255,255,255,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={showIds?'Ocultar os códigos (planta limpa)':'Mostrar os códigos dos pontos'}>
                   <i className={showIds?'ti ti-tag':'ti ti-tag-off'} aria-hidden/>{showIds?'IDs visíveis':'IDs ocultos'}
@@ -3937,7 +4028,19 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   {conduitMode && conduitDraft.length>0 && <>
                     <path d={conduitDraft.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')} fill="none" stroke={CABLE_PALETTE[conduitType]} strokeDasharray="2,1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" style={{strokeWidth:5,opacity:0.85}}/>
                   </>}
+                  {/* linha da calibração de escala */}
+                  {calibMode && calibPts.length>0 && <>
+                    {calibPts.length===2 && <line x1={calibPts[0].x} y1={calibPts[0].y} x2={calibPts[1].x} y2={calibPts[1].y} stroke="#0EA5E9" strokeDasharray="1.5,1" vectorEffect="non-scaling-stroke" style={{strokeWidth:2.5}}/>}
+                  </>}
                 </svg>}
+                {/* mira dos pontos de calibração */}
+                {calibMode && calibPts.map((p,i)=>(
+                  <div key={'cal'+i} style={{position:'absolute',left:`${p.x}%`,top:`${p.y}%`,transform:'translate(-50%,-50%)',width:16,height:16,zIndex:9,pointerEvents:'none'}}>
+                    <div style={{position:'absolute',left:'50%',top:0,bottom:0,width:1.5,background:'#0EA5E9',transform:'translateX(-50%)'}}/>
+                    <div style={{position:'absolute',top:'50%',left:0,right:0,height:1.5,background:'#0EA5E9',transform:'translateY(-50%)'}}/>
+                    <div style={{position:'absolute',inset:3,border:'1.5px solid #0EA5E9',borderRadius:'50%',background:'rgba(14,165,233,0.15)'}}/>
+                  </div>
+                ))}
                 {/* bolinhas dos pontos do conduíte livre em desenho */}
                 {conduitMode && conduitDraft.map((p,i)=>(
                   <div key={'cd'+i} style={{position:'absolute',left:`${p.x}%`,top:`${p.y}%`,transform:'translate(-50%,-50%)',width:10,height:10,borderRadius:'50%',background:CABLE_PALETTE[conduitType],border:'2px solid #fff',zIndex:8,pointerEvents:'none',boxShadow:'0 1px 3px rgba(0,0,0,0.5)'}}/>
@@ -4123,7 +4226,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 return <div style={{padding:12,borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
                 <div style={{color:'#FBBf24',fontWeight:700,marginBottom:8,fontSize:12}}><i className="ti ti-route" aria-hidden/> Cabo</div>
                 <div style={{fontSize:10,color:'rgba(255,255,255,0.8)',marginBottom:8}}><b>{mk(c.fromUid)?.name||'?'}</b> → <b>{mk(c.toUid)?.name||'?'}</b>
-                  {c.runFromUid&&<div style={{marginTop:3,fontSize:9,color:'#6EE7B7',background:'rgba(16,163,74,0.12)',borderRadius:4,padding:'2px 6px'}}>↳ mesmo cabo do item #{mk(c.runFromUid)?.n}</div>}
+                  {c.runId&&(()=>{ const grupo=cables.filter(x=>x.runId===c.runId)
+                    const seg1=grupo.find(x=>x.runToUid)||grupo[0], segF=grupo.find(x=>!x.runToUid)||grupo[grupo.length-1]
+                    const oM=mk(seg1?.runFromUid||seg1?.fromUid), dM=mk(segF?.toUid)
+                    const tot=grupo.reduce((s,x)=>s+(cableMeters(x)||0),0)
+                    return <div style={{marginTop:3,fontSize:9,color:'#6EE7B7',background:'rgba(16,163,74,0.12)',borderRadius:4,padding:'3px 6px',lineHeight:1.45}}>
+                      ↳ Percurso pela prumada: <b>{oM?.name||'?'}</b> → <b>{dM?.name||'?'}</b>{tot>0?<> · total ~{Math.round(tot*10)/10}m</>:null}
+                      <br/><span style={{opacity:.7}}>Nas tabelas sai como UMA linha, com essa origem e esse destino. Pé-direito contado uma vez.</span>
+                    </div> })()}
                 </div>
                 <div style={{display:'flex',gap:3,flexWrap:'wrap',marginBottom:8}}>
                   {[['dados','Dados','#2563EB'],['ap','AP','#F59E0B'],['camera','Câm','#92400E'],['uplink','Uplk','#DC2626'],['hdmi','HDMI','#7C3AED'],['som','Som','#BE185D'],['eletrica','Elét','#16A34A'],['fibra','Fibra','#0D9488'],['conduite_dados','C.DADOS','#1E3A8A'],['conduite_eletrica','C.ELÉT','#EAB308']].map(([t,lb,col])=>(
@@ -4322,7 +4432,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
         {step==='exec' && (
           <div style={{flex:1,overflowY:'auto',background:'#e8eaed',padding:'20px 0'}}>
-            <style>{execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
+            <style>{execVersao==='fable'?EXEC_CSS_FABLE:execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
             {/* Seletor de versão do documento (Completo · Obra · Elétrica) */}
             <div style={{maxWidth:820,margin:'0 auto 14px',display:'flex',gap:8,alignItems:'center',padding:'0 4px',flexWrap:'wrap'}}>
               <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:4}}>Documento:</span>
@@ -4349,7 +4459,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
               )})}
               <span style={{width:1,height:22,background:'#E2E8F0',margin:'0 6px'}}/>
               <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:2}}>Estilo:</span>
-              {[['nova','Novo'],['antiga','Clássico']].map(([v,label])=>(
+              {[['nova','Novo'],['antiga','Clássico'],['fable','Fable']].map(([v,label])=>(
                 <button key={v} onClick={()=>{
                   setExecVersao(v)
                   try{
@@ -4643,6 +4753,32 @@ const EXEC_CSS_PREMIUM=`
   .ex-tbl{font-size:9px}.ex-tbl th{padding:5px 7px;font-size:8px}.ex-tbl td{padding:5px 7px}
   h2{font-size:16px}.ex-amb{font-size:12px}
 }
+`
+
+// ── EXEC_CSS_FABLE: assinatura editorial Fable. Estrutura do premium, pele própria:
+// papel creme, tinta navy-ink, fio dourado, Fraunces no display. Uma voz, três leituras.
+const EXEC_CSS_FABLE = EXEC_CSS_PREMIUM + `
+.ex-doc{background:#FAF5EC;color:#1B2337;font-family:'Inter','DM Sans',system-ui,sans-serif}
+.ex-sec{background:#FBF7EF;border-bottom:1px solid #E4D9C4}
+.ex-sec h2{font-family:'Fraunces','DM Serif Display',Georgia,serif;color:#131A2C;font-weight:600}
+.ex-sec-num{color:#B0854C;border-color:#B0854C}
+.ex-amb{font-family:'Fraunces','DM Serif Display',Georgia,serif;color:#8A6A38;font-weight:600}
+.ex-p{color:#3C4557}
+.ex-cover{background:#131A2C;color:#F6EFDF;border-bottom:4px solid #B0854C}
+.ex-cover-top{color:#8B93A8}
+.ex-cover-tag{color:#B0854C}
+.ex-cover-title{font-family:'Fraunces','DM Serif Display',Georgia,serif;color:#F6EFDF;font-weight:600}
+.ex-cover-sub{color:#C9BFA6}
+.ex-cover-client{background:#1B2337;border:1px solid #3A4258}
+.ex-cc-name{color:#F6EFDF}
+.ex-cc-meta{color:#9AA2B8}
+.ex-cover-foot{color:#6F7890}
+.ex-doc-cover{border-bottom:4px solid #B0854C}
+.ex-tbl th{background:#131A2C;color:#EFE3C8;letter-spacing:.5px}
+.ex-tbl td{border-bottom:.5px solid #E4D9C4;color:#242D42}
+.ex-tbl tbody tr:nth-child(even) td{background:#F5EEDD}
+.ex-obra-page{background:#FBF7EF}
+.ex-obra-page h2{font-family:'Fraunces','DM Serif Display',Georgia,serif;color:#131A2C;border-color:#B0854C!important}
 `
 
 const btnPrimary={background:'#0EA5E9',color:'#fff',border:'none',padding:'8px 16px',borderRadius:6,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:6}

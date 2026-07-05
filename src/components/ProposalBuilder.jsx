@@ -563,6 +563,17 @@ ${cover}${roomPagesHtml.join('\n')}${totalPage}
 
 
 // ── COMPONENT ──────────────────────────────────────────────
+// ── FABLE: pele editorial (papel creme, tinta, dourado, Fraunces) aplicada sobre o layout novo.
+// A estrutura e o conteúdo não mudam; muda a expressão visual.
+function fableizeDoc(html){
+  return String(html||'')
+    .replaceAll('#0B1830','#131A2C').replaceAll('#0369A1','#8A6A38').replaceAll('#0EA5E9','#B0854C')
+    .replaceAll('#38BDF8','#D8B476').replaceAll('#EEF6FF','#F3EAD7').replaceAll('#D1E6F8','#E4D9C4')
+    .replaceAll('#F7FBFF','#FBF7EF').replaceAll('#E3EDF7','#E9DFC9').replaceAll('#F5FAFF','#FAF5EC')
+    .replaceAll("'DM Serif Display',serif","'Fraunces','DM Serif Display',serif")
+    .replace('</head>', `<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&display=swap" rel="stylesheet"><style>body{background:#FAF5EC!important}@media print{body{background:#fff!important}}</style></head>`)
+}
+
 // ── VISITA À OBRA: helpers de identidade estável, diff e merge ──
 let _vseq = 0
 const _newVid = () => `vid_${Date.now().toString(36)}_${(_vseq++).toString(36)}${Math.random().toString(36).slice(2,6)}`
@@ -1115,7 +1126,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
         floors: floorsFiltered, labor:baseLaborVisible, margin, itemFontSize:pdfFontSize,
         client_phone1: cl?.phone1, client_phone2: cl?.phone2
       }
-      const html = model==='novo' ? buildProposalNovo(pdfData, admin) : buildPDF(pdfData, admin)
+      const html = model==='fable' ? fableizeDoc(buildProposalNovo(pdfData, admin)) : model==='novo' ? buildProposalNovo(pdfData, admin) : buildPDF(pdfData, admin)
       // Try window.open with blob
       try {
         const blob = new Blob([html], {type:'text/html;charset=utf-8'})
@@ -1368,7 +1379,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
         plantaImage: apresPlanta,
       }
       const _args={...apresArgs, showInvest:apresShowInvest}
-      const { html } = apresLayout==='v2' ? buildApresentacaoV2(_args) : buildApresentacaoComercial(_args)
+      const _ap = apresLayout==='v1' ? buildApresentacaoComercial(_args) : buildApresentacaoV2(_args); const html = apresLayout==='fable' ? fableizeDoc(_ap.html) : _ap.html
       setShowApresModal(false)
       try {
         const blob = new Blob([html], {type:'text/html;charset=utf-8'})
@@ -2356,7 +2367,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
         </div>
         <div className="flabel" style={{marginTop:8,marginBottom:8}}>Modelo do documento</div>
         <div style={{display:'flex',gap:8,marginBottom:14}}>
-          {[['novo','Novo','Mold do executivo, sem quebra de página'],['classico','Clássico','Layout original']].map(([v,t,d])=>(
+          {[['novo','Novo','Mold do executivo, sem quebra de página'],['classico','Clássico','Layout original'],['fable','Fable','Editorial: papel creme, tinta e dourado']].map(([v,t,d])=>(
             <button key={v} type="button" onClick={()=>setPropModel(v)}
               style={{flex:1,textAlign:'left',padding:'10px 12px',borderRadius:8,cursor:'pointer',
                 border:`1.5px solid ${propModel===v?'var(--accent)':'var(--border)'}`,
@@ -2478,7 +2489,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
             <div className="flabel" style={{marginBottom:8}}>Modelo do documento</div>
             <div style={{display:'flex',gap:8}}>
-              {[['v2','Compacto','Seu Investimento — por categoria, com planta e legenda'],['v1','Completo','Apresentação institucional em 2 páginas']].map(([v,t,d])=>(
+              {[['v2','Compacto','Seu Investimento — por categoria, com planta e legenda'],['v1','Completo','Apresentação institucional em 2 páginas'],['fable','Fable','Compacto com pele editorial creme/tinta/dourado']].map(([v,t,d])=>(
                 <button key={v} type="button" onClick={()=>setApresLayout(v)}
                   style={{flex:1,textAlign:'left',padding:'10px 12px',borderRadius:8,cursor:'pointer',border:`1.5px solid ${apresLayout===v?'var(--accent)':'var(--border)'}`,background:apresLayout===v?'rgba(14,165,233,0.08)':'var(--surf)'}}>
                   <div style={{fontSize:12.5,fontWeight:apresLayout===v?700:500,color:apresLayout===v?'var(--accent)':'var(--text)'}}>{t}</div>

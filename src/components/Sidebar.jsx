@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v249 — PLANTA ELETRICA: filtro unico isPontoEletrico (ELE_SYMS_SET) tira REDE/som/dados da planta e da lista geral eletrica (so eletrica de verdade). Simbolos tecnicos NBR completados para os tipos novos: tomada_media (2 tracos), tomada_alta agora 3 tracos (diferencia de media), ponto_energia_piso (quadrado+cruz), ponto_energia_parede (circulo+cruz+traco), interruptor_4 (S4), ponto_som_parede, ponto_som_piso. Assim nada cai mais no simbolo generico. PENDENTE (roadmap): tomadas 10A/20A, validador de campos vazios/inconsistentes, legenda eletrica profissional completa (padrao da referencia), visao de som (receiver do catalogo). Mantem v207-v248.
+// v252 — AUDITORIA DOS RELATORIOS EXECUTADA (6 decisoes aprovadas) + VERSAO FABLE em tudo. (1) PDF completo nao duplica mais o Plano de Obra: capitulo inline morto, referencia textual, anexos com capa propria. (2) Plano de Obra fecha o servico do mestre: legenda mestre + Posicao/Altura por ambiente + Pontos Eletricos (caixa/altura) + Quantitativo de material. (3) Legenda mestre unica (NBR + pino RARO lado a lado, tipos usados) em todos os docs. (4) Executivo reordenado pra narrativa do contratante: Premissas, Automacao, Som, Seguranca, Rack, Planta Eletrica/WiFi, Teto, Cabeamento(ref)/Conduites, Equipamentos, Graficos, Observacoes. (5) Checklists e Alimentacao Keypads migraram pro Plano de Obra. (6) Divergencia grafico vs tabela vai pro validador (fila). FABLE: terceira versao editorial (papel creme #FAF5EC, tinta #131A2C, dourado #B0854C, Fraunces) em: relatorios (EXEC_CSS_FABLE, toggle Estilo), contrato (mesmas clausulas, pele nova), proposta (fableizeDoc sobre o novo) e apresentacao (opcao no seletor). Cores de DADO preservadas. Mantem v207-v251.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v249 · build 2026-07
+          v252 · build 2026-07
         </div>
       </div>
     </div>
