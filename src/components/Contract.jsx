@@ -176,7 +176,7 @@ export function buildContract(proposal, client, opts={}) {
     return base
       .replaceAll('#0369A1','#8A6A38').replaceAll('#1C6AA6','#8A6A38').replaceAll('#0EA5E9','#B0854C').replaceAll('#38BDF8','#D8B476')
       .replace('</head>', `<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&display=swap" rel="stylesheet"><style>
-        body{background:#FAF5EC!important;color:#1E2536}
+        body{background:#fff!important;color:#1E2536}
         h1,h2,h3,.doc-title,.title{font-family:'Fraunces','EB Garamond',Georgia,serif!important;color:#131A2C}
         .sigline{border-color:#131A2C!important}
         @media print{body{background:#fff!important}}

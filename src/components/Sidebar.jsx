@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v252 — AUDITORIA DOS RELATORIOS EXECUTADA (6 decisoes aprovadas) + VERSAO FABLE em tudo. (1) PDF completo nao duplica mais o Plano de Obra: capitulo inline morto, referencia textual, anexos com capa propria. (2) Plano de Obra fecha o servico do mestre: legenda mestre + Posicao/Altura por ambiente + Pontos Eletricos (caixa/altura) + Quantitativo de material. (3) Legenda mestre unica (NBR + pino RARO lado a lado, tipos usados) em todos os docs. (4) Executivo reordenado pra narrativa do contratante: Premissas, Automacao, Som, Seguranca, Rack, Planta Eletrica/WiFi, Teto, Cabeamento(ref)/Conduites, Equipamentos, Graficos, Observacoes. (5) Checklists e Alimentacao Keypads migraram pro Plano de Obra. (6) Divergencia grafico vs tabela vai pro validador (fila). FABLE: terceira versao editorial (papel creme #FAF5EC, tinta #131A2C, dourado #B0854C, Fraunces) em: relatorios (EXEC_CSS_FABLE, toggle Estilo), contrato (mesmas clausulas, pele nova), proposta (fableizeDoc sobre o novo) e apresentacao (opcao no seletor). Cores de DADO preservadas. Mantem v207-v251.
+// v255 — APRESENTACAO FABLE reorientada: vende o SERVICO, nao o orcamento. Uma pagina. Heroi = a promessa (a RARO acompanha a obra e crava cada ponto no lugar certo, casa nasce pronta pra automacao), nao o preco. Tres provas do servico (projeto antes da obra, acompanhamento no canteiro, casa pronta). Planta PEQUENA so como prova/ilustracao, e SO aparece se existir (temPlanta); miniatura com altura travada (140px, object-fit cover) pra garantir 1 pagina. Sistemas viram capsulas (o que a casa vai ter). Valor rebaixado a estimativa se fechar tudo, discreto perto do fim, remete a proposta pro detalhe. showInvest=false esconde o bloco de valor. Regras de dado iguais a V2. Renderizado com/sem planta e conferido: 1 pagina nos dois casos. Mantem v207-v254.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v252 · build 2026-07
+          v255 · build 2026-07
         </div>
       </div>
     </div>

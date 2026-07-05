@@ -645,3 +645,167 @@ td.sub{font-weight:800;font-size:1rem}
 
   return { html, grandTotal: totalEquip, totalGeral }
 }
+
+
+// ══════════════════════════════════════════════════════════════════
+// VERSÃO FABLE: vende o SERVIÇO, não o orçamento. Uma página.
+// Eixo: a RARO acompanha a obra e crava cada ponto no lugar certo,
+// deixando a casa pronta pra automação. A planta é a PROVA disso
+// (pequena, só ilustração, e só aparece se existir). O valor é
+// secundário: estimativa "se fechar tudo", discreta perto do fim.
+// Papel branco, tinta #131A2C, dourado #B0854C, Fraunces no display.
+// Regras de dado idênticas à V2 (categoria exata, MO só com item,
+// total = soma dos subtotais). Cores de categoria preservadas.
+// ══════════════════════════════════════════════════════════════════
+export function buildApresentacaoFable({ clientName, neighborhood, code, floors, execValue, laborByCat, laborTotal, plantaImage, showInvest=true }){
+  laborByCat = laborByCat || {}
+  const fmtV = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
+
+  // ── agregação (idêntica à V2, sem inferir categoria) ──
+  const eq = {}, qty = {}
+  ;(floors||[]).forEach(fl => (fl.rooms||[]).forEach(r => (r.items||[]).forEach(it => {
+    if(!it.name) return
+    const cat = normV2((it.category||'').trim() || 'Outros')
+    const q = parseInt(it.qty)||1
+    eq[cat] = (eq[cat]||0) + (it.sale_price||0)*q
+    qty[cat] = (qty[cat]||0) + q
+  })))
+  const mo = {}
+  Object.entries(laborByCat).forEach(([c,v])=>{ const n=normV2(c); mo[n]=(mo[n]||0)+parseFloat(v||0) })
+  const catsComItens = new Set(Object.keys(eq))
+  Object.keys(mo).forEach(c=>{ if(!catsComItens.has(c)) delete mo[c] })
+  const cats = [...new Set([...Object.keys(eq), ...Object.keys(mo)])]
+    .map(c => ({ cat:c, q:qty[c]||0, eq:eq[c]||0, mo:mo[c]||0, sub:(eq[c]||0)+(mo[c]||0) }))
+    .filter(c => c.sub>0 || c.q>0)
+    .sort((a,b)=>b.sub-a.sub)
+  const totalGeral = cats.reduce((s,c)=>s+c.sub,0)
+  const totalItens = cats.reduce((s,c)=>s+c.q,0)
+  const hoje = new Date().toLocaleDateString('pt-BR',{day:'numeric',month:'long',year:'numeric'})
+  const temPlanta = !!plantaImage
+
+  // sistemas como cápsulas horizontais (o que a casa vai ter), cor de categoria só no ponto
+  const capsulas = cats.map(c=>{
+    const col = CAT_COLORS_V2[c.cat]||'#6B7280'
+    return `<span class="cap"><span class="cap-dot" style="background:${col}"></span>${c.cat}<b>${c.q}</b></span>`
+  }).join('')
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>RARO Home · ${(clientName||'Apresentação')}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --tinta:#131A2C; --ouro:#B0854C; --ouro-e:#8A6A38; --fio:#E4D9C4; --cinza:#5B6478 }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#fff;color:var(--tinta);font-family:'Inter',system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .page{max-width:760px;margin:0 auto;padding:34px 58px 28px}
+  .serif{font-family:'Fraunces',Georgia,serif}
+
+  /* topo: logo + identificação do cliente na mesma linha de respiro */
+  .top{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--fio);padding-bottom:20px}
+  .top img{width:120px;height:auto;display:block}
+  .top .who{text-align:right}
+  .top .who .k{font-size:9.5px;letter-spacing:3px;text-transform:uppercase;color:var(--ouro-e);font-weight:600;margin-bottom:4px}
+  .top .who .n{font-family:'Fraunces',Georgia,serif;font-size:19px;font-weight:600;line-height:1.1}
+  .top .who .m{font-size:11px;color:var(--cinza);margin-top:3px}
+
+  /* manchete de serviço: o herói é a promessa, não o preço */
+  .hero{margin:30px 0 6px}
+  .hero .kick{font-size:10.5px;letter-spacing:4px;text-transform:uppercase;color:var(--ouro-e);font-weight:600;margin-bottom:16px}
+  .hero h1{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:34px;line-height:1.12;letter-spacing:.2px}
+  .hero h1 em{font-style:italic;color:var(--ouro-e)}
+  .hero .lead{font-size:12.5px;color:var(--cinza);line-height:1.55;margin-top:12px;max-width:600px}
+
+  /* três provas do serviço */
+  .steps{display:flex;gap:0;margin:22px 0 4px;border-top:1px solid var(--fio);border-bottom:1px solid var(--fio)}
+  .steps .s{flex:1;padding:13px 16px 13px 0}
+  .steps .s+.s{padding-left:20px;border-left:1px solid var(--fio)}
+  .steps .s .num{font-family:'Fraunces',Georgia,serif;color:var(--ouro);font-size:15px;font-weight:600;margin-bottom:5px}
+  .steps .s .t{font-family:'Fraunces',Georgia,serif;font-size:14px;font-weight:600;margin-bottom:4px}
+  .steps .s .d{font-size:11px;color:var(--cinza);line-height:1.5}
+
+  /* prova visual: planta pequena, só ilustração */
+  .prova{display:flex;gap:22px;align-items:center;margin:22px 0 4px}
+  .prova .thumb{flex:0 0 200px;height:140px;border:1px solid var(--tinta);padding:6px;position:relative;overflow:hidden}
+  .prova .thumb:before{content:'';position:absolute;inset:-4px;border:1px solid var(--ouro);pointer-events:none}
+  .prova .thumb img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+  .prova .txt .lab{font-size:9.5px;letter-spacing:3px;text-transform:uppercase;color:var(--ouro-e);font-weight:600;margin-bottom:8px}
+  .prova .txt h3{font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:600;margin-bottom:8px;line-height:1.2}
+  .prova .txt p{font-size:12px;color:var(--cinza);line-height:1.6}
+
+  /* o que a casa vai ter: cápsulas discretas */
+  .sistemas{margin:22px 0 4px}
+  .sistemas .lab{font-size:9.5px;letter-spacing:3px;text-transform:uppercase;color:var(--cinza);font-weight:600;margin-bottom:12px}
+  .caps{display:flex;flex-wrap:wrap;gap:8px}
+  .cap{display:inline-flex;align-items:center;gap:7px;font-size:12px;padding:7px 13px;border:1px solid var(--fio);border-radius:20px;background:#FBF8F1}
+  .cap-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .cap b{font-family:'Fraunces',Georgia,serif;font-weight:600;color:var(--ouro-e);margin-left:1px}
+
+  /* valor: secundário, rotulado como estimativa */
+  .valor{margin-top:20px;padding:16px 20px;background:#FBF8F1;border:1px solid var(--fio);border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+  .valor .l .k{font-size:9.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(--cinza);font-weight:600;margin-bottom:3px}
+  .valor .l .d{font-size:11px;color:var(--cinza);line-height:1.4}
+  .valor .r{font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:600;white-space:nowrap}
+
+  /* fecho assinado */
+  .fecho{text-align:center;margin-top:22px;padding-top:18px;border-top:1px solid var(--fio)}
+  .fecho p{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:14px;color:var(--tinta);max-width:520px;margin:0 auto 4px;line-height:1.6}
+  .fecho .firm{font-size:9px;letter-spacing:4px;text-transform:uppercase;color:var(--cinza);margin-top:12px}
+  @media print{ .page{padding:30px 38px} @page{margin:9mm 11mm} }
+</style></head><body>
+<div class="page">
+
+  <div class="top">
+    <img src="${LOGO_COVER}" alt="RARO Home"/>
+    <div class="who">
+      <div class="k">Projeto para</div>
+      <div class="n">${(clientName||'Sua casa')}</div>
+      <div class="m">${[neighborhood, code, hoje].filter(Boolean).join(' · ')}</div>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="kick">O que a RARO entrega</div>
+    <h1>A gente acompanha a obra e deixa cada ponto no lugar certo, pra sua casa nascer <em>pronta para a automação</em>.</h1>
+    <div class="lead">Antes do reboco fechar, o projeto executivo já define onde entra cada tomada, cabo, caixa e ponto de comando. Você não descobre problema depois. A casa é construída para a tecnologia desde o primeiro dia.</div>
+  </div>
+
+  <div class="steps">
+    <div class="s"><div class="num">01</div><div class="t">Projeto antes da obra</div><div class="d">Cada ponto posicionado na planta, sistema por sistema, antes de a parede fechar.</div></div>
+    <div class="s"><div class="num">02</div><div class="t">Acompanhamento no canteiro</div><div class="d">A gente acompanha a execução pra garantir que o que está no projeto vira realidade na obra.</div></div>
+    <div class="s"><div class="num">03</div><div class="t">Casa pronta pra automação</div><div class="d">Infraestrutura no lugar, sem quebra-quebra depois, pronta para receber os equipamentos.</div></div>
+  </div>
+
+  ${temPlanta?`
+  <div class="prova">
+    <div class="thumb"><img src="${plantaImage}" alt="Planta do projeto"/></div>
+    <div class="txt">
+      <div class="lab">A prova está na planta</div>
+      <h3>Todos os pontos, no lugar exato, antes da obra</h3>
+      <p>Esta é a planta do seu projeto: cada ponto de automação, som, rede e segurança já posicionado. É esse desenho que a gente leva pro canteiro e acompanha até o fim.</p>
+    </div>
+  </div>`:''}
+
+  <div class="sistemas">
+    <div class="lab">O que a sua casa vai ter</div>
+    <div class="caps">${capsulas}</div>
+  </div>
+
+  ${showInvest?`
+  <div class="valor">
+    <div class="l">
+      <div class="k">Estimativa do projeto completo</div>
+      <div class="d">Referência para fechar tudo: ${totalItens} itens em ${cats.length} sistemas, equipamentos e instalação. O detalhamento vem na proposta.</div>
+    </div>
+    <div class="r">${fmtV(totalGeral)}</div>
+  </div>`:''}
+
+  <div class="fecho">
+    <p>Casa com tecnologia qualquer um instala depois. Casa pensada para a tecnologia, só quem projeta antes.</p>
+    <div class="firm">RARO Home · Casa · Tecnologia · Lazer</div>
+  </div>
+
+</div>
+</body></html>`
+
+  return { html, grandTotal: totalGeral, totalGeral }
+}

@@ -1642,8 +1642,31 @@ Responda APENAS JSON válido:
   }
 
   // Gera o documento SEM chamar a IA (na mão)
+  // ── VALIDADOR: roda antes de gerar (com ou sem IA). Lista o que está faltando ou
+  // inconsistente, por bloco, e deixa a Ful ignorar e gerar mesmo assim.
+  function validateProject(){
+    const issues=[]
+    if(!plantScale) issues.push('ESCALA não definida → todas as metragens de cabo sairão vazias ou erradas. Use o botão Escala (meça 1 ou 2 paredes).')
+    const semRoom=markers.filter(m=>!(m.room||'').trim())
+    if(semRoom.length) issues.push(`${semRoom.length} ponto(s) SEM CÔMODO: ${semRoom.slice(0,5).map(m=>'#'+m.n).join(', ')}${semRoom.length>5?'…':''} → aparecem como "Geral" nas tabelas.`)
+    const semId=markers.filter(m=>!(m.id||m.code||'').trim())
+    if(semId.length) issues.push(`${semId.length} ponto(s) SEM ID/código → coluna ID fica vazia e a etiqueta do cabo sai genérica.`)
+    const semTipo=markers.filter(m=>!classifyEle(m) && !isRackItem(m.name,m.code))
+    if(semTipo.length) issues.push(`${semTipo.length} ponto(s) SEM TIPO definido (nem detectado): ${semTipo.slice(0,5).map(m=>'#'+m.n+' '+(m.name||'')).join(', ')}${semTipo.length>5?'…':''} → saem com símbolo genérico na planta.`)
+    const cabosSemMetro=(cables||[]).filter(c=>{ const mt=cableMeters(c); return mt==null })
+    if(cabosSemMetro.length) issues.push(`${cabosSemMetro.length} cabo(s) SEM METRAGEM (sem escala e sem valor manual).`)
+    const portasVazias=(cables||[]).filter(c=>!c.free && !markers.find(m=>m.uid===c.toUid))
+    if(portasVazias.length) issues.push(`${portasVazias.length} cabo(s) com DESTINO não encontrado (item apagado?) → linha sai com "—" na Tabela de Portas.`)
+    return issues
+  }
+  function confirmarGeracao(){
+    const issues=validateProject()
+    if(!issues.length) return true
+    return window.confirm(`⚠ ANTES DE GERAR — encontrei ${issues.length} pendência(s):\n\n${issues.map((s,i)=>`${i+1}. ${s}`).join('\n\n')}\n\n→ OK: gerar assim mesmo (as tabelas saem com "—" onde falta dado)\n→ Cancelar: voltar e ajustar`)
+  }
   function generateExecManual(){
     if(!markers.length){ alert('Posicione ao menos um item na planta antes de gerar.'); return }
+    if(!confirmarGeracao()) return
     try {
       const data = buildExecDataFromMarkers()
       setExecData(data)
@@ -1666,6 +1689,7 @@ Responda APENAS JSON válido:
   }
 
   async function generateExec(){
+    if(!confirmarGeracao()) return
     setLoading(true)
     setExecProgress('Coletando dados...')
     const itemsList=markers.map(m=>`#${m.n} ${m.name} (${m.code}) — ${m.room} — ${m.note}`).join('\n')
@@ -1868,11 +1892,11 @@ Responda APENAS JSON válido:
         <div style="position:absolute;left:${m.x}%;top:${m.y}%;width:${SYM_PX}px;height:${SYM_PX}px;transform:translate(-50%,-50%);z-index:3">
           <svg viewBox="-12 -14 24 30" width="${SYM_PX}" height="${SYM_PX}" style="overflow:visible">
             ${ELE_SYMBOLS[cls.sym]||ELE_SYMBOLS.generico}
-            <circle cx="10" cy="-10" r="6.5" fill="${TH.pin}" stroke="#fff" stroke-width="1.2"/>
-            <text x="10" y="-7.5" font-size="8" text-anchor="middle" font-weight="800" fill="#fff">${m.n}</text>
+            <circle cx="11" cy="-11" r="4.6" fill="#fff" stroke="#131A2C" stroke-width="1"/>
+            <text x="11" y="-8.6" font-size="6.2" text-anchor="middle" font-weight="800" fill="#131A2C">${m.n}</text>
           </svg>
           ${volt?`<div style="position:absolute;left:50%;top:-7px;transform:translateX(-50%);font-size:6.5px;font-weight:800;color:#fff;background:${volt==='220V'?'#DC2626':'#0891B2'};padding:0 3px;border-radius:5px;white-space:nowrap">${volt}</div>`:''}
-          <div style="position:absolute;left:50%;top:${SYM_PX-3}px;transform:translateX(-50%);font-size:7.5px;font-weight:700;color:#0D1420;white-space:nowrap;background:rgba(255,255,255,0.8);padding:0 2px;border-radius:2px">${esc(cls.label)}</div>
+          <div style="position:absolute;left:50%;top:${SYM_PX-3}px;transform:translateX(-50%);font-size:7.5px;font-weight:700;color:#0D1420;white-space:nowrap;background:rgba(255,255,255,0.8);padding:0 2px;border-radius:2px">${esc(cls.label)}${showIdsPdf&&(m.id||m.code)?`<span style="font-weight:600;color:#64748B;font-family:monospace"> ${esc(m.id||m.code)}</span>`:''}</div>
         </div>`}).join('')
       // sem traçados de cabos na planta elétrica — só os pontos (conforme solicitado)
       const dutos = ''
@@ -1892,7 +1916,7 @@ Responda APENAS JSON válido:
         const origem = cab ? (markers.find(x=>x.uid===(cab.fromUid===m.uid?cab.toUid:cab.fromUid))?.name||'Quadro') : (qdl?'Quadro QDL':'—')
         const cx = m.caixaTipo || caixaPadrao(cls.sym) || '—'
         return `<tr>
-          <td style="text-align:center">${pin(m.n,undefined,m)}</td>
+          <td style="text-align:center"><span style="display:inline-flex;align-items:center;gap:3px"><svg viewBox="-12 -14 24 30" width="22" height="27" style="overflow:visible">${ELE_SYMBOLS[cls.sym]||ELE_SYMBOLS.generico}</svg><span style="font-size:8.5px;font-weight:800;color:#131A2C;border:1px solid #131A2C;border-radius:50%;width:13px;height:13px;display:inline-flex;align-items:center;justify-content:center">${m.n}</span></span></td>
           <td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td>
           <td>${esc(cls.tipo)}</td>
           <td style="font-size:11px">${esc(m.room||'—')}</td>
@@ -1934,6 +1958,28 @@ Responda APENAS JSON válido:
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${dutos}</svg>
           ${syms}
         </div></div>`
+      const disp = markers.length
+      const iotZigbee = markers.filter(m=>/zigbee/.test(((m.name||'')+' '+(m.code||'')).toLowerCase())).length
+      const cabeados = markers.filter(m=>/poe|cat6|access point|\bap\b|c[âa]mera|gateway|keystone|rack/.test(((m.name||'')+' '+(m.code||'')).toLowerCase())).length
+      const thW='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1"'
+      const tdW='style="font-size:10.5px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
+      const tabelaBandas = `<h3 class="ex-amb" style="margin-top:14px">Como ler a sua rede Wi-Fi</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:8px">
+          <thead><tr><th ${thW}>Banda</th><th ${thW}>Alcance</th><th ${thW}>Velocidade</th><th ${thW}>Melhor para</th></tr></thead>
+          <tbody>
+            <tr><td ${tdW}><b>2,4 GHz</b></td><td ${tdW}>Maior (atravessa melhor paredes)</td><td ${tdW}>Menor</td><td ${tdW}>Automação, sensores, dispositivos distantes</td></tr>
+            <tr><td ${tdW}><b>5 GHz</b></td><td ${tdW}>Menor (sensível a paredes)</td><td ${tdW}>Maior</td><td ${tdW}>Streaming, videochamada, trabalho, jogos</td></tr>
+          </tbody>
+        </table>
+        <table style="width:100%;border-collapse:collapse">
+          <tbody>
+            <tr><td ${tdW}>Pontos de acesso (APs) neste projeto</td><td ${tdW} style="text-align:right;font-weight:700;padding:5px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">${aps.length}</td></tr>
+            <tr><td ${tdW}>Dispositivos do projeto</td><td ${tdW} style="text-align:right;font-weight:700;padding:5px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">${disp} itens (${iotZigbee} Zigbee via gateway · ${cabeados} cabeados/PoE)</td></tr>
+            <tr><td ${tdW}>Usuários simultâneos no Wi-Fi</td><td ${tdW} style="text-align:right;padding:5px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">depende do modelo do AP · conferir ficha técnica</td></tr>
+          </tbody>
+        </table>
+        <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin-top:6px">Sensores e keypads Zigbee não ocupam o Wi-Fi: falam com o gateway numa rede própria (mesh), deixando o Wi-Fi livre para as pessoas.</p>`
+
       const titulo = numFn ? `<h2><span class="ex-sec-num">${numFn()}</span>Planta Elétrica (ABNT NBR 5444)</h2>` : `<h2>Planta Elétrica (ABNT NBR 5444)</h2>`
       // resumo de caixas de embutir (lista de compra do eletricista)
       const cxCount={}; eleMarks.forEach(({m,cls})=>{ const cx=m.caixaTipo||caixaPadrao(cls.sym); if(cx) cxCount[cx]=(cxCount[cx]||0)+1 })
@@ -1997,7 +2043,7 @@ Responda APENAS JSON válido:
       const titulo = numFn ? `<h2><span class="ex-sec-num">${numFn()}</span>Cobertura Wi-Fi (Mapa de Calor)</h2>` : `<h2>Cobertura Wi-Fi (Mapa de Calor)</h2>`
       return `<div class="ex-sec ex-breakable">${titulo}
         <p class="ex-p" style="margin-bottom:10px">Estimativa visual do alcance dos Access Points considerando <b>paredes de concreto</b> (alta atenuação). A mancha verde indica sinal forte; amarelo, médio; vermelho, sinal fraco na borda. É uma aproximação — a cobertura real depende de mobiliário, espelhos e interferências.</p>
-        ${head}${fig}${legenda}${aviso}</div>`
+        ${head}${fig}${legenda}${aviso}${tabelaBandas}</div>`
     }
 
     const cliente=projectInfo.client||fromProposal?.client_name||'Cliente'
@@ -2520,7 +2566,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const tblTetoSec = tetoMarkers.length ? `
       <h3 class="ex-amb" style="margin-top:14px">Itens no Teto — tabela</h3>
       ${T(tetoMarkers.map(m=>{ const cab=(cables||[]).find(c=>!c.free&&(c.toUid===m.uid||c.fromUid===m.uid)); const mt=cab?cableMeters(cab):null
-        return `<tr>${pinCell(m.id,m.code,m.n)}<td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td><td>${esc(m.name)}</td><td style="font-size:11px">${esc(m.room||'—')}</td><td style="font-size:11px">${esc(classifyEle(m)?.tipo||'—')}</td><td style="text-align:right">${mt!=null?mt+'m':'—'}</td><td style="font-size:10px;color:#D97706">${esc(m.note||'')}</td></tr>` }).join(''),
+        const nm=((m.name||'')+' '+(m.code||'')).toLowerCase()
+        const tipo=classifyEle(m)?.tipo || equipType(m.name) || '—'
+        const cabo=(()=>{ if(cab){ const f=cableFamily(cab.type||'dados'); return `${f.nome}${mt!=null?' · '+mt+'m':''}` }
+          if(/zigbee/.test(nm) && !/poe|ethernet|cat6|lan/.test(nm)) return 'Zigbee · sem cabo (mesh)'
+          if(/poe|access point|\bap\b|c[âa]mera|gateway/.test(nm)) return 'CAT6 (PoE) · trace na planta'
+          return '—' })()
+        return `<tr>${pinCell(m.id,m.code,m.n)}<td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td><td>${esc(m.name)}</td><td style="font-size:11px">${esc(m.room||'—')}</td><td style="font-size:11px">${esc(tipo)}</td><td style="font-size:10px">${cabo}</td><td style="font-size:10px;color:#D97706">${esc(m.note||'')}</td></tr>` }).join(''),
         ['Nº','ID','Item','Cômodo','Tipo','Cabo','Obs'])}
     ` : ''
     const plantaTeto = (bgImage && tetoMarkers.length) ? (() => {
@@ -3255,7 +3307,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 </div>`
   }
 
-  function buildFullHtml(){
+  function buildFullHtml(preview=false){
     const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
     const codigo=(fromProposal?.code||'').replace(/[\\/:*?"<>|]/g,'')
     const nomeDoc = execMode==='obra' ? 'Plano de Obra' : execMode==='eletrica' ? 'Planta Elétrica' : execMode==='conduites' ? 'Conduites' : 'Projeto Executivo'
@@ -3276,8 +3328,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     }
     const fontLink='<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&family=Fraunces:ital,wght@0,400;0,600;1,500&display=swap" rel="stylesheet">'
     const fluido='<style>.ex-sec,.ex-sec.ex-breakable,.ex-obra-page,.ex-doc-cover,.ex-cover{page-break-before:auto!important;page-break-inside:auto!important;break-before:auto!important;break-inside:auto!important;min-height:0!important}.ex-doc-cover,.ex-cover{margin:0!important}</style>'
+    const _pgIsA3 = (execMode==='obra'||execMode==='eletrica'||execMode==='conduites')
+    const _previewCss = preview ? `<style>html{background:#525659}body{max-width:${_pgIsA3?1512:703}px;margin:10px auto!important;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.35);padding:0 8px}</style>` : ''
     return `<html><head><title>${tituloPdf}</title><meta charset="utf-8">${fontLink}
-      <style>${pageCss} body{margin:0}${execVersao==='fable'?EXEC_CSS_FABLE:execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>${fluido}</head><body>
+      <style>${pageCss} body{margin:0}${execVersao==='fable'?EXEC_CSS_FABLE:execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>${fluido}${_previewCss}</head><body>
       ${body}
       </body></html>`
   }
@@ -3288,7 +3342,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     w.document.close(); setTimeout(()=>w.print(),700)
   }
   // preview ao vivo: regenera o HTML quando qualquer opção muda (só enquanto o painel está aberto)
-  const pdfPreviewHtml = useMemo(()=> showPdfOpts ? buildFullHtml() : '',
+  const pdfPreviewHtml = useMemo(()=> showPdfOpts ? buildFullHtml(true) : '',
     [showPdfOpts, showLegenda, showIdsPdf, pageOrient, plantPct, hideFams, hideCats, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables]) // eslint-disable-line
 
   async function saveToProposal(docOverride){
@@ -4605,7 +4659,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   </div>
                 </div>
                 <div style={{padding:'12px 0 2px'}}>
-                  <div style={{fontSize:12.5,fontWeight:600,marginBottom:2}}>Filtros do relatório <span style={{fontWeight:400,color:'#94A3B8'}}>· {markers.length} {markers.length===1?'item':'itens'} no total</span></div>
+                  {(()=>{ const fora=markers.filter(m=>hideCats.has(equipType(m.name))); const dentro=markers.length-fora.length
+                    const porCom={}; fora.forEach(m=>{ const r=m.room||'Geral'; porCom[r]=(porCom[r]||0)+1 })
+                    return <>
+                      <div style={{fontSize:12.5,fontWeight:600,marginBottom:2}}>Filtros do relatório <span style={{fontWeight:400,color:dentro<markers.length?'#FBBF24':'#94A3B8'}}>· no PDF: {dentro} de {markers.length} itens</span></div>
+                      {fora.length>0 && <div style={{fontSize:10,color:'#FCA5A5',margin:'2px 0 4px'}}>Fora do PDF: {fora.length} item{fora.length>1?'s':''} · {Object.entries(porCom).map(([r,n])=>`${r}: ${n}`).join(' · ')}</div>}
+                    </> })()}
                   <div style={{fontSize:10.5,color:'#94A3B8',marginBottom:8}}>Clique para <b style={{color:'#FCA5A5'}}>tirar do PDF</b> (riscado = fora). Não apaga nada do projeto.</div>
                   <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',marginBottom:7}}>
                     <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Cabos</span>
@@ -4758,26 +4817,26 @@ const EXEC_CSS_PREMIUM=`
 // ── EXEC_CSS_FABLE: assinatura editorial Fable. Estrutura do premium, pele própria:
 // papel creme, tinta navy-ink, fio dourado, Fraunces no display. Uma voz, três leituras.
 const EXEC_CSS_FABLE = EXEC_CSS_PREMIUM + `
-.ex-doc{background:#FAF5EC;color:#1B2337;font-family:'Inter','DM Sans',system-ui,sans-serif}
-.ex-sec{background:#FBF7EF;border-bottom:1px solid #E4D9C4}
+.ex-doc{background:#fff;color:#1B2337;font-family:'Inter','DM Sans',system-ui,sans-serif}
+.ex-sec{background:#fff;border-bottom:1px solid #E4D9C4}
 .ex-sec h2{font-family:'Fraunces','DM Serif Display',Georgia,serif;color:#131A2C;font-weight:600}
 .ex-sec-num{color:#B0854C;border-color:#B0854C}
 .ex-amb{font-family:'Fraunces','DM Serif Display',Georgia,serif;color:#8A6A38;font-weight:600}
 .ex-p{color:#3C4557}
-.ex-cover{background:#131A2C;color:#F6EFDF;border-bottom:4px solid #B0854C}
-.ex-cover-top{color:#8B93A8}
+.ex-cover{background:#fff;color:#131A2C;border-bottom:4px solid #B0854C}
+.ex-cover-top{color:#8A6A38}
 .ex-cover-tag{color:#B0854C}
-.ex-cover-title{font-family:'Fraunces','DM Serif Display',Georgia,serif;color:#F6EFDF;font-weight:600}
-.ex-cover-sub{color:#C9BFA6}
-.ex-cover-client{background:#1B2337;border:1px solid #3A4258}
-.ex-cc-name{color:#F6EFDF}
-.ex-cc-meta{color:#9AA2B8}
-.ex-cover-foot{color:#6F7890}
+.ex-cover-title{font-family:'Fraunces','DM Serif Display',Georgia,serif;color:#131A2C;font-weight:600}
+.ex-cover-sub{color:#5B6478}
+.ex-cover-client{background:#FAF5EC;border:1px solid #E4D9C4}
+.ex-cc-name{color:#131A2C}
+.ex-cc-meta{color:#6B7280}
+.ex-cover-foot{color:#8B93A8}
 .ex-doc-cover{border-bottom:4px solid #B0854C}
 .ex-tbl th{background:#131A2C;color:#EFE3C8;letter-spacing:.5px}
 .ex-tbl td{border-bottom:.5px solid #E4D9C4;color:#242D42}
-.ex-tbl tbody tr:nth-child(even) td{background:#F5EEDD}
-.ex-obra-page{background:#FBF7EF}
+.ex-tbl tbody tr:nth-child(even) td{background:#FAF5EC}
+.ex-obra-page{background:#fff}
 .ex-obra-page h2{font-family:'Fraunces','DM Serif Display',Georgia,serif;color:#131A2C;border-color:#B0854C!important}
 `
 
