@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v244 — PADRAO DE SIMBOLO nas tabelas do doc. Tabela "Posicao e Altura" (print 1) agora tem coluna PONTO com o pino REAL (cor=categoria, forma=local, tracinho=altura, numero dentro) + selo do cabo (E/R/S) + coluna Sistema (Eletrico/Rede/Som). Legenda explicativa no topo. Planta Geral (secao 2) REMOVIDA: duplicava a Planta de Pontos. Helper simb(m) reusa pinShapeSVG+cableFamily. PENDENTE (alinhar padrao antes de multiplicar): replicar o mesmo simbolo na Lista Eletrica, som, seguranca, automacao, teto, portas; e "qual porta conectar" (precisa regra tecnica por equipamento, nao inventar). Mantem v207-v243.
+// v246 — PREVIEW AO VIVO do documento. Botao "Baixar PDF" agora abre um painel de tela cheia: controles a esquerda (Legenda, IDs, Orientacao, Tamanho, Filtros), previa do documento REAL a direita num iframe. Mexeu num controle, a previa atualiza na hora (buildFullHtml extraido de exportPdf + useMemo reativo). Botao Baixar PDF no topo do painel gera/imprime. Substitui o modal-so-controles da v243. Mantem v207-v245.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v244 · build 2026-07
+          v246 · build 2026-07
         </div>
       </div>
     </div>

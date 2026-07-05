@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { TAXONOMY, inferCategory, genItemId } from '../taxonomy.js'
 import { LOGO_EXEC } from '../logos.js'
 import { supabase } from '../db/supabase.js'
@@ -1497,10 +1497,13 @@ Responda APENAS JSON válido:
     }).filter(Boolean)
 
     // cabos de rede a partir dos cabos desenhados na planta (se houver)
+    const _portaSeq = {}
     const rack_cable_table = (cables||[]).map((c,i)=>{
       const from=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid)
       const mt=cableMeters(c)
-      return { porta_patch:`P${String(i+1).padStart(2,'0')}`, device_origem:from?.name||'Rack', porta_origem:'',
+      const dev = from?.name||'Rack'
+      _portaSeq[dev] = (_portaSeq[dev]||0)+1
+      return { porta_patch:`P${String(i+1).padStart(2,'0')}`, device_origem:dev, porta_origem:String(_portaSeq[dev]),
         destino:to?.name||'—', tipo:(CABLE_SPEC[c.type]?.spec)||'CAT6',
         metros: mt!=null?String(mt):'—',
         etiqueta:`${(to?.code||to?.name||'PT')}`.toUpperCase().slice(0,16), cor:'' }
@@ -1797,7 +1800,7 @@ Responda APENAS JSON válido:
         const origem = cab ? (markers.find(x=>x.uid===(cab.fromUid===m.uid?cab.toUid:cab.fromUid))?.name||'Quadro') : (qdl?'Quadro QDL':'—')
         const cx = m.caixaTipo || caixaPadrao(cls.sym) || '—'
         return `<tr>
-          <td style="text-align:center">${pin(m.n)}</td>
+          <td style="text-align:center">${pin(m.n,undefined,m)}</td>
           <td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td>
           <td>${esc(cls.tipo)}</td>
           <td style="font-size:11px">${esc(m.room||'—')}</td>
@@ -1911,7 +1914,14 @@ Responda APENAS JSON válido:
     const esc=s=>(s==null?'':String(s))
     // ── Número do pino na planta — para cruzar tabela ↔ planta ──
     // Mesma linguagem da planta: forma pelo local de instalação (○ parede △ teto □ chão), cor pela categoria.
-    const pin=(n,color=TH.pin)=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${color};color:#fff;font-size:9px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);vertical-align:middle">${n}</span>`
+    const pin=(n,color=TH.pin,m=null)=>{
+      if(m){
+        const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||color,label:String(m.n??n),size:22})
+        const fam=cableFamily(m.cableType||guessCableType(m,m))
+        return `<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle"><span style="width:22px;height:22px;display:inline-block">${pino}</span><span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:4px;background:${fam.cor};color:#fff;font-size:8px;font-weight:800;border:1px solid #fff" title="${fam.nome}">${fam.L}</span></span>`
+      }
+      return `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${color};color:#fff;font-size:9px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);vertical-align:middle">${n}</span>`
+    }
     // versão fiel à planta: recebe o próprio marker
     const pinMk = m => { if(!m) return ''
       const cor=catColorOf(m)||(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
@@ -2043,6 +2053,7 @@ Responda APENAS JSON válido:
         return `<span style="display:inline-block;background:${c};color:#fff;padding:1px 8px;border-radius:8px;font-size:9px;font-weight:600">${cor||'—'}</span>`
       }
       const renderRow = r => `<tr>
+        <td style="text-align:center">${(()=>{ const num=(String(r.destino).match(/#(\d+)/)||[])[1]; const m=num?markers.find(x=>String(x.n)===num):null; return m?pin(m.n,undefined,m):'—' })()}</td>
         <td><b style="font-family:monospace;background:#0D1420;color:#38BDF8;padding:2px 6px;border-radius:3px;font-size:10px">${esc(r.porta_patch)}</b></td>
         <td style="font-size:10px">${esc(r.device_origem)}</td>
         <td style="font-family:monospace;font-size:10px;color:#0369A1">${esc(r.porta_origem)}</td>
@@ -2053,7 +2064,7 @@ Responda APENAS JSON válido:
         <td style="font-family:monospace;font-weight:700;color:#0D1420;font-size:10px;background:#FFF7ED;padding:2px 6px;border-radius:3px">${esc(r.etiqueta)}</td>
         <td>${corBadge(r.cor)}</td>
       </tr>`
-      const headers = ['Porta PP','Device Origem','Porta Origem','Destino','Nome no Sistema','Tipo','m','Etiqueta','Cor']
+      const headers = ['Ponto','Porta PP','Device Origem','Porta Origem','Destino','Nome no Sistema','Tipo','m','Etiqueta','Cor']
       const cols = headers.map(h=>`<th>${h}</th>`).join('')
       // Group by color for visual separation
       const uplink = rows.filter(r=>r.cor==='Cinza'||r.etiqueta?.includes('UPLINK'))
@@ -2384,25 +2395,25 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
     // ── Tabela Automação (Interruptores, Tomadas, Sensores, Hub IR, Módulos) ──
     const tblAutomacao = (d.tabela_automacao||[]).length
-      ? T((d.tabela_automacao||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Automação'))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.funcao)}</td><td style="font-size:10px">${esc(r.protocolo||'Zigbee')}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+      ? T((d.tabela_automacao||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Automação'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.funcao)}</td><td style="font-size:10px">${esc(r.protocolo||'Zigbee')}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
         ['#','ID','Equipamento','Ambiente','Função','Protocolo','Posição/Altura','Obs'])
       : ''
 
     // ── Tabela Segurança (Câmeras, Sensores de Alarme) ────────────────────────
     const tblSeguranca = (d.tabela_seguranca||[]).length
-      ? T((d.tabela_seguranca||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Segurança'))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.resolucao||'—')}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px">${esc(r.angulo||'—')}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+      ? T((d.tabela_seguranca||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Segurança'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.resolucao||'—')}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px">${esc(r.angulo||'—')}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
         ['#','ID','Equipamento','Ambiente','Resolução','Tipo','Posição','Ângulo','Obs'])
       : ''
 
     // ── Tabela Som Ambiente ────────────────────────────────────────────────────
     const tblSom = (d.tabela_som||[]).length
-      ? T((d.tabela_som||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Sonorização'))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.zona)}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.saida_amplif)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+      ? T((d.tabela_som||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Sonorização'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.zona)}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.saida_amplif)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
         ['#','ID','Equipamento','Ambiente','Zona','Tipo','Saída Amplif.','Cabo','Obs'])
       : ''
 
     // ── Tabela Devices no Teto (APs, Câmeras, Caixas de Som, Sensores) ────────
     const tblTeto = (d.tabela_teto||[]).length
-      ? T((d.tabela_teto||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor(r.categoria||'Redes'))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.instalacao)}</td><td style="font-family:monospace;font-size:10px">${esc(r.origem)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px">${esc(r.metros)}m</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+      ? T((d.tabela_teto||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor(r.categoria||'Redes'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.instalacao)}</td><td style="font-family:monospace;font-size:10px">${esc(r.origem)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px">${esc(r.metros)}m</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
         ['#','ID','Equipamento','Ambiente','Posição Teto','Vem de / Origem','Cabo','m','Obs'])
       : (d.modulos_teto||[]).length
         ? (d.modulos_teto||[]).map(mt=>`<h3 class="ex-amb">${esc(mt.ambiente)}</h3>${T((mt.itens||[]).map(it=>`<tr><td>${esc(it)}</td></tr>`).join(''),['Itens de teto / forro'])}`).join('')
@@ -2577,7 +2588,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       return n.includes('keypad')||n.includes('interruptor')||n.includes('módulo')||n.includes('tomada')||n.includes('cortina')||n.includes('hub ir')
     })
     const cabosEletConsolidado = allEletMarkers.length
-      ? T(allEletMarkers.map(m=>`<tr><td>${pin(m.n)}</td><td style="font-family:monospace;font-size:10px;font-weight:700">${esc(m.id||m.code||'—')}</td><td>${esc(m.name)}</td><td>${esc(m.room||'—')}</td><td style="font-size:10px">${(m.name||'').toLowerCase().includes('keypad')||(m.name||'').toLowerCase().includes('interruptor')?'Fase + Neutro + Terra':'Fase + Neutro'}</td><td style="font-family:monospace;font-size:10px">2,5mm²</td><td style="font-size:10px">${(m.name||'').toLowerCase().includes('keypad')||(m.name||'').toLowerCase().includes('interruptor')?'QDL — disj. dedicado':'Ponto mais próximo'}</td><td style="font-size:9.5px;color:#D97706">${esc(m.note||'')}</td></tr>`).join(''),
+      ? T(allEletMarkers.map(m=>`<tr><td>${pin(m.n,undefined,m)}</td><td style="font-family:monospace;font-size:10px;font-weight:700">${esc(m.id||m.code||'—')}</td><td>${esc(m.name)}</td><td>${esc(m.room||'—')}</td><td style="font-size:10px">${(m.name||'').toLowerCase().includes('keypad')||(m.name||'').toLowerCase().includes('interruptor')?'Fase + Neutro + Terra':'Fase + Neutro'}</td><td style="font-family:monospace;font-size:10px">2,5mm²</td><td style="font-size:10px">${(m.name||'').toLowerCase().includes('keypad')||(m.name||'').toLowerCase().includes('interruptor')?'QDL — disj. dedicado':'Ponto mais próximo'}</td><td style="font-size:9.5px;color:#D97706">${esc(m.note||'')}</td></tr>`).join(''),
         ['#','ID','Equipamento','Ambiente','Alimentação','Bitola','Origem','Obs'])
       : ''
 
@@ -2695,7 +2706,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           </div>
           ${T(itensSemConduite.map(m=>{const cat=inferCategory(m.name||'').cat||'—'
             return `<tr>
-              <td style="text-align:center">${pin(m.n)}</td>
+              <td style="text-align:center">${pin(m.n,undefined,m)}</td>
               <td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td>
               <td>${esc(m.name)}</td>
               <td>${esc(m.room||'—')}</td>
@@ -2704,7 +2715,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         </div>` : ''
       const tabelaCaixas = caixasConduite.length ? `
         <h3 class="ex-amb" style="color:#1E3A8A;margin-top:16px">Caixas de Conduíte</h3>
-        ${T(caixasConduite.map(m=>`<tr><td style="text-align:center">${pin(m.n)}</td><td><b>${esc(m.id||m.code||'CX')}</b></td><td>${esc(m.room||'—')}</td><td style="font-size:11px">${esc(m.note||'')}</td></tr>`).join(''),['Nº','ID','Cômodo','Observação'])}` : ''
+        ${T(caixasConduite.map(m=>`<tr><td style="text-align:center">${pin(m.n,undefined,m)}</td><td><b>${esc(m.id||m.code||'CX')}</b></td><td>${esc(m.room||'—')}</td><td style="font-size:11px">${esc(m.note||'')}</td></tr>`).join(''),['Nº','ID','Cômodo','Observação'])}` : ''
 
       // agrupa conduítes livres por família
       const porFam={}; conduitesFree.forEach(c=>{ const f=fam(c); (porFam[f]=porFam[f]||[]).push(c) })
@@ -3129,51 +3140,41 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 </div>`
   }
 
-  async function exportPdf(){
+  function buildFullHtml(){
     const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
     const codigo=(fromProposal?.code||'').replace(/[\\/:*?"<>|]/g,'')
     const nomeDoc = execMode==='obra' ? 'Plano de Obra' : execMode==='eletrica' ? 'Planta Elétrica' : execMode==='conduites' ? 'Conduites' : 'Projeto Executivo'
     const tituloPdf=`${nomeDoc} — RARO Home — ${cliNome}${codigo?' — '+codigo:''}`
-    const capa=(titulo,sub,cor)=>`<div class="ex-doc-cover" style="page-break-after:always;break-after:page;min-height:90vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:${cor};color:#fff;border-radius:0">
-      <div style="font-size:13px;letter-spacing:4px;text-transform:uppercase;opacity:0.7">RARO Home</div>
-      <div style="font-size:40px;font-weight:800;margin:18px 0 8px">${titulo}</div>
-      <div style="font-size:15px;opacity:0.85">${sub}</div>
-      <div style="font-size:13px;opacity:0.6;margin-top:30px">${cliNome}${codigo?' · '+codigo:''}</div>
-    </div>`
-    let body, pageCss
-    // Reconstrói FRESCO a partir dos dados crus (rotação da planta, filtros PDF, IDs, layout novo).
-    // Sem execData (projeto antigo, nunca regenerado), cai no HTML salvo.
     const _fresh = m => { if(!execData) return null; try{ return buildExecHtml(execData, m) }catch(e){ console.warn('rebuild export falhou:',e.message); return null } }
     const _full=_fresh('completo')||execDoc, _obra=_fresh('obra')||execDocObra,
           _ele=_fresh('eletrica')||execDocEletrica, _cond=_fresh('conduites')||execDocConduites
     const _plantSizeCss = plantPct!==100 ? ` .ex-plant img{max-width:${plantPct}%!important}` : ''
+    let body, pageCss
     if(execMode==='completo'){
-      // item 7: TUDO em 1 PDF — Executivo + Plano de Obra + Planta Elétrica, separados por capa
       pageCss='@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}'+_plantSizeCss
       const quebraPag='<div style="break-before:page;page-break-before:always;height:0;margin:0;border:0"></div>'
-      body = (_full||'')
-        + (_obra ? quebraPag+_obra : '')
-        + (_ele ? quebraPag+_ele : '')
+      body = (_full||'') + (_obra ? quebraPag+_obra : '') + (_ele ? quebraPag+_ele : '')
     } else {
       const _isA3=(execMode==='obra'||execMode==='eletrica'||execMode==='conduites')
       pageCss = (_isA3 ? '@page{size:A3 landscape;margin:10mm} .ex-plant img{max-height:245mm!important}' : '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important}')+_plantSizeCss
       body = (execMode==='obra'?_obra:execMode==='eletrica'?_ele:execMode==='conduites'?_cond:_full)||''
     }
     const fontLink='<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
-    // ── FLUXO CONTÍNUO COMO NA TELA ──
-    // A tela não tem página, então o cap() (page-break-before:always por capítulo) e o
-    // min-height:90vh das capas é o que enche o PDF de folha em branco. Aqui neutralizamos
-    // essas quebras forçadas, deixando o documento correr contínuo igual ao preview.
-    // Mantém intacta a integridade de LINHA de tabela (ex-tbl tbody tr), pra não cortar linha no meio.
     const fluido='<style>.ex-sec,.ex-sec.ex-breakable,.ex-obra-page,.ex-doc-cover,.ex-cover{page-break-before:auto!important;page-break-inside:auto!important;break-before:auto!important;break-inside:auto!important;min-height:0!important}.ex-doc-cover,.ex-cover{margin:0!important}</style>'
-    const w=window.open('','_blank')
-    if(!w){ alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este site e tente de novo.'); return }
-    w.document.write(`<html><head><title>${tituloPdf}</title><meta charset="utf-8">${fontLink}
+    return `<html><head><title>${tituloPdf}</title><meta charset="utf-8">${fontLink}
       <style>${pageCss} body{margin:0}${execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>${fluido}</head><body>
       ${body}
-      </body></html>`)
+      </body></html>`
+  }
+  async function exportPdf(){
+    const w=window.open('','_blank')
+    if(!w){ alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este site e tente de novo.'); return }
+    w.document.write(buildFullHtml())
     w.document.close(); setTimeout(()=>w.print(),700)
   }
+  // preview ao vivo: regenera o HTML quando qualquer opção muda (só enquanto o painel está aberto)
+  const pdfPreviewHtml = useMemo(()=> showPdfOpts ? buildFullHtml() : '',
+    [showPdfOpts, showLegenda, showIdsPdf, pageOrient, plantPct, hideFams, hideCats, hidePdfConduites, execMode, execData, execVersao]) // eslint-disable-line
 
   async function saveToProposal(docOverride){
     const docToSave = typeof docOverride==='string' ? docOverride : execDoc
@@ -4423,54 +4424,60 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const rowSt={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'11px 0',borderBottom:'1px solid rgba(255,255,255,0.07)'}
         const tgl=(on,onClick,onLbl,offLbl)=><button onClick={onClick} style={{minWidth:76,height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11.5,fontWeight:600,border:`1px solid ${on?'#0EA5E9':'rgba(255,255,255,0.2)'}`,background:on?'rgba(14,165,233,0.2)':'rgba(255,255,255,0.06)',color:on?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{on?onLbl:offLbl}</button>
         const chip=(on,label,onClick)=><button key={label} onClick={onClick} style={{fontSize:10.5,padding:'4px 10px',borderRadius:14,border:`1px solid ${on?'#DC2626':'rgba(255,255,255,0.25)'}`,background:on?'rgba(220,38,38,0.25)':'rgba(255,255,255,0.06)',color:on?'#FCA5A5':'rgba(255,255,255,0.75)',cursor:'pointer',fontFamily:'inherit',textDecoration:on?'line-through':'none'}}>{label}</button>
-        return <div onClick={()=>setShowPdfOpts(false)} style={{position:'fixed',inset:0,background:'rgba(3,10,20,0.72)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:'#0F172A',border:'1px solid rgba(255,255,255,0.12)',borderRadius:14,width:580,maxWidth:'100%',maxHeight:'88vh',overflowY:'auto',padding:'18px 20px',color:'#E2E8F0',fontFamily:'inherit'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-              <div style={{fontSize:15,fontWeight:700}}>Opções do documento</div>
-              <button onClick={()=>setShowPdfOpts(false)} style={{background:'none',border:'none',color:'#94A3B8',fontSize:22,cursor:'pointer',lineHeight:1}}>×</button>
-            </div>
-            <div style={{fontSize:11,color:'#94A3B8',margin:'2px 0 10px'}}>Estas opções valem no PDF que você vai gerar. Ajuste aqui e clique em Gerar.</div>
-
-            <div style={rowSt}>
-              <div><div style={{fontSize:12.5,fontWeight:600}}>Legenda no documento</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Quadro de formas e cabos nas plantas</div></div>
-              {tgl(showLegenda,()=>setShowLegenda(v=>!v),'Incluída','Sem')}
-            </div>
-            <div style={rowSt}>
-              <div><div style={{fontSize:12.5,fontWeight:600}}>Códigos dos pontos (IDs)</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Mostrar os IDs nas plantas do PDF</div></div>
-              {tgl(showIdsPdf,()=>setShowIdsPdf(v=>!v),'Com IDs','Limpo')}
-            </div>
-            <div style={rowSt}>
-              <div><div style={{fontSize:12.5,fontWeight:600}}>Orientação da planta</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Gira a imagem e os pinos. A metragem não muda.</div></div>
-              <div style={{display:'flex',gap:5}}>
-                {[['original','Original'],['paisagem','Paisagem'],['retrato','Retrato']].map(([v,l])=>
-                  <button key={v} onClick={()=>setPageOrient(v)} style={{height:30,padding:'0 11px',borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11,fontWeight:pageOrient===v?700:500,border:`1px solid ${pageOrient===v?'#0EA5E9':'rgba(255,255,255,0.2)'}`,background:pageOrient===v?'rgba(14,165,233,0.2)':'rgba(255,255,255,0.06)',color:pageOrient===v?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{l}</button>)}
+        return <div onClick={()=>setShowPdfOpts(false)} style={{position:'fixed',inset:0,background:'rgba(3,10,20,0.80)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#0F172A',border:'1px solid rgba(255,255,255,0.12)',borderRadius:14,width:'96vw',height:'92vh',display:'flex',flexDirection:'column',color:'#E2E8F0',fontFamily:'inherit',overflow:'hidden'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 18px',borderBottom:'1px solid rgba(255,255,255,0.1)',flexShrink:0}}>
+              <div><div style={{fontSize:15,fontWeight:700}}>Opções do documento</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Mexa nos controles à esquerda, o documento à direita atualiza na hora.</div></div>
+              <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                <button onClick={exportPdf} style={{...btnPrimary,padding:'9px 16px'}}><i className="ti ti-file-download" aria-hidden/> Baixar PDF ({modo})</button>
+                <button onClick={()=>setShowPdfOpts(false)} style={{background:'none',border:'none',color:'#94A3B8',fontSize:24,cursor:'pointer',lineHeight:1}}>×</button>
               </div>
             </div>
-            <div style={rowSt}>
-              <div><div style={{fontSize:12.5,fontWeight:600}}>Tamanho da planta</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Largura da planta nas páginas</div></div>
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
-                <button onClick={()=>setPlantPct(v=>Math.max(40,v-10))} style={{width:26,height:26,borderRadius:6,border:'1px solid rgba(255,255,255,0.25)',background:'rgba(255,255,255,0.06)',color:'#fff',cursor:'pointer',fontSize:15}}>−</button>
-                <b style={{minWidth:44,textAlign:'center',fontSize:13}}>{plantPct}%</b>
-                <button onClick={()=>setPlantPct(v=>Math.min(100,v+10))} style={{width:26,height:26,borderRadius:6,border:'1px solid rgba(255,255,255,0.25)',background:'rgba(255,255,255,0.06)',color:'#fff',cursor:'pointer',fontSize:15}}>+</button>
+            <div style={{flex:1,display:'flex',minHeight:0}}>
+              <div style={{width:340,flexShrink:0,overflowY:'auto',padding:'4px 18px 18px',borderRight:'1px solid rgba(255,255,255,0.1)'}}>
+                <div style={rowSt}>
+                  <div><div style={{fontSize:12.5,fontWeight:600}}>Legenda no documento</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Quadro de formas e cabos nas plantas</div></div>
+                  {tgl(showLegenda,()=>setShowLegenda(v=>!v),'Incluída','Sem')}
+                </div>
+                <div style={rowSt}>
+                  <div><div style={{fontSize:12.5,fontWeight:600}}>Códigos dos pontos (IDs)</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Mostrar os IDs nas plantas do PDF</div></div>
+                  {tgl(showIdsPdf,()=>setShowIdsPdf(v=>!v),'Com IDs','Limpo')}
+                </div>
+                <div style={{...rowSt,display:'block'}}>
+                  <div style={{fontSize:12.5,fontWeight:600,marginBottom:6}}>Orientação da planta</div>
+                  <div style={{display:'flex',gap:5}}>
+                    {[['original','Original'],['paisagem','Paisagem'],['retrato','Retrato']].map(([v,l])=>
+                      <button key={v} onClick={()=>setPageOrient(v)} style={{flex:1,height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11,fontWeight:pageOrient===v?700:500,border:`1px solid ${pageOrient===v?'#0EA5E9':'rgba(255,255,255,0.2)'}`,background:pageOrient===v?'rgba(14,165,233,0.2)':'rgba(255,255,255,0.06)',color:pageOrient===v?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{l}</button>)}
+                  </div>
+                </div>
+                <div style={rowSt}>
+                  <div><div style={{fontSize:12.5,fontWeight:600}}>Tamanho da planta</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Largura nas páginas</div></div>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <button onClick={()=>setPlantPct(v=>Math.max(40,v-10))} style={{width:26,height:26,borderRadius:6,border:'1px solid rgba(255,255,255,0.25)',background:'rgba(255,255,255,0.06)',color:'#fff',cursor:'pointer',fontSize:15}}>−</button>
+                    <b style={{minWidth:44,textAlign:'center',fontSize:13}}>{plantPct}%</b>
+                    <button onClick={()=>setPlantPct(v=>Math.min(100,v+10))} style={{width:26,height:26,borderRadius:6,border:'1px solid rgba(255,255,255,0.25)',background:'rgba(255,255,255,0.06)',color:'#fff',cursor:'pointer',fontSize:15}}>+</button>
+                  </div>
+                </div>
+                <div style={{padding:'12px 0 2px'}}>
+                  <div style={{fontSize:12.5,fontWeight:600,marginBottom:2}}>Filtros do relatório</div>
+                  <div style={{fontSize:10.5,color:'#94A3B8',marginBottom:8}}>Clique para <b style={{color:'#FCA5A5'}}>tirar do PDF</b> (riscado = fora). Não apaga nada do projeto.</div>
+                  <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',marginBottom:7}}>
+                    <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Cabos</span>
+                    {famList.map(f=>chip(hideFams.has(f), CABLE_LABELS[f]||f, ()=>setHideFams(p=>{const x=new Set(p); x.has(f)?x.delete(f):x.add(f); return x})))}
+                    {chip(hidePdfConduites,'Conduítes',()=>setHidePdfConduites(v=>!v))}
+                  </div>
+                  <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
+                    <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Categorias</span>
+                    {catList.map(c=>chip(hideCats.has(c), c, ()=>setHideCats(p=>{const x=new Set(p); x.has(c)?x.delete(c):x.add(c); return x})))}
+                  </div>
+                </div>
+              </div>
+              <div style={{flex:1,background:'#525659',padding:12,minWidth:0}}>
+                {pdfPreviewHtml
+                  ? <iframe title="Prévia do documento" srcDoc={pdfPreviewHtml} style={{width:'100%',height:'100%',border:'none',background:'#fff',borderRadius:4}}/>
+                  : <div style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center',color:'#cbd5e1',fontSize:13}}>Gere o executivo primeiro para ver a prévia aqui.</div>}
               </div>
             </div>
-            <div style={{padding:'12px 0 2px'}}>
-              <div style={{fontSize:12.5,fontWeight:600,marginBottom:2}}>Filtros do relatório</div>
-              <div style={{fontSize:10.5,color:'#94A3B8',marginBottom:8}}>Clique para <b style={{color:'#FCA5A5'}}>tirar do PDF</b> (riscado = fora). Não apaga nada do projeto.</div>
-              <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',marginBottom:7}}>
-                <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Cabos</span>
-                {famList.map(f=>chip(hideFams.has(f), CABLE_LABELS[f]||f, ()=>setHideFams(p=>{const x=new Set(p); x.has(f)?x.delete(f):x.add(f); return x})))}
-                {chip(hidePdfConduites,'Conduítes',()=>setHidePdfConduites(v=>!v))}
-              </div>
-              <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
-                <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Categorias</span>
-                {catList.map(c=>chip(hideCats.has(c), c, ()=>setHideCats(p=>{const x=new Set(p); x.has(c)?x.delete(c):x.add(c); return x})))}
-              </div>
-            </div>
-
-            <button onClick={()=>{ setShowPdfOpts(false); exportPdf() }} style={{...btnPrimary,width:'100%',justifyContent:'center',marginTop:16,padding:'12px'}}>
-              <i className="ti ti-file-download" aria-hidden/> Gerar PDF ({modo})
-            </button>
           </div>
         </div>
       })()}
