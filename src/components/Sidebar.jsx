@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v239 — PROPOSTA NOVA: capa refeita (hero centralizado, acaba o vao em branco da 1a pagina, nome maior + regua accent + numeros em destaque); quantidade sempre visivel (inclusive 1); badges de valor por categoria dentro do comodo (igual classico); tirado bloco Aprovacao e assinatura (vai ter contrato). CONTRATO CLASSICO: assinatura da RARO agora e linha em branco + RARO Home Tecnologia / Contratada (igual ao novo, sem cursiva do Rogerio). EXECUTIVO: titulo do Plano de Obra sem "Guia do Eletricista / Pedreiro". Mantem v207-v238.
+// v240 — (1) tirada a assinatura espacada "APROVACAO E ASSINATURA" da proposta CLASSICA (ProposalBuilder buildPDF + proposalPDF.js). (2) barra de rolagem grossa no preview do contrato (novo e classico). (4) senha de acoes destrutivas do editor mudou de 123 p/ 456 (recomecar/apagar/limpar) e o IMPORTAR da proposta agora tambem pede senha 456. (9) seletor Local e altura reordenado: Baixa/Media/Alta em cima, Piso/Teto embaixo. Pendente decisao: 3,5,6,7,8,10 (reestruturacao do editor/simbologia). Mantem v207-v239.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v239 · build 2026-07
+          v240 · build 2026-07
         </div>
       </div>
     </div>

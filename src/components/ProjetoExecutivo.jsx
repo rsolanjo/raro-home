@@ -1040,11 +1040,11 @@ Responda APENAS JSON válido:
   function undo(){
     setHistory(h=>{ if(!h.length) return h; const prev=h[h.length-1]; setMarkers(prev); return h.slice(0,-1) })
   }
-  // pede senha 123 + confirmação para ações destrutivas
+  // pede senha 456 + confirmação para ações destrutivas
   function confirmarComSenha(mensagem){
     const senha = window.prompt(`${mensagem}\n\n⚠ Ação destrutiva. Digite a senha para confirmar:`)
     if(senha===null) return false   // cancelou
-    if(senha.trim()!=='123'){ alert('Senha incorreta. Ação cancelada.'); return false }
+    if(senha.trim()!=='456'){ alert('Senha incorreta. Ação cancelada.'); return false }
     return true
   }
   function limparItens(){
@@ -1090,7 +1090,7 @@ Responda APENAS JSON válido:
     const primeiraVez = existExec.length===0
     if(primeiraVez){
       if(!desejados.length && !plantaImg){ return }
-      if(!window.confirm(`Importar da proposta?\n\n${desejados.length?`• ${desejados.length} itens serão posicionados nos cômodos\n`:''}${plantaImg?'• a planta da proposta será carregada\n':''}`)) return
+      if(!confirmarComSenha(`Importar da proposta?\n\n${desejados.length?`• ${desejados.length} itens serão posicionados nos cômodos\n`:''}${plantaImg?'• a planta da proposta será carregada\n':''}`)) return
       pushHistory()
       if(plantaImg) setBgImage(plantaImg)
       if(desejados.length) setMarkers(desejados)
@@ -4162,7 +4162,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   <input value={m.id} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,id:e.target.value}:x))} style={inputDark}/>
                   <label style={lbl}>Local e altura (forma + tracinho do pin)</label>
                   {(()=>{ const cur=alturaOf(m); const auto=alturaOf({...m,altura:undefined,mount:undefined})
-                    const opt=[['piso','□ Piso'],['baixa','○ Baixa 0,30'],['media','○ Média 1,10'],['alta','○ Alta 1,80'],['teto','△ Teto']]
+                    const opt=[['baixa','○ Baixa 0,30'],['media','○ Média 1,10'],['alta','○ Alta 1,80'],['piso','□ Piso'],['teto','△ Teto']]
                     return <div style={{display:'flex',flexWrap:'wrap',gap:5,marginBottom:4}}>
                       {opt.map(([v,lb])=>{ const on=cur===v; const isAuto=!(m.altura||m.mount)
                         return <button key={v} onClick={()=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,altura:(m.altura===v?undefined:v),mount:undefined}:x))}

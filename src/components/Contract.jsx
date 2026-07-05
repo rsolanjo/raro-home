@@ -183,6 +183,7 @@ export function buildContract(proposal, client, opts={}) {
   @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
   @page{ size:A4; margin:0 }
+  @media screen{html::-webkit-scrollbar{width:15px}html::-webkit-scrollbar-thumb{background:#94A3B8;border-radius:8px;border:3px solid #fff}html::-webkit-scrollbar-track{background:#EEF2F6}}
   body{ font-family:'EB Garamond','Georgia',serif; font-size:11.7px; line-height:1.47; color:#23282F; text-align:justify; background:#fff; padding:0; hyphens:auto; -webkit-font-smoothing:antialiased }
   .sheet{ padding:10mm 15mm 7mm }
   @media print{ .no-print{display:none!important} }
@@ -313,6 +314,7 @@ function buildContractClassico(D){
   <style>
   @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
+  @media screen{html::-webkit-scrollbar{width:15px}html::-webkit-scrollbar-thumb{background:#94A3B8;border-radius:8px;border:3px solid #fff}html::-webkit-scrollbar-track{background:#EEF2F6}}
   @page{ size:A4; margin:0 }
   body{ font-family:'Helvetica Neue',Arial,sans-serif; font-size:9.4px; line-height:1.5; color:#2B2B2B; background:#fff }
   .sheet{ padding:14mm 16mm }
