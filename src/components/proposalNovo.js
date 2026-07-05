@@ -23,8 +23,13 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 .cover-mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding:6px 2px}
 .cover-top{background:#0B1830;color:#fff;border-radius:10px;padding:26px 30px;display:flex;justify-content:space-between;align-items:flex-start}
 .cover-ey{font-size:8px;letter-spacing:3px;color:#38BDF8;text-transform:uppercase;font-weight:600}
-.cover-logo{height:88px;width:auto;display:block;margin:6px 0 2px;border-radius:8px}
+.cover-logo{height:132px;width:auto;display:block;margin:10px 0 4px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.3))}
 .cover-slogan{font-size:8px;letter-spacing:4px;color:rgba(226,240,255,.65);text-transform:uppercase;margin-top:6px}
+.cover-planta{margin:20px 2px 0;padding:16px 0 0;border-top:1px solid rgba(226,240,255,.14)}
+.cover-planta-lbl{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#C9A268;font-weight:600;margin-bottom:10px}
+.cover-planta-frame{border:1px solid rgba(201,162,104,.5);padding:8px;background:rgba(255,255,255,.03)}
+.cover-planta-frame img{width:100%;max-height:230px;object-fit:contain;display:block}
+.cover-planta-cap{font-size:9.5px;color:rgba(226,240,255,.6);margin-top:8px;font-style:italic}
 .cover-meta{text-align:right;font-size:9px;color:rgba(226,240,255,.7);line-height:1.9}
 .cover-hero{margin:0 2px}
 .cover-kick{font-size:9px;letter-spacing:4px;color:#0369A1;text-transform:uppercase;font-weight:600}
@@ -119,7 +124,7 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 `
 
 export function buildProposalNovo(data, adminMode=false){
-  const { client_name, proposal_code, neighborhood, floors=[], labor, date_str } = data
+  const { client_name, proposal_code, neighborhood, floors=[], labor, date_str, planta_image } = data
   const fmt = v => 'R$\u202f'+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
   const equipTotal = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
   const laborVal = parse(labor)
@@ -210,6 +215,11 @@ export function buildProposalNovo(data, adminMode=false){
         </div>
       </div>
     </div>
+    ${planta_image?`<div class="cover-planta">
+      <div class="cover-planta-lbl">A planta do projeto</div>
+      <div class="cover-planta-frame"><img src="${planta_image}" alt="Planta do projeto"/></div>
+      <div class="cover-planta-cap">Cada ambiente pensado antes da obra. O detalhamento por cômodo vem nas próximas páginas.</div>
+    </div>`:''}
     <div class="inst">
       <div class="inst-lbl">O que este projeto entrega</div>
       <div class="inst-grid">

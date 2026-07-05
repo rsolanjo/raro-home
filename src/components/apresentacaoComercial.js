@@ -1,4 +1,5 @@
 import { LOGO_COVER } from '../logos.js'
+import { PLANTA_PADRAO } from './plantaPadrao.js'
 
 // Categorias/itens do RACK que NÃO entram na apresentação comercial
 const RACK_EXCLUDE_CATS = new Set(['CPD', 'CPD / Rack', 'CPD/Rack', 'Rack'])
@@ -660,49 +661,6 @@ td.sub{font-weight:800;font-size:1rem}
 // Regras de dado idênticas à V2. Cores de categoria preservadas.
 // ══════════════════════════════════════════════════════════════════
 
-// planta genérica (fallback): silhueta de apê na paleta Fable, só ilustrativa
-const PLANTA_GENERICA = 'data:image/svg+xml;base64,' + (typeof btoa!=='undefined'
-  ? btoa(unescape(encodeURIComponent(_plantaGenericaSVG())))
-  : Buffer.from(_plantaGenericaSVG()).toString('base64'))
-function _plantaGenericaSVG(){ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 340">
-  <defs>
-    <pattern id="rhfloor" width="14" height="14" patternUnits="userSpaceOnUse">
-      <rect width="14" height="14" fill="#F1E7D4"/><line x1="0" y1="0" x2="0" y2="14" stroke="#E4D6BC" stroke-width="1"/>
-    </pattern>
-  </defs>
-  <rect width="460" height="340" fill="#FBF8F1"/>
-  <rect x="40" y="30" width="380" height="270" fill="url(#rhfloor)" stroke="#131A2C" stroke-width="3"/>
-  <g stroke="#131A2C" stroke-width="2" opacity="0.55">
-    <line x1="40" y1="165" x2="230" y2="165"/><line x1="150" y1="30" x2="150" y2="165"/>
-    <line x1="300" y1="165" x2="300" y2="300"/><line x1="230" y1="30" x2="230" y2="165"/><line x1="230" y1="110" x2="420" y2="110"/>
-  </g>
-  <g stroke="#B0854C" stroke-width="1.5" fill="none" opacity="0.7">
-    <path d="M95 165 A18 18 0 0 1 113 183"/><path d="M190 165 A18 18 0 0 1 208 183"/>
-  </g>
-  <g><rect x="55" y="45" width="60" height="46" rx="3" fill="#DCC9A8" stroke="#C2AA82" stroke-width="1"/>
-    <rect x="55" y="45" width="60" height="14" fill="#C9B79A"/><rect x="61" y="49" width="20" height="7" rx="2" fill="#F4ECDA"/>
-    <rect x="88" y="49" width="20" height="7" rx="2" fill="#F4ECDA"/><rect x="120" y="45" width="24" height="12" rx="2" fill="#C9B79A"/></g>
-  <text x="95" y="140" fill="#131A2C" font-family="Georgia,serif" font-size="12" text-anchor="middle" opacity="0.75">Su\u00edte</text>
-  <g><rect x="165" y="45" width="40" height="52" rx="3" fill="#DCC9A8" stroke="#C2AA82" stroke-width="1"/>
-    <rect x="165" y="45" width="40" height="12" fill="#C9B79A"/><rect x="171" y="48" width="28" height="7" rx="2" fill="#F4ECDA"/></g>
-  <text x="190" y="140" fill="#131A2C" font-family="Georgia,serif" font-size="12" text-anchor="middle" opacity="0.75">Quarto</text>
-  <g><rect x="238" y="40" width="60" height="12" rx="2" fill="#C9B79A"/><rect x="286" y="40" width="12" height="62" rx="2" fill="#C9B79A"/>
-    <circle cx="252" cy="46" r="3" fill="#8A6A38"/><circle cx="264" cy="46" r="3" fill="#8A6A38"/><rect x="242" y="58" width="16" height="12" rx="2" fill="#D9E4E8"/></g>
-  <text x="265" y="90" fill="#131A2C" font-family="Georgia,serif" font-size="11" text-anchor="middle" opacity="0.75">Cozinha</text>
-  <g><rect x="330" y="45" width="24" height="34" rx="4" fill="#D9E4E8" stroke="#B8CBD1" stroke-width="1"/>
-    <circle cx="380" cy="60" r="8" fill="#D9E4E8" stroke="#B8CBD1" stroke-width="1"/></g>
-  <text x="360" y="95" fill="#131A2C" font-family="Georgia,serif" font-size="10" text-anchor="middle" opacity="0.65">Banho</text>
-  <g><rect x="52" y="195" width="20" height="70" rx="4" fill="#C9B79A"/><rect x="52" y="245" width="70" height="20" rx="4" fill="#C9B79A"/>
-    <rect x="88" y="200" width="80" height="46" rx="4" fill="none" stroke="#C2AA82" stroke-width="2" opacity="0.6"/><rect x="185" y="205" width="8" height="34" rx="2" fill="#131A2C" opacity="0.7"/></g>
-  <text x="120" y="288" fill="#131A2C" font-family="Georgia,serif" font-size="12" text-anchor="middle" opacity="0.75">Living</text>
-  <g><circle cx="255" cy="230" r="26" fill="#DCC9A8" stroke="#C2AA82" stroke-width="1"/>
-    <circle cx="255" cy="198" r="7" fill="#C9B79A"/><circle cx="255" cy="262" r="7" fill="#C9B79A"/><circle cx="223" cy="230" r="7" fill="#C9B79A"/><circle cx="287" cy="230" r="7" fill="#C9B79A"/></g>
-  <text x="255" y="288" fill="#131A2C" font-family="Georgia,serif" font-size="11" text-anchor="middle" opacity="0.7">Jantar</text>
-  <g><circle cx="360" cy="215" r="14" fill="#DCC9A8" stroke="#C2AA82" stroke-width="1"/>
-    <circle cx="345" cy="255" r="10" fill="#A9BD8F" opacity="0.85"/><circle cx="395" cy="250" r="8" fill="#A9BD8F" opacity="0.7"/></g>
-  <text x="360" y="288" fill="#131A2C" font-family="Georgia,serif" font-size="11" text-anchor="middle" opacity="0.7">Varanda</text>
-  <text x="230" y="322" fill="#8A6A38" font-family="Georgia,serif" font-style="italic" font-size="11" letter-spacing="1" text-anchor="middle">planta ilustrativa</text>
-</svg>` }
 
 export function buildApresentacaoFable({ clientName, neighborhood, code, floors, execValue, laborByCat, laborTotal, plantaImage, showInvest=true }){
   laborByCat = laborByCat || {}
@@ -729,7 +687,7 @@ export function buildApresentacaoFable({ clientName, neighborhood, code, floors,
   const estItens = cats.reduce((s,c)=>s+c.sub,0)
   const totalItens = cats.reduce((s,c)=>s+c.q,0)
   const hoje = new Date().toLocaleDateString('pt-BR',{day:'numeric',month:'long',year:'numeric'})
-  const planta = plantaImage || PLANTA_GENERICA
+  const planta = plantaImage || PLANTA_PADRAO
   const plantaEhGenerica = !plantaImage
 
   const capsulas = cats.map(c=>{
@@ -841,7 +799,7 @@ export function buildApresentacaoFable({ clientName, neighborhood, code, floors,
   </div>
 
   <div class="rodape">
-    <div class="thumb"><img src="${planta}" alt="Planta" style="object-fit:${plantaEhGenerica?'contain':'cover'}"/>${plantaEhGenerica?'<div class="tag">ILUSTRATIVA</div>':''}</div>
+    <div class="thumb"><img src="${planta}" alt="Planta" style="object-fit:cover"/>${plantaEhGenerica?'<div class="tag">ILUSTRATIVA</div>':''}</div>
     <div class="info">
       <div class="lab">A prova está na planta</div>
       <h4>Todos os pontos, no lugar exato</h4>

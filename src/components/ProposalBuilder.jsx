@@ -1124,7 +1124,8 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         date_str: new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),
         floors: floorsFiltered, labor:baseLaborVisible, margin, itemFontSize:pdfFontSize,
-        client_phone1: cl?.phone1, client_phone2: cl?.phone2
+        client_phone1: cl?.phone1, client_phone2: cl?.phone2,
+        planta_image: (()=>{ const pd = plantaData || savedProposal?.planta_data; const o = typeof pd==='string'?(()=>{try{return JSON.parse(pd)}catch{return null}})():pd; return o?.image||null })()  // SÓ a do cliente; sem planta some o bloco
       }
       const html = model==='fable' ? fableizeDoc(buildProposalNovo(pdfData, admin)) : model==='novo' ? buildProposalNovo(pdfData, admin) : buildPDF(pdfData, admin)
       // Try window.open with blob
@@ -2570,15 +2571,16 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
 
           {/* planta da apresentação */}
           <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
-            <div className="flabel" style={{marginBottom:6}}>Planta na apresentação <span style={{fontSize:10,color:'var(--text3)',fontWeight:400}}>(opcional)</span></div>
+            <div className="flabel" style={{marginBottom:6}}>Planta na apresentação</div>
             {apresPlanta
               ? <div style={{position:'relative'}}>
                   <img src={apresPlanta} style={{width:'100%',maxHeight:160,objectFit:'contain',borderRadius:6,border:'1px solid var(--border)',background:'#fff'}}/>
-                  <button onClick={()=>setApresPlanta(null)} style={{position:'absolute',top:6,right:6,background:'rgba(0,0,0,0.6)',color:'#fff',border:'none',borderRadius:6,padding:'3px 8px',fontSize:11,cursor:'pointer'}}>✕ Remover</button>
+                  <div style={{position:'absolute',top:6,left:6,background:'rgba(16,185,129,.9)',color:'#fff',fontSize:10,fontWeight:600,padding:'2px 8px',borderRadius:5}}>PLANTA DO CLIENTE</div>
+                  <button onClick={()=>setApresPlanta(null)} style={{position:'absolute',top:6,right:6,background:'rgba(0,0,0,0.6)',color:'#fff',border:'none',borderRadius:6,padding:'3px 8px',fontSize:11,cursor:'pointer'}}>✕ Voltar pra padrão</button>
                 </div>
-              : <div style={{fontSize:12,color:'var(--text3)'}}>Nenhuma planta selecionada. <b>Sem planta, a seção "Planta Executiva" não aparece no documento.</b> Importe abaixo para incluir.</div>}
+              : <div style={{fontSize:12,color:'var(--text2)',padding:'8px 10px',background:'var(--bg)',borderRadius:6,border:'1px dashed var(--border)'}}>Usando a <b>planta ilustrativa padrão</b>. Para mostrar a planta real do imóvel, puxe a do cliente abaixo.</div>}
             <div style={{display:'flex',gap:8,marginTop:8}}>
-              <button type="button" className="btn" style={{fontSize:11,flex:1}} onClick={importarPlantaExec}><i className="ti ti-map-2" aria-hidden/> Importar do Projeto Executivo</button>
+              <button type="button" className="btn" style={{fontSize:11,flex:1}} onClick={importarPlantaExec}><i className="ti ti-map-2" aria-hidden/> Usar planta do cliente</button>
               <label className="btn" style={{fontSize:11,flex:1,cursor:'pointer',textAlign:'center'}}>
                 <i className="ti ti-photo-up" aria-hidden/> Importar imagem
                 <input type="file" accept="image/*" style={{display:'none'}} onChange={importarPlantaImagem}/>

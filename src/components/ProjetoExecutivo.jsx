@@ -1646,17 +1646,20 @@ Responda APENAS JSON válido:
   // inconsistente, por bloco, e deixa a Ful ignorar e gerar mesmo assim.
   function validateProject(){
     const issues=[]
-    if(!plantScale) issues.push('ESCALA não definida → todas as metragens de cabo sairão vazias ou erradas. Use o botão Escala (meça 1 ou 2 paredes).')
+    // formata um ponto de forma rastreável: #nº · ID · cômodo · nome
+    const ref=m=>`#${m.n}${(m.id||m.code)?' · '+(m.id||m.code):''}${m.room?' · '+m.room:' · (sem cômodo)'}${m.name?' · '+m.name:''}`
+    const lista=(arr,max=12)=>arr.slice(0,max).map(ref).join('\n   ')+(arr.length>max?`\n   …e mais ${arr.length-max}`:'')
+    if(!plantScale) issues.push('ESCALA não definida. Todas as metragens de cabo sairão vazias ou erradas. Use o botão Escala (meça 1 ou 2 paredes).')
     const semRoom=markers.filter(m=>!(m.room||'').trim())
-    if(semRoom.length) issues.push(`${semRoom.length} ponto(s) SEM CÔMODO: ${semRoom.slice(0,5).map(m=>'#'+m.n).join(', ')}${semRoom.length>5?'…':''} → aparecem como "Geral" nas tabelas.`)
+    if(semRoom.length) issues.push(`${semRoom.length} ponto(s) SEM CÔMODO (viram "Geral" nas tabelas):\n   ${lista(semRoom)}`)
     const semId=markers.filter(m=>!(m.id||m.code||'').trim())
-    if(semId.length) issues.push(`${semId.length} ponto(s) SEM ID/código → coluna ID fica vazia e a etiqueta do cabo sai genérica.`)
+    if(semId.length) issues.push(`${semId.length} ponto(s) SEM ID (coluna ID vazia, etiqueta do cabo genérica):\n   ${lista(semId)}`)
     const semTipo=markers.filter(m=>!classifyEle(m) && !isRackItem(m.name,m.code))
-    if(semTipo.length) issues.push(`${semTipo.length} ponto(s) SEM TIPO definido (nem detectado): ${semTipo.slice(0,5).map(m=>'#'+m.n+' '+(m.name||'')).join(', ')}${semTipo.length>5?'…':''} → saem com símbolo genérico na planta.`)
+    if(semTipo.length) issues.push(`${semTipo.length} ponto(s) SEM TIPO definido nem detectado (saem com símbolo genérico na planta):\n   ${lista(semTipo)}`)
     const cabosSemMetro=(cables||[]).filter(c=>{ const mt=cableMeters(c); return mt==null })
     if(cabosSemMetro.length) issues.push(`${cabosSemMetro.length} cabo(s) SEM METRAGEM (sem escala e sem valor manual).`)
     const portasVazias=(cables||[]).filter(c=>!c.free && !markers.find(m=>m.uid===c.toUid))
-    if(portasVazias.length) issues.push(`${portasVazias.length} cabo(s) com DESTINO não encontrado (item apagado?) → linha sai com "—" na Tabela de Portas.`)
+    if(portasVazias.length) issues.push(`${portasVazias.length} cabo(s) com DESTINO não encontrado, item apagado. Linha sai com "—" na Tabela de Portas.`)
     return issues
   }
   function confirmarGeracao(){
@@ -1958,28 +1961,6 @@ Responda APENAS JSON válido:
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${dutos}</svg>
           ${syms}
         </div></div>`
-      const disp = markers.length
-      const iotZigbee = markers.filter(m=>/zigbee/.test(((m.name||'')+' '+(m.code||'')).toLowerCase())).length
-      const cabeados = markers.filter(m=>/poe|cat6|access point|\bap\b|c[âa]mera|gateway|keystone|rack/.test(((m.name||'')+' '+(m.code||'')).toLowerCase())).length
-      const thW='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1"'
-      const tdW='style="font-size:10.5px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
-      const tabelaBandas = `<h3 class="ex-amb" style="margin-top:14px">Como ler a sua rede Wi-Fi</h3>
-        <table style="width:100%;border-collapse:collapse;margin-bottom:8px">
-          <thead><tr><th ${thW}>Banda</th><th ${thW}>Alcance</th><th ${thW}>Velocidade</th><th ${thW}>Melhor para</th></tr></thead>
-          <tbody>
-            <tr><td ${tdW}><b>2,4 GHz</b></td><td ${tdW}>Maior (atravessa melhor paredes)</td><td ${tdW}>Menor</td><td ${tdW}>Automação, sensores, dispositivos distantes</td></tr>
-            <tr><td ${tdW}><b>5 GHz</b></td><td ${tdW}>Menor (sensível a paredes)</td><td ${tdW}>Maior</td><td ${tdW}>Streaming, videochamada, trabalho, jogos</td></tr>
-          </tbody>
-        </table>
-        <table style="width:100%;border-collapse:collapse">
-          <tbody>
-            <tr><td ${tdW}>Pontos de acesso (APs) neste projeto</td><td ${tdW} style="text-align:right;font-weight:700;padding:5px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">${aps.length}</td></tr>
-            <tr><td ${tdW}>Dispositivos do projeto</td><td ${tdW} style="text-align:right;font-weight:700;padding:5px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">${disp} itens (${iotZigbee} Zigbee via gateway · ${cabeados} cabeados/PoE)</td></tr>
-            <tr><td ${tdW}>Usuários simultâneos no Wi-Fi</td><td ${tdW} style="text-align:right;padding:5px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">depende do modelo do AP · conferir ficha técnica</td></tr>
-          </tbody>
-        </table>
-        <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin-top:6px">Sensores e keypads Zigbee não ocupam o Wi-Fi: falam com o gateway numa rede própria (mesh), deixando o Wi-Fi livre para as pessoas.</p>`
-
       const titulo = numFn ? `<h2><span class="ex-sec-num">${numFn()}</span>Planta Elétrica (ABNT NBR 5444)</h2>` : `<h2>Planta Elétrica (ABNT NBR 5444)</h2>`
       // resumo de caixas de embutir (lista de compra do eletricista)
       const cxCount={}; eleMarks.forEach(({m,cls})=>{ const cx=m.caixaTipo||caixaPadrao(cls.sym); if(cx) cxCount[cx]=(cxCount[cx]||0)+1 })
@@ -2041,6 +2022,28 @@ Responda APENAS JSON válido:
         <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:#DC2626;opacity:.7"></span>Sinal fraco / borda</span>
       </div>`
       const titulo = numFn ? `<h2><span class="ex-sec-num">${numFn()}</span>Cobertura Wi-Fi (Mapa de Calor)</h2>` : `<h2>Cobertura Wi-Fi (Mapa de Calor)</h2>`
+      const disp = markers.length
+      const iotZigbee = markers.filter(m=>/zigbee/.test(((m.name||'')+' '+(m.code||'')).toLowerCase())).length
+      const cabeados = markers.filter(m=>/poe|cat6|access point|\bap\b|c[âa]mera|gateway|keystone|rack/.test(((m.name||'')+' '+(m.code||'')).toLowerCase())).length
+      const thW='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1"'
+      const tdW='style="font-size:10.5px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
+      const tabelaBandas = `<h3 class="ex-amb" style="margin-top:14px">Como ler a sua rede Wi-Fi</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:8px">
+          <thead><tr><th ${thW}>Banda</th><th ${thW}>Alcance</th><th ${thW}>Velocidade</th><th ${thW}>Melhor para</th></tr></thead>
+          <tbody>
+            <tr><td ${tdW}><b>2,4 GHz</b></td><td ${tdW}>Maior (atravessa melhor paredes)</td><td ${tdW}>Menor</td><td ${tdW}>Automação, sensores, dispositivos distantes</td></tr>
+            <tr><td ${tdW}><b>5 GHz</b></td><td ${tdW}>Menor (sensível a paredes)</td><td ${tdW}>Maior</td><td ${tdW}>Streaming, videochamada, trabalho, jogos</td></tr>
+          </tbody>
+        </table>
+        <table style="width:100%;border-collapse:collapse">
+          <tbody>
+            <tr><td ${tdW}>Pontos de acesso (APs) neste projeto</td><td ${tdW} style="text-align:right;font-weight:700;padding:5px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">${aps.length}</td></tr>
+            <tr><td ${tdW}>Dispositivos do projeto</td><td ${tdW} style="text-align:right;font-weight:700;padding:5px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">${disp} itens (${iotZigbee} Zigbee via gateway · ${cabeados} cabeados/PoE)</td></tr>
+            <tr><td ${tdW}>Usuários simultâneos no Wi-Fi</td><td ${tdW} style="text-align:right;padding:5px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">depende do modelo do AP · conferir ficha técnica</td></tr>
+          </tbody>
+        </table>
+        <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin-top:6px">Sensores e keypads Zigbee não ocupam o Wi-Fi: falam com o gateway numa rede própria (mesh), deixando o Wi-Fi livre para as pessoas.</p>`
+
       return `<div class="ex-sec ex-breakable">${titulo}
         <p class="ex-p" style="margin-bottom:10px">Estimativa visual do alcance dos Access Points considerando <b>paredes de concreto</b> (alta atenuação). A mancha verde indica sinal forte; amarelo, médio; vermelho, sinal fraco na borda. É uma aproximação — a cobertura real depende de mobiliário, espelhos e interferências.</p>
         ${head}${fig}${legenda}${aviso}${tabelaBandas}</div>`

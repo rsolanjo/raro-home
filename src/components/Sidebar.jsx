@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v257 — PLANTA GENERICA HUMANIZADA. Trocada a silhueta tecnica (pontinhos, cara de diagrama eletrico) por uma planta decorada estilo incorporadora: comodos nomeados (Suite, Quarto, Cozinha, Banho, Living, Jantar, Varanda), moveis desenhados encostados nas paredes (cama de casal/solteiro, sofa em L, mesa redonda de jantar, bancada de cozinha, plantas na varanda), piso com textura, grid espacial coerente (quartos em cima, area social embaixo). Transmite lar, nao projeto. Fit condicional na miniatura: generica em 'contain' (mostra inteira, proporcao conhecida), planta do cliente em 'cover' (preenche). Renderizado e conferido no tamanho real de uso. Mantem v207-v256.
+// v259 — PLANTA PADRAO REAL na apresentacao + proposta so do cliente (alinhado com a Ful). PROPOSTA: planta SEMPRE do cliente (planta_image do projeto), sem fallback padrao; sem planta o bloco some. Removida a planta padrao que a v258 tinha metido na proposta. APRESENTACAO FABLE: a SVG desenhada (comodos vetoriais) foi SUBSTITUIDA pela planta real que a Ful mandou (raster, cara de incorporadora), agora em plantaPadrao.js (base64, ~38KB). Vira o PADRAO da apresentacao; botao 'Usar planta do cliente' troca pra real do imovel quando existir, com selo verde PLANTA DO CLIENTE e opcao 'voltar pra padrao'. Miniatura em object-fit cover (imagem raster). Ressalva: imagem padrao e 255x188px, boa na miniatura, borraria se ampliada; trocar por versao maior quando disponivel. Renderizado e conferido: 1 pagina. Mantem v207-v258.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v257 · build 2026-07
+          v259 · build 2026-07
         </div>
       </div>
     </div>

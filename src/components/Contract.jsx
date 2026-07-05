@@ -440,6 +440,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
   const [signing, setSigning] = useState(false)
   const baseClient = clients?.find(c => c.id === Number(proposal?.client_id))
   const [showReview, setShowReview] = useState(true)
+  const [showConfig, setShowConfig] = useState(true)  // tipo + modelo do documento
   const [edits, setEdits] = useState({
     name1: baseClient?.full_name1 || baseClient?.name1 || '',
     name2: baseClient?.full_name2 || baseClient?.name2 || '',
@@ -910,6 +911,14 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
             <button className="btn" style={{fontSize:11}} onClick={()=>setShowReview(true)}><i className="ti ti-edit" aria-hidden/>Revisar/editar dados do cliente</button>
           </div>
         )}
+        {/* Barra: configuração do documento (colapsável para dar espaço ao contrato) */}
+        <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'8px 16px',display:'flex',alignItems:'center',gap:8,cursor:'pointer'}} onClick={()=>setShowConfig(v=>!v)}>
+          <i className={`ti ti-${showConfig?'chevron-down':'chevron-right'}`} style={{color:'var(--accent)'}} aria-hidden/>
+          <b style={{fontSize:13}}>Tipo e modelo do documento</b>
+          {!showConfig && <span style={{fontSize:11,color:'var(--text3)',marginLeft:4}}>{tipo==='projeto'?'Projeto':tipo==='total'?'Proposta total':tipo==='ocultas'?'Categorias ocultas':'Proposta avulsa'} · {modelo==='novo'?'Novo':modelo==='classico'?'Clássico':'Fable'}</span>}
+          <span style={{marginLeft:'auto',fontSize:11,color:'var(--text3)'}}>{showConfig?'ocultar':'mostrar'}</span>
+        </div>
+        {showConfig && <>
         {/* Seletor de TIPO de contrato */}
         <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'12px 16px'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
@@ -1033,6 +1042,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
             </div>
           </details>
         </div>
+        </>}
         {/* Contract preview */}
         <iframe
           srcDoc={buildContract(proposal, client, opts)}
