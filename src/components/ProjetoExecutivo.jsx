@@ -612,6 +612,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [showLegenda, setShowLegenda] = useState(true) // incluir o bloco de legenda (formas + cabos) nas plantas geradas
   // ── Filtros do relatório (ocultar coisas na GERAÇÃO, sem apagar nada do projeto) ──
   const [pdfFiltersOpen, setPdfFiltersOpen] = useState(false)
+  const [showPdfOpts, setShowPdfOpts] = useState(false)  // painel de opções na hora de gerar o PDF
   const [hideFams, setHideFams] = useState(new Set())      // famílias de cabo fora do PDF (dados, som, camera...)
   const [hideCats, setHideCats] = useState(new Set())      // categorias de equipamento fora das plantas do PDF
   const [hidePdfConduites, setHidePdfConduites] = useState(false) // tirar todos os conduítes do PDF
@@ -1219,7 +1220,6 @@ Responda APENAS JSON válido:
   function guessCableType(from, to){
     const n=(from?.name+' '+to?.name).toLowerCase()
     if(/uplink|gateway|dream machine|provedor|ont|modem/.test(n)) return 'uplink'
-    if(/c[âa]mera|dome|bullet|nvr/.test(n)) return 'camera'
     if(/som|caixa ac[uú]stica|caixa de som|amplificador|receiver|subwoofer|sub /.test(n)) return 'som'
     if(/tv|hdmi|tel[aã]o|projetor|matriz de v[ií]deo/.test(n)) return 'hdmi'
     if(/sensor|presen[çc]a|mmwave|infraverm|receptor ir/.test(n)) return 'eletrica'
@@ -2264,13 +2264,15 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(!rooms.length) return ''
     const th='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700"'
     const td='style="font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
+    const simb=(m)=>{ const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:String(m.n??''),size:24}); const fam=cableFamily(m.cableType||guessCableType(m,m))
+      return `<span style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:24px;height:24px">${pino}</span><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:${fam.cor};color:#fff;font-size:8.5px;font-weight:800;border:1px solid #fff" title="${fam.nome}">${fam.L}</span></span>` }
     return `<div class="ex-sec"><h2>Posição e Altura dos Pontos</h2>
-      <p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Conferência para a obra: onde cada ponto é instalado e em que altura. O local vem da forma do pino, a altura do nível marcado.</p>
+      <p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Conferência para a obra. Cada ponto com seu símbolo: <b>cor</b> = categoria, <b>forma</b> = local (△ teto, ○ parede, □ chão), <b>tracinho</b> = altura, <b>selo</b> = cabo (E elétrica, R rede, S som).</p>
       ${rooms.map(([amb,ms])=>`
         <div style="font-size:12px;font-weight:700;color:#0369A1;margin:12px 0 4px">${amb} <span style="font-weight:400;color:#94A3B8">· ${ms.length} ${ms.length===1?'ponto':'pontos'}</span></div>
         <table style="width:100%;border-collapse:collapse">
-          <thead><tr><th ${th} style="width:64px;text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">ID</th><th ${th}>Item</th><th ${th}>Local</th><th ${th}>Altura</th></tr></thead>
-          <tbody>${ms.map(m=>`<tr><td ${td} style="font-family:monospace;font-size:10px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#475569">${m.id||m.code||('#'+m.n)}</td><td ${td}>${m.name||'—'}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td} style="font-weight:600;font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B">${NIV[alturaOf(m)]||'—'}</td></tr>`).join('')}</tbody>
+          <thead><tr><th ${th} style="width:70px;text-align:center;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Ponto</th><th ${th} style="width:70px;text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">ID</th><th ${th}>Item</th><th ${th}>Local</th><th ${th}>Altura</th><th ${th}>Sistema</th></tr></thead>
+          <tbody>${ms.map(m=>{ const fam=cableFamily(m.cableType||guessCableType(m,m)); return `<tr><td ${td} style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0">${simb(m)}</td><td ${td} style="font-family:monospace;font-size:10px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#475569">${m.id||m.code||('#'+m.n)}</td><td ${td}>${m.name||'—'}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td} style="font-weight:600;font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B">${NIV[alturaOf(m)]||'—'}</td><td ${td} style="font-weight:600;color:${fam.cor}">${fam.nome}</td></tr>`}).join('')}</tbody>
         </table>`).join('')}
     </div>`
   })()}
@@ -3071,18 +3073,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // 1. PREMISSAS
     d.premissas?.length ? cap('Premissas e Escopo do Projeto') + list(d.premissas) + '</div>' : '',
 
-    // 2. PLANTA GERAL (todos os itens, sem cabos/conduítes)
-    bgImage ? cap('Planta Geral — Posição de Todos os Itens') + `<p class="ex-p">Localização de todos os equipamentos posicionados na planta. Sem cabos ou conduítes — somente os pontos para referência do eletricista e pedreiro.</p>` + (()=>{
-      const allDots = markers.map(m=>{
-        const isR=isRackItem(m.name||'',m.code||'')
-        const isCx=classifyEle(m)?.sym==='caixa_conduite'
-        const bg=isCx?'#1E3A8A':isR?'#4C1D95':(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
-        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-          <div style="width:18px;height:18px;border-radius:${isCx?'2px':'50%'};background:${bg};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${isCx?'CX':(isR?'R':m.n)}</div>
-          ${showIdsPdf?`<div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 3px;font-size:7px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||'')}</div>`:''}
-        </div>`}).join('')
-      return `<div class="ex-plant"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>${allDots}</div>`
-    })() + '</div>' : '',
+    '', // Planta Geral removida: duplica a Planta de Pontos que já vem antes no documento
 
     // 3. RACK / CPD
     hasRack && (d.rack_detalhe||rackItems.length) ? cap('Rack / CPD — Equipamentos e Portas') + (list(d.rack_detalhe)+(rackEquipTable?`<h3 class="ex-amb">Equipamentos do Rack</h3>${rackEquipTable}`:'')+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Cabos de Rede</h3>${rackCableTableHtml}`:'')) + '</div>' : '',
@@ -3798,41 +3789,6 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <button onClick={()=>setShowCabo(v=>!v)} style={{height:32,borderRadius:6,border:`1px solid ${showCabo?'#2563EB88':'rgba(255,255,255,0.2)'}`,background:showCabo?'rgba(37,99,235,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={showCabo?'Ocultar a legenda de cabo (E/S/R)':'Mostrar a legenda de cabo (Elétrico/Som/Rede)'}>
                   <i className="ti ti-plug-connected" aria-hidden/>{showCabo?'Cabo E/S/R':'Cabo oculto'}
                 </button>
-                <button onClick={()=>setShowLegenda(v=>!v)} style={{height:32,borderRadius:6,border:`1px solid ${showLegenda?'#64748B88':'rgba(255,255,255,0.2)'}`,background:showLegenda?'rgba(100,116,139,0.22)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={showLegenda?'Não incluir o quadro de legenda nas plantas geradas':'Incluir o quadro de legenda (formas + cabos) nas plantas geradas'}>
-                  <i className="ti ti-list-details" aria-hidden/>{showLegenda?'Legenda on':'Legenda off'}
-                </button>
-                <button onClick={()=>setShowIdsPdf(v=>!v)} style={{height:32,borderRadius:6,border:`1px solid ${showIdsPdf?'#B45309aa':'rgba(255,255,255,0.2)'}`,background:showIdsPdf?'rgba(180,83,9,0.22)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title={showIdsPdf?'O relatório sairá COM os códigos dos pontos':'O relatório sai limpo, sem os códigos (recomendado)'}>
-                  <i className={showIdsPdf?'ti ti-tag':'ti ti-tag-off'} aria-hidden/>{showIdsPdf?'IDs no PDF: on':'IDs no PDF: off'}
-                </button>
-                <button onClick={()=>setPdfFiltersOpen(v=>!v)} style={{height:32,borderRadius:6,border:`1px solid ${(hideFams.size||hideCats.size||hidePdfConduites)?'#DC2626aa':'rgba(255,255,255,0.2)'}`,background:pdfFiltersOpen?'rgba(255,255,255,0.18)':(hideFams.size||hideCats.size||hidePdfConduites)?'rgba(220,38,38,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Escolher o que NÃO entra no relatório (famílias de cabo, categorias, conduítes)">
-                  <i className="ti ti-filter" aria-hidden/>Filtros PDF{(hideFams.size+hideCats.size+(hidePdfConduites?1:0))>0?` (${hideFams.size+hideCats.size+(hidePdfConduites?1:0)})`:''}
-                </button>
-                <button onClick={()=>setPageOrient(o=>o==='original'?'paisagem':o==='paisagem'?'retrato':'original')} style={{height:32,borderRadius:6,border:`1px solid ${pageOrient!=='original'?'#0EA5E9aa':'rgba(255,255,255,0.2)'}`,background:pageOrient!=='original'?'rgba(14,165,233,0.18)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Orientação da PLANTA no documento — o app gira a imagem e reposiciona pins e cabos. A metragem não muda.">
-                  <i className={pageOrient==='retrato'?'ti ti-rectangle-vertical':'ti ti-rectangle'} aria-hidden/>Planta: {pageOrient==='original'?'Original':pageOrient==='paisagem'?'Paisagem':'Retrato'}
-                </button>
-                <div style={{height:32,borderRadius:6,border:`1px solid ${plantPct!==100?'#0EA5E9aa':'rgba(255,255,255,0.2)'}`,background:plantPct!==100?'rgba(14,165,233,0.18)':'rgba(255,255,255,0.08)',color:'#fff',fontSize:12,padding:'0 6px',display:'flex',alignItems:'center',gap:4,fontFamily:'inherit'}} title="Tamanho da planta nas páginas do documento (largura). Ajusta na tela e vale no PDF.">
-                  <span style={{fontSize:10.5,opacity:0.7}}>Planta</span>
-                  <button onClick={()=>setPlantPct(v=>Math.max(40,v-10))} style={{width:22,height:22,borderRadius:4,border:'1px solid rgba(255,255,255,0.25)',background:'transparent',color:'#fff',cursor:'pointer',fontSize:13,lineHeight:1}}>−</button>
-                  <b style={{minWidth:34,textAlign:'center'}}>{plantPct}%</b>
-                  <button onClick={()=>setPlantPct(v=>Math.min(100,v+10))} style={{width:22,height:22,borderRadius:4,border:'1px solid rgba(255,255,255,0.25)',background:'transparent',color:'#fff',cursor:'pointer',fontSize:13,lineHeight:1}}>+</button>
-                </div>
-                {pdfFiltersOpen && (()=>{
-                  const famList=['dados','ap','camera','som','eletrica','hdmi','uplink','fibra']
-                  const catList=[...new Set(markers.map(m=>equipType(m.name)))].sort()
-                  const chip=(on,label,onClick)=><button key={label} onClick={onClick} style={{fontSize:10.5,padding:'4px 10px',borderRadius:14,border:`1px solid ${on?'#DC2626':'rgba(255,255,255,0.25)'}`,background:on?'rgba(220,38,38,0.25)':'rgba(255,255,255,0.06)',color:on?'#FCA5A5':'rgba(255,255,255,0.75)',cursor:'pointer',fontFamily:'inherit',textDecoration:on?'line-through':'none'}}>{label}</button>
-                  return <div className="pe-pdf-filters" style={{width:'100%',display:'flex',flexDirection:'column',gap:6,padding:'6px 4px 2px',borderTop:'1px solid rgba(255,255,255,0.12)'}}>
-                    <div style={{fontSize:10,color:'rgba(255,255,255,0.5)'}}>Clique para <b style={{color:'#FCA5A5'}}>tirar do relatório</b> (riscado = fora). Não apaga nada do projeto.</div>
-                    <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
-                      <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Cabos</span>
-                      {famList.map(f=>chip(hideFams.has(f), CABLE_LABELS[f]||f, ()=>setHideFams(p=>{const x=new Set(p); x.has(f)?x.delete(f):x.add(f); return x})))}
-                      {chip(hidePdfConduites,'Conduítes (todos)',()=>setHidePdfConduites(v=>!v))}
-                    </div>
-                    <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
-                      <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Categorias</span>
-                      {catList.map(c=>chip(hideCats.has(c), c, ()=>setHideCats(p=>{const x=new Set(p); x.has(c)?x.delete(c):x.add(c); return x})))}
-                    </div>
-                  </div>
-                })()}
                 {(()=>{ const temEle=markers.some(m=>classifyEle(m)); const qdls=markers.filter(m=>classifyEle(m)?.sym==='quadro').length
                   // prumadas pareadas indicam que há mais de um pavimento na planta
                   const pares=new Set(markers.filter(m=>classifyEle(m)?.sym==='prumada'&&(m.prumadaCode||'').trim()).map(m=>(m.prumadaCode||'').trim().toLowerCase()))
@@ -4220,32 +4176,28 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   {(()=>{ const det=classifyEle({...m,eleType:undefined}); const detLabel=det?det.tipo:'não-elétrico (rede/dados/som)'
                     return <select value={m.eleType||'auto'} onChange={e=>{const v=e.target.value; setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,eleType:v==='auto'?undefined:v}:x))}} style={inputDark}>
                     <option value="auto">✨ Automático → {detLabel}</option>
-                    <optgroup label="Tomadas">
-                      <option value="tomada_baixa">🔌 Tomada baixa (0,30m)</option>
-                      <option value="tomada_alta">🔌 Tomada alta / bancada (1,30m)</option>
-                      <option value="tomada_piso">🔌 Tomada de piso</option>
-                      <option value="tomada_teto">🔌 Tomada de teto (projetor/AP)</option>
-                      <option value="ponto_som_teto">🔊 Ponto de som (teto — caixa embutida)</option>
-                      <option value="modulo_cabeceira">🛏 Módulo cabeceira (tomada+int+2 USB)</option>
+                    <optgroup label="⚡ ELÉTRICA — selo E">
+                      <option value="tomada_baixa">Tomada baixa (0,30m)</option>
+                      <option value="tomada_alta">Tomada alta / bancada (1,30m)</option>
+                      <option value="tomada_piso">Tomada de piso</option>
+                      <option value="tomada_teto">Tomada de teto (projetor/AP)</option>
+                      <option value="modulo_cabeceira">Módulo cabeceira (tomada+int+2 USB)</option>
+                      <option value="interruptor_simples">Interruptor simples</option>
+                      <option value="interruptor_paralelo">Interruptor paralelo (2 lugares)</option>
+                      <option value="interruptor_intermediario">Interruptor 3+ lugares</option>
+                      <option value="interruptor_6">Interruptor / Keypad 6 teclas</option>
+                      <option value="ponto_luz">Ponto de luz (teto)</option>
+                      <option value="ponto_energia_teto">Ponto de energia no teto (fase+neutro)</option>
+                      <option value="arandela">Arandela (parede)</option>
+                      <option value="arandela_teto">Arandela / luz de teto</option>
+                      <option value="quadro">Quadro de luz (QDL)</option>
+                      <option value="prumada">Prumada (subida/descida entre andares)</option>
                     </optgroup>
-                    <optgroup label="Rede / Dados (CAT6)">
-                      <option value="keystone_alto">Keystone de rede (a altura vem do seletor acima)</option>
+                    <optgroup label="🔵 REDE / DADOS — selo R">
+                      <option value="keystone_alto">Keystone de rede (altura no seletor acima)</option>
                     </optgroup>
-                    <optgroup label="Interruptores">
-                      <option value="interruptor_simples">💡 Interruptor simples</option>
-                      <option value="interruptor_paralelo">💡 Interruptor paralelo (2 lugares)</option>
-                      <option value="interruptor_intermediario">💡 Interruptor 3+ lugares</option>
-                      <option value="interruptor_6">💡 Interruptor / Keypad 6 teclas</option>
-                    </optgroup>
-                    <optgroup label="Iluminação">
-                      <option value="ponto_luz">⭘ Ponto de luz (teto)</option>
-                      <option value="ponto_energia_teto">⊕ Ponto de energia no teto (fase+neutro)</option>
-                      <option value="arandela">⭘ Arandela (parede)</option>
-                      <option value="arandela_teto">⭘ Arandela / luz de teto</option>
-                    </optgroup>
-                    <optgroup label="Quadro">
-                      <option value="quadro">▦ Quadro de luz (QDL)</option>
-                      <option value="prumada">⇵ Prumada (subida/descida entre andares)</option>
+                    <optgroup label="🔊 SOM — selo S">
+                      <option value="ponto_som_teto">Ponto de som (teto — caixa embutida)</option>
                     </optgroup>
                     <option value="nenhum">— Não é elétrico (rede/dados/som)</option>
                   </select> })()}
@@ -4264,7 +4216,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   {(()=>{ const det=guessCableType(m,m); const detL=CABLE_LABELS[det]||det
                     return <select value={m.cableType||'auto'} onChange={e=>{const v=e.target.value; setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,cableType:v==='auto'?undefined:v}:x))}} style={{...inputDark,marginBottom:8}}>
                     <option value="auto">✨ Automático → {detL}</option>
-                    {Object.entries(CABLE_LABELS).filter(([k])=>k!=='ap').map(([k,v])=><option key={k} value={k}>{k==='dados'?'Dados / AP':v} · {CABLE_SPEC[k]?.spec||''}</option>)}
+                    {Object.entries(CABLE_LABELS).filter(([k])=>k!=='ap'&&k!=='camera').map(([k,v])=><option key={k} value={k}>{k==='dados'?'Dados (rede CAT6)':v} · {CABLE_SPEC[k]?.spec||''}</option>)}
                   </select> })()}
                   {/tomada|modulo_cabeceira/.test(classifyEle(m)?.sym||'') && (()=>{
                     const volt = /220/.test(m.note||'')?'220':/110|127/.test(m.note||'')?'110':''
@@ -4461,9 +4413,67 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <i className="ti ti-refresh" aria-hidden/> Regerar sem IA
           </button>
           {(fromProposal?.id || onSaveToProposal) && <button onClick={saveToProposal} disabled={loading} style={{...btnGhost,borderColor:'rgba(56,189,248,0.4)',color:'#38BDF8',gap:6}} title="Grava o documento no orçamento. É uma ação separada do download, e só ela toca o banco."><i className="ti ti-device-floppy" aria-hidden/> Salvar no orçamento</button>}
-          <button onClick={exportPdf} style={btnPrimary} title="Gera o PDF para imprimir ou salvar como PDF pelo navegador. Não grava no banco."><i className="ti ti-file-download" aria-hidden/> Baixar PDF ({execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='conduites'?'Conduítes':'Completo'})</button>
+          <button onClick={()=>setShowPdfOpts(true)} style={btnPrimary} title="Abre as opções do documento antes de gerar."><i className="ti ti-file-download" aria-hidden/> Baixar PDF ({execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='conduites'?'Conduítes':'Completo'})</button>
         </div>
       )}
+      {showPdfOpts && (()=>{
+        const famList=['dados','som','eletrica','hdmi','uplink','fibra']
+        const catList=[...new Set(markers.map(m=>equipType(m.name)))].sort()
+        const modo = execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='conduites'?'Conduítes':'Completo'
+        const rowSt={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'11px 0',borderBottom:'1px solid rgba(255,255,255,0.07)'}
+        const tgl=(on,onClick,onLbl,offLbl)=><button onClick={onClick} style={{minWidth:76,height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11.5,fontWeight:600,border:`1px solid ${on?'#0EA5E9':'rgba(255,255,255,0.2)'}`,background:on?'rgba(14,165,233,0.2)':'rgba(255,255,255,0.06)',color:on?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{on?onLbl:offLbl}</button>
+        const chip=(on,label,onClick)=><button key={label} onClick={onClick} style={{fontSize:10.5,padding:'4px 10px',borderRadius:14,border:`1px solid ${on?'#DC2626':'rgba(255,255,255,0.25)'}`,background:on?'rgba(220,38,38,0.25)':'rgba(255,255,255,0.06)',color:on?'#FCA5A5':'rgba(255,255,255,0.75)',cursor:'pointer',fontFamily:'inherit',textDecoration:on?'line-through':'none'}}>{label}</button>
+        return <div onClick={()=>setShowPdfOpts(false)} style={{position:'fixed',inset:0,background:'rgba(3,10,20,0.72)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#0F172A',border:'1px solid rgba(255,255,255,0.12)',borderRadius:14,width:580,maxWidth:'100%',maxHeight:'88vh',overflowY:'auto',padding:'18px 20px',color:'#E2E8F0',fontFamily:'inherit'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{fontSize:15,fontWeight:700}}>Opções do documento</div>
+              <button onClick={()=>setShowPdfOpts(false)} style={{background:'none',border:'none',color:'#94A3B8',fontSize:22,cursor:'pointer',lineHeight:1}}>×</button>
+            </div>
+            <div style={{fontSize:11,color:'#94A3B8',margin:'2px 0 10px'}}>Estas opções valem no PDF que você vai gerar. Ajuste aqui e clique em Gerar.</div>
+
+            <div style={rowSt}>
+              <div><div style={{fontSize:12.5,fontWeight:600}}>Legenda no documento</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Quadro de formas e cabos nas plantas</div></div>
+              {tgl(showLegenda,()=>setShowLegenda(v=>!v),'Incluída','Sem')}
+            </div>
+            <div style={rowSt}>
+              <div><div style={{fontSize:12.5,fontWeight:600}}>Códigos dos pontos (IDs)</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Mostrar os IDs nas plantas do PDF</div></div>
+              {tgl(showIdsPdf,()=>setShowIdsPdf(v=>!v),'Com IDs','Limpo')}
+            </div>
+            <div style={rowSt}>
+              <div><div style={{fontSize:12.5,fontWeight:600}}>Orientação da planta</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Gira a imagem e os pinos. A metragem não muda.</div></div>
+              <div style={{display:'flex',gap:5}}>
+                {[['original','Original'],['paisagem','Paisagem'],['retrato','Retrato']].map(([v,l])=>
+                  <button key={v} onClick={()=>setPageOrient(v)} style={{height:30,padding:'0 11px',borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11,fontWeight:pageOrient===v?700:500,border:`1px solid ${pageOrient===v?'#0EA5E9':'rgba(255,255,255,0.2)'}`,background:pageOrient===v?'rgba(14,165,233,0.2)':'rgba(255,255,255,0.06)',color:pageOrient===v?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{l}</button>)}
+              </div>
+            </div>
+            <div style={rowSt}>
+              <div><div style={{fontSize:12.5,fontWeight:600}}>Tamanho da planta</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Largura da planta nas páginas</div></div>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <button onClick={()=>setPlantPct(v=>Math.max(40,v-10))} style={{width:26,height:26,borderRadius:6,border:'1px solid rgba(255,255,255,0.25)',background:'rgba(255,255,255,0.06)',color:'#fff',cursor:'pointer',fontSize:15}}>−</button>
+                <b style={{minWidth:44,textAlign:'center',fontSize:13}}>{plantPct}%</b>
+                <button onClick={()=>setPlantPct(v=>Math.min(100,v+10))} style={{width:26,height:26,borderRadius:6,border:'1px solid rgba(255,255,255,0.25)',background:'rgba(255,255,255,0.06)',color:'#fff',cursor:'pointer',fontSize:15}}>+</button>
+              </div>
+            </div>
+            <div style={{padding:'12px 0 2px'}}>
+              <div style={{fontSize:12.5,fontWeight:600,marginBottom:2}}>Filtros do relatório</div>
+              <div style={{fontSize:10.5,color:'#94A3B8',marginBottom:8}}>Clique para <b style={{color:'#FCA5A5'}}>tirar do PDF</b> (riscado = fora). Não apaga nada do projeto.</div>
+              <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',marginBottom:7}}>
+                <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Cabos</span>
+                {famList.map(f=>chip(hideFams.has(f), CABLE_LABELS[f]||f, ()=>setHideFams(p=>{const x=new Set(p); x.has(f)?x.delete(f):x.add(f); return x})))}
+                {chip(hidePdfConduites,'Conduítes',()=>setHidePdfConduites(v=>!v))}
+              </div>
+              <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
+                <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Categorias</span>
+                {catList.map(c=>chip(hideCats.has(c), c, ()=>setHideCats(p=>{const x=new Set(p); x.has(c)?x.delete(c):x.add(c); return x})))}
+              </div>
+            </div>
+
+            <button onClick={()=>{ setShowPdfOpts(false); exportPdf() }} style={{...btnPrimary,width:'100%',justifyContent:'center',marginTop:16,padding:'12px'}}>
+              <i className="ti ti-file-download" aria-hidden/> Gerar PDF ({modo})
+            </button>
+          </div>
+        </div>
+      })()}
       <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes progslide{0%{margin-left:-40%}100%{margin-left:100%}}`}</style>
     </div>
   )

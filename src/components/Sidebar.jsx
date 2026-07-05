@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v242 — DADOS+AP unificados de vez: guessCableType nao retorna mais "ap", Access Point usa cabo de dados (CAT6); PoE e do switch/fonte, nao do cabo. BOLINHAS: menu Tipo do ponto perdeu keystone_alto/baixo/teto (as 3 bolinhas) e o keystone_teto duplicado; virou uma opcao unica "Keystone de rede" com a altura vindo do seletor. TABELA Posicao e Altura dos Pontos (ID/Item/Local/Altura) por ambiente adicionada ao Projeto Executivo, apos a planta (Local=forma do pino, Altura=nivel). PENDENTE: pedido 6 (controles na tela de PDF) depende de preview ao vivo que nao existe hoje. Mantem v207-v241.
+// v244 — PADRAO DE SIMBOLO nas tabelas do doc. Tabela "Posicao e Altura" (print 1) agora tem coluna PONTO com o pino REAL (cor=categoria, forma=local, tracinho=altura, numero dentro) + selo do cabo (E/R/S) + coluna Sistema (Eletrico/Rede/Som). Legenda explicativa no topo. Planta Geral (secao 2) REMOVIDA: duplicava a Planta de Pontos. Helper simb(m) reusa pinShapeSVG+cableFamily. PENDENTE (alinhar padrao antes de multiplicar): replicar o mesmo simbolo na Lista Eletrica, som, seguranca, automacao, teto, portas; e "qual porta conectar" (precisa regra tecnica por equipamento, nao inventar). Mantem v207-v243.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v242 · build 2026-07
+          v244 · build 2026-07
         </div>
       </div>
     </div>
