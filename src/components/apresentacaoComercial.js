@@ -647,21 +647,69 @@ td.sub{font-weight:800;font-size:1rem}
 }
 
 
+
 // ══════════════════════════════════════════════════════════════════
-// VERSÃO FABLE: vende o SERVIÇO, não o orçamento. Uma página.
-// Eixo: a RARO acompanha a obra e crava cada ponto no lugar certo,
-// deixando a casa pronta pra automação. A planta é a PROVA disso
-// (pequena, só ilustração, e só aparece se existir). O valor é
-// secundário: estimativa "se fechar tudo", discreta perto do fim.
+// VERSÃO FABLE: vende o SERVIÇO. Uma página.
+// Hierarquia de valor (definida com a Ful):
+//  • PROJETO INICIAL (execValue, digitado por projeto): é o produto que
+//    a peça vende. Deixar a casa com os pontos, sem itens. DESTAQUE.
+//  • ESTIMATIVA DE ITENS (soma do catálogo): "se fechar tudo", secundária,
+//    menor, remetendo à proposta.
+// Planta SEMPRE presente: a do cliente (plantaImage) ou uma genérica.
 // Papel branco, tinta #131A2C, dourado #B0854C, Fraunces no display.
-// Regras de dado idênticas à V2 (categoria exata, MO só com item,
-// total = soma dos subtotais). Cores de categoria preservadas.
+// Regras de dado idênticas à V2. Cores de categoria preservadas.
 // ══════════════════════════════════════════════════════════════════
+
+// planta genérica (fallback): silhueta de apê na paleta Fable, só ilustrativa
+const PLANTA_GENERICA = 'data:image/svg+xml;base64,' + (typeof btoa!=='undefined'
+  ? btoa(unescape(encodeURIComponent(_plantaGenericaSVG())))
+  : Buffer.from(_plantaGenericaSVG()).toString('base64'))
+function _plantaGenericaSVG(){ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 340">
+  <defs>
+    <pattern id="rhfloor" width="14" height="14" patternUnits="userSpaceOnUse">
+      <rect width="14" height="14" fill="#F1E7D4"/><line x1="0" y1="0" x2="0" y2="14" stroke="#E4D6BC" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="460" height="340" fill="#FBF8F1"/>
+  <rect x="40" y="30" width="380" height="270" fill="url(#rhfloor)" stroke="#131A2C" stroke-width="3"/>
+  <g stroke="#131A2C" stroke-width="2" opacity="0.55">
+    <line x1="40" y1="165" x2="230" y2="165"/><line x1="150" y1="30" x2="150" y2="165"/>
+    <line x1="300" y1="165" x2="300" y2="300"/><line x1="230" y1="30" x2="230" y2="165"/><line x1="230" y1="110" x2="420" y2="110"/>
+  </g>
+  <g stroke="#B0854C" stroke-width="1.5" fill="none" opacity="0.7">
+    <path d="M95 165 A18 18 0 0 1 113 183"/><path d="M190 165 A18 18 0 0 1 208 183"/>
+  </g>
+  <g><rect x="55" y="45" width="60" height="46" rx="3" fill="#DCC9A8" stroke="#C2AA82" stroke-width="1"/>
+    <rect x="55" y="45" width="60" height="14" fill="#C9B79A"/><rect x="61" y="49" width="20" height="7" rx="2" fill="#F4ECDA"/>
+    <rect x="88" y="49" width="20" height="7" rx="2" fill="#F4ECDA"/><rect x="120" y="45" width="24" height="12" rx="2" fill="#C9B79A"/></g>
+  <text x="95" y="140" fill="#131A2C" font-family="Georgia,serif" font-size="12" text-anchor="middle" opacity="0.75">Su\u00edte</text>
+  <g><rect x="165" y="45" width="40" height="52" rx="3" fill="#DCC9A8" stroke="#C2AA82" stroke-width="1"/>
+    <rect x="165" y="45" width="40" height="12" fill="#C9B79A"/><rect x="171" y="48" width="28" height="7" rx="2" fill="#F4ECDA"/></g>
+  <text x="190" y="140" fill="#131A2C" font-family="Georgia,serif" font-size="12" text-anchor="middle" opacity="0.75">Quarto</text>
+  <g><rect x="238" y="40" width="60" height="12" rx="2" fill="#C9B79A"/><rect x="286" y="40" width="12" height="62" rx="2" fill="#C9B79A"/>
+    <circle cx="252" cy="46" r="3" fill="#8A6A38"/><circle cx="264" cy="46" r="3" fill="#8A6A38"/><rect x="242" y="58" width="16" height="12" rx="2" fill="#D9E4E8"/></g>
+  <text x="265" y="90" fill="#131A2C" font-family="Georgia,serif" font-size="11" text-anchor="middle" opacity="0.75">Cozinha</text>
+  <g><rect x="330" y="45" width="24" height="34" rx="4" fill="#D9E4E8" stroke="#B8CBD1" stroke-width="1"/>
+    <circle cx="380" cy="60" r="8" fill="#D9E4E8" stroke="#B8CBD1" stroke-width="1"/></g>
+  <text x="360" y="95" fill="#131A2C" font-family="Georgia,serif" font-size="10" text-anchor="middle" opacity="0.65">Banho</text>
+  <g><rect x="52" y="195" width="20" height="70" rx="4" fill="#C9B79A"/><rect x="52" y="245" width="70" height="20" rx="4" fill="#C9B79A"/>
+    <rect x="88" y="200" width="80" height="46" rx="4" fill="none" stroke="#C2AA82" stroke-width="2" opacity="0.6"/><rect x="185" y="205" width="8" height="34" rx="2" fill="#131A2C" opacity="0.7"/></g>
+  <text x="120" y="288" fill="#131A2C" font-family="Georgia,serif" font-size="12" text-anchor="middle" opacity="0.75">Living</text>
+  <g><circle cx="255" cy="230" r="26" fill="#DCC9A8" stroke="#C2AA82" stroke-width="1"/>
+    <circle cx="255" cy="198" r="7" fill="#C9B79A"/><circle cx="255" cy="262" r="7" fill="#C9B79A"/><circle cx="223" cy="230" r="7" fill="#C9B79A"/><circle cx="287" cy="230" r="7" fill="#C9B79A"/></g>
+  <text x="255" y="288" fill="#131A2C" font-family="Georgia,serif" font-size="11" text-anchor="middle" opacity="0.7">Jantar</text>
+  <g><circle cx="360" cy="215" r="14" fill="#DCC9A8" stroke="#C2AA82" stroke-width="1"/>
+    <circle cx="345" cy="255" r="10" fill="#A9BD8F" opacity="0.85"/><circle cx="395" cy="250" r="8" fill="#A9BD8F" opacity="0.7"/></g>
+  <text x="360" y="288" fill="#131A2C" font-family="Georgia,serif" font-size="11" text-anchor="middle" opacity="0.7">Varanda</text>
+  <text x="230" y="322" fill="#8A6A38" font-family="Georgia,serif" font-style="italic" font-size="11" letter-spacing="1" text-anchor="middle">planta ilustrativa</text>
+</svg>` }
+
 export function buildApresentacaoFable({ clientName, neighborhood, code, floors, execValue, laborByCat, laborTotal, plantaImage, showInvest=true }){
   laborByCat = laborByCat || {}
   const fmtV = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
+  const projetoInicial = parseFloat(execValue||0)
 
-  // ── agregação (idêntica à V2, sem inferir categoria) ──
+  // ── agregação de itens (idêntica à V2) ──
   const eq = {}, qty = {}
   ;(floors||[]).forEach(fl => (fl.rooms||[]).forEach(r => (r.items||[]).forEach(it => {
     if(!it.name) return
@@ -675,15 +723,15 @@ export function buildApresentacaoFable({ clientName, neighborhood, code, floors,
   const catsComItens = new Set(Object.keys(eq))
   Object.keys(mo).forEach(c=>{ if(!catsComItens.has(c)) delete mo[c] })
   const cats = [...new Set([...Object.keys(eq), ...Object.keys(mo)])]
-    .map(c => ({ cat:c, q:qty[c]||0, eq:eq[c]||0, mo:mo[c]||0, sub:(eq[c]||0)+(mo[c]||0) }))
+    .map(c => ({ cat:c, q:qty[c]||0, sub:(eq[c]||0)+(mo[c]||0) }))
     .filter(c => c.sub>0 || c.q>0)
     .sort((a,b)=>b.sub-a.sub)
-  const totalGeral = cats.reduce((s,c)=>s+c.sub,0)
+  const estItens = cats.reduce((s,c)=>s+c.sub,0)
   const totalItens = cats.reduce((s,c)=>s+c.q,0)
   const hoje = new Date().toLocaleDateString('pt-BR',{day:'numeric',month:'long',year:'numeric'})
-  const temPlanta = !!plantaImage
+  const planta = plantaImage || PLANTA_GENERICA
+  const plantaEhGenerica = !plantaImage
 
-  // sistemas como cápsulas horizontais (o que a casa vai ter), cor de categoria só no ponto
   const capsulas = cats.map(c=>{
     const col = CAT_COLORS_V2[c.cat]||'#6B7280'
     return `<span class="cap"><span class="cap-dot" style="background:${col}"></span>${c.cat}<b>${c.q}</b></span>`
@@ -697,60 +745,63 @@ export function buildApresentacaoFable({ clientName, neighborhood, code, floors,
   :root{ --tinta:#131A2C; --ouro:#B0854C; --ouro-e:#8A6A38; --fio:#E4D9C4; --cinza:#5B6478 }
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#fff;color:var(--tinta);font-family:'Inter',system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .page{max-width:760px;margin:0 auto;padding:34px 58px 28px}
+  .page{max-width:760px;margin:0 auto;padding:34px 58px 26px}
   .serif{font-family:'Fraunces',Georgia,serif}
 
-  /* topo: logo + identificação do cliente na mesma linha de respiro */
-  .top{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--fio);padding-bottom:20px}
-  .top img{width:120px;height:auto;display:block}
+  .top{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--fio);padding-bottom:18px}
+  .top img{width:116px;height:auto;display:block}
   .top .who{text-align:right}
   .top .who .k{font-size:9.5px;letter-spacing:3px;text-transform:uppercase;color:var(--ouro-e);font-weight:600;margin-bottom:4px}
-  .top .who .n{font-family:'Fraunces',Georgia,serif;font-size:19px;font-weight:600;line-height:1.1}
+  .top .who .n{font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:600;line-height:1.1}
   .top .who .m{font-size:11px;color:var(--cinza);margin-top:3px}
 
-  /* manchete de serviço: o herói é a promessa, não o preço */
-  .hero{margin:30px 0 6px}
-  .hero .kick{font-size:10.5px;letter-spacing:4px;text-transform:uppercase;color:var(--ouro-e);font-weight:600;margin-bottom:16px}
-  .hero h1{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:34px;line-height:1.12;letter-spacing:.2px}
+  .hero{margin:26px 0 4px}
+  .hero .kick{font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--ouro-e);font-weight:600;margin-bottom:14px}
+  .hero h1{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:31px;line-height:1.15;letter-spacing:.2px}
   .hero h1 em{font-style:italic;color:var(--ouro-e)}
-  .hero .lead{font-size:12.5px;color:var(--cinza);line-height:1.55;margin-top:12px;max-width:600px}
+  .hero .lead{font-size:12px;color:var(--cinza);line-height:1.55;margin-top:11px;max-width:600px}
 
-  /* três provas do serviço */
-  .steps{display:flex;gap:0;margin:22px 0 4px;border-top:1px solid var(--fio);border-bottom:1px solid var(--fio)}
-  .steps .s{flex:1;padding:13px 16px 13px 0}
-  .steps .s+.s{padding-left:20px;border-left:1px solid var(--fio)}
-  .steps .s .num{font-family:'Fraunces',Georgia,serif;color:var(--ouro);font-size:15px;font-weight:600;margin-bottom:5px}
-  .steps .s .t{font-family:'Fraunces',Georgia,serif;font-size:14px;font-weight:600;margin-bottom:4px}
-  .steps .s .d{font-size:11px;color:var(--cinza);line-height:1.5}
+  /* corpo: serviço à esquerda, projeto inicial em card à direita */
+  .corpo{display:flex;gap:26px;margin:22px 0 4px;align-items:stretch}
+  .corpo .esq{flex:1}
+  .steps .s{padding:9px 0;border-bottom:1px solid var(--fio)}
+  .steps .s:last-child{border-bottom:none}
+  .steps .s .t{font-family:'Fraunces',Georgia,serif;font-size:14px;font-weight:600;display:flex;align-items:center;gap:9px}
+  .steps .s .t .num{color:var(--ouro);font-size:13px}
+  .steps .s .d{font-size:11px;color:var(--cinza);line-height:1.5;margin-top:3px;padding-left:23px}
 
-  /* prova visual: planta pequena, só ilustração */
-  .prova{display:flex;gap:22px;align-items:center;margin:22px 0 4px}
-  .prova .thumb{flex:0 0 200px;height:140px;border:1px solid var(--tinta);padding:6px;position:relative;overflow:hidden}
-  .prova .thumb:before{content:'';position:absolute;inset:-4px;border:1px solid var(--ouro);pointer-events:none}
-  .prova .thumb img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
-  .prova .txt .lab{font-size:9.5px;letter-spacing:3px;text-transform:uppercase;color:var(--ouro-e);font-weight:600;margin-bottom:8px}
-  .prova .txt h3{font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:600;margin-bottom:8px;line-height:1.2}
-  .prova .txt p{font-size:12px;color:var(--cinza);line-height:1.6}
+  /* CARD do projeto inicial: o herói */
+  .card{flex:0 0 262px;background:var(--tinta);color:#F6EFDF;border-radius:12px;padding:24px 22px;display:flex;flex-direction:column}
+  .card .lab{font-size:9.5px;letter-spacing:3px;text-transform:uppercase;color:var(--ouro);font-weight:600;margin-bottom:10px}
+  .card h3{font-family:'Fraunces',Georgia,serif;font-size:19px;font-weight:600;line-height:1.2;margin-bottom:10px}
+  .card p{font-size:11.5px;color:#C9BFA6;line-height:1.55;margin-bottom:auto}
+  .card .val{margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.14)}
+  .card .val .vk{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:#9AA2B8;margin-bottom:4px}
+  .card .val .vv{font-family:'Fraunces',Georgia,serif;font-size:32px;font-weight:600;color:#fff;line-height:1}
+  .card .val .vn{font-size:10px;color:#9AA2B8;margin-top:6px;line-height:1.4}
 
-  /* o que a casa vai ter: cápsulas discretas */
-  .sistemas{margin:22px 0 4px}
-  .sistemas .lab{font-size:9.5px;letter-spacing:3px;text-transform:uppercase;color:var(--cinza);font-weight:600;margin-bottom:12px}
-  .caps{display:flex;flex-wrap:wrap;gap:8px}
-  .cap{display:inline-flex;align-items:center;gap:7px;font-size:12px;padding:7px 13px;border:1px solid var(--fio);border-radius:20px;background:#FBF8F1}
-  .cap-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
-  .cap b{font-family:'Fraunces',Georgia,serif;font-weight:600;color:var(--ouro-e);margin-left:1px}
+  /* prova: planta pequena + estimativa de itens juntas, tudo secundário */
+  .rodape{display:flex;gap:24px;margin-top:22px;padding-top:20px;border-top:1px solid var(--fio);align-items:center}
+  .rodape .thumb{flex:0 0 176px;height:124px;border:1px solid var(--tinta);padding:5px;position:relative;overflow:hidden}
+  .rodape .thumb:before{content:'';position:absolute;inset:-4px;border:1px solid var(--ouro);pointer-events:none}
+  .rodape .thumb img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
+  .rodape .thumb .tag{position:absolute;bottom:5px;left:5px;right:5px;text-align:center;font-size:7px;letter-spacing:1px;color:var(--ouro-e);background:rgba(251,248,241,.9);padding:1px}
+  .rodape .info{flex:1}
+  .rodape .info .lab{font-size:9.5px;letter-spacing:3px;text-transform:uppercase;color:var(--ouro-e);font-weight:600;margin-bottom:8px}
+  .rodape .info h4{font-family:'Fraunces',Georgia,serif;font-size:15px;font-weight:600;margin-bottom:8px}
+  .caps{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .cap{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;padding:5px 10px;border:1px solid var(--fio);border-radius:16px;background:#FBF8F1}
+  .cap-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+  .cap b{font-family:'Fraunces',Georgia,serif;font-weight:600;color:var(--ouro-e)}
+  .est{display:flex;justify-content:space-between;align-items:baseline;background:#FBF8F1;border:1px solid var(--fio);border-radius:8px;padding:11px 15px}
+  .est .l{font-size:10px;color:var(--cinza);line-height:1.4;max-width:70%}
+  .est .l b{color:var(--tinta);font-weight:600}
+  .est .r{font-family:'Fraunces',Georgia,serif;font-size:17px;font-weight:600;white-space:nowrap}
 
-  /* valor: secundário, rotulado como estimativa */
-  .valor{margin-top:20px;padding:16px 20px;background:#FBF8F1;border:1px solid var(--fio);border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:16px}
-  .valor .l .k{font-size:9.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(--cinza);font-weight:600;margin-bottom:3px}
-  .valor .l .d{font-size:11px;color:var(--cinza);line-height:1.4}
-  .valor .r{font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:600;white-space:nowrap}
-
-  /* fecho assinado */
-  .fecho{text-align:center;margin-top:22px;padding-top:18px;border-top:1px solid var(--fio)}
-  .fecho p{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:14px;color:var(--tinta);max-width:520px;margin:0 auto 4px;line-height:1.6}
-  .fecho .firm{font-size:9px;letter-spacing:4px;text-transform:uppercase;color:var(--cinza);margin-top:12px}
-  @media print{ .page{padding:30px 38px} @page{margin:9mm 11mm} }
+  .fecho{text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--fio)}
+  .fecho p{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:13.5px;color:var(--tinta);max-width:540px;margin:0 auto;line-height:1.55}
+  .fecho .firm{font-size:9px;letter-spacing:4px;text-transform:uppercase;color:var(--cinza);margin-top:11px}
+  @media print{ .page{padding:26px 40px} @page{margin:8mm 10mm} }
 </style></head><body>
 <div class="page">
 
@@ -766,38 +817,38 @@ export function buildApresentacaoFable({ clientName, neighborhood, code, floors,
   <div class="hero">
     <div class="kick">O que a RARO entrega</div>
     <h1>A gente acompanha a obra e deixa cada ponto no lugar certo, pra sua casa nascer <em>pronta para a automação</em>.</h1>
-    <div class="lead">Antes do reboco fechar, o projeto executivo já define onde entra cada tomada, cabo, caixa e ponto de comando. Você não descobre problema depois. A casa é construída para a tecnologia desde o primeiro dia.</div>
+    <div class="lead">O projeto executivo define, antes do reboco fechar, onde entra cada tomada, cabo e ponto de comando. E a gente acompanha a obra pra garantir que saia igual ao projeto.</div>
   </div>
 
-  <div class="steps">
-    <div class="s"><div class="num">01</div><div class="t">Projeto antes da obra</div><div class="d">Cada ponto posicionado na planta, sistema por sistema, antes de a parede fechar.</div></div>
-    <div class="s"><div class="num">02</div><div class="t">Acompanhamento no canteiro</div><div class="d">A gente acompanha a execução pra garantir que o que está no projeto vira realidade na obra.</div></div>
-    <div class="s"><div class="num">03</div><div class="t">Casa pronta pra automação</div><div class="d">Infraestrutura no lugar, sem quebra-quebra depois, pronta para receber os equipamentos.</div></div>
+  <div class="corpo">
+    <div class="esq">
+      <div class="steps">
+        <div class="s"><div class="t"><span class="num">01</span>Projeto antes da obra</div><div class="d">Cada ponto posicionado na planta, sistema por sistema, antes da parede fechar.</div></div>
+        <div class="s"><div class="t"><span class="num">02</span>Acompanhamento no canteiro</div><div class="d">A gente acompanha a execução pra garantir que o projeto vira realidade na obra.</div></div>
+        <div class="s"><div class="t"><span class="num">03</span>Casa pronta pra automação</div><div class="d">Infraestrutura no lugar, sem quebra-quebra depois, pronta pros equipamentos.</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="lab">O investimento no projeto</div>
+      <h3>Projeto Executivo + Acompanhamento de Obra</h3>
+      <p>Engenharia completa da sua casa, com os pontos definidos e a obra acompanhada. Pronta para o arquiteto e o eletricista executarem sem dúvida.</p>
+      <div class="val">
+        <div class="vk">Valor do projeto</div>
+        <div class="vv">${fmtV(projetoInicial)}</div>
+        <div class="vn">Os equipamentos entram depois, no seu ritmo.</div>
+      </div>
+    </div>
   </div>
 
-  ${temPlanta?`
-  <div class="prova">
-    <div class="thumb"><img src="${plantaImage}" alt="Planta do projeto"/></div>
-    <div class="txt">
+  <div class="rodape">
+    <div class="thumb"><img src="${planta}" alt="Planta" style="object-fit:${plantaEhGenerica?'contain':'cover'}"/>${plantaEhGenerica?'<div class="tag">ILUSTRATIVA</div>':''}</div>
+    <div class="info">
       <div class="lab">A prova está na planta</div>
-      <h3>Todos os pontos, no lugar exato, antes da obra</h3>
-      <p>Esta é a planta do seu projeto: cada ponto de automação, som, rede e segurança já posicionado. É esse desenho que a gente leva pro canteiro e acompanha até o fim.</p>
+      <h4>Todos os pontos, no lugar exato</h4>
+      <div class="caps">${capsulas}</div>
+      ${showInvest && estItens>0 ? `<div class="est"><div class="l"><b>Se você fechar tudo:</b> estimativa dos ${totalItens} itens para deixar a casa completa. O detalhamento vem na proposta.</div><div class="r">${fmtV(estItens)}</div></div>` : ''}
     </div>
-  </div>`:''}
-
-  <div class="sistemas">
-    <div class="lab">O que a sua casa vai ter</div>
-    <div class="caps">${capsulas}</div>
   </div>
-
-  ${showInvest?`
-  <div class="valor">
-    <div class="l">
-      <div class="k">Estimativa do projeto completo</div>
-      <div class="d">Referência para fechar tudo: ${totalItens} itens em ${cats.length} sistemas, equipamentos e instalação. O detalhamento vem na proposta.</div>
-    </div>
-    <div class="r">${fmtV(totalGeral)}</div>
-  </div>`:''}
 
   <div class="fecho">
     <p>Casa com tecnologia qualquer um instala depois. Casa pensada para a tecnologia, só quem projeta antes.</p>
@@ -807,5 +858,5 @@ export function buildApresentacaoFable({ clientName, neighborhood, code, floors,
 </div>
 </body></html>`
 
-  return { html, grandTotal: totalGeral, totalGeral }
+  return { html, grandTotal: projetoInicial, totalGeral: estItens }
 }

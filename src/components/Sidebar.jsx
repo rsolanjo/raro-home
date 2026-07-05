@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v255 — APRESENTACAO FABLE reorientada: vende o SERVICO, nao o orcamento. Uma pagina. Heroi = a promessa (a RARO acompanha a obra e crava cada ponto no lugar certo, casa nasce pronta pra automacao), nao o preco. Tres provas do servico (projeto antes da obra, acompanhamento no canteiro, casa pronta). Planta PEQUENA so como prova/ilustracao, e SO aparece se existir (temPlanta); miniatura com altura travada (140px, object-fit cover) pra garantir 1 pagina. Sistemas viram capsulas (o que a casa vai ter). Valor rebaixado a estimativa se fechar tudo, discreto perto do fim, remete a proposta pro detalhe. showInvest=false esconde o bloco de valor. Regras de dado iguais a V2. Renderizado com/sem planta e conferido: 1 pagina nos dois casos. Mantem v207-v254.
+// v257 — PLANTA GENERICA HUMANIZADA. Trocada a silhueta tecnica (pontinhos, cara de diagrama eletrico) por uma planta decorada estilo incorporadora: comodos nomeados (Suite, Quarto, Cozinha, Banho, Living, Jantar, Varanda), moveis desenhados encostados nas paredes (cama de casal/solteiro, sofa em L, mesa redonda de jantar, bancada de cozinha, plantas na varanda), piso com textura, grid espacial coerente (quartos em cima, area social embaixo). Transmite lar, nao projeto. Fit condicional na miniatura: generica em 'contain' (mostra inteira, proporcao conhecida), planta do cliente em 'cover' (preenche). Renderizado e conferido no tamanho real de uso. Mantem v207-v256.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v255 · build 2026-07
+          v257 · build 2026-07
         </div>
       </div>
     </div>

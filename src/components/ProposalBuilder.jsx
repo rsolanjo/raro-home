@@ -2489,7 +2489,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
             <div className="flabel" style={{marginBottom:8}}>Modelo do documento</div>
             <div style={{display:'flex',gap:8}}>
-              {[['v2','Compacto','Seu Investimento — por categoria, com planta e legenda'],['v1','Completo','Apresentação institucional em 2 páginas'],['fable','Fable','Vende o serviço em 1 página: logo, acompanhamento de obra, planta como prova']].map(([v,t,d])=>(
+              {[['v2','Compacto','Seu Investimento — por categoria, com planta e legenda'],['v1','Completo','Apresentação institucional em 2 páginas'],['fable','Fable','Vende o serviço: projeto inicial em destaque, itens como estimativa, planta sempre']].map(([v,t,d])=>(
                 <button key={v} type="button" onClick={()=>setApresLayout(v)}
                   style={{flex:1,textAlign:'left',padding:'10px 12px',borderRadius:8,cursor:'pointer',border:`1.5px solid ${apresLayout===v?'var(--accent)':'var(--border)'}`,background:apresLayout===v?'rgba(14,165,233,0.08)':'var(--surf)'}}>
                   <div style={{fontSize:12.5,fontWeight:apresLayout===v?700:500,color:apresLayout===v?'var(--accent)':'var(--text)'}}>{t}</div>
