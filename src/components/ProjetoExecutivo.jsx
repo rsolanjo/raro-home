@@ -1570,7 +1570,10 @@ Responda APENAS JSON válido:
     // cabos de rede a partir dos cabos desenhados na planta (se houver)
     // Percursos pela prumada entram como UMA linha (origem e destino reais, metragem somada).
     const _portaSeq = {}
-    const rack_cable_table = cablesUnificados().filter(c=>!c.free).map((c,i)=>{
+    // Tabela de Portas: SÓ cabos de rede (dados, AP, câmera, uplink). Som/elétrica/HDMI têm tabelas próprias.
+    const CABO_REDE = new Set(['dados','ap','camera','uplink'])
+    const CABO_COR = { uplink:'Cinza', ap:'Azul', camera:'Verde', dados:'Amarelo' }
+    const rack_cable_table = cablesUnificados().filter(c=>!c.free && CABO_REDE.has(c.type)).map((c,i)=>{
       const from=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid)
       const mt=cableMeters(c)
       const dev = from?.name||'Rack'
@@ -1578,10 +1581,20 @@ Responda APENAS JSON válido:
       return { porta_patch:`P${String(i+1).padStart(2,'0')}`, device_origem:dev, porta_origem:String(_portaSeq[dev]),
         destino:(to?.name||'—')+(c._via?` · ${c._via}`:''), tipo:(CABLE_SPEC[c.type]?.spec)||'CAT6',
         metros: mt!=null?String(mt):'—',
-        etiqueta:`${(to?.code||to?.name||'PT')}`.toUpperCase().slice(0,16), cor:'' }
+        destino_n: to?.n ?? null, destino_uid: to?.uid || null,
+        etiqueta:`${(to?.code||to?.name||'PT')}`.toUpperCase().slice(0,16), cor: CABO_COR[c.type]||'Roxo' }
     })
 
-    // cabos de som
+    // cabos de som → tabela_som (mesma estrutura que a IA gera, pra alimentar tblSom)
+    const somMarks = markers.filter(m=>isSom(m) && !/receiver|amplificador/.test(lc(m.name)))
+    const tabela_som = somMarks.map((m,i)=>{
+      const cab=(cables||[]).find(c=>!c.free && (c.toUid===m.uid||c.fromUid===m.uid))
+      const mt=cab?cableMeters(cab):null
+      return { num_planta:m.n, id:m.code||`S${i+1}`, equip:m.name||'Caixa de som', ambiente:m.room||'—',
+        zona:'—', tipo:mountOf(m)==='teto'?'embutida teto':'caixa', saida_amplif:`Canal ${i+1}`,
+        cabo:`2×1,5mm²${mt!=null?` · ~${mt}m`:''}`, obs:'' }
+    })
+    // cabos de som (metragem crua, mantido para quantitativos)
     const cabos_som = markers.filter(isSom).map((m,i)=>{
       const cab=(cables||[]).find(c=>c.toUid===m.uid||c.fromUid===m.uid)
       const mt=cab?cableMeters(cab):null
@@ -1619,6 +1632,7 @@ Responda APENAS JSON válido:
       pontos,
       cabos_eletricos_por_comodo,
       cabos_som,
+      tabela_som,
       alim_keypads,
       pecas,
       checklist_obra:[
@@ -2194,7 +2208,7 @@ Responda APENAS JSON válido:
         return `<span style="display:inline-block;background:${c};color:#fff;padding:1px 8px;border-radius:8px;font-size:9px;font-weight:600">${cor||'—'}</span>`
       }
       const renderRow = r => `<tr>
-        <td style="text-align:center">${(()=>{ const num=(String(r.destino).match(/#(\d+)/)||[])[1]; const m=num?markers.find(x=>String(x.n)===num):null; return m?pin(m.n,undefined,m):'—' })()}</td>
+        <td style="text-align:center">${(()=>{ const m = r.destino_uid ? markers.find(x=>x.uid===r.destino_uid) : (r.destino_n!=null?markers.find(x=>x.n===r.destino_n):null); return m?pin(m.n,undefined,m):"—" })()}</td>
         <td><b style="font-family:monospace;background:#0D1420;color:#38BDF8;padding:2px 6px;border-radius:3px;font-size:10px">${esc(r.porta_patch)}</b></td>
         <td style="font-size:10px">${esc(r.device_origem)}</td>
         <td style="font-family:monospace;font-size:10px;color:#0369A1">${esc(r.porta_origem)}</td>
@@ -3194,6 +3208,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const eletrodutoNotas = (d.checklist_obra||[]).filter(x=>/eletroduto|caixa 4|4×4|4x4|sangria|passagem|fio-guia|condu/i.test(x))
       // ── Decisão 2: blocos que fecham o serviço do mestre dentro do Plano de Obra ──
       const NIVL={piso:'chão',baixa:'0,30 m',media:'1,10 m',alta:'1,80 m',teto:'teto'}, LOCL={teto:'Teto',chao:'Piso',parede:'Parede'}
+      // ── Planta completa (todos os itens) para abrir o Plano de Obra ──
+      const obraPlantaCompleta = plantaGeralItens ? `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Planta Completa do Projeto</h2>
+        <p class="ex-p" style="color:#6B7280">Todos os pontos posicionados na planta, visão geral antes de detalhar por tópico.</p>
+        ${plantaGeralItens}</div>` : ''
       const obraPosAlt = (()=>{ const byRoom={}
         markers.filter(m=>!isRackItem(m.name,m.code)).forEach(m=>{ const r=m.room||'Geral'; (byRoom[r]=byRoom[r]||[]).push(m) })
         const rooms=Object.entries(byRoom); if(!rooms.length) return ''
@@ -3202,11 +3220,20 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           rooms.map(([amb,ms])=>`<h3 class="ex-amb">${esc(amb)} · ${ms.length} ${ms.length===1?'ponto':'pontos'}</h3>`+
             T(ms.map(m=>`<tr><td style="text-align:center">${pin(m.n,undefined,m)}</td><td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||('#'+m.n))}</b></td><td>${esc(m.name||'')}</td><td>${LOCL[mountOf(m)]||'—'}</td><td style="font-weight:700">${NIVL[alturaOf(m)]||'—'}</td></tr>`).join(''),['Ponto','ID','Item','Local','Altura'])).join('')+`</div>`
       })()
-      const obraListaEle = (()=>{ const els=markers.filter(isPontoEletrico); if(!els.length) return ''
-        return `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Pontos Elétricos — Caixas e Alturas</h2>
-          <p class="ex-p" style="color:#6B7280">Qual caixa embutir e em que altura, por ponto. A planta com símbolos NBR está no documento Planta Elétrica (A3).</p>`+
+      // ── ELÉTRICA TUDO JUNTO: planta NBR + caixas/alturas + alimentação dos keypads, num tópico só ──
+      const obraEletricaCompleta = (()=>{ const els=markers.filter(isPontoEletrico)
+        if(!els.length && !(d.alim_keypads||[]).length) return ''
+        const plantaEle = buildPlantaEletrica(null)  // sem numeração de capítulo aqui, é dentro do tópico
+        const tabelaCaixas = els.length ? `<h3 class="ex-amb" style="margin-top:18px">Pontos Elétricos — Caixas e Alturas</h3>
+          <p class="ex-p" style="color:#6B7280">Qual caixa embutir e em que altura, por ponto.</p>`+
           T(els.map(m=>{ const cls=classifyEle(m); const cx=m.caixaTipo||caixaPadrao(cls.sym)||'—'
-            return `<tr><td style="text-align:center">${pin(m.n,undefined,m)}</td><td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td><td>${esc(cls.tipo)}</td><td>${esc(m.room||'—')}</td><td style="text-align:center;font-weight:700">${esc(cx)}</td><td style="font-weight:700">${NIVL[alturaOf(m)]||'—'}</td></tr>`}).join(''),['Nº','ID','Tipo','Cômodo','Caixa','Altura'])+`</div>`
+            return `<tr><td style="text-align:center">${pin(m.n,undefined,m)}</td><td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td><td>${esc(cls.tipo)}</td><td>${esc(m.room||'—')}</td><td style="text-align:center;font-weight:700">${esc(cx)}</td><td style="font-weight:700">${NIVL[alturaOf(m)]||'—'}</td></tr>`}).join(''),['Nº','ID','Tipo','Cômodo','Caixa','Altura']) : ''
+        const tabelaAlim = (d.alim_keypads||[]).length ? `<h3 class="ex-amb" style="margin-top:18px">Alimentação dos Keypads (Fase + Neutro)</h3>
+          <p class="ex-p" style="color:#6B7280">Keypads exigem neutro no fundo da caixa. Circuito dedicado do quadro.</p>`+
+          T(d.alim_keypads.map(r=>`<tr>${pinCell(r.destino,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x1,5mm²')}</td></tr>`).join(''),['Nº','ID','Origem','Destino (Keypad)','Altura','Cômodo','m','Fios']) : ''
+        return `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Elétrica — Planta, Caixas e Alimentação</h2>
+          <p class="ex-p" style="color:#6B7280">Tudo da parte elétrica num lugar só: a planta com símbolos NBR, a caixa e altura de cada ponto, e a alimentação dos keypads.</p>
+          ${plantaEle}${tabelaCaixas}${tabelaAlim}</div>`
       })()
       const obraQuant = (()=>{
         const caixas={}; markers.filter(isPontoEletrico).forEach(m=>{ const cx=m.caixaTipo||caixaPadrao(classifyEle(m).sym); if(cx) caixas[cx]=(caixas[cx]||0)+1 })
@@ -3222,23 +3249,27 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           <p class="ex-p" style="color:#6B7280">Metragens já incluem subida/descida ao forro e folga de instalação (${folgaPct}%). Percursos pela prumada contam o pé-direito uma vez.</p>`+
           T(rows.map(r=>`<tr><td>${r[0]}</td><td style="text-align:right;font-weight:700">${r[1]}</td></tr>`).join(''),['Material','Quantidade'])+`</div>`
       })()
-      // ── Decisão 5: checklists e alimentação dos keypads migram do Executivo pra cá ──
+      // ── Checklist com caixa real pra marcar à caneta na obra ──
+      const checkList = (items=[]) => items.length ? `<div style="display:flex;flex-direction:column;gap:0">${items.map(it=>`
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:9px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
+          <span style="flex-shrink:0;width:17px;height:17px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
+          <span style="font-size:12px;line-height:1.45;color:#1F2937">${esc(it)}</span>
+        </div>`).join('')}</div>` : '<p class="ex-p" style="color:#9CA3AF">Sem itens.</p>'
       const obraChecklists = `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Checklists de Obra e Instalação</h2>
-        <h3 class="ex-amb">Checklist de Obra — Arquiteto / Eletricista</h3>${list(d.checklist_obra)}
-        <h3 class="ex-amb" style="margin-top:16px">Checklist de Instalação — Equipe RARO Home</h3>${list(d.checklist_raro)}</div>`
-      const obraAlim = (d.alim_keypads||[]).length ? `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Alimentação dos Keypads (Fase + Neutro)</h2>`+
-        T(d.alim_keypads.map(r=>`<tr>${pinCell(r.destino,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x1,5mm²')}</td></tr>`).join(''),['Nº','ID','Origem','Destino (Keypad)','Altura','Cômodo','m','Fios'])+`</div>` : ''
+        <p class="ex-p" style="color:#6B7280">Marque cada item à caneta conforme for cumprindo. Imprima para levar ao canteiro.</p>
+        <h3 class="ex-amb" style="margin-top:14px">Checklist de Obra — Arquiteto / Eletricista</h3>${checkList(d.checklist_obra)}
+        <h3 class="ex-amb" style="margin-top:20px">Checklist de Instalação — Equipe RARO Home</h3>${checkList(d.checklist_raro)}</div>`
       const obraSections = [
         `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Plano de Obra</h2>
           <p class="ex-p" style="color:#6B7280">Para impressão em A3. Cada tópico tem: planta dos cabos + tabela, planta dos conduítes + tabela, e visão completa sobreposta.</p>
           ${showLegenda?legendaMestreHtml:''}</div>`,
+        obraPlantaCompleta,
         obraPosAlt,
-        obraListaEle,
+        obraEletricaCompleta,
         obraQuant,
         ...(categoriaPaginas.length?categoriaPaginas:[`<p class="ex-p" style="color:#B45309">⚠ Nenhum cabo desenhado na planta. Use o modo "Cabos" no editor.</p>`]),
         paginaRestantes,
         plantaTeto ? `<div class="ex-obra-page" style="page-break-before:always">${plantaTeto.replace('<div class="ex-sec ex-breakable">','<div>')}</div>` : '',
-        obraAlim,
         obraChecklists,
         `<div class="ex-obra-page" style="page-break-before:always">
           <div style="break-inside:avoid;page-break-inside:avoid">

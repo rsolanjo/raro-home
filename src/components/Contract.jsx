@@ -439,8 +439,8 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
   const [saved, setSaved] = useState(false)
   const [signing, setSigning] = useState(false)
   const baseClient = clients?.find(c => c.id === Number(proposal?.client_id))
-  const [showReview, setShowReview] = useState(true)
-  const [showConfig, setShowConfig] = useState(true)  // tipo + modelo do documento
+  const [showReview, setShowReview] = useState(false)
+  const [showConfig, setShowConfig] = useState(false)  // tipo + modelo do documento começam fechados: contrato manda na tela
   const [edits, setEdits] = useState({
     name1: baseClient?.full_name1 || baseClient?.name1 || '',
     name2: baseClient?.full_name2 || baseClient?.name2 || '',
@@ -906,18 +906,28 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
             <div style={{fontSize:10,color:'var(--text3)',marginTop:8}}>As alterações aqui valem só para este contrato. Para salvar no cadastro, edite o cliente na tela de Clientes.</div>
           </div>
         )}
-        {!showReview && (
+        {/* Faixa compacta: reabrir dados + resumo config numa linha só (quando ambos fechados) */}
+        {!showReview && !showConfig && (
+          <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'7px 16px',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+            <button className="btn" style={{fontSize:11}} onClick={()=>setShowReview(true)}><i className="ti ti-edit" aria-hidden/>Revisar dados do cliente</button>
+            <button className="btn" style={{fontSize:11}} onClick={()=>setShowConfig(true)}><i className="ti ti-file-stack" aria-hidden/>Tipo e modelo</button>
+            <span style={{fontSize:11,color:'var(--text3)'}}>{tipo==='projeto'?'Projeto':tipo==='total'?'Proposta total':tipo==='ocultas'?'Categorias ocultas':'Proposta avulsa'} · {modelo==='novo'?'Novo':modelo==='classico'?'Clássico':'Fable'}</span>
+            <span style={{marginLeft:'auto',fontSize:11,color:'var(--accent)',fontWeight:600}}>contrato pronto pra leitura abaixo ↓</span>
+          </div>
+        )}
+        {!showReview && showConfig && (
           <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'8px 16px'}}>
             <button className="btn" style={{fontSize:11}} onClick={()=>setShowReview(true)}><i className="ti ti-edit" aria-hidden/>Revisar/editar dados do cliente</button>
           </div>
         )}
         {/* Barra: configuração do documento (colapsável para dar espaço ao contrato) */}
+        {showConfig && (
         <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'8px 16px',display:'flex',alignItems:'center',gap:8,cursor:'pointer'}} onClick={()=>setShowConfig(v=>!v)}>
-          <i className={`ti ti-${showConfig?'chevron-down':'chevron-right'}`} style={{color:'var(--accent)'}} aria-hidden/>
+          <i className="ti ti-chevron-down" style={{color:'var(--accent)'}} aria-hidden/>
           <b style={{fontSize:13}}>Tipo e modelo do documento</b>
-          {!showConfig && <span style={{fontSize:11,color:'var(--text3)',marginLeft:4}}>{tipo==='projeto'?'Projeto':tipo==='total'?'Proposta total':tipo==='ocultas'?'Categorias ocultas':'Proposta avulsa'} · {modelo==='novo'?'Novo':modelo==='classico'?'Clássico':'Fable'}</span>}
-          <span style={{marginLeft:'auto',fontSize:11,color:'var(--text3)'}}>{showConfig?'ocultar':'mostrar'}</span>
+          <span style={{marginLeft:'auto',fontSize:11,color:'var(--text3)'}}>ocultar</span>
         </div>
+        )}
         {showConfig && <>
         {/* Seletor de TIPO de contrato */}
         <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'12px 16px'}}>

@@ -23,7 +23,7 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 .cover-mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding:6px 2px}
 .cover-top{background:#0B1830;color:#fff;border-radius:10px;padding:26px 30px;display:flex;justify-content:space-between;align-items:flex-start}
 .cover-ey{font-size:8px;letter-spacing:3px;color:#38BDF8;text-transform:uppercase;font-weight:600}
-.cover-logo{height:132px;width:auto;display:block;margin:10px 0 4px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.3))}
+.cover-logo{width:150px;height:auto;display:block;margin:8px 0 4px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.3))}
 .cover-slogan{font-size:8px;letter-spacing:4px;color:rgba(226,240,255,.65);text-transform:uppercase;margin-top:6px}
 .cover-planta{margin:20px 2px 0;padding:16px 0 0;border-top:1px solid rgba(226,240,255,.14)}
 .cover-planta-lbl{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#C9A268;font-weight:600;margin-bottom:10px}

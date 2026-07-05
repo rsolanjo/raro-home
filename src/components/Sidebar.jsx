@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v259 — PLANTA PADRAO REAL na apresentacao + proposta so do cliente (alinhado com a Ful). PROPOSTA: planta SEMPRE do cliente (planta_image do projeto), sem fallback padrao; sem planta o bloco some. Removida a planta padrao que a v258 tinha metido na proposta. APRESENTACAO FABLE: a SVG desenhada (comodos vetoriais) foi SUBSTITUIDA pela planta real que a Ful mandou (raster, cara de incorporadora), agora em plantaPadrao.js (base64, ~38KB). Vira o PADRAO da apresentacao; botao 'Usar planta do cliente' troca pra real do imovel quando existir, com selo verde PLANTA DO CLIENTE e opcao 'voltar pra padrao'. Miniatura em object-fit cover (imagem raster). Ressalva: imagem padrao e 255x188px, boa na miniatura, borraria se ampliada; trocar por versao maior quando disponivel. Renderizado e conferido: 1 pagina. Mantem v207-v258.
+// v263 — LOGO DA PROPOSTA corrigido (estava cortando a palavra RARO no meio do simbolo). Diagnostico: LOGO_EXEC e LOGO_COVER sao o MESMO arquivo SVG (LOGO_EXEC = LOGO_COVER), entao o logo nunca foi o problema; era CSS. O executivo controla por LARGURA (width:170px, altura livre) e o logo aparece inteiro; a proposta controlava por ALTURA (height:132px) e esmagava/cortava o logo, que tem proporcao propria com o texto RARO HOME embutido. Correcao: cover-logo agora usa width:150px + height:auto (mesma receita do executivo), mantendo o drop-shadow. Logo aparece inteiro e legivel. Mantem v207-v262.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v259 · build 2026-07
+          v263 · build 2026-07
         </div>
       </div>
     </div>
