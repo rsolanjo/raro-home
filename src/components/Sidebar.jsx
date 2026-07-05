@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v265 — LOGIN SEGURO (profissional, verificacao no servidor). Substitui o login antigo que so pedia e-mail (qualquer um que soubesse um e-mail cadastrado entrava, sem senha, verificacao no navegador = furado). Agora via Supabase Auth: (1) senha com bcrypt verificada NO SERVIDOR, (2) botao Entrar com Google (OAuth), (3) primeiro acesso pra pessoa criar a propria senha. TRAVA DA LISTA: mesmo com Google/senha valida, so entra quem esta na tabela admins (findAdminByEmail; se nao esta, signOut). Mantidos os 3 papeis existentes (admin/viewer/mestre). RLS no banco (SUPABASE_LOGIN_SEGURO.sql): liga row level security em todas as tabelas, politica base 'so authenticated acessa' (tranca a porta sem prender por dentro, nao quebra telas; apertar por papel numa 2a rodada). Logout agora chama signOutSeguro (encerra sessao no servidor de verdade, antes so limpava localStorage). Tela Admins ganha aviso de como a pessoa entra. Funcoes novas no supabase.js: signInEmailSenha, signInGoogle, resolveSessao, signOutSeguro, criarAcessoComSenha, findAdminByEmail. Guia COMO-ATIVAR-LOGIN-SEGURO.md (ativar Email provider, Google OAuth no Google Cloud, rodar o SQL). Fontes: supabase.com/docs/guides/auth (bcrypt/JWT), .../row-level-security, .../social-login/auth-google, developers.google.com/identity. Base: v264.
+// v266 — RESET DE SENHA (so admin dispara). Na tela Usuarios, cada linha ganha botao de chave (ti-key) visivel SO se currentUser.role==='admin', entre editar e excluir, protegido por PIN. Admin clica, confirma, e o Supabase envia e-mail de recuperacao pra pessoa (dispararResetSenha -> resetPasswordForEmail). SEGURANCA: admin NAO ve nem define a senha alheia (Supabase nao permite, bcrypt); ele so destrava, a pessoa cria a nova. CICLO COMPLETO: quando a pessoa clica no link do e-mail e volta ao RARO, o Login detecta (evento PASSWORD_RECOVERY do onAuthStateChange, ou hash type=recovery na URL) e mostra tela 'Crie sua nova senha' (definirNovaSenha -> updateUser); apos salvar, resolve sessao e entra. Funcoes novas no supabase.js: dispararResetSenha, definirNovaSenha. Fontes: supabase.com/docs/reference/javascript/auth-resetpasswordforemail, .../auth-onauthstatechange, .../auth-updateuser. Base: v265.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v265 · build 2026-07
+          v266 · build 2026-07
         </div>
       </div>
     </div>

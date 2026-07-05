@@ -1,6 +1,6 @@
 import PINModal from './PINModal.jsx'
 import { useState } from 'react'
-import { saveAdmin, deleteAdmin, checkPINSession, setPINSession, verifyPIN } from '../db/supabase.js'
+import { saveAdmin, deleteAdmin, checkPINSession, setPINSession, verifyPIN, dispararResetSenha } from '../db/supabase.js'
 
 const ROLE_LABEL = { admin:'Admin (tudo)', viewer:'Visualizador', mestre:'Mestre de obra' }
 
@@ -91,6 +91,16 @@ export default function Admins({ admins, clients=[], currentUser, onRefresh }) {
                     <button className="btn" style={{fontSize:11,padding:'3px 8px',marginRight:4}} onClick={()=>requirePIN(()=>openEdit(a))} title="Editar">
                       <i className="ti ti-edit" aria-hidden/>
                     </button>
+                    {currentUser?.role==='admin' && a.gmail && (
+                      <button className="btn" style={{fontSize:11,padding:'3px 8px',marginRight:4}} title="Resetar senha"
+                        onClick={()=>requirePIN(async ()=>{
+                          if(!confirm(`Enviar link de redefinição de senha para ${a.name} (${a.gmail})?\n\nA pessoa vai receber um e-mail e cria a nova senha ela mesma. Você não define a senha dela.`)) return
+                          try { await dispararResetSenha(a.gmail); alert(`Link enviado para ${a.gmail}. Peça pra pessoa checar o e-mail (inclusive spam).`) }
+                          catch(e){ alert('Não consegui enviar o reset: '+(e?.message||e)) }
+                        })}>
+                        <i className="ti ti-key" aria-hidden/>
+                      </button>
+                    )}
                     {a.gmail!==currentUser?.gmail && (
                       <button className="btn danger" style={{fontSize:11,padding:'3px 8px'}}
                         onClick={()=>{if(confirm(`Remover ${a.name}?`)){deleteAdmin(a.id);onRefresh()}}}>

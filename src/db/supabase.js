@@ -91,6 +91,24 @@ export async function signOutSeguro() {
   try { await supabase.auth.signOut() } catch (e) { console.error(e) }
 }
 
+// Grava a nova senha depois que a pessoa clicou no link de recuperação.
+export async function definirNovaSenha(novaSenha) {
+  const { error } = await supabase.auth.updateUser({ password: novaSenha })
+  if (error) throw error
+  return true
+}
+
+// Reset de senha: dispara o e-mail de recuperação para o usuário.
+// O admin aciona; quem redefine é a própria pessoa, pelo link do e-mail.
+// (Supabase não permite admin ver/definir senha alheia — bcrypt, por segurança.)
+export async function dispararResetSenha(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: window.location.origin
+  })
+  if (error) throw error
+  return true
+}
+
 // Criar acesso para um admin já cadastrado (define a senha inicial dele).
 // Usado pela tela de Admins quando a Ful quer dar senha a alguém.
 export async function criarAcessoComSenha(email, senha) {

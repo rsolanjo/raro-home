@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { LOGO_COVER } from '../logos.js'
-import { signInEmailSenha, signInGoogle, resolveSessao, criarAcessoComSenha } from '../db/supabase.js'
+import { signInEmailSenha, signInGoogle, resolveSessao, criarAcessoComSenha, definirNovaSenha, supabase } from '../db/supabase.js'
 
 export default function Login({ onLogin }) {
   const [email, setEmail]     = useState('')
@@ -27,14 +27,37 @@ export default function Login({ onLogin }) {
 
   // Ao montar: se já voltou autenticado do Google, resolve e entra.
   useEffect(() => {
-    (async () => {
+    // Detecta retorno de link de recuperação de senha: mostra tela de nova senha.
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') { setModo('redefinir'); setChecando(false) }
+    })
+    ;(async () => {
+      // se a URL trouxe token de recovery, não tenta entrar direto
+      if (window.location.hash.includes('type=recovery')) { setModo('redefinir'); setChecando(false); return }
       try {
         const admin = await resolveSessao()
         if (admin) { onLogin(admin); return }
       } catch (e) { /* segue para tela de login */ }
       setChecando(false)
     })()
+    return () => { try { sub.subscription.unsubscribe() } catch(_){} }
   }, [])
+
+  async function salvarNovaSenha(e) {
+    e.preventDefault()
+    setLoading(true); setError('')
+    try {
+      await definirNovaSenha(senha)
+      // após redefinir, resolve a sessão e entra
+      const admin = await resolveSessao()
+      if (admin) { onLogin(admin); return }
+      setModo('entrar'); setError('Senha alterada. Faça login com a nova senha.')
+    } catch (err) {
+      setError(err.message || 'Não foi possível salvar a nova senha.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   async function entrarComSenha(e) {
     e.preventDefault()
@@ -81,6 +104,31 @@ export default function Login({ onLogin }) {
         </div>
         <div style={{ height:1, background:'#E3E2DE', marginBottom:24 }} />
 
+        {modo==='redefinir' ? (
+          <form onSubmit={salvarNovaSenha}>
+            <div style={{ fontSize:13, color:'#1A1915', marginBottom:16, textAlign:'center', lineHeight:1.5 }}>
+              Crie sua nova senha de acesso ao RARO.
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <div style={{ fontSize:10.5, fontWeight:500, color:'#6B6A65', letterSpacing:0.5, textTransform:'uppercase', marginBottom:6 }}>Nova senha</div>
+              <input
+                type="password" value={senha} onChange={e => { setSenha(e.target.value); setError('') }}
+                placeholder="mínimo 6 caracteres" autoFocus autoComplete="new-password"
+                style={{ width:'100%', padding:'10px 12px', fontSize:13, border:`1px solid ${error?'#B42318':'#D3D2CC'}`, borderRadius:8, background:'#fff', color:'#1A1915', outline:'none', fontFamily:'inherit' }}
+              />
+            </div>
+            {error && (
+              <div style={{ background:'#FEE4E2', border:'1px solid #B42318', borderRadius:6, padding:'8px 12px', fontSize:12, color:'#B42318', marginBottom:14 }}>
+                <i className="ti ti-alert-circle" style={{ marginRight:5 }} aria-hidden />{error}
+              </div>
+            )}
+            <button type="submit" disabled={loading || senha.length<6}
+              style={{ width:'100%', padding:11, background:(loading||senha.length<6)?'#9CA3AF':'#1A56DB', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:500, cursor:(loading||senha.length<6)?'not-allowed':'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+              {loading ? <><i className="ti ti-loader" style={{ animation:'spin 1s linear infinite' }} aria-hidden />Salvando...</> : <><i className="ti ti-check" aria-hidden />Salvar nova senha</>}
+            </button>
+          </form>
+        ) : (
+        <>
         {/* Entrar com Google */}
         <button
           type="button"
@@ -142,6 +190,8 @@ export default function Login({ onLogin }) {
             ? <span style={{color:'#6B6A65'}}>Primeiro acesso? <a onClick={()=>{setModo('criar');setError('')}} style={{color:'#1A56DB',cursor:'pointer',fontWeight:500}}>Criar minha senha</a></span>
             : <span style={{color:'#6B6A65'}}>Já tem senha? <a onClick={()=>{setModo('entrar');setError('')}} style={{color:'#1A56DB',cursor:'pointer',fontWeight:500}}>Entrar</a></span>}
         </div>
+        </>
+        )}
 
         <div style={{ marginTop:20, fontSize:11, color:'#9B9A95', textAlign:'center', lineHeight:1.6 }}>
           Acesso restrito à equipe RARO Home.<br />Contato: contato@rarohome.com.br
