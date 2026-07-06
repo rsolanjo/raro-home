@@ -1,4 +1,12 @@
 import Contract from './Contract.jsx'
+// Formata data aceitando 'YYYY-MM-DD' OU ISO completo ('...T..Z'). Evita 'Invalid Date'
+// quando o valor já traz horário (concatenar 'T12:00:00' num ISO quebrava a data).
+function fmtDataProp(v){
+  if(!v) return '—'
+  const iso = /[T ]\d{2}:\d{2}/.test(v) ? v : v+'T12:00:00'
+  const d = new Date(iso)
+  return isNaN(d) ? '—' : d.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'2-digit'})
+}
 
 function ContractSendModal({ proposal, clients, onClose }) {
   const [targets, setTargets] = useState({})
@@ -781,7 +789,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
                       {total>0 ? `R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}` : '—'}
                     </td>
                     <td className="mono" style={{fontSize:11}}>
-                      {p.created_at ? new Date(p.created_at+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'2-digit'}) : '—'}
+                      {fmtDataProp(p.created_at)}
                     </td>
                     <td>
                       <select value={p.status} onChange={e=>requestStatusChange(p,e.target.value)}
@@ -817,7 +825,7 @@ export default function Proposals({ proposals, onRefresh, onEdit, onNew, onNewEx
                   </div>
                   <div style={{textAlign:'right',flexShrink:0}}>
                     <div style={{color:total>0?'var(--accent)':'var(--text3)',fontWeight:700,fontSize:15}}>{total>0?`R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`:'—'}</div>
-                    <div className="mono" style={{fontSize:10,color:'var(--text3)',marginTop:1}}>{p.created_at ? new Date(p.created_at+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'2-digit'}) : '—'}</div>
+                    <div className="mono" style={{fontSize:10,color:'var(--text3)',marginTop:1}}>{fmtDataProp(p.created_at)}</div>
                   </div>
                 </div>
                 <div style={{fontSize:12,color:'var(--text3)',marginTop:6}}>{npav} pav · {ncom} cômodos{p.description?` · ${p.description}`:''}</div>

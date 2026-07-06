@@ -467,6 +467,18 @@ export async function uploadObraPhoto(projectId, file) {
 // O diário fica salvo em project.diary (JSONB) — array de entradas
 // entrada: { id, date, room, type, text, photos:[{url,path}], video_link, author, created_at }
 export async function saveDiary(projectId, diary) {
+  if (_demo()) {
+    // em demo, o diário fica no localStorage demo (não toca o banco real)
+    try {
+      const k = 'raro_demo_state_v3'
+      const st = JSON.parse(localStorage.getItem(k) || '{}')
+      if (st.data && Array.isArray(st.data.projects)) {
+        st.data.projects = st.data.projects.map(p => p.id === projectId ? { ...p, diary } : p)
+        localStorage.setItem(k, JSON.stringify(st))
+      }
+    } catch {}
+    return { id: projectId, diary }
+  }
   const { data, error } = await supabase.from('projects')
     .update({ diary, updated_at: new Date().toISOString() })
     .eq('id', projectId).select().single()
@@ -476,6 +488,17 @@ export async function saveDiary(projectId, diary) {
 
 // Diário guardado direto no cliente (quando ainda não há projeto formal)
 export async function saveClientDiary(clientId, diary) {
+  if (_demo()) {
+    try {
+      const k = 'raro_demo_state_v3'
+      const st = JSON.parse(localStorage.getItem(k) || '{}')
+      if (st.data && Array.isArray(st.data.clients)) {
+        st.data.clients = st.data.clients.map(c => c.id === clientId ? { ...c, diary_obra: diary } : c)
+        localStorage.setItem(k, JSON.stringify(st))
+      }
+    } catch {}
+    return { id: clientId, diary_obra: diary }
+  }
   const { data, error } = await supabase.from('clients')
     .update({ diary_obra: diary })
     .eq('id', clientId).select().single()

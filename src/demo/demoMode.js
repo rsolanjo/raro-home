@@ -41,13 +41,26 @@ export function loadDemoState() {
   return seed
 }
 
-// true só se todos os clientes do estado forem o cliente fake do seed.
+// true só se TODOS os registros (clientes, propostas, projetos) forem do seed fake (Thiago).
+// Antes só olhava clientes: propostas/projetos fantasma no localStorage passavam batido e
+// apareciam em "Próximas ações", "Projetos ativos" e "Status por cliente".
 function _ehDemoLimpo(st) {
   try {
-    const clientes = (st && st.data && (st.data.clients || st.data.clientes)) || []
-    if (!Array.isArray(clientes)) return false
+    const d = st && st.data
+    if (!d) return false
     const nomesOk = new Set(['Thiago Andrade'])
-    return clientes.every(c => nomesOk.has((c && (c.name || c.nome)) || ''))
+    const nomeDe = (r) => (r && (r.name || r.nome || r.client_name || r.client || r.cliente)) || ''
+    const listas = [d.clients, d.clientes, d.proposals, d.propostas, d.projects, d.projetos]
+    for (const lista of listas) {
+      if (!lista) continue
+      if (!Array.isArray(lista)) return false
+      for (const r of lista) {
+        const nome = nomeDe(r)
+        // registro sem nome nenhum é ok (ex: catálogo); só barra nome que existe e não é o do seed
+        if (nome && !nomesOk.has(nome)) return false
+      }
+    }
+    return true
   } catch { return false }
 }
 
@@ -59,6 +72,8 @@ export function saveDemoState(state) {
 export function resetDemo() {
   try {
     localStorage.removeItem(KEY)
+    localStorage.removeItem(KEY_LEGADO)
+    localStorage.removeItem('raro_demo_state_v1')
     localStorage.removeItem('raro_demo_ledger')
     localStorage.removeItem('raro_demo_empresa')
     localStorage.removeItem('raro_ledger')

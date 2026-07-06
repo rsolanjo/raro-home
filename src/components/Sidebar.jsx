@@ -1,6 +1,6 @@
 import { LOGO_MONO } from '../logos.js'
-import { brandName, brandSub, brandLogoMono } from '../brand.js'
-// v269 — DEMO: (1) só Thiago Andrade (removidos clientes fantasma; chave do seed subida pra v3 força reset limpo). (2) planta da demo trocada: SVG técnico de 6 cômodos (Sala, Cozinha, Varanda, Suíte Master, Banho, Suíte 2), 1 pavimento, cadastrada no Thiago e puxada no projeto executivo (removida a imagem de marketing indevida). (3) IA desligada SÓ no demo: askClaude bloqueada, botões 'Gerar com IA' e chat do projetista escondidos, geração usa o caminho manual. App real intacto.
+import { brandName, brandSub, brandLogoMono, isDemo } from '../brand.js'
+// v270 — DEMO: (1) guarda anti-fantasma reforçada: valida clientes+propostas+projetos (antes só clientes, por isso Eduardo/Elton/Leandro sobreviviam em 'próximas ações' e 'projetos'). reset e loadDemoState limpam todas as chaves antigas. (2) planta humanizada real embutida no cadastro do Thiago (planta_medidas) e no projeto executivo (planta_data com 16 pontos). (3) diário de obra agora salva no localStorage demo (saveDiary/saveClientDiary com guard). (4) 'Invalid Date' no orçamento corrigido (created_at YYYY-MM-DD + formatador robusto a ISO). (5) Backup & Restore escondido no demo (menu + barra topo).
 // v266 — RESET DE SENHA (so admin dispara). Na tela Usuarios, cada linha ganha botao de chave (ti-key) visivel SO se currentUser.role==='admin', entre editar e excluir, protegido por PIN. Admin clica, confirma, e o Supabase envia e-mail de recuperacao pra pessoa (dispararResetSenha -> resetPasswordForEmail). SEGURANCA: admin NAO ve nem define a senha alheia (Supabase nao permite, bcrypt); ele so destrava, a pessoa cria a nova. CICLO COMPLETO: quando a pessoa clica no link do e-mail e volta ao RARO, o Login detecta (evento PASSWORD_RECOVERY do onAuthStateChange, ou hash type=recovery na URL) e mostra tela 'Crie sua nova senha' (definirNovaSenha -> updateUser); apos salvar, resolve sessao e entra. Funcoes novas no supabase.js: dispararResetSenha, definirNovaSenha. Fontes: supabase.com/docs/reference/javascript/auth-resetpasswordforemail, .../auth-onauthstatechange, .../auth-updateuser. Base: v265.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
@@ -36,8 +36,8 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
         <span className="sb-label">Área de Clientes</span>
       </div>
 
-      <div className="sb-section">Sistema</div>
-      {item('backup','database-export','Backup & Restore')}
+      {!isDemo() && <div className="sb-section">Sistema</div>}
+      {!isDemo() && item('backup','database-export','Backup & Restore')}
       <div className="sb-section">Cadastros</div>
       {item('clients','users','Clientes')}
       {item('catalog','list-details','Catálogo')}
@@ -55,7 +55,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v269 · build 2026-07
+          v270 · build 2026-07
         </div>
       </div>
     </div>

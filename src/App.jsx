@@ -161,12 +161,12 @@ export default function App() {
             <i className="ti ti-database" style={{marginRight:4}} aria-hidden/>
             {loading ? '⟳ Carregando...' : (DEMO ? '🎭 Demonstração · dados fictícios (não salvos no sistema real)' : '☁ Dados salvos no Supabase')}
           </span>
-          <button className="btn" style={{fontSize:11,padding:'3px 9px'}} onClick={exportBackup}>
+          {!DEMO && <button className="btn" style={{fontSize:11,padding:'3px 9px'}} onClick={exportBackup}>
             <i className="ti ti-download" aria-hidden/>Exportar backup
-          </button>
-          <button className="btn" style={{fontSize:11,padding:'3px 9px'}} onClick={handleImport}>
+          </button>}
+          {!DEMO && <button className="btn" style={{fontSize:11,padding:'3px 9px'}} onClick={handleImport}>
             <i className="ti ti-upload" aria-hidden/>Importar backup
-          </button>
+          </button>}
           <button className="btn" style={{fontSize:11,padding:'3px 9px'}} onClick={refresh} disabled={loading}>
             <i className="ti ti-refresh" aria-hidden/>Atualizar
           </button>
@@ -250,7 +250,7 @@ export default function App() {
             <button className="mmenu-logout" onClick={logout}>
               <i className="ti ti-logout" aria-hidden/> Sair
             </button>
-            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v269 · build 2026-07</div>
+            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v270 · build 2026-07</div>
           </div>
         </div>
       )}
