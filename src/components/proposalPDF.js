@@ -1,5 +1,6 @@
 import { getCatalog } from '../db/supabase.js'
 import { openHtmlDoc, downloadHtmlDoc } from './openDoc.js'
+import { demoWatermark } from '../brand.js'
 // ── RARO Home — PDF Builder (shared) ─────────────────────
 // Single source of truth for the proposal PDF
 
@@ -398,7 +399,7 @@ function buildPDF(data, adminMode=false){
 .tl.main{font-size:8px!important}
 .tv.main{font-size:26px!important}`
 
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>RARO Home — ${client_name} — ${proposal_code}</title><style>${PDF_CSS}${extraCSS}</style></head><body>
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>RARO Home — ${client_name} — ${proposal_code}</title><style>${PDF_CSS}${extraCSS}</style></head><body>${demoWatermark()}
 <div class="no-print" style="position:sticky;top:0;z-index:99;background:${adminMode?'#4C1D95':'#060B1A'};color:#F0F6FF;padding:9px 20px;display:flex;align-items:center;justify-content:space-between;font-family:'DM Sans',sans-serif;font-size:12px">
   <span><strong>RARO Home</strong>${adminMode?' — VERSÃO ADMIN':''} — ${client_name} · ${proposal_code}</span>
   <button onclick="window.print()" style="background:#8C6D46;color:#fff;border:none;padding:7px 18px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">⬇ Salvar como PDF</button>

@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../db/supabase.js'
 
+const _isDemo = () => { try { return typeof window !== 'undefined' && window.__RARO_DEMO__ === true } catch { return false } }
+
 // ═══════════════════════════════════════════════════════════════════════════
 // CAIXA RARO — controle de recebíveis, custos, rateio e fundo de reserva.
 // Modelo (fechado com a Ful):
@@ -21,6 +23,7 @@ const PIX_OPTS = ['RARO', 'Raphael', 'Rogério']
 
 // ── Persistência ────────────────────────────────────────────────────────────
 async function loadLedger() {
+  if (_isDemo()) { try { return JSON.parse(localStorage.getItem('raro_demo_ledger') || '{}') } catch { return {} } }
   try {
     const { data, error } = await supabase.from('finance_ledger').select('*')
     if (error) throw error
@@ -32,6 +35,11 @@ async function loadLedger() {
   }
 }
 async function saveLedgerRow(project_key, data) {
+  if (_isDemo()) {
+    const all = (() => { try { return JSON.parse(localStorage.getItem('raro_demo_ledger') || '{}') } catch { return {} } })()
+    all[project_key] = data
+    localStorage.setItem('raro_demo_ledger', JSON.stringify(all)); return
+  }
   try {
     const { error } = await supabase.from('finance_ledger').upsert({ project_key, data, updated_at: new Date().toISOString() }, { onConflict: 'project_key' })
     if (error) throw error
@@ -42,6 +50,7 @@ async function saveLedgerRow(project_key, data) {
   }
 }
 async function loadExtras() {
+  if (_isDemo()) { try { return JSON.parse(localStorage.getItem('raro_demo_empresa') || '{"despesas":[]}') } catch { return { despesas: [] } } }
   try {
     const { data, error } = await supabase.from('finance_ledger').select('*').eq('project_key', '__empresa__').maybeSingle()
     if (error) throw error
@@ -51,6 +60,7 @@ async function loadExtras() {
   }
 }
 async function saveExtras(data) {
+  if (_isDemo()) { localStorage.setItem('raro_demo_empresa', JSON.stringify(data)); return }
   try {
     const { error } = await supabase.from('finance_ledger').upsert({ project_key: '__empresa__', data, updated_at: new Date().toISOString() }, { onConflict: 'project_key' })
     if (error) throw error

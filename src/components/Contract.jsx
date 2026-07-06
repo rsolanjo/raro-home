@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { LOGO_COVER } from '../logos.js'
+import { demoWatermark } from '../brand.js'
 
 // Logo do contrato — fundo transparente blenda no #fff do corpo do contrato
 const LOGO_CONTRACT = LOGO_COVER
@@ -220,7 +221,7 @@ export function buildContract(proposal, client, opts={}) {
   .hand{ font-style:italic; font-size:19px; color:#1A2740 }
   .footer{ margin-top:5px; padding-top:5px; border-top:1px solid #E3E6EB; font-size:8.5px; color:#9AA1AB; text-align:center; line-height:1.6 }
   </style>
-</head><body>
+</head><body>${demoWatermark()}
   <div class="no-print" style="position:sticky;top:0;background:#1A2740;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;font-size:11px;z-index:99">
     <span>${tituloDoc} — ${proposal.code||''} — ${client?.name1||proposal.client_name||''}</span>
     <button onclick="window.print()" style="background:#9C7B45;color:#fff;border:none;padding:6px 16px;border-radius:4px;font-size:11px;cursor:pointer;font-family:sans-serif">⬇ Salvar como PDF</button>
@@ -354,7 +355,7 @@ function buildContractClassico(D){
   .hand{ font-family:'Dancing Script',cursive; font-size:26px; color:#1C6AA6; line-height:1; margin-bottom:-4px }
   .foot{ margin-top:16px; padding-top:8px; border-top:1px solid #E4E9ED; text-align:center; font-size:7.8px; color:#9AA7B1; line-height:1.7 }
   </style>
-</head><body>
+</head><body>${demoWatermark()}
   <div class="no-print" style="position:sticky;top:0;background:#1C6AA6;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;font-size:11px;z-index:99">
     <span>${tituloDoc} · modelo clássico — ${code} — ${name1||proposal.client_name||''}</span>
     <button onclick="window.print()" style="background:#fff;color:#1C6AA6;border:none;padding:6px 16px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600">⬇ Salvar como PDF</button>

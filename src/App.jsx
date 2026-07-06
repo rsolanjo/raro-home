@@ -20,6 +20,7 @@ import Reports from './components/Reports.jsx'
 import AreaClientes from './components/AreaClientes.jsx'
 import Financial from './components/Financial.jsx'
 import Backup    from './components/Backup.jsx'
+import { isDemoMode, loadDemoState, saveDemoState, resetDemo, DEMO_USER_OBJ } from './demo/demoMode.js'
 import {
   getClients, getProposals, getProjects, getStock, getCatalog,
   getAdmins, getSuppliers, getTools, exportBackup, importBackup,
@@ -27,6 +28,11 @@ import {
 } from './db/supabase.js'
 
 const EMPTY = { clients:[], proposals:[], projects:[], stock:[], catalog:[], admins:[], suppliers:[], tools:[] }
+
+// Modo demo: marca a flag global ANTES de qualquer chamada ao banco, garantindo
+// que nenhuma escrita chegue ao Supabase real durante a demonstração.
+const DEMO = isDemoMode()
+if (DEMO) { try { window.__RARO_DEMO__ = true } catch {} }
 
 async function loadAll() {
   const [clients, proposals, projects, stock, catalog, admins, suppliers, tools] = await Promise.all([
@@ -50,7 +56,7 @@ function getSession() {
 }
 
 export default function App() {
-  const [user, setUser]   = useState(getSession)
+  const [user, setUser]   = useState(DEMO ? DEMO_USER_OBJ : getSession)
   const [page, setPage]   = useState('dashboard')
   const [showAreaClientes, setShowAreaClientes] = useState(false)
   const [data, setData]   = useState(EMPTY)
@@ -59,8 +65,18 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     setLoading(true)
-    try { setData(await loadAll()) } finally { setLoading(false) }
+    try {
+      if (DEMO) { setData(loadDemoState().data) }
+      else { setData(await loadAll()) }
+    } finally { setLoading(false) }
   }, [])
+
+  // Em modo demo, persiste as edições (que ficam só na localStorage demo) sempre que data muda.
+  useEffect(() => {
+    if (DEMO && data && data !== EMPTY) {
+      const st = loadDemoState(); saveDemoState({ ...st, data })
+    }
+  }, [data])
 
   // Load data whenever user logs in
   useEffect(() => {
@@ -124,6 +140,18 @@ export default function App() {
 
   return (
     <div className="app">
+      {DEMO && (
+        <div style={{position:'fixed',top:0,left:0,right:0,zIndex:9999,background:'linear-gradient(90deg,#B45309,#D97706)',color:'#fff',padding:'6px 14px',display:'flex',alignItems:'center',gap:10,fontSize:12.5,boxShadow:'0 2px 8px rgba(0,0,0,0.3)'}}>
+          <i className="ti ti-eye" aria-hidden/>
+          <b>Modo demonstração</b>
+          <span style={{opacity:0.9}}>Dados fictícios. Nada aqui altera o sistema real. Fique à vontade para explorar e editar.</span>
+          <button onClick={()=>{ if(confirm('Reiniciar a demonstração? Todas as alterações de teste serão descartadas.')){ resetDemo(); window.location.reload() } }}
+            style={{marginLeft:'auto',background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.5)',color:'#fff',borderRadius:5,padding:'3px 10px',fontSize:11.5,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+            <i className="ti ti-refresh" aria-hidden/> Reiniciar demo
+          </button>
+        </div>
+      )}
+      <div style={{height: DEMO ? 32 : 0}} />
       <Sidebar active={page} onNav={nav} counts={counts} user={user} onLogout={logout} onAreaClientes={()=>setShowAreaClientes(true)} />
 
       <div className="main">
@@ -131,7 +159,7 @@ export default function App() {
         <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'4px 16px',display:'flex',justifyContent:'flex-end',gap:8,flexShrink:0}}>
           <span style={{marginRight:'auto',fontSize:11,color:'var(--text3)',alignSelf:'center'}}>
             <i className="ti ti-database" style={{marginRight:4}} aria-hidden/>
-            {loading ? '⟳ Carregando...' : '☁ Dados salvos no Supabase'}
+            {loading ? '⟳ Carregando...' : (DEMO ? '🎭 Demonstração · dados fictícios (não salvos no sistema real)' : '☁ Dados salvos no Supabase')}
           </span>
           <button className="btn" style={{fontSize:11,padding:'3px 9px'}} onClick={exportBackup}>
             <i className="ti ti-download" aria-hidden/>Exportar backup
@@ -222,7 +250,7 @@ export default function App() {
             <button className="mmenu-logout" onClick={logout}>
               <i className="ti ti-logout" aria-hidden/> Sair
             </button>
-            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v236 · build 2026-07</div>
+            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v238 · build 2026-07</div>
           </div>
         </div>
       )}

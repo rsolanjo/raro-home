@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { TAXONOMY, inferCategory, genItemId } from '../taxonomy.js'
 import { LOGO_EXEC } from '../logos.js'
+import { demoWatermark } from '../brand.js'
 import { supabase } from '../db/supabase.js'
 
 const EQUIP_STYLE = {
@@ -218,6 +219,13 @@ function cableFamily(type){
   if(type==='som')      return { k:'som',  L:'S', nome:'Som',      cor:'#BE185D' }
   return { k:'rede', L:'R', nome:'Rede/Dados', cor:'#2563EB' } // dados, ap, câmera, uplink, fibra, hdmi...
 }
+// Subwoofer é caso especial: precisa de cabo RCA de sinal (som) + alimentação elétrica.
+// Nesses casos o pin leva DOIS selos (S e E) e a tabela de cabos gera duas linhas.
+function isSubwoofer(m){ const n=((m?.name||'')+' '+(m?.code||'')).toLowerCase(); return /subwoofer|\bsub\b|\bsubwoofer\b/.test(n) }
+function cableFamiliesOf(m, type){
+  if(isSubwoofer(m)) return [ { k:'som', L:'S', nome:'Som (RCA de sinal)', cor:'#BE185D' }, { k:'ele', L:'E', nome:'Elétrico', cor:'#16A34A' } ]
+  return [ cableFamily(type) ]
+}
 
 // Desenha o pin como SVG (forma + borda branca + número). Reutilizável no editor e nas plantas geradas.
 function pinShapeSVG({ mount='parede', alt='', color='#374151', label='', size=22, sel=false }){
@@ -249,8 +257,9 @@ function pinShapeSVG({ mount='parede', alt='', color='#374151', label='', size=2
 function drawPin(m, { size=20, color='#374151', idLabel='', badgeFam=null }={}){
   const col = catColorOf(m) || color
   const core = pinShapeSVG({ mount:mountOf(m), alt:alturaOf(m), color:col, label:String(m.n??''), size })
-  const badge = badgeFam
-    ? `<div style="position:absolute;top:-6px;right:-7px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${badgeFam.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${badgeFam.L}</div>`
+  const _fams = Array.isArray(badgeFam) ? badgeFam : (badgeFam ? [badgeFam] : [])
+  const badge = _fams.length
+    ? _fams.map((f,i)=>`<div style="position:absolute;top:-6px;right:${-7 - i*11}px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`).join('')
     : ''
   const idl = idLabel
     ? `<div style="position:absolute;left:50%;top:${size+2}px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${idLabel}</div>`
@@ -272,7 +281,7 @@ function pontosLegenda(){
     <span style="width:100%;height:1px;background:#E2E8F0"></span>
     <span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:#94A3B8;text-transform:uppercase;width:100%">Selo · cabo</span>
     ${cab('#16A34A','E','Elétrica')} ${cab('#BE185D','S','Som')} ${cab('#2563EB','R','Rede/Dados')}
-    <span style="font-size:9px;color:#94A3B8;width:100%;line-height:1.5">Três leituras num pin: a <b>cor</b> diz o que é, a <b>forma</b> diz onde instalar (triângulo teto, círculo parede com o tracinho na altura, quadrado chão), o <b>selo</b> diz o cabo. O número ao lado é a altura em metros.</span>
+    <span style="font-size:9px;color:#94A3B8;width:100%;line-height:1.5">Três leituras num pin: a <b>cor</b> diz o que é, a <b>forma</b> diz onde instalar (triângulo teto, círculo parede com o tracinho na altura, quadrado chão), o <b>selo</b> diz o cabo. O número ao lado é a altura em metros. <b>Subwoofer</b> leva dois selos (S+E): cabo RCA de sinal mais alimentação elétrica.</span>
   </div>`
 }
 
@@ -2381,7 +2390,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
     // ── Tabela Som Ambiente ────────────────────────────────────────────────────
     const tblSom = (d.tabela_som||[]).length
-      ? T((d.tabela_som||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Sonorização'))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.zona)}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.saida_amplif)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+      ? T((d.tabela_som||[]).map(r=>{const _sub=/subwoofer|\bsub\b/.test(((r.equip||'')+' '+(r.id||'')).toLowerCase()); const _cabo=_sub?'RCA de sinal + elétrica':esc(r.cabo); const _obs=_sub?esc(r.obs||'Subwoofer: cabo RCA de sinal do amplificador + ponto de energia no local.'):esc(r.obs||''); return `<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Sonorização'))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}${_sub?' <span style="font-size:8px;background:#BE185D;color:#fff;padding:1px 4px;border-radius:6px;font-weight:700">S+E</span>':''}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.zona)}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.saida_amplif)}</td><td style="font-size:10px${_sub?';font-weight:700;color:#BE185D':''}">${_cabo}</td><td style="font-size:10px;color:#D97706">${_obs}</td></tr>`}).join(''),
         ['#','ID','Equipamento','Ambiente','Zona','Tipo','Saída Amplif.','Cabo','Obs'])
       : ''
 
@@ -2409,7 +2418,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const ratio=imgRatio||0.66
       const dots=tetoMarkers.map(m=>{
         const color=(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
-        const badgeFam=showCabo?cableFamily(m.cableType||guessCableType(m,m)):null
+        const badgeFam=showCabo?cableFamiliesOf(m,m.cableType||guessCableType(m,m)):null
         return drawPin({...m,mount:'teto'},{size:20,color,idLabel:showIdsPdf?esc(m.id||m.code||''):'',badgeFam})
       }).join('')
       const cabosLinha=(cables||[]).filter(c=>!c.free&&tetoMarkers.some(m=>m.uid===c.fromUid||m.uid===c.toUid)).map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''; return `<path d="${pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')}" fill="none" stroke="${c.color||'#0891B2'}" stroke-dasharray="4,2.5" vector-effect="non-scaling-stroke" style="stroke-width:2px"/>`}).join('')
@@ -2812,7 +2821,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             </div>`
           }
           const color=(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
-          const badgeFam=showCabo?cableFamily(m.cableType||guessCableType(m,m)):null
+          const badgeFam=showCabo?cableFamiliesOf(m,m.cableType||guessCableType(m,m)):null
           return drawPin(m,{size:18,color,idLabel,badgeFam})
         }).join('')
         return `<div class="ex-plant">
@@ -2884,7 +2893,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
             ${showIdsPdf?`<div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>`:''}
           </div>`
-          const badgeFam=showCabo?cableFamily(m.cableType||guessCableType(m,m)):null
+          const badgeFam=showCabo?cableFamiliesOf(m,m.cableType||guessCableType(m,m)):null
           return drawPin(m,{size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):'',badgeFam})
         }).join('')
         const caixaDots = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
@@ -3167,6 +3176,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(!w){ alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este site e tente de novo.'); return }
     w.document.write(`<html><head><title>${tituloPdf}</title><meta charset="utf-8">${fontLink}
       <style>${pageCss} body{margin:0}${execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>${fluido}</head><body>
+      ${demoWatermark()}
       ${body}
       </body></html>`)
     w.document.close(); setTimeout(()=>w.print(),700)

@@ -15,7 +15,13 @@ async function all(table, order = 'id') {
   if (error) { console.error(table, error); return [] }
   return data || []
 }
+// ── MODO DEMO ────────────────────────────────────────────────────────────────
+// Quando o app está em /demo, nenhuma gravação pode chegar ao Supabase real.
+// O App marca window.__RARO_DEMO__ = true. As funções de escrita respeitam isso.
+function _demo() { try { return typeof window !== 'undefined' && window.__RARO_DEMO__ === true } catch { return false } }
+
 async function upsert(table, row) {
+  if (_demo()) { return row.id ? row : { ...row, id: Date.now() + Math.floor(Math.random()*1000) } }
   if (row.id) {
     // UPDATE — never send 'id' in the body, only in the filter
     const { id, created_at, ...updateRow } = row
@@ -31,6 +37,7 @@ async function upsert(table, row) {
   }
 }
 async function del(table, id) {
+  if (_demo()) return
   const { error } = await supabase.from(table).delete().eq('id', id)
   if (error) throw error
 }
@@ -82,6 +89,7 @@ export async function deleteClient(id){ return del('clients', id) }
 // ── PROPOSALS ─────────────────────────────────────────────────────────────────
 export async function getProposals()   { return all('proposals', 'created_at') }
 export async function saveProposal(p) {
+  if (_demo()) return p.id ? { ...p, updated_at: new Date().toISOString() } : { ...p, id: Date.now(), updated_at: new Date().toISOString() }
   let saved
   try {
     saved = await upsert('proposals', { ...p, updated_at: new Date().toISOString() })
@@ -104,6 +112,7 @@ export async function saveProposal(p) {
   return saved
 }
 export async function deleteProposal(id) {
+  if (_demo()) return
   await releaseReservation(id)
   // apaga TAMBÉM os projetos vinculados a este orçamento
   try {
@@ -250,6 +259,7 @@ export async function getStockLog() {
 
 // ── AUDIT LOG ─────────────────────────────────────────────────────────────────
 export async function addAuditLog(entry) {
+  if (_demo()) return
   await supabase.from('audit_log').insert({ ...entry, date: new Date().toISOString() })
 }
 export async function getAuditLog(filters={}) {

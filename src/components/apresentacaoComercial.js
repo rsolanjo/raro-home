@@ -1,4 +1,5 @@
 import { LOGO_COVER } from '../logos.js'
+import { demoWatermark } from '../brand.js'
 
 // Categorias/itens do RACK que NÃO entram na apresentação comercial
 const RACK_EXCLUDE_CATS = new Set(['CPD', 'CPD / Rack', 'CPD/Rack', 'Rack'])
@@ -227,7 +228,7 @@ footer .gold{color:var(--gold)}
 }
 </style>
 </head>
-<body>
+<body>${demoWatermark()}
 
 <div class="actionbar no-print">
   <button onclick="window.print()" title="Salvar como PDF"><i class="fa-solid fa-file-pdf"></i> Salvar PDF</button>
@@ -594,7 +595,7 @@ td.sub{font-weight:800;font-size:1rem}
 .foot b{color:var(--navy)}
 @media(max-width:720px){.two,.benef{grid-template-columns:1fr}.checks{grid-template-columns:1fr}.inner{padding:30px 22px}.hdr{flex-direction:column;text-align:center}.banner{flex-direction:column;gap:16px;text-align:center}.banner .big{font-size:2rem}}
 </style></head>
-<body>
+<body>${demoWatermark()}
 <div class="toolbar">
   <button onclick="window.print()">⬇ Salvar PDF</button>
   <button class="alt" onclick="const b=new Blob([document.documentElement.outerHTML],{type:'text/html'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='investimento-${safeName}.html';a.click()">Baixar HTML</button>
