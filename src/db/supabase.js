@@ -17,7 +17,17 @@ async function all(table, order = 'id') {
 }
 // ── MODO DEMO ────────────────────────────────────────────────────────────────
 // Em /demo nenhuma gravação pode chegar ao Supabase real. App marca window.__RARO_DEMO__.
-function _demo() { try { return typeof window !== 'undefined' && window.__RARO_DEMO__ === true } catch { return false } }
+function _demo() {
+  try {
+    if (typeof window === 'undefined') return false
+    if (window.__RARO_DEMO__ === true) return true
+    // fallback por URL: se por qualquer razão a flag global não estiver setada,
+    // ainda assim NENHUMA escrita da /demo pode chegar ao Supabase real.
+    const p = window.location?.pathname || ''
+    const h = window.location?.hash || ''
+    return p === '/demo' || p.startsWith('/demo/') || h === '#/demo' || h.startsWith('#demo')
+  } catch { return false }
+}
 
 async function upsert(table, row) {
   if (_demo()) { return row.id ? row : { ...row, id: Date.now() + Math.floor(Math.random()*1000) } }

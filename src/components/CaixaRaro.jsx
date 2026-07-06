@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../db/supabase.js'
 
-const _isDemo = () => { try { return typeof window !== 'undefined' && window.__RARO_DEMO__ === true } catch { return false } }
+const _isDemo = () => { try { if (typeof window === 'undefined') return false; if (window.__RARO_DEMO__ === true) return true; const p = window.location?.pathname || '', h = window.location?.hash || ''; return p === '/demo' || p.startsWith('/demo/') || h === '#/demo' || h.startsWith('#demo') } catch { return false } }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CAIXA RARO — controle de recebíveis, custos, rateio e fundo de reserva.

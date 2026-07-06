@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { TAXONOMY, inferCategory, genItemId } from '../taxonomy.js'
 import { LOGO_EXEC } from '../logos.js'
-import { demoWatermark } from '../brand.js'
+import { demoWatermark, brandLogoExec, brandName } from '../brand.js'
 import { supabase } from '../db/supabase.js'
 
 const EQUIP_STYLE = {
@@ -249,6 +249,20 @@ function isSubwoofer(m){ const n=((m?.name||'')+' '+(m?.code||'')).toLowerCase()
 function cableFamiliesOf(m, type){
   if(isSubwoofer(m)) return [ { k:'som', L:'S', nome:'Som (RCA de sinal)', cor:'#BE185D' }, { k:'ele', L:'E', nome:'Elétrico', cor:'#16A34A' } ]
   return [ cableFamily(type) ]
+}
+// Normaliza o TYPE do cabo (dados, som, eletrica, hdmi, uplink, fibra) para a chave da família (ele/som/rede).
+// Os chips de filtro guardam o type; o desenho usa a chave. Sem essa ponte, o filtro nunca casa.
+function famChaveDe(type){ return cableFamily(type).k }
+// Fábrica: recebe o Set hideFams (que guarda types) e devolve uma função que diz se uma família (por chave) está oculta.
+// Considera oculta a família se TODOS os types daquela família estiverem marcados.
+function fazFamOculta(hideFamsSet){
+  const porChave = { ele:['eletrica'], som:['som'], rede:['dados','hdmi','uplink','fibra'] }
+  return (chaveOuType) => {
+    // aceita tanto a chave da família ('ele') quanto o type ('eletrica')
+    const chave = porChave[chaveOuType] ? chaveOuType : famChaveDe(chaveOuType)
+    const types = porChave[chave] || []
+    return types.length > 0 && types.every(t => hideFamsSet.has(t))
+  }
 }
 
 // Desenha o pin como SVG (forma + borda branca + número). Reutilizável no editor e nas plantas geradas.
@@ -1853,6 +1867,7 @@ Responda APENAS JSON válido:
   }
   function buildExecHtml(d, mode='completo', versao){
     const { bg:bgImage, mks:markers, cbs:cables, ratio:imgRatio } = _docView()
+    const famOculta = fazFamOculta(hideFams)   // filtro de cabo (Dados/Som/Elétrica/HDMI...) aplicado ao doc
     // Traçado dos cabos na visão do documento: as PONTAS vêm destes markers (girados quando a planta gira)
     const cablePolyPoints = c => {
       if(c.free) return c.points||[]
@@ -2086,7 +2101,8 @@ Responda APENAS JSON válido:
       if(m){
         const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||color,label:String(m.n??n),size:22})
         const fam=cableFamily(m.cableType||guessCableType(m,m))
-        return `<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle"><span style="width:22px;height:22px;display:inline-block">${pino}</span><span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:4px;background:${fam.cor};color:#fff;font-size:8px;font-weight:800;border:1px solid #fff" title="${fam.nome}">${fam.L}</span></span>`
+        const seloFam = famOculta(fam.k) ? '' : `<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:4px;background:${fam.cor};color:#fff;font-size:8px;font-weight:800;border:1px solid #fff" title="${fam.nome}">${fam.L}</span>`
+        return `<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle"><span style="width:22px;height:22px;display:inline-block">${pino}</span>${seloFam}</span>`
       }
       return `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${color};color:#fff;font-size:9px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);vertical-align:middle">${n}</span>`
     }
@@ -2113,7 +2129,7 @@ Responda APENAS JSON válido:
     if(bgImage){
       const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         const f=cableFamily(m.cableType||guessCableType(m,m))
-        const badge=showCabo?`<div style="position:absolute;top:-6px;right:-7px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
+        const badge=(showCabo && !famOculta(f.k))?`<div style="position:absolute;top:-6px;right:-7px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
       planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
     }
@@ -2415,12 +2431,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   <!-- CAPA -->
   <div class="ex-cover">
     <div class="ex-cover-top">${_eletr?(_temWifi?'DOCUMENTO TÉCNICO · ELÉTRICA E Wi-Fi':'DOCUMENTO TÉCNICO · ELÉTRICA'):isObra?'DOCUMENTO DE OBRA · INFRAESTRUTURA':'DOCUMENTO TÉCNICO · PROJETO EXECUTIVO'}</div>
-    <img src="${LOGO_EXEC}" alt="RARO HOME" style="width:170px;max-width:50%;margin:0 auto 8px;display:block"/>
+    <img src="${brandLogoExec()}" alt="Logo" style="width:170px;max-width:50%;margin:0 auto 8px;display:block"/>
     <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
     <div class="ex-cover-title">${_eletr?(_temWifi?'Planta Elétrica e Cobertura Wi-Fi':'Planta Elétrica'):isObra?'Plano de Obra — Cabos e Infraestrutura':'Projeto Executivo de Automação'}</div>
     <div class="ex-cover-sub">${_eletr?(_temWifi?'Símbolos ABNT NBR 5444 · Quadro de cargas · Mapa de calor Wi-Fi<br>Pontos elétricos e cobertura aproximada':'Símbolos ABNT NBR 5444 · Quadro de cargas<br>Pontos e circuitos elétricos'):isObra?'Caminho dos cabos · Metragens · Alturas · Caixas 4×4<br>Guia direto para o eletricista e o pedreiro':'Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto'}</div>
-    <div class="ex-cover-client"><div class="ex-cc-name">${esc(cliente)}</div><div class="ex-cc-meta">${hoje} · RARO Home</div></div>
-    <div class="ex-cover-foot">RARO Home · contato@rarohome.com.br · (21) 98170-9009</div>
+    <div class="ex-cover-client"><div class="ex-cc-name">${esc(cliente)}</div><div class="ex-cc-meta">${hoje} · ${brandName()}</div></div>
+    <div class="ex-cover-foot">${brandName()}${brandName()==='RARO Home'?' · contato@rarohome.com.br · (21) 98170-9009':''}</div>
   </div>
 
   ${(()=>{ if(isObra||_eletr) return ''
@@ -2451,7 +2467,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         <div style="font-size:12px;font-weight:700;color:#0369A1;margin:12px 0 4px">${amb} <span style="font-weight:400;color:#94A3B8">· ${ms.length} ${ms.length===1?'ponto':'pontos'}</span></div>
         <table style="width:100%;border-collapse:collapse">
           <thead><tr><th ${th} style="width:70px;text-align:center;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Ponto</th><th ${th} style="width:70px;text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">ID</th><th ${th}>Item</th><th ${th}>Local</th><th ${th}>Altura</th><th ${th}>Sistema</th></tr></thead>
-          <tbody>${ms.map(m=>{ const fam=cableFamily(m.cableType||guessCableType(m,m)); return `<tr><td ${td} style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0">${simb(m)}</td><td ${td} style="font-family:monospace;font-size:10px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#475569">${m.id||m.code||('#'+m.n)}</td><td ${td}>${m.name||'—'}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td} style="font-weight:600;font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B">${NIV[alturaOf(m)]||'—'}</td><td ${td} style="font-weight:600;color:${fam.cor}">${fam.nome}</td></tr>`}).join('')}</tbody>
+          <tbody>${ms.map(m=>{ const fam=cableFamily(m.cableType||guessCableType(m,m)); return `<tr><td ${td} style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0">${simb(m)}</td><td ${td} style="font-family:monospace;font-size:10px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#475569">${m.id||m.code||('#'+m.n)}</td><td ${td}>${m.name||'—'}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td} style="font-weight:600;font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B">${NIV[alturaOf(m)]||'—'}</td><td ${td} style="font-weight:600;color:${fam.cor}">${famOculta(fam.k)?'—':fam.nome}</td></tr>`}).join('')}</tbody>
         </table>`).join('')}
     </div>`
   })()}
@@ -3250,7 +3266,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       })()
       const obraQuant = (()=>{
         const caixas={}; markers.filter(isPontoEletrico).forEach(m=>{ const cx=m.caixaTipo||caixaPadrao(classifyEle(m).sym); if(cx) caixas[cx]=(caixas[cx]||0)+1 })
-        const fams={}; cablesUnificados(cables,markers).filter(c=>!c.free).forEach(c=>{ const f=cableFamily(c.type||'dados'); const mt=cableMeters(c)||0; fams[f.nome]=(fams[f.nome]||0)+mt })
+        const fams={}; cablesUnificados(cables,markers).filter(c=>!c.free).forEach(c=>{ const f=cableFamily(c.type||'dados'); if(famOculta(f.k)) return; const mt=cableMeters(c)||0; fams[f.nome]=(fams[f.nome]||0)+mt })
         const conds=(cables||[]).filter(c=>c.free); const condM=conds.reduce((s,c)=>s+(cableMeters(c)||0),0)
         const rows=[
           ...Object.entries(caixas).sort().map(([k,v])=>['Caixa de embutir '+k, v+' un']),
@@ -3362,7 +3378,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const _fresh = m => { if(!execData) return null; try{ return buildExecHtml(execData, m) }catch(e){ console.warn('rebuild export falhou:',e.message); return null } }
     const _full=_fresh('completo')||execDoc, _obra=_fresh('obra')||execDocObra,
           _ele=_fresh('eletrica')||execDocEletrica, _cond=_fresh('conduites')||execDocConduites
-    const _plantSizeCss = plantPct!==100 ? ` .ex-plant img{max-width:${plantPct}%!important}` : ''
+    const _plantSizeCss = plantPct!==100 ? ` .ex-plant{width:${plantPct}%!important;max-width:${plantPct}%!important} .ex-plant img{width:100%!important;max-width:100%!important}` : ''
     let body, pageCss
     if(execMode==='completo'){
       pageCss='@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}'+_plantSizeCss
@@ -3391,7 +3407,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   }
   // preview ao vivo: regenera o HTML quando qualquer opção muda (só enquanto o painel está aberto)
   const pdfPreviewHtml = useMemo(()=> showPdfOpts ? buildFullHtml(true) : '',
-    [showPdfOpts, showLegenda, showIdsPdf, pageOrient, plantPct, hideFams, hideCats, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables]) // eslint-disable-line
+    [showPdfOpts, showLegenda, showIdsPdf, pageOrient, plantPct, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables]) // eslint-disable-line
 
   async function saveToProposal(docOverride){
     const docToSave = typeof docOverride==='string' ? docOverride : execDoc
@@ -4545,7 +4561,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 const _stored = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:m==='conduites'?execDocConduites:execDoc
                 let doc=_stored
                 if(execData){ try{ doc=buildExecHtml(execData, m) }catch(e){ console.warn('re-render preview falhou, usando salvo:',e.message); doc=_stored } }
-                if(doc && plantPct!==100) doc = `<style>.ex-plant img{max-width:${plantPct}%!important}.ex-plant{margin-left:auto;margin-right:auto}</style>` + doc
+                if(doc && plantPct!==100) doc = `<style>.ex-plant{width:${plantPct}%!important;max-width:${plantPct}%!important}.ex-plant img{width:100%!important;max-width:100%!important}.ex-plant{margin-left:auto;margin-right:auto}</style>` + doc
                 return (
                 <button key={m} onClick={()=>{
                   setExecMode(m)

@@ -1,6 +1,6 @@
 import { LOGO_MONO } from '../logos.js'
 import { brandName, brandSub, brandLogoMono } from '../brand.js'
-// v267 — Base v266 (reset de senha, Fable, etc.) + tudo que foi feito hoje, agora na linha certa: (1) MODO DEMO /demo isolado (white label 'Sua Empresa', dataset fake Marina e Thiago, escrita só em localStorage demo, banner e reset, marca d'água DEMONSTRAÇÃO em todos os relatórios). (2) Filtros de SEÇÃO do Plano de Obra (ocultar Lista Geral, Quadro de Cargas, Caixas de Embutir, Pontos: caixas e alturas, Alimentação dos Keypads). (3) Formatação: seções de tabela fluem, só plantas forçam página nova (menos espaço em branco, plantas preservadas). (4) Trava 'Editar' on/off no mobile do editor (começa travado no celular). (5) SUBWOOFER com cabo duplo S+E no pin, tabela e legenda. NOTA: as v235-v238 foram feitas por engano numa base antiga (v234); esta v267 consolida tudo em cima da v266 real.
+// v268 — DEMO turbinada: (1) planta baixa fictícia já embutida (16 pontos + 3 cabos sobre planta real anonimizada). (2) BUG marca d'água/logo corrigido: relatórios em /demo agora saem SEMPRE com marca d'água DEMONSTRAÇÃO, logo neutro e nome 'Sua Empresa' (a detecção de demo agora cai pra URL, não depende só da flag global que não viaja pra aba do PDF). (3) cônjuge 1 = Thiago Andrade (campos name1/full_name1 corretos do form). (4) 7 itens fictícios no estoque demo (com 1 zerado e 1 crítico pra mostrar os alertas). (5) reforço de isolamento: tudo em localStorage demo, zero Supabase.
 // v266 — RESET DE SENHA (so admin dispara). Na tela Usuarios, cada linha ganha botao de chave (ti-key) visivel SO se currentUser.role==='admin', entre editar e excluir, protegido por PIN. Admin clica, confirma, e o Supabase envia e-mail de recuperacao pra pessoa (dispararResetSenha -> resetPasswordForEmail). SEGURANCA: admin NAO ve nem define a senha alheia (Supabase nao permite, bcrypt); ele so destrava, a pessoa cria a nova. CICLO COMPLETO: quando a pessoa clica no link do e-mail e volta ao RARO, o Login detecta (evento PASSWORD_RECOVERY do onAuthStateChange, ou hash type=recovery na URL) e mostra tela 'Crie sua nova senha' (definirNovaSenha -> updateUser); apos salvar, resolve sessao e entra. Funcoes novas no supabase.js: dispararResetSenha, definirNovaSenha. Fontes: supabase.com/docs/reference/javascript/auth-resetpasswordforemail, .../auth-onauthstatechange, .../auth-updateuser. Base: v265.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
@@ -55,7 +55,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v267 · build 2026-07
+          v268 · build 2026-07
         </div>
       </div>
     </div>
