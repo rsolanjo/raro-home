@@ -1,5 +1,5 @@
 import { LOGO_COVER } from '../logos.js'
-import { demoWatermark } from '../brand.js'
+import { demoWatermark, brandLogoCover, brandName, brandTagline, brandPhone, brandEmail, brandSite } from '../brand.js'
 import { PLANTA_PADRAO } from './plantaPadrao.js'
 
 // Categorias/itens do RACK que NÃO entram na apresentação comercial
@@ -117,7 +117,7 @@ export function buildApresentacaoComercial({ clientName, neighborhood, code, flo
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Apresentação Comercial · RARO Home · ${clientName}</title>
+<title>Apresentação Comercial · ${brandName()} · ${clientName}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
@@ -253,12 +253,12 @@ function baixarHTML(){
 <div class="doc">
 
   <div class="topbar">
-    <div><span class="brand">RARO HOME</span></div>
+    <div><span class="brand">${brandName()}</span></div>
     <div class="code">${code||''}</div>
   </div>
 
   <div class="logo-zone">
-    <img src="${LOGO_COVER}" alt="RARO Home"/>
+    <img src="${brandLogoCover()}" alt="${brandName()}"/>
     <div class="logo-tagline">Casa · Tecnologia · Lazer</div>
   </div>
 
@@ -270,10 +270,10 @@ function baixarHTML(){
   <div class="container">
 
     <section class="section">
-      <h2>A Experiência <span class="highlight">RARO</span></h2>
+      <h2>A Experiência <span class="highlight">${brandName()}</span></h2>
       <div class="experience-grid">
         <div class="experience-text">
-          <p>A verdadeira automação residencial de alto padrão deve ser invisível, intuitiva e à prova de falhas. Na RARO Home, não instalamos apenas tecnologia: entregamos um <strong>sistema centralizado de gestão inteligente</strong> para a sua residência.</p>
+          <p>A verdadeira automação residencial de alto padrão deve ser invisível, intuitiva e à prova de falhas. Na ${brandName()}, não instalamos apenas tecnologia: entregamos um <strong>sistema centralizado de gestão inteligente</strong> para a sua residência.</p>
           <p>Esqueça a necessidade de abrir dezenas de aplicativos diferentes. Integramos toda a sua casa em um ecossistema único, seguro e de altíssima performance.</p>
           <ul class="management-features">
             <li><i class="fa-brands fa-whatsapp"></i><div><strong>Controle Absoluto via WhatsApp:</strong><br>Acione cenas, verifique luzes esquecidas acesas ou libere acessos conversando diretamente com a sua casa.</div></li>
@@ -329,7 +329,7 @@ function baixarHTML(){
       <p class="diferencial-intro">Muitos clientes nos questionam: <em>"Por que o investimento em uma automação profissional é diferente de comprar interruptores de varejo na internet?"</em> A resposta está na segurança, na estabilidade e na durabilidade do seu patrimônio.</p>
       <div class="comparison-grid">
         <div class="comp-card pro">
-          <h3><i class="fa-solid fa-microchip"></i> Automação Profissional RARO</h3>
+          <h3><i class="fa-solid fa-microchip"></i> Automação Profissional ${brandName()}</h3>
           <div class="comp-sub">A escolha para projetos de alto padrão.</div>
           <ul class="comp-list">
             <li><strong>Suporte de Alta Carga:</strong> módulos com relés robustos que suportam a carga real de lustres, fitas LED de potência e motores pesados sem queimar.</li>
@@ -411,9 +411,9 @@ function baixarHTML(){
   </div>
 
   <footer>
-    <div class="brand">RARO HOME</div>
+    <div class="brand">${brandName()}</div>
     <p class="gold">A excelência mora nos detalhes.</p>
-    <p style="margin-top:12px">(21) 98170-9009 · contato@rarohome.com.br · www.rarohome.com.br</p>
+    <p style="margin-top:12px">${brandPhone()} · ${brandEmail()} · ${brandSite()}</p>
   </footer>
 
 </div>
@@ -604,7 +604,7 @@ td.sub{font-weight:800;font-size:1rem}
 <div class="page"><div class="inner">
 
   <div class="hdr">
-    <img src="${_LOGO_V2}" alt="RARO HOME"/>
+    <img src="${brandLogoCover()}" alt="${brandName()}"/>
     <div>
       <h1>Seu Investimento</h1>
       <p>Transparência total. Veja abaixo o valor do projeto executivo e uma estimativa de investimento por categoria para preparar a sua casa.</p>
@@ -640,7 +640,7 @@ td.sub{font-weight:800;font-size:1rem}
   </div>
 
   `:``}
-  <div class="foot">RARO HOME · <b>CASA · TECNOLOGIA · LAZER</b><br>contato@rarohome.com.br · (21) 98170-9009 · @rarohome</div>
+  <div class="foot">${brandName()} · <b>CASA · TECNOLOGIA · LAZER</b><br>${brandEmail()} · ${brandPhone()} · @rarohome</div>
 
 </div></div>
 </body></html>`
@@ -697,7 +697,7 @@ export function buildApresentacaoFable({ clientName, neighborhood, code, floors,
   }).join('')
 
   const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
-<title>RARO Home · ${(clientName||'Apresentação')}</title>
+<title>${brandName()} · ${(clientName||'Apresentação')}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -765,7 +765,7 @@ export function buildApresentacaoFable({ clientName, neighborhood, code, floors,
 <div class="page">
 
   <div class="top">
-    <img src="${LOGO_COVER}" alt="RARO Home"/>
+    <img src="${brandLogoCover()}" alt="${brandName()}"/>
     <div class="who">
       <div class="k">Projeto para</div>
       <div class="n">${(clientName||'Sua casa')}</div>
@@ -774,7 +774,7 @@ export function buildApresentacaoFable({ clientName, neighborhood, code, floors,
   </div>
 
   <div class="hero">
-    <div class="kick">O que a RARO entrega</div>
+    <div class="kick">O que a ${brandName()} entrega</div>
     <h1>A gente acompanha a obra e deixa cada ponto no lugar certo, pra sua casa nascer <em>pronta para a automação</em>.</h1>
     <div class="lead">O projeto executivo define, antes do reboco fechar, onde entra cada tomada, cabo e ponto de comando. E a gente acompanha a obra pra garantir que saia igual ao projeto.</div>
   </div>
@@ -811,7 +811,7 @@ export function buildApresentacaoFable({ clientName, neighborhood, code, floors,
 
   <div class="fecho">
     <p>Casa com tecnologia qualquer um instala depois. Casa pensada para a tecnologia, só quem projeta antes.</p>
-    <div class="firm">RARO Home · Casa · Tecnologia · Lazer</div>
+    <div class="firm">${brandName()} · Casa · Tecnologia · Lazer</div>
   </div>
 
 </div>

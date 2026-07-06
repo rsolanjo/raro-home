@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { LOGO_COVER } from '../logos.js'
-import { demoWatermark } from '../brand.js'
+import { demoWatermark, isDemo, brandLogoCover, brandFirma, brandRepName, brandPhone, brandEmail, brandSite, brandSocial } from '../brand.js'
 
 // Logo do contrato — fundo transparente blenda no #fff do corpo do contrato
-const LOGO_CONTRACT = LOGO_COVER
+const LOGO_CONTRACT = brandLogoCover()
 
 const fmt = v => 'R$\u202f' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
 
@@ -95,7 +95,7 @@ export function buildContract(proposal, client, opts={}) {
   }
 
   const totalExtenso = numPorExtenso(total)
-  const ROG_SIG = `<div style="position:relative;display:inline-block"><div style="font-family:'Dancing Script',cursive;font-size:28px;color:#0369A1;opacity:0.9;letter-spacing:1px;line-height:1">RARO Home</div><div style="position:absolute;bottom:-2px;left:0;right:0;height:0.5px;background:#0369A1;opacity:0.4"></div></div>`
+  const ROG_SIG = `<div style="position:relative;display:inline-block"><div style="font-family:'Dancing Script',cursive;font-size:28px;color:#0369A1;opacity:0.9;letter-spacing:1px;line-height:1">${brandFirma()}</div><div style="position:absolute;bottom:-2px;left:0;right:0;height:0.5px;background:#0369A1;opacity:0.4"></div></div>`
 
   // ── Configuração por TIPO de contrato ──────────────────────────────
   const ehProjeto = tipo==='projeto'
@@ -244,7 +244,7 @@ export function buildContract(proposal, client, opts={}) {
   <div class="sheet">
   <div class="head">
     <img src="${LOGO_CONTRACT}" alt="RARO Home"/>
-    <div class="firm"><strong>RARO Home Tecnologia</strong> · contato@rarohome.com.br · (21) 98170-9009<br/>www.rarohome.com.br · @rarohome</div>
+    <div class="firm"><strong>${brandFirma()}</strong> · ${brandEmail()} · ${brandPhone()}<br/>${brandSite()} · ${brandSocial()}</div>
     <hr class="rule"/>
   </div>
 
@@ -253,7 +253,7 @@ export function buildContract(proposal, client, opts={}) {
 
   <div class="preamble">
     <p>Pelo presente instrumento particular, as partes a seguir qualificadas:</p>
-    <div class="party-line"><span class="lbl">Contratada:</span> <strong>RARO Home Tecnologia</strong>, prestadora de serviços de automação residencial, com sede no Rio de Janeiro/RJ, neste ato representada por <strong>seu representante legal</strong>.</div>
+    <div class="party-line"><span class="lbl">Contratada:</span> <strong>${brandFirma()}</strong>, prestadora de serviços de automação residencial, com sede no Rio de Janeiro/RJ, neste ato representada por <strong>seu representante legal</strong>.</div>
     <div class="party-line"><span class="lbl">Contratante:</span> ${contratanteQualif}</div>
     <p>As partes, de comum acordo, resolvem celebrar o presente contrato, que se regerá pelas cláusulas e condições a seguir.</p>
   </div>
@@ -291,11 +291,11 @@ export function buildContract(proposal, client, opts={}) {
 
   <div class="sigs">
     <div class="sig"><div class="sigspace"></div><div class="sigline"></div><div class="signame">${name1}</div><div class="sigrole">Contratante${(!hideCpf&&client?.cpf1)?' · CPF '+client.cpf1:''}</div></div>
-    <div class="sig"><div class="sigspace"></div><div class="sigline"></div><div class="signame">RARO Home Tecnologia</div><div class="sigrole">Contratada</div></div>
+    <div class="sig"><div class="sigspace"></div><div class="sigline"></div><div class="signame">${brandFirma()}</div><div class="sigrole">Contratada</div></div>
   </div>
 
   <div class="footer">
-    RARO Home Tecnologia · contato@rarohome.com.br · (21) 98170-9009 · www.rarohome.com.br<br/>
+    ${brandFirma()} · ${brandEmail()} · ${brandPhone()} · ${brandSite()}<br/>
     Contrato nº ${proposal.code||proposal.id} · Emitido em ${today}${proposal.valid_days?' · Proposta válida por '+proposal.valid_days+' dias':''}
   </div>
   </div>
@@ -381,7 +381,7 @@ function buildContractClassico(D){
       <img src="${LOGO_CONTRACT}" alt="RARO Home"/>
       <div class="doctitle">Contrato de Prestação de Serviços</div>
       <div class="docsub">${ehProjeto?'Termo de Execução de Projeto':'Termo de Execução de Projeto'}</div>
-      <div class="brandmeta">Automação Residencial · Tecnologia · Lazer<br/><b>RARO Home Tecnologia</b><br/>contato@rarohome.com.br · (21) 98170-9009<br/>www.rarohome.com.br · @rarohome</div>
+      <div class="brandmeta">Automação Residencial · Tecnologia · Lazer<br/><b>${brandFirma()}</b><br/>${brandEmail()} · ${brandPhone()}<br/>${brandSite()} · ${brandSocial()}</div>
       <div class="cnumber">Contrato nº ${code} &nbsp;·&nbsp; Rio de Janeiro, ${today}</div>
     </div>
 
@@ -389,7 +389,7 @@ function buildContractClassico(D){
     <div class="parties">
       <div class="party">
         <div class="role">Contratada</div>
-        <div class="field"><div class="k">Empresa</div><div class="v">RARO Home Tecnologia</div></div>
+        <div class="field"><div class="k">Empresa</div><div class="v">${brandFirma()}</div></div>
         <div class="field"><div class="k">Responsável</div><div class="v">Rogério Silva</div></div>
       </div>
       <div class="party">
@@ -423,11 +423,11 @@ function buildContractClassico(D){
 
     <div class="sigs">
       <div class="sig"><div class="sigline"></div><div class="signame">${name1||'—'}</div><div class="sigrole">Contratante · CPF: ${hideCpf?'—':(client?.cpf1||'___.___.___-__')}</div></div>
-      <div class="sig"><div class="sigline"></div><div class="signame">RARO Home Tecnologia</div><div class="sigrole">Contratada</div></div>
+      <div class="sig"><div class="sigline"></div><div class="signame">${brandFirma()}</div><div class="sigrole">Contratada</div></div>
     </div>
 
     <div class="foot">
-      RARO Home Tecnologia · contato@rarohome.com.br · (21) 98170-9009 · www.rarohome.com.br<br/>
+      ${brandFirma()} · ${brandEmail()} · ${brandPhone()} · ${brandSite()}<br/>
       Contrato nº ${code} · Emitido em ${today}${proposal.valid_days?' · Proposta válida por '+proposal.valid_days+' dias':' · Proposta válida por 30 dias'}
     </div>
   </div>
@@ -536,7 +536,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
   }
   // ── Tipo de contrato + opções ──
   const [tipo, setTipo] = useState('total')   // projeto | total | ocultas | avulsa
-  const [modelo, setModelo] = useState('novo')  // 'novo' (layout atual) | 'classico' (layout enxuto R&-5683)
+  const [modelo, setModelo] = useState(isDemo() ? 'fable' : 'novo')  // demo: Fable fixo. real: escolha livre
   const [valorManual, setValorManual] = useState('')
   const [hiddenCats, setHiddenCats] = useState([])
   const [pagamentoCustom, setPagamentoCustom] = useState('')
@@ -952,7 +952,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
           </div>
 
           {/* Modelo visual do documento (independente do tipo) */}
-          <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid var(--border)'}}>
+          {!isDemo() && <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid var(--border)'}}>
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
               <i className="ti ti-layout-board-split" style={{color:'var(--accent)'}} aria-hidden/>
               <b style={{fontSize:13}}>Modelo do documento</b>
@@ -971,7 +971,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
 
           {/* Opções por tipo */}
           {tipo==='projeto' && (

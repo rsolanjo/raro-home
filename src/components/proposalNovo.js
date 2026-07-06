@@ -4,6 +4,7 @@
 // auto-contidos com break-inside:avoid (fim da quebra de página doida),
 // escalável para N pavimentos. SEM depoimentos fabricados.
 import { LOGO_COVER } from '../logos.js'
+import { brandLogoCover, brandName, brandTagline, brandRepName, brandPhone, brandEmail, brandSite, brandSocial } from '../brand.js'
 
 function parse(s){ return typeof s==='number'?s:parseFloat(String(s||'').replace(/[^\d.,-]/g,'').replace(',','.').replace(/\.(?=.*\.)/g,''))||0 }
 
@@ -132,7 +133,7 @@ export function buildProposalNovo(data, adminMode=false){
   const nRooms = floors.reduce((s,f)=>s+(f.rooms||[]).filter(r=>parse(r.price)>0).length,0)
   const FORD={'Primeiro':'1º','Segundo':'2º','Terceiro':'3º','Quarto':'4º','Quinto':'5º','Sexto':'6º'}
 
-  const head = () => `<div class="phead"><div class="brand">RARO Home<span>Casa · Tecnologia · Lazer</span></div><div class="code">${proposal_code}</div></div>`
+  const head = () => `<div class="phead"><div class="brand">${brandName()}<span>${brandTagline()}</span></div><div class="code">${proposal_code}</div></div>`
 
   const roomCard = r => {
     const rows = (r.items||[]).filter(i=>i.name).map(i=>{
@@ -197,7 +198,7 @@ export function buildProposalNovo(data, adminMode=false){
     <div class="cover-top">
       <div>
         <div class="cover-ey">Proposta técnica exclusiva</div>
-        <img class="cover-logo" src="${LOGO_COVER}" alt="RARO Home"/>
+        <img class="cover-logo" src="${brandLogoCover()}" alt="${brandName()}"/>
         <div class="cover-slogan">Casa · Tecnologia · Lazer</div>
       </div>
       <div class="cover-meta">${date_str}<br/>Válido por 30 dias<br/><span class="mono">${proposal_code}</span></div>
@@ -241,17 +242,17 @@ export function buildProposalNovo(data, adminMode=false){
     <div class="tot-row"><span class="tl">Mão de obra — instalação e programação</span><span class="tv">${fmt(laborVal)}</span></div>
     <div class="tot-main"><span class="tl">Investimento total do projeto</span><span class="tv">${fmt(grandTotal)}</span></div>
     <div class="contact">
-      <div><div class="nm">Rogério Silva</div><div class="ph">+55 21 98170-9009</div></div>
-      <div class="rt">contato@rarohome.com.br<br/>@rarohome · www.rarohome.com.br</div>
+      <div><div class="nm">${brandRepName()}</div><div class="ph">${brandPhone()}</div></div>
+      <div class="rt">${brandEmail()}<br/>${brandSocial()} · ${brandSite()}</div>
     </div>
-    <div class="valid">© RARO Home · ${client_name} · ${proposal_code} · válido por 30 dias</div>
+    <div class="valid">© ${brandName()} · ${client_name} · ${proposal_code} · válido por 30 dias</div>
   </div>`
 
   const floorPages = floors.map(floorBlock).join('')
 
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>RARO Home — ${client_name} — ${proposal_code}</title><style>${CSS}</style></head><body>
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${brandName()} — ${client_name} — ${proposal_code}</title><style>${CSS}</style></head><body>
 <div class="no-print" style="position:sticky;top:0;z-index:99;background:${adminMode?'#4C1D95':'#0B1830'};color:#F0F6FF;padding:9px 20px;display:flex;align-items:center;justify-content:space-between;font-family:'DM Sans',sans-serif;font-size:12px">
-  <span><strong>RARO Home</strong>${admBadge} — ${client_name} · ${proposal_code}</span>
+  <span><strong>${brandName()}</strong>${admBadge} — ${client_name} · ${proposal_code}</span>
   <button onclick="window.print()" style="background:#0EA5E9;color:#fff;border:none;padding:7px 18px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">⬇ Salvar como PDF</button>
 </div>
 ${cover}

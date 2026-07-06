@@ -2,6 +2,7 @@ import { openProposalPDF } from './proposalPDF.js'
 import { buildProposalNovo } from './proposalNovo.js'
 import { saveVisita, loadVisita, clearVisita } from './visitaStore.js'
 import { LOGO_COVER } from '../logos.js'
+import { isDemo } from '../brand.js'
 import { buildApresentacaoComercial, buildApresentacaoV2, buildApresentacaoFable } from './apresentacaoComercial.js'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { saveProposal, getCatalog, getStockWithReservations, getCatalogCategories,
@@ -730,7 +731,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   const [showApresModal, setShowApresModal] = useState(false)
   useEffect(()=>{ if(editIntent==='apres'){ const t=setTimeout(()=>setShowApresModal(true),300); return ()=>clearTimeout(t) } }, [editIntent])
   const [showPdfVersionModal, setShowPdfVersionModal] = useState(false)  // escolher versão ao gerar PDF
-  const [propModel, setPropModel] = useState('novo')  // 'novo' (mold executivo) | 'classico' (buildPDF original)
+  const [propModel, setPropModel] = useState(isDemo() ? 'fable' : 'novo')  // demo: Fable fixo. real: escolha livre
   // ── VISITA À OBRA ──
   const [emVisita, setEmVisita] = useState(false)        // editando o rascunho da visita agora
   const [oficialSnapshot, setOficialSnapshot] = useState(null) // floors do oficial congelados (com vids)
@@ -2366,8 +2367,8 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           <div className="modal-title"><i className="ti ti-file-invoice" style={{marginRight:6}} aria-hidden/>Gerar Proposta</div>
           <button className="modal-close" onClick={()=>setShowPdfVersionModal(false)}>×</button>
         </div>
-        <div className="flabel" style={{marginTop:8,marginBottom:8}}>Modelo do documento</div>
-        <div style={{display:'flex',gap:8,marginBottom:14}}>
+        {!isDemo() && <div className="flabel" style={{marginTop:8,marginBottom:8}}>Modelo do documento</div>}
+        {!isDemo() && <div style={{display:'flex',gap:8,marginBottom:14}}>
           {[['novo','Novo','Mold do executivo, sem quebra de página'],['classico','Clássico','Layout original'],['fable','Fable','Editorial: papel creme, tinta e dourado']].map(([v,t,d])=>(
             <button key={v} type="button" onClick={()=>setPropModel(v)}
               style={{flex:1,textAlign:'left',padding:'10px 12px',borderRadius:8,cursor:'pointer',
@@ -2377,7 +2378,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
               <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>{d}</div>
             </button>
           ))}
-        </div>
+        </div>}
         <div className="flabel" style={{marginBottom:8}}>Qual versão dos itens?</div>
         <div style={{display:'flex',flexDirection:'column',gap:8}}>
           <button className="btn" style={{justifyContent:'space-between',padding:'12px 14px'}} onClick={()=>gerarPdfVersao(0)}>

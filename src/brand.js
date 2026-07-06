@@ -25,6 +25,20 @@ export function brandLogoMono()  { return _demo() ? NEUTRO : LOGO_MONO }
 export function brandLogoCover() { return _demo() ? NEUTRO : LOGO_COVER }
 export function brandLogoExec()  { return _demo() ? NEUTRO : LOGO_EXEC }
 export function isDemo() { return _demo() }
+// Marca para DOCUMENTOS (proposta, contrato, apresentação). Em demo tudo fica neutro.
+export function brandFirma()    { return _demo() ? 'Sua Empresa' : 'RARO Home Tecnologia' }
+export function brandTagline()  { return _demo() ? 'Automação Residencial' : 'Casa · Tecnologia · Lazer' }
+export function brandPhone()    { return _demo() ? '(00) 00000-0000' : '(21) 98170-9009' }
+export function brandEmail()    { return _demo() ? 'contato@suaempresa.com.br' : 'contato@rarohome.com.br' }
+export function brandSite()     { return _demo() ? 'www.suaempresa.com.br' : 'www.rarohome.com.br' }
+export function brandSocial()   { return _demo() ? '@suaempresa' : '@rarohome' }
+export function brandRepName()  { return _demo() ? 'Representante Legal' : 'Rogério Silva' }
+// linha de contato pronta (usada em rodapés)
+export function brandContato()  {
+  return _demo()
+    ? 'Sua Empresa · contato@suaempresa.com.br · (00) 00000-0000'
+    : 'RARO Home · contato@rarohome.com.br · (21) 98170-9009'
+}
 
 // Marca d'água gigante "DEMONSTRAÇÃO" para os relatórios/PDFs gerados no modo demo.
 // Retorna '' fora do demo. Injetar dentro do <body> do documento.

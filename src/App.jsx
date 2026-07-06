@@ -139,19 +139,24 @@ export default function App() {
 
 
   return (
-    <div className="app">
+    <div className="app" style={DEMO ? {height:'calc(100vh - 32px)', marginTop:32} : undefined}>
       {DEMO && (
         <div style={{position:'fixed',top:0,left:0,right:0,zIndex:9999,background:'linear-gradient(90deg,#B45309,#D97706)',color:'#fff',padding:'6px 14px',display:'flex',alignItems:'center',gap:10,fontSize:12.5,boxShadow:'0 2px 8px rgba(0,0,0,0.3)'}}>
           <i className="ti ti-eye" aria-hidden/>
           <b>Modo demonstração</b>
           <span style={{opacity:0.9}}>Dados fictícios. Nada aqui altera o sistema real. Fique à vontade para explorar e editar.</span>
-          <button onClick={()=>{ if(confirm('Reiniciar a demonstração? Todas as alterações de teste serão descartadas.')){ resetDemo(); window.location.reload() } }}
+          <button onClick={async()=>{ if(confirm('Reiniciar a demonstração? Todas as alterações de teste serão descartadas.')){
+            try{ resetDemo() }catch{}
+            // limpa service worker e caches: sem isso o reload pode servir o bundle antigo (sem as correções da demo)
+            try{ if('serviceWorker' in navigator){ const rs=await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(r=>r.unregister())) } }catch{}
+            try{ if(window.caches){ const ks=await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k))) } }catch{}
+            window.location.reload(true)
+          } }}
             style={{marginLeft:'auto',background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.5)',color:'#fff',borderRadius:5,padding:'3px 10px',fontSize:11.5,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
             <i className="ti ti-refresh" aria-hidden/> Reiniciar demo
           </button>
         </div>
       )}
-      <div style={{height: DEMO ? 32 : 0}} />
       <Sidebar active={page} onNav={nav} counts={counts} user={user} onLogout={logout} onAreaClientes={()=>setShowAreaClientes(true)} />
 
       <div className="main">
@@ -250,7 +255,7 @@ export default function App() {
             <button className="mmenu-logout" onClick={logout}>
               <i className="ti ti-logout" aria-hidden/> Sair
             </button>
-            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v270 · build 2026-07</div>
+            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v271 · build 2026-07</div>
           </div>
         </div>
       )}

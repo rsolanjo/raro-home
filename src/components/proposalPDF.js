@@ -4,7 +4,7 @@ import { openHtmlDoc, downloadHtmlDoc } from './openDoc.js'
 // Single source of truth for the proposal PDF
 
 import { LOGO_COVER } from '../logos.js'
-import { demoWatermark } from '../brand.js'
+import { demoWatermark, brandLogoCover, brandName, brandFirma, brandTagline, brandRepName, brandPhone, brandEmail, brandSite, brandSocial } from '../brand.js'
 
 function parse(s){ return typeof s==='number'?s:parseFloat(String(s||'').replace(/[^\d.,-]/g,'').replace(',','.').replace(/\.(?=.*\.)/g,''))||0 }
 
@@ -198,10 +198,10 @@ function buildPDF(data, adminMode=false){
   const iFS=Math.max(9,itemFontSize||9)
 
   // ── helpers ──────────────────────────────────────────────────
-  const pageHeader=()=>`<div class="phdr"><div><div class="phdr-brand">RARO HOME</div><div class="phdr-sub">Casa · Tecnologia · Lazer</div></div><div class="phdr-right">${proposal_code}</div></div><div class="grule"></div>`
-  const pageFooter=n=>`<div class="pftr"><div class="pftr-brand">RARO Home — Proposta Técnica${adminMode?' · VERSÃO ADMIN':''}</div><div class="pftr-n">${n}</div></div>`
+  const pageHeader=()=>`<div class="phdr"><div><div class="phdr-brand">${brandName()}</div><div class="phdr-sub">${brandTagline()}</div></div><div class="phdr-right">${proposal_code}</div></div><div class="grule"></div>`
+  const pageFooter=n=>`<div class="pftr"><div class="pftr-brand">${brandName()} — Proposta Técnica${adminMode?' · VERSÃO ADMIN':''}</div><div class="pftr-n">${n}</div></div>`
   const clientMini=()=>`<div class="page-client"><div><div class="pc-name">${client_name}</div></div><div style="display:flex;gap:14px;align-items:center"><div class="pc-bairro">${neighborhood}</div><div class="pc-id">${proposal_code}</div></div></div>`
-  const contactStrip=()=>`<div class="contact-strip"><div><div class="cs-name">Rogério Silva</div><div class="cs-phone">+55 21 98170-9009</div></div><div class="cs-r"><div class="cs-item"><span class="cs-ic">@</span><span class="cs-tx">contato@rarohome.com.br</span></div><div class="cs-item"><span class="cs-ic">☆</span><span class="cs-tx-s">@rarohome</span></div><div class="cs-item"><span class="cs-ic">◉</span><span class="cs-tx-s">www.rarohome.com.br</span></div></div></div>`
+  const contactStrip=()=>`<div class="contact-strip"><div><div class="cs-name">${brandRepName()}</div><div class="cs-phone">${brandPhone()}</div></div><div class="cs-r"><div class="cs-item"><span class="cs-ic">@</span><span class="cs-tx">${brandEmail()}</span></div><div class="cs-item"><span class="cs-ic">☆</span><span class="cs-tx-s">${brandSocial()}</span></div><div class="cs-item"><span class="cs-ic">◉</span><span class="cs-tx-s">${brandSite()}</span></div></div></div>`
 
   // ── CAPA (idêntica à versão anterior) ────────────────────────
   const cover=`<div class="page" style="page-break-after:always">
@@ -210,7 +210,7 @@ function buildPDF(data, adminMode=false){
       <div class="cov-right">Válido por 30 dias · ${date_str}</div>
     </div>
     <div class="logo-zone">
-      <img src="${LOGO_COVER}" alt="RARO Home" style="height:150px;width:auto;display:block;border-radius:10px"/>
+      <img src="${brandLogoCover()}" alt="${brandName()}" style="height:150px;width:auto;display:block;border-radius:10px"/>
       <div class="logo-tagline">C A S A · T E C N O L O G I A · L A Z E R</div>
       <div class="logo-orn"><div class="lo-l-r"></div><div class="lo-d"></div><div class="lo-l"></div></div>
     </div>
@@ -227,7 +227,7 @@ function buildPDF(data, adminMode=false){
       <div class="qc lft"><span class="qi">◈</span><div class="qt">Quem Somos</div><div class="qb">Criamos experiências únicas para quem vive com estilo. Cada projeto é exclusivo, desenvolvido com atenção obsessiva aos detalhes e ao que há de melhor no mercado.</div></div>
       <div class="qc lft"><span class="qi">◆</span><div class="qt">O que Entregamos</div><div class="qb">Áreas gourmet de luxo, churrasqueiras e coifas exclusivas, chopeiras, telão de LED externo, móveis externos premium, som ambiente, WiFi em toda a casa — e tudo automatizado por voz, toque ou WhatsApp.</div></div>
       <div class="qc lft"><span class="qi">◇</span><div class="qt">Tecnologia de Ponta</div><div class="qb">Zigbee · Matter · Tuya. Compatível com Alexa, Google Home e Apple HomeKit. Câmeras 4K com inteligência artificial.</div></div>
-      <div class="qc lft"><span class="qi">◉</span><div class="qt">RARO Experience</div><div class="qb">Você tem um consultor dedicado do projeto à entrega. Instalação profissional, treinamento personalizado e suporte contínuo via WhatsApp — sem terceiros, sem surpresas.</div></div>
+      <div class="qc lft"><span class="qi">◉</span><div class="qt">${brandName()} Experience</div><div class="qb">Você tem um consultor dedicado do projeto à entrega. Instalação profissional, treinamento personalizado e suporte contínuo via WhatsApp — sem terceiros, sem surpresas.</div></div>
     </div>
     <div class="testi-section">
       <div class="testi-lbl">★ O Q U E N O S S O S C L I E N T E S D I Z E M</div>
@@ -369,7 +369,7 @@ function buildPDF(data, adminMode=false){
       <div class="tr"><span class="tl">Mão de Obra — Instalação e Programação</span><span class="tv">${fmt(laborVal)}</span></div>
       <div class="tr main"><span class="tl main">I N V E S T I M E N T O T O T A L D O P R O J E T O</span><span class="tv main">${fmt(grandTotal)}</span></div>
     </div>
-    <div class="closing" style="margin-top:16px"><div class="cl-t">Pronto para transformar sua residência?</div><div class="cl-contacts"><span class="cl-item">☎ +55 21 98170-9009</span><span class="cl-item">@ contato@rarohome.com.br</span><span class="cl-item">☆ @rarohome</span><span class="cl-item">◉ www.rarohome.com.br</span></div></div>
+    <div class="closing" style="margin-top:16px"><div class="cl-t">Pronto para transformar sua residência?</div><div class="cl-contacts"><span class="cl-item">☎ ${brandPhone()}</span><span class="cl-item">@ ${brandEmail()}</span><span class="cl-item">☆ ${brandSocial()}</span><span class="cl-item">◉ ${brandSite()}</span></div></div>
     <div style="flex:1;min-height:10px"></div>
     ${contactStrip()}
     <div class="valid-strip">© R A R O H O M E · ${client_name} · ${proposal_code} · V Á L I D O P O R 3 0 D I A S</div>
@@ -394,9 +394,9 @@ function buildPDF(data, adminMode=false){
 .tl.main{font-size:8px!important}
 .tv.main{font-size:26px!important}`
 
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>RARO Home — ${client_name} — ${proposal_code}</title><style>${PDF_CSS}${extraCSS}</style></head><body>${demoWatermark()}
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${brandName()} — ${client_name} — ${proposal_code}</title><style>${PDF_CSS}${extraCSS}</style></head><body>${demoWatermark()}
 <div class="no-print" style="position:sticky;top:0;z-index:99;background:${adminMode?'#4C1D95':'#060B1A'};color:#F0F6FF;padding:9px 20px;display:flex;align-items:center;justify-content:space-between;font-family:'DM Sans',sans-serif;font-size:12px">
-  <span><strong>RARO Home</strong>${adminMode?' — VERSÃO ADMIN':''} — ${client_name} · ${proposal_code}</span>
+  <span><strong>${brandName()}</strong>${adminMode?' — VERSÃO ADMIN':''} — ${client_name} · ${proposal_code}</span>
   <button onclick="window.print()" style="background:#8C6D46;color:#fff;border:none;padding:7px 18px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">⬇ Salvar como PDF</button>
 </div>
 ${cover}${roomPagesHtml.join('\n')}${totalPage}
