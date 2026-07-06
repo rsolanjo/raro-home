@@ -29,6 +29,11 @@ export default defineConfig({
         // cache do app shell; deixa API/Supabase sempre na rede (network-first não faz sentido cachear dados sensíveis)
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        // força o SW novo a assumir na hora e limpar cache de versões antigas.
+        // sem isso, o SW velho serve index.html apontando pra bundle que já mudou de hash -> tela branca.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           {

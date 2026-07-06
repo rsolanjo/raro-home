@@ -21,5 +21,33 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // Autorrecuperação de tela branca por cache velho de PWA.
+      // Se um módulo não carrega (bundle antigo servido por SW após deploy),
+      // desregistra o service worker, limpa caches e recarrega UMA vez.
+      window.addEventListener('error', function (e) {
+        var alvo = e && e.target;
+        var ehModulo = alvo && (alvo.tagName === 'SCRIPT' || alvo.tagName === 'LINK');
+        if (!ehModulo) return;
+        if (sessionStorage.getItem('raro_sw_reboot')) return; // evita loop
+        sessionStorage.setItem('raro_sw_reboot', '1');
+        try {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (rs) {
+              rs.forEach(function (r) { r.unregister(); });
+            });
+          }
+          if (window.caches && caches.keys) {
+            caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); });
+          }
+        } finally {
+          setTimeout(function () { location.reload(); }, 300);
+        }
+      }, true);
+      // limpa o flag quando a app sobe de verdade
+      window.addEventListener('load', function () {
+        setTimeout(function () { sessionStorage.removeItem('raro_sw_reboot'); }, 4000);
+      });
+    </script>
   </body>
 </html>
