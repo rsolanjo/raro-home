@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { TAXONOMY, inferCategory, genItemId } from '../taxonomy.js'
 import { LOGO_EXEC } from '../logos.js'
-import { demoWatermark, brandLogoExec, brandName } from '../brand.js'
+import { demoWatermark, brandLogoExec, brandName, isDemo } from '../brand.js'
 import { supabase } from '../db/supabase.js'
 
 const EQUIP_STYLE = {
@@ -354,6 +354,8 @@ async function pdfToImg(b64){
 }
 
 async function askClaude(messages, imageB64=null, mime='image/jpeg', maxTokens=1500, onCost=null) {
+  // No modo demonstração não há backend /api/claude nem IA. Bloqueia toda chamada de API.
+  if(isDemo()) throw new Error('__DEMO_SEM_IA__')
   const content = []
   if(imageB64) content.push({type:'image',source:{type:'base64',media_type:mime,data:imageB64}})
   const apiMessages = messages.map(m=>({role:m.role, content: m.role==='user' && m===messages[messages.length-1] && imageB64
@@ -855,6 +857,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
 
   // ETAPA 1: IA identifica cômodos com posições (x,y %) na imagem
   async function startRooms(imgUrl){
+    if(isDemo()){ setStep('editor'); return }  // demo não tem IA: vai direto pro editor manual
     setLoading(true)
     const prompt = `Você é um projetista da RARO Home. Analise esta planta baixa e identifique TODOS os ambientes/cômodos visíveis.
 
@@ -3667,19 +3670,19 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
               </div>
               {/* Botão confirmar */}
               <div style={{padding:12}}>
-                <button disabled={rooms.length===0||loading} onClick={()=>{ setStep('chat'); startChat(bgImage, rooms) }}
+                {!isDemo() && <button disabled={rooms.length===0||loading} onClick={()=>{ setStep('chat'); startChat(bgImage, rooms) }}
                   style={{...btnPrimary,width:'100%',justifyContent:'center',gap:8,opacity:rooms.length===0?0.4:1}}>
                   <i className="ti ti-message-2" aria-hidden/>
                   Confirmar e ir para as perguntas ({rooms.length} cômodo{rooms.length!==1?'s':''})
-                </button>
+                </button>}
                 <button onClick={()=>setStep('editor')} disabled={loading}
-                  style={{...btnGhost,width:'100%',justifyContent:'center',marginTop:6,gap:6,borderColor:'rgba(148,163,184,0.5)',color:'#CBD5E1'}}>
-                  <i className="ti ti-hand-finger" aria-hidden/>Pular IA — editar na mão
+                  style={{...btnPrimary,width:'100%',justifyContent:'center',marginTop:isDemo()?0:6,gap:6}}>
+                  <i className="ti ti-hand-finger" aria-hidden/>{isDemo()?'Ir para o editor':'Pular IA — editar na mão'}
                 </button>
-                <button onClick={()=>startRooms(bgImage)} disabled={loading}
+                {!isDemo() && <button onClick={()=>startRooms(bgImage)} disabled={loading}
                   style={{...btnGhost,width:'100%',justifyContent:'center',marginTop:6,fontSize:11}}>
                   <i className="ti ti-refresh" aria-hidden/>Reanalisar planta
-                </button>
+                </button>}
               </div>
             </div>
           </div>
@@ -4665,12 +4668,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           {execDoc && <button onClick={()=>{ setExecMode('completo'); setStep('exec') }} disabled={loading} style={{...btnGhost,borderColor:'rgba(110,231,183,0.5)',color:'#6EE7B7',gap:6}} title="Abrir o documento já gerado, sem chamar a IA de novo">
             <i className="ti ti-eye" aria-hidden/> Ver documento salvo
           </button>}
-          <button onClick={generateExecManual} disabled={loading} style={{...btnGhost,borderColor:'rgba(148,163,184,0.5)',color:'#CBD5E1',gap:6}} title="Monta o documento a partir dos pontos posicionados, sem usar IA">
-            <i className="ti ti-file-pencil" aria-hidden/> Gerar sem IA
+          <button onClick={generateExecManual} disabled={loading} style={isDemo()?{...btnPrimary,gap:6}:{...btnGhost,borderColor:'rgba(148,163,184,0.5)',color:'#CBD5E1',gap:6}} title="Monta o documento a partir dos pontos posicionados, sem usar IA">
+            <i className="ti ti-file-pencil" aria-hidden/> {isDemo()?(loading?'Gerando...':(execDoc?'Regerar documento':'Gerar documento')):'Gerar sem IA'}
           </button>
-          <button onClick={generateExec} disabled={loading} style={{...btnPrimary,background:'#7C3AED'}}>
+          {!isDemo() && <button onClick={generateExec} disabled={loading} style={{...btnPrimary,background:'#7C3AED'}}>
             <i className="ti ti-sparkles" aria-hidden/> {loading?(execProgress||'Gerando...'):(execDoc?'Regerar com IA':'Gerar com IA')}
-          </button>
+          </button>}
         </div>
       )}
       {step==='exec' && (

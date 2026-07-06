@@ -6,8 +6,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { buildDemoData, DEMO_LEDGER, DEMO_EMPRESA, DEMO_USER } from './demoData.js'
 
-const KEY = 'raro_demo_state_v2'
-const KEY_LEGADO = 'raro_demo_state_v1'
+const KEY = 'raro_demo_state_v3'
+const KEY_LEGADO = 'raro_demo_state_v2'
 
 export function isDemoMode() {
   try {
@@ -19,8 +19,9 @@ export function isDemoMode() {
 
 // Carrega o estado demo (do localStorage se já houver edições, senão o seed fake)
 export function loadDemoState() {
-  // limpa qualquer estado da chave antiga (podia ter dados reais vazados de versões passadas)
+  // limpa qualquer estado de chaves antigas (podiam ter dados reais vazados de versões passadas)
   try { localStorage.removeItem(KEY_LEGADO) } catch {}
+  try { localStorage.removeItem('raro_demo_state_v1') } catch {}
   try {
     const raw = localStorage.getItem(KEY)
     if (raw) {
@@ -45,7 +46,7 @@ function _ehDemoLimpo(st) {
   try {
     const clientes = (st && st.data && (st.data.clients || st.data.clientes)) || []
     if (!Array.isArray(clientes)) return false
-    const nomesOk = new Set(['Marina e Thiago Andrade'])
+    const nomesOk = new Set(['Thiago Andrade'])
     return clientes.every(c => nomesOk.has((c && (c.name || c.nome)) || ''))
   } catch { return false }
 }
