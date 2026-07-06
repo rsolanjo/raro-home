@@ -744,7 +744,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   const _mergeSides = useRef({})
   const [showLoadVersionModal, setShowLoadVersionModal] = useState(false) // carregar versão antiga p/ edição
   const [apresVersion, setApresVersion] = useState(0)   // índice da versão escolhida (0 = atual/mais recente)
-  const [apresLayout, setApresLayout] = useState('v2')
+  const [apresLayout, setApresLayout] = useState(isDemo() ? 'fable' : 'v2')  // demo: Fable fixo. real: escolha livre
   const [apresShowInvest, setApresShowInvest] = useState(true) // mostrar estimativas de investimento na apresentação (pode ocultar ao gerar)  // 'v1' (institucional) | 'v2' (O Seu Investimento)
   const [apresKeep,      setApresKeep]      = useState({})   // {key:true} itens de rack a MANTER
   const [apresExec,      setApresExec]      = useState('3000')
@@ -2488,7 +2488,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           </div>
 
           {/* escolha do modelo de documento */}
-          <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
+          {!isDemo() && <div style={{background:'var(--surf)',borderRadius:6,padding:'10px 12px',marginBottom:12}}>
             <div className="flabel" style={{marginBottom:8}}>Modelo do documento</div>
             <div style={{display:'flex',gap:8}}>
               {[['v2','Compacto','Seu Investimento — por categoria, com planta e legenda'],['v1','Completo','Apresentação institucional em 2 páginas'],['fable','Fable','Vende o serviço: projeto inicial em destaque, itens como estimativa, planta sempre']].map(([v,t,d])=>(
@@ -2499,7 +2499,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
 
           {/* seletor de versão salva (item 2) */}
           {savedVersions.length>0 && <div style={{background:'var(--surf)',borderRadius:8,padding:'12px 14px',marginBottom:12}}>

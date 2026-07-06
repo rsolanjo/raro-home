@@ -672,7 +672,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [rotBg, setRotBg] = useState(null) // planta girada 90° (gerada em canvas quando necessário)
   const [plantPct, setPlantPct] = useState(100) // largura da planta nas páginas do documento (%) — ajustável na tela
   const [execData, setExecData] = useState(()=> fromProposal?.planta_data?.exec_data || null) // dados crus da IA — persistidos p/ reconstruir o documento com as opções atuais
-  const [execVersao, setExecVersao] = useState('nova') // 'nova' (premium) | 'antiga' (clássico cyan)
+  const [execVersao, setExecVersao] = useState(isDemo() ? 'fable' : 'nova') // demo: Fable fixo. real: escolha livre
   const [execProgress, setExecProgress] = useState('')
   const [zoom, setZoom] = useState(1)
   const [selected, setSelected] = useState(null)
@@ -4581,7 +4581,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   <i className={`ti ${icon}`} aria-hidden/>{label}
                 </button>
               )})}
-              <span style={{width:1,height:22,background:'#E2E8F0',margin:'0 6px'}}/>
+              {!isDemo() && <><span style={{width:1,height:22,background:'#E2E8F0',margin:'0 6px'}}/>
               <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:2}}>Estilo:</span>
               {[['nova','Novo'],['antiga','Clássico'],['fable','Fable']].map(([v,label])=>(
                 <button key={v} onClick={()=>{
@@ -4596,7 +4596,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     border:`1.5px solid ${execVersao===v?'#9C7B45':'#CBD5E1'}`,background:execVersao===v?'#9C7B45':'#fff',color:execVersao===v?'#fff':'#475569'}}>
                   {label}
                 </button>
-              ))}
+              ))}</>}
               <div style={{flex:1}}/>
               {execMode==='completo' && <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569',cursor:'pointer',userSelect:'none'}}>
                 <input type="checkbox" checked={showHeatmap} onChange={e=>{

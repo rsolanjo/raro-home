@@ -1,6 +1,6 @@
 import { LOGO_MONO } from '../logos.js'
 import { brandName, brandSub, brandLogoMono, isDemo } from '../brand.js'
-// v271 — DEMO: (1) fantasmas: causa real era CACHE (SW servia bundle velho sem a guarda). 'Reiniciar demo' agora desregistra SW + limpa caches antes do reload. guarda valida clientes+propostas+projetos (testada). (2) botão Sair não some mais: app desconta a altura do banner em demo. (3) planta humanizada oficial (planta_Thiago) no cadastro do cliente e no executivo. (4) marca neutra em TODOS os documentos no demo (proposta, contrato, apresentação): sem logo RARO, sem Rogério, sem nome/contato da empresa, vira 'Sua Empresa' + logo neutro. (5) catálogo demo casa por code com os itens (erro 'categoria faltando' resolvido). (7) modelo Fable FIXO em proposta e contrato no demo (seletor escondido). Tudo só no demo, app real intacto.
+// v273 — DEMO: modelo/estilo do documento FIXO em Fable, sem escolha, nos 4 documentos: contrato, proposta, apresentação comercial e projeto executivo (seletores escondidos + default fable quando isDemo). PRODUÇÃO INTACTA: fora da demo, os seletores e defaults originais (novo/v2/nova) seguem iguais. Só o demo mudou.
 // v266 — RESET DE SENHA (so admin dispara). Na tela Usuarios, cada linha ganha botao de chave (ti-key) visivel SO se currentUser.role==='admin', entre editar e excluir, protegido por PIN. Admin clica, confirma, e o Supabase envia e-mail de recuperacao pra pessoa (dispararResetSenha -> resetPasswordForEmail). SEGURANCA: admin NAO ve nem define a senha alheia (Supabase nao permite, bcrypt); ele so destrava, a pessoa cria a nova. CICLO COMPLETO: quando a pessoa clica no link do e-mail e volta ao RARO, o Login detecta (evento PASSWORD_RECOVERY do onAuthStateChange, ou hash type=recovery na URL) e mostra tela 'Crie sua nova senha' (definirNovaSenha -> updateUser); apos salvar, resolve sessao e entra. Funcoes novas no supabase.js: dispararResetSenha, definirNovaSenha. Fontes: supabase.com/docs/reference/javascript/auth-resetpasswordforemail, .../auth-onauthstatechange, .../auth-updateuser. Base: v265.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
@@ -55,7 +55,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v271 · build 2026-07
+          v273 · build 2026-07
         </div>
       </div>
     </div>

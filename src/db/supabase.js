@@ -398,10 +398,12 @@ export function clearPINSession() { localStorage.removeItem(_PK) }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 export async function getIncompleteClients() {
+  if (_demo()) return []   // demo não mostra "cadastro incompleto"
   const clients = await getClients()
   return clients.filter(c=>!c.full_name1||!c.phone1||!c.neighborhood||!c.housing_type||!c.email)
 }
 export async function getAutoTasks() {
+  if (_demo()) return []   // demo não mostra "Próximas ações"
   const projects = await getProjects()
   const tasks = []
   const NEXT = { visit:{label:'Fazer medição',type:'Medição'}, measurement:{label:'Criar projeto e mapa de calor',type:'Projeto'}, project:{label:'Fechar orçamento com o cliente',type:'Orçamento'}, budget:{label:'Comprar material listado',type:'Compras'}, purchase:{label:'Iniciar instalação',type:'Instalação'}, installation:{label:'Configurar cômodos e testar',type:'Configuração'}, config:{label:'Entrega e treinamento ao cliente',type:'Entrega'} }
