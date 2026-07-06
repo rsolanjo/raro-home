@@ -23,7 +23,7 @@ import Backup    from './components/Backup.jsx'
 import {
   getClients, getProposals, getProjects, getStock, getCatalog,
   getAdmins, getSuppliers, getTools, exportBackup, importBackup,
-  auditedSave, addAuditLog, getIncompleteClients, signOutSeguro
+  auditedSave, addAuditLog, getIncompleteClients
 } from './db/supabase.js'
 
 const EMPTY = { clients:[], proposals:[], projects:[], stock:[], catalog:[], admins:[], suppliers:[], tools:[] }
@@ -81,7 +81,6 @@ export default function App() {
 
   async function logout() {
     await addAuditLog({ module:'sistema', action:'logout', entity_name:user?.name, user_name:user?.name })
-    await signOutSeguro()
     localStorage.removeItem('raro_session')
     setUser(null)
     setData(EMPTY)
@@ -223,7 +222,7 @@ export default function App() {
             <button className="mmenu-logout" onClick={logout}>
               <i className="ti ti-logout" aria-hidden/> Sair
             </button>
-            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v266 · build 2026-07</div>
+            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v236 · build 2026-07</div>
           </div>
         </div>
       )}

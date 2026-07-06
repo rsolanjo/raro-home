@@ -169,19 +169,6 @@ export function buildContract(proposal, client, opts={}) {
   // ── MODELO CLÁSSICO ────────────────────────────────────────────────
   // Layout enxuto e institucional (fiel ao contrato R&-5683). Vale para QUALQUER tipo.
   // Reaproveita todo o cálculo acima (total, extenso, cláusulas, escopo). Só muda a diagramação.
-  if(opts.modelo==='fable'){
-    // Fable = pele editorial (creme/tinta/dourado + Fraunces) sobre o modelo novo.
-    // O texto jurídico é EXATAMENTE o mesmo; só muda a apresentação.
-    const base = buildContract(proposal, client, {...opts, modelo:undefined})
-    return base
-      .replaceAll('#0369A1','#8A6A38').replaceAll('#1C6AA6','#8A6A38').replaceAll('#0EA5E9','#B0854C').replaceAll('#38BDF8','#D8B476')
-      .replace('</head>', `<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&display=swap" rel="stylesheet"><style>
-        body{background:#fff!important;color:#1E2536}
-        h1,h2,h3,.doc-title,.title{font-family:'Fraunces','EB Garamond',Georgia,serif!important;color:#131A2C}
-        .sigline{border-color:#131A2C!important}
-        @media print{body{background:#fff!important}}
-      </style></head>`)
-  }
   if(opts.modelo==='classico'){
     return buildContractClassico({
       proposal, client, tipo, ehProjeto, tituloDoc, objetoTxt, pagamentoTxt,
@@ -196,7 +183,6 @@ export function buildContract(proposal, client, opts={}) {
   @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
   @page{ size:A4; margin:0 }
-  @media screen{html::-webkit-scrollbar{width:15px}html::-webkit-scrollbar-thumb{background:#94A3B8;border-radius:8px;border:3px solid #fff}html::-webkit-scrollbar-track{background:#EEF2F6}}
   body{ font-family:'EB Garamond','Georgia',serif; font-size:11.7px; line-height:1.47; color:#23282F; text-align:justify; background:#fff; padding:0; hyphens:auto; -webkit-font-smoothing:antialiased }
   .sheet{ padding:10mm 15mm 7mm }
   @media print{ .no-print{display:none!important} }
@@ -327,7 +313,6 @@ function buildContractClassico(D){
   <style>
   @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
-  @media screen{html::-webkit-scrollbar{width:15px}html::-webkit-scrollbar-thumb{background:#94A3B8;border-radius:8px;border:3px solid #fff}html::-webkit-scrollbar-track{background:#EEF2F6}}
   @page{ size:A4; margin:0 }
   body{ font-family:'Helvetica Neue',Arial,sans-serif; font-size:9.4px; line-height:1.5; color:#2B2B2B; background:#fff }
   .sheet{ padding:14mm 16mm }
@@ -422,7 +407,7 @@ function buildContractClassico(D){
 
     <div class="sigs">
       <div class="sig"><div class="sigline"></div><div class="signame">${name1||'—'}</div><div class="sigrole">Contratante · CPF: ${hideCpf?'—':(client?.cpf1||'___.___.___-__')}</div></div>
-      <div class="sig"><div class="sigline"></div><div class="signame">RARO Home Tecnologia</div><div class="sigrole">Contratada</div></div>
+      <div class="sig"><div class="hand">Rogério Silva</div><div class="sigline" style="border-top:none;height:0;margin-bottom:5px"></div><div class="signame">Rogério Silva</div><div class="sigrole">RARO Home Tecnologia · Contratada</div></div>
     </div>
 
     <div class="foot">
@@ -439,8 +424,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
   const [saved, setSaved] = useState(false)
   const [signing, setSigning] = useState(false)
   const baseClient = clients?.find(c => c.id === Number(proposal?.client_id))
-  const [showReview, setShowReview] = useState(false)
-  const [showConfig, setShowConfig] = useState(false)  // tipo + modelo do documento começam fechados: contrato manda na tela
+  const [showReview, setShowReview] = useState(true)
   const [edits, setEdits] = useState({
     name1: baseClient?.full_name1 || baseClient?.name1 || '',
     name2: baseClient?.full_name2 || baseClient?.name2 || '',
@@ -888,7 +872,7 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
         </div>
         {/* Painel de revisão de dados */}
         {showReview && (
-          <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'14px 16px',maxHeight:'36vh',overflowY:'auto',flexShrink:0}}>
+          <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'14px 16px'}}>
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
               <i className="ti ti-user-check" style={{color:'var(--accent)'}} aria-hidden/>
               <b style={{fontSize:13}}>Confira os dados do cliente antes de gerar o contrato</b>
@@ -906,29 +890,11 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
             <div style={{fontSize:10,color:'var(--text3)',marginTop:8}}>As alterações aqui valem só para este contrato. Para salvar no cadastro, edite o cliente na tela de Clientes.</div>
           </div>
         )}
-        {/* Faixa compacta: reabrir dados + resumo config numa linha só (quando ambos fechados) */}
-        {!showReview && !showConfig && (
-          <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'7px 16px',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-            <button className="btn" style={{fontSize:11}} onClick={()=>setShowReview(true)}><i className="ti ti-edit" aria-hidden/>Revisar dados do cliente</button>
-            <button className="btn" style={{fontSize:11}} onClick={()=>setShowConfig(true)}><i className="ti ti-file-stack" aria-hidden/>Tipo e modelo</button>
-            <span style={{fontSize:11,color:'var(--text3)'}}>{tipo==='projeto'?'Projeto':tipo==='total'?'Proposta total':tipo==='ocultas'?'Categorias ocultas':'Proposta avulsa'} · {modelo==='novo'?'Novo':modelo==='classico'?'Clássico':'Fable'}</span>
-            <span style={{marginLeft:'auto',fontSize:11,color:'var(--accent)',fontWeight:600}}>contrato pronto pra leitura abaixo ↓</span>
-          </div>
-        )}
-        {!showReview && showConfig && (
+        {!showReview && (
           <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'8px 16px'}}>
             <button className="btn" style={{fontSize:11}} onClick={()=>setShowReview(true)}><i className="ti ti-edit" aria-hidden/>Revisar/editar dados do cliente</button>
           </div>
         )}
-        {/* Barra: configuração do documento (colapsável para dar espaço ao contrato) */}
-        {showConfig && (
-        <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'8px 16px',display:'flex',alignItems:'center',gap:8,cursor:'pointer'}} onClick={()=>setShowConfig(v=>!v)}>
-          <i className="ti ti-chevron-down" style={{color:'var(--accent)'}} aria-hidden/>
-          <b style={{fontSize:13}}>Tipo e modelo do documento</b>
-          <span style={{marginLeft:'auto',fontSize:11,color:'var(--text3)'}}>ocultar</span>
-        </div>
-        )}
-        {showConfig && <>
         {/* Seletor de TIPO de contrato */}
         <div style={{background:'var(--surf)',borderBottom:'1px solid var(--border)',padding:'12px 16px'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
@@ -957,11 +923,10 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
               <b style={{fontSize:13}}>Modelo do documento</b>
               <span style={{fontSize:10.5,color:'var(--text3)'}}>vale para qualquer tipo acima</span>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
               {[
                 ['novo','Novo','Layout atual, serifado e detalhado','ti-sparkles'],
                 ['classico','Clássico','Enxuto e institucional (modelo R&-5683)','ti-file-text'],
-                ['fable','Fable','Editorial: papel creme, tinta e dourado. Mesmas cláusulas.','ti-feather'],
               ].map(([v,t,sub,ic])=>(
                 <button key={v} onClick={()=>setModelo(v)} style={{textAlign:'left',padding:'10px 12px',borderRadius:8,cursor:'pointer',
                   border:`1.5px solid ${modelo===v?'var(--accent)':'var(--border)'}`,background:modelo===v?'rgba(14,165,233,0.1)':'var(--bg)',color:'var(--text1)',fontFamily:'inherit'}}>
@@ -1052,11 +1017,10 @@ export default function Contract({ proposal, clients, onClose, onSend, onGenerat
             </div>
           </details>
         </div>
-        </>}
         {/* Contract preview */}
         <iframe
           srcDoc={buildContract(proposal, client, opts)}
-          style={{flex:1,minHeight:0,border:'none',width:'100%'}}
+          style={{flex:1,border:'none',width:'100%'}}
           title="Contrato RARO Home"
         />
       </div>

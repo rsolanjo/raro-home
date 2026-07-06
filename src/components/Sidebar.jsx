@@ -1,5 +1,5 @@
 import { LOGO_MONO } from '../logos.js'
-// v266 — RESET DE SENHA (so admin dispara). Na tela Usuarios, cada linha ganha botao de chave (ti-key) visivel SO se currentUser.role==='admin', entre editar e excluir, protegido por PIN. Admin clica, confirma, e o Supabase envia e-mail de recuperacao pra pessoa (dispararResetSenha -> resetPasswordForEmail). SEGURANCA: admin NAO ve nem define a senha alheia (Supabase nao permite, bcrypt); ele so destrava, a pessoa cria a nova. CICLO COMPLETO: quando a pessoa clica no link do e-mail e volta ao RARO, o Login detecta (evento PASSWORD_RECOVERY do onAuthStateChange, ou hash type=recovery na URL) e mostra tela 'Crie sua nova senha' (definirNovaSenha -> updateUser); apos salvar, resolve sessao e entra. Funcoes novas no supabase.js: dispararResetSenha, definirNovaSenha. Fontes: supabase.com/docs/reference/javascript/auth-resetpasswordforemail, .../auth-onauthstatechange, .../auth-updateuser. Base: v265.
+// v236 — (1) Plano de Obra/Executivo: filtros de SEÇÃO no dropdown 'Filtros PDF' para ocultar Lista Geral de Pontos, Quadro de Cargas, Caixas de Embutir, Posição e Altura dos Pontos (tabela de automação) e Alimentação dos Keypads. Some do relatório sem apagar nada do projeto. (2) FORMATAÇÃO: seções de tabela agora fluem em sequência (não forçam página nova), eliminando páginas em branco; só as seções COM planta (Planta Geral, Planta de Teto, Cabeamento, Rack) começam em página limpa, preservando a visibilidade das plantas. (3) MOBILE: botão 'Editar' (trava on/off) no editor do Projeto Executivo. No celular/tablet começa TRAVADO: dá pra dar zoom e rolar sem mover item sem querer; toca em Editar pra liberar o arraste. Vale para pins e vértices de cabo. Mantém v207-v235.
 
 export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaClientes }) {
   const item = (id, icon, label, badge, badgeCls='warn') => (
@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v266 · build 2026-07
+          v236 · build 2026-07
         </div>
       </div>
     </div>
