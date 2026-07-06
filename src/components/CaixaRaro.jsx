@@ -35,11 +35,7 @@ async function loadLedger() {
   }
 }
 async function saveLedgerRow(project_key, data) {
-  if (_isDemo()) {
-    const all = (() => { try { return JSON.parse(localStorage.getItem('raro_demo_ledger') || '{}') } catch { return {} } })()
-    all[project_key] = data
-    localStorage.setItem('raro_demo_ledger', JSON.stringify(all)); return
-  }
+  if (_isDemo()) { const all=(()=>{try{return JSON.parse(localStorage.getItem('raro_demo_ledger')||'{}')}catch{return {}}})(); all[project_key]=data; localStorage.setItem('raro_demo_ledger', JSON.stringify(all)); return }
   try {
     const { error } = await supabase.from('finance_ledger').upsert({ project_key, data, updated_at: new Date().toISOString() }, { onConflict: 'project_key' })
     if (error) throw error

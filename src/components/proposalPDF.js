@@ -1,10 +1,10 @@
 import { getCatalog } from '../db/supabase.js'
 import { openHtmlDoc, downloadHtmlDoc } from './openDoc.js'
-import { demoWatermark } from '../brand.js'
 // ── RARO Home — PDF Builder (shared) ─────────────────────
 // Single source of truth for the proposal PDF
 
 import { LOGO_COVER } from '../logos.js'
+import { demoWatermark } from '../brand.js'
 
 function parse(s){ return typeof s==='number'?s:parseFloat(String(s||'').replace(/[^\d.,-]/g,'').replace(',','.').replace(/\.(?=.*\.)/g,''))||0 }
 
@@ -368,11 +368,6 @@ function buildPDF(data, adminMode=false){
       <div class="tr"><span class="tl">Equipamentos — ${(floors||[]).length} Pavimento${(floors||[]).length>1?'s':''}</span><span class="tv">${fmt(equipTotal)}</span></div>
       <div class="tr"><span class="tl">Mão de Obra — Instalação e Programação</span><span class="tv">${fmt(laborVal)}</span></div>
       <div class="tr main"><span class="tl main">I N V E S T I M E N T O T O T A L D O P R O J E T O</span><span class="tv main">${fmt(grandTotal)}</span></div>
-    </div>
-    <div class="sig-section" style="margin-top:20px">
-      <div class="sig-ey">A P R O V A Ç Ã O E A S S I N A T U R A</div>
-      <div class="sig-grid"><div class="sf"><div class="sl"></div><div class="slabel">C L I E N T E — N O M E E A S S I N A T U R A</div></div><div></div><div class="sf"><div class="sl"></div><div class="slabel">R A R O H O M E</div></div></div>
-      <div class="sig-date-grid"><div class="sf"><div class="sl" style="max-width:120px"></div><div class="slabel">D A T A</div></div><div class="sf"><div class="sl" style="max-width:120px"></div><div class="slabel">D A T A</div></div></div>
     </div>
     <div class="closing" style="margin-top:16px"><div class="cl-t">Pronto para transformar sua residência?</div><div class="cl-contacts"><span class="cl-item">☎ +55 21 98170-9009</span><span class="cl-item">@ contato@rarohome.com.br</span><span class="cl-item">☆ @rarohome</span><span class="cl-item">◉ www.rarohome.com.br</span></div></div>
     <div style="flex:1;min-height:10px"></div>

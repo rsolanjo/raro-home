@@ -16,8 +16,7 @@ async function all(table, order = 'id') {
   return data || []
 }
 // ── MODO DEMO ────────────────────────────────────────────────────────────────
-// Quando o app está em /demo, nenhuma gravação pode chegar ao Supabase real.
-// O App marca window.__RARO_DEMO__ = true. As funções de escrita respeitam isso.
+// Em /demo nenhuma gravação pode chegar ao Supabase real. App marca window.__RARO_DEMO__.
 function _demo() { try { return typeof window !== 'undefined' && window.__RARO_DEMO__ === true } catch { return false } }
 
 async function upsert(table, row) {
@@ -45,6 +44,85 @@ async function del(table, id) {
 // ── ADMINS ────────────────────────────────────────────────────────────────────
 export async function getAdmins()      { return all('admins', 'name') }
 export async function saveAdmin(a)     { return upsert('admins', a) }
+
+// ── AUTENTICAÇÃO SEGURA (Supabase Auth) ───────────────────────────────────────
+// A verificação de senha acontece NO SERVIDOR (bcrypt). Depois de autenticar,
+// checamos se o e-mail está na lista de admins cadastrados; se não estiver,
+// derrubamos a sessão. Ter conta Google/senha válida NÃO basta: tem que estar
+// na lista que a Ful controla.
+
+// Busca o registro de admin pelo e-mail (case-insensitive).
+async function findAdminByEmail(email) {
+  const e = (email || '').toLowerCase().trim()
+  const { data, error } = await supabase.from('admins').select('*').ilike('gmail', e).limit(1)
+  if (error) { console.error('findAdminByEmail', error); return null }
+  return (data && data[0]) || null
+}
+
+// Login com e-mail + senha. Retorna o registro do admin (com role) ou lança erro.
+export async function signInEmailSenha(email, senha) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha })
+  if (error) throw new Error('E-mail ou senha incorretos.')
+  const admin = await findAdminByEmail(data.user.email)
+  if (!admin) {
+    await supabase.auth.signOut()
+    throw new Error('Este e-mail não está autorizado no RARO. Fale com o administrador.')
+  }
+  return admin
+}
+
+// Inicia login com Google (redireciona). A checagem da lista acontece no retorno,
+// dentro de resolveSessao(), chamada quando o app recarrega já autenticado.
+export async function signInGoogle() {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin }
+  })
+  if (error) throw error
+}
+
+// Ao carregar o app: se há sessão ativa (ex: voltou do Google), confere a lista.
+// Retorna o admin autorizado, ou null se não há sessão / não está na lista.
+export async function resolveSessao() {
+  const { data } = await supabase.auth.getSession()
+  const email = data?.session?.user?.email
+  if (!email) return null
+  const admin = await findAdminByEmail(email)
+  if (!admin) { await supabase.auth.signOut(); return null }
+  return admin
+}
+
+// Sair de verdade (encerra a sessão no servidor).
+export async function signOutSeguro() {
+  try { await supabase.auth.signOut() } catch (e) { console.error(e) }
+}
+
+// Grava a nova senha depois que a pessoa clicou no link de recuperação.
+export async function definirNovaSenha(novaSenha) {
+  const { error } = await supabase.auth.updateUser({ password: novaSenha })
+  if (error) throw error
+  return true
+}
+
+// Reset de senha: dispara o e-mail de recuperação para o usuário.
+// O admin aciona; quem redefine é a própria pessoa, pelo link do e-mail.
+// (Supabase não permite admin ver/definir senha alheia — bcrypt, por segurança.)
+export async function dispararResetSenha(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: window.location.origin
+  })
+  if (error) throw error
+  return true
+}
+
+// Criar acesso para um admin já cadastrado (define a senha inicial dele).
+// Usado pela tela de Admins quando a Ful quer dar senha a alguém.
+export async function criarAcessoComSenha(email, senha) {
+  const { data, error } = await supabase.auth.signUp({ email: email.trim(), password: senha })
+  if (error) throw error
+  return data
+}
+
 export async function deleteAdmin(id)  { return del('admins', id) }
 
 // ── CATALOG CATEGORIES ────────────────────────────────────────────────────────

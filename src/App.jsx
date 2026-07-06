@@ -24,13 +24,12 @@ import { isDemoMode, loadDemoState, saveDemoState, resetDemo, DEMO_USER_OBJ } fr
 import {
   getClients, getProposals, getProjects, getStock, getCatalog,
   getAdmins, getSuppliers, getTools, exportBackup, importBackup,
-  auditedSave, addAuditLog, getIncompleteClients
+  auditedSave, addAuditLog, getIncompleteClients, signOutSeguro
 } from './db/supabase.js'
 
 const EMPTY = { clients:[], proposals:[], projects:[], stock:[], catalog:[], admins:[], suppliers:[], tools:[] }
 
-// Modo demo: marca a flag global ANTES de qualquer chamada ao banco, garantindo
-// que nenhuma escrita chegue ao Supabase real durante a demonstração.
+// Modo demo: marca a flag global ANTES de qualquer chamada ao banco.
 const DEMO = isDemoMode()
 if (DEMO) { try { window.__RARO_DEMO__ = true } catch {} }
 
@@ -71,7 +70,7 @@ export default function App() {
     } finally { setLoading(false) }
   }, [])
 
-  // Em modo demo, persiste as edições (que ficam só na localStorage demo) sempre que data muda.
+  // Em modo demo, persiste as edições (só na localStorage demo) quando data muda.
   useEffect(() => {
     if (DEMO && data && data !== EMPTY) {
       const st = loadDemoState(); saveDemoState({ ...st, data })
@@ -97,6 +96,7 @@ export default function App() {
 
   async function logout() {
     await addAuditLog({ module:'sistema', action:'logout', entity_name:user?.name, user_name:user?.name })
+    await signOutSeguro()
     localStorage.removeItem('raro_session')
     setUser(null)
     setData(EMPTY)
@@ -250,7 +250,7 @@ export default function App() {
             <button className="mmenu-logout" onClick={logout}>
               <i className="ti ti-logout" aria-hidden/> Sair
             </button>
-            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v238 · build 2026-07</div>
+            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v267 · build 2026-07</div>
           </div>
         </div>
       )}
