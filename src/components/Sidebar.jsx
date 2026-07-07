@@ -1,5 +1,6 @@
 import { LOGO_MONO } from '../logos.js'
 import { brandName, brandSub, brandLogoMono, isDemo } from '../brand.js'
+// v275 — DEMO: gate de acesso em /demo — pede usuário/senha (raro / @raro2026) antes de abrir a demonstração (trava LEVE client-side, não é auth real; senha fica no bundle). Aprovação fica em localStorage (raro_demo_auth); "Sair" limpa e exige o gate de novo. Componente DemoGate no App.jsx. PRODUÇÃO INTACTA.
 // v274 — DEMO (só demo; produção intacta): (1) LEITURA demo isolada — all() em supabase.js agora lê do estado demo (localStorage), não do Supabase real; corrige catálogo e estoque que "sumiam" segundos após aparecer e o modal "Categoria faltando no catálogo". (2) Catálogo/planta demo alinhados à taxonomia oficial (Segurança/Redes/Sonorização/Automação) e catálogo demo com margem 10% (venda = custo × 1,10). (3) Aba "Acerto entre sócios" escondida no demo (CaixaRaro). (4) Log de auditoria escondido no demo: botão "Ver log" (Stock) e aba "Log de auditoria" (Reports); getStockLog/getAuditLog retornam [] no demo. (5) Dois diários de obra fictícios no projeto demo. Seed demo v3→v4 para forçar reseed limpo.
 // v273 — DEMO: modelo/estilo do documento FIXO em Fable, sem escolha, nos 4 documentos: contrato, proposta, apresentação comercial e projeto executivo (seletores escondidos + default fable quando isDemo). PRODUÇÃO INTACTA: fora da demo, os seletores e defaults originais (novo/v2/nova) seguem iguais. Só o demo mudou.
 // v266 — RESET DE SENHA (so admin dispara). Na tela Usuarios, cada linha ganha botao de chave (ti-key) visivel SO se currentUser.role==='admin', entre editar e excluir, protegido por PIN. Admin clica, confirma, e o Supabase envia e-mail de recuperacao pra pessoa (dispararResetSenha -> resetPasswordForEmail). SEGURANCA: admin NAO ve nem define a senha alheia (Supabase nao permite, bcrypt); ele so destrava, a pessoa cria a nova. CICLO COMPLETO: quando a pessoa clica no link do e-mail e volta ao RARO, o Login detecta (evento PASSWORD_RECOVERY do onAuthStateChange, ou hash type=recovery na URL) e mostra tela 'Crie sua nova senha' (definirNovaSenha -> updateUser); apos salvar, resolve sessao e entra. Funcoes novas no supabase.js: dispararResetSenha, definirNovaSenha. Fontes: supabase.com/docs/reference/javascript/auth-resetpasswordforemail, .../auth-onauthstatechange, .../auth-updateuser. Base: v265.
@@ -56,7 +57,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v274 · build 2026-07
+          v275 · build 2026-07
         </div>
       </div>
     </div>

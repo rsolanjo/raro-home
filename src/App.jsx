@@ -54,8 +54,53 @@ function getSession() {
   } catch { return null }
 }
 
+// ── Gate do modo demo ─────────────────────────────────────────────────────────
+// Exige usuário/senha simples para entrar em /demo. ATENÇÃO: é uma trava LEVE
+// (client-side), só pra evitar acesso casual à demo pública. A senha fica no
+// bundle; NÃO é autenticação real. Uma vez aprovado, fica marcado no localStorage
+// (raro_demo_auth) pra não pedir de novo a cada reload.
+const DEMO_GATE_USER = 'raro'
+const DEMO_GATE_PASS = '@raro2026'
+function demoGateOpen() { try { return localStorage.getItem('raro_demo_auth') === '1' } catch { return false } }
+
+function DemoGate({ onOk }) {
+  const [u, setU]     = useState('')
+  const [p, setP]     = useState('')
+  const [err, setErr] = useState('')
+  function submit(e) {
+    e.preventDefault()
+    if (u.trim().toLowerCase() === DEMO_GATE_USER && p === DEMO_GATE_PASS) {
+      try { localStorage.setItem('raro_demo_auth', '1') } catch {}
+      onOk()
+    } else {
+      setErr('Usuário ou senha inválidos.')
+    }
+  }
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#060B1A',padding:20}}>
+      <form onSubmit={submit} style={{width:'100%',maxWidth:360,background:'var(--surface,#0E1526)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,padding:'28px 26px',boxShadow:'0 12px 40px rgba(0,0,0,0.5)'}}>
+        <div style={{textAlign:'center',marginBottom:18}}>
+          <div style={{fontSize:11,letterSpacing:2,textTransform:'uppercase',color:'#7C8AA5',marginBottom:6}}>Demonstração</div>
+          <div style={{fontSize:19,fontWeight:800,color:'#F0F6FF'}}>Acesso restrito</div>
+          <div style={{fontSize:12,color:'#7C8AA5',marginTop:6}}>Informe usuário e senha para abrir a demonstração.</div>
+        </div>
+        <label style={{fontSize:11,color:'#9FB0C9',display:'block',marginBottom:4}}>Usuário</label>
+        <input autoFocus value={u} onChange={e=>{setU(e.target.value); setErr('')}} placeholder="usuário"
+          style={{width:'100%',padding:'10px 12px',marginBottom:12,borderRadius:8,border:'1px solid rgba(255,255,255,0.12)',background:'#0A1120',color:'#F0F6FF',fontSize:14}}/>
+        <label style={{fontSize:11,color:'#9FB0C9',display:'block',marginBottom:4}}>Senha</label>
+        <input type="password" value={p} onChange={e=>{setP(e.target.value); setErr('')}} placeholder="senha"
+          style={{width:'100%',padding:'10px 12px',marginBottom:err?8:16,borderRadius:8,border:'1px solid rgba(255,255,255,0.12)',background:'#0A1120',color:'#F0F6FF',fontSize:14}}/>
+        {err && <div style={{fontSize:12,color:'#F87171',marginBottom:14}}>{err}</div>}
+        <button type="submit" className="btn primary" style={{width:'100%',justifyContent:'center',fontSize:14,padding:'11px'}}>
+          Entrar na demonstração
+        </button>
+      </form>
+    </div>
+  )
+}
+
 export default function App() {
-  const [user, setUser]   = useState(DEMO ? DEMO_USER_OBJ : getSession)
+  const [user, setUser]   = useState(DEMO ? (demoGateOpen() ? DEMO_USER_OBJ : null) : getSession)
   const [page, setPage]   = useState('dashboard')
   const [showAreaClientes, setShowAreaClientes] = useState(false)
   const [data, setData]   = useState(EMPTY)
@@ -98,6 +143,7 @@ export default function App() {
     await addAuditLog({ module:'sistema', action:'logout', entity_name:user?.name, user_name:user?.name })
     await signOutSeguro()
     localStorage.removeItem('raro_session')
+    try { localStorage.removeItem('raro_demo_auth') } catch {}  // demo: exige o gate de novo ao voltar
     setUser(null)
     setData(EMPTY)
   }
@@ -124,10 +170,14 @@ export default function App() {
     stock_critical: data.stock.filter(s=>s.qty<=s.min_qty).length,
   }
 
-  if (!user) return <Login onLogin={async u => {
-    await addAuditLog({ module:'sistema', action:'login', entity_name:u.name, user_name:u.name })
-    setUser(u)
-  }} />
+  if (!user) {
+    // Em /demo, gate leve de usuário/senha (não é auth real) antes de entrar.
+    if (DEMO) return <DemoGate onOk={() => setUser(DEMO_USER_OBJ)} />
+    return <Login onLogin={async u => {
+      await addAuditLog({ module:'sistema', action:'login', entity_name:u.name, user_name:u.name })
+      setUser(u)
+    }} />
+  }
 
   // Mestre de obra: vê apenas o diário da obra atribuída
   if (user.role === 'mestre') return <MestreView user={user} onLogout={logout} />
@@ -255,7 +305,7 @@ export default function App() {
             <button className="mmenu-logout" onClick={logout}>
               <i className="ti ti-logout" aria-hidden/> Sair
             </button>
-            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v274 · build 2026-07</div>
+            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v275 · build 2026-07</div>
           </div>
         </div>
       )}
