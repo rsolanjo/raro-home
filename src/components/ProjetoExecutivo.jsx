@@ -323,6 +323,29 @@ function pontosLegenda(){
   </div>`
 }
 
+// Legenda COMPLETA de símbolos elétricos (ABNT NBR 5444) — referência fixa da RARO.
+// Mostra todos os símbolos agrupados, cada um com significado. Vai na planta elétrica.
+function abntLegendaCompleta(){
+  const grupos = [
+    ['Tomadas', ['tomada_baixa','tomada_media','tomada_alta','tomada_piso','tomada_teto']],
+    ['Interruptores', ['interruptor_simples','interruptor_paralelo','interruptor_intermediario','interruptor_4','interruptor_6']],
+    ['Iluminação', ['ponto_luz','arandela','arandela_teto']],
+    ['Pontos de energia', ['ponto_energia_parede','ponto_energia_teto','ponto_energia_piso']],
+    ['Som', ['ponto_som_parede','ponto_som_teto','ponto_som_piso']],
+    ['Rede / Dados', ['keystone_alto','keystone_teto','keystone_baixo']],
+    ['Infraestrutura', ['quadro','caixa_conduite','prumada','modulo_cabeceira']],
+  ]
+  const item = sym => { const info=ELE_TYPE_INFO[sym]||{label:'',tipo:sym}
+    return `<div style="display:flex;align-items:center;gap:8px;font-size:10px;color:#334155;padding:4px 7px;border:1px solid #E2E8F0;border-radius:6px;background:#fff">
+      <svg viewBox="-12 -14 24 32" width="22" height="28" style="flex-shrink:0">${ELE_SYMBOLS[sym]||ELE_SYMBOLS.generico}</svg>
+      <span><b>${info.label}</b> — ${info.tipo}</span></div>` }
+  return `<div style="margin-top:12px;padding:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px">
+    <div style="font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#0D1420;margin-bottom:2px">Legenda de Símbolos — Elétrica (ABNT NBR 5444)</div>
+    <div style="font-size:9.5px;color:#94A3B8;margin-bottom:9px">Padrão RARO. Cada símbolo tem significado fixo; os mesmos aparecem sobre a planta.</div>
+    ${grupos.map(([titulo,syms])=>`<div style="margin-bottom:9px"><div style="font-size:8.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94A3B8;margin-bottom:5px">${titulo}</div><div style="display:flex;flex-wrap:wrap;gap:6px">${syms.map(item).join('')}</div></div>`).join('')}
+  </div>`
+}
+
 async function downscale(dataUrl, maxDim=1568, q=0.85) {
   return new Promise(res=>{
     const img=new Image()
@@ -2014,7 +2037,7 @@ Responda APENAS JSON válido:
         ${T(Object.entries(cxCount).sort().map(([cx,n])=>`<tr><td style="font-weight:700;text-align:center">${esc(cx)}</td><td style="text-align:center">${n}</td><td style="font-size:10px;color:#64748B">${cx==='4x4'?'Keypad 6 teclas / 4+ módulos':cx==='4x2'?'Interruptores e tomadas (1–3 módulos)':cx==='octogonal'?'Pontos de teto':''}</td></tr>`).join(''),['Caixa','Qtd','Uso'])}` : ''
       return `<div class="ex-sec ex-breakable">${titulo}
         <p class="ex-p" style="margin-bottom:10px">Pontos elétricos com símbolos normalizados (ABNT NBR 5444), em proporção real da planta. Mostra apenas os pontos elétricos (tomadas, interruptores, iluminação, quadro).</p>
-        ${head}${fig}${legenda}
+        ${head}${fig}${legenda}${abntLegendaCompleta()}
         ${secOff('lista_geral')?'':`<h3 class="ex-amb" style="margin-top:18px">Lista Geral — Todos os Pontos Elétricos</h3>${listaGeral}`}
         ${secOff('caixas_embutir')?'':cxResumo}
         ${secOff('quadro_cargas')?'':`<h3 class="ex-amb" style="margin-top:16px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}`}
@@ -2097,7 +2120,25 @@ Responda APENAS JSON válido:
 
     const cliente=projectInfo.client||fromProposal?.client_name||'Cliente'
     const hoje=new Date().toLocaleDateString('pt-BR')
-    const T=(rows,cols)=>`<table class="ex-tbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`
+    const T=(rows,cols)=>{
+      let c=cols, r=rows
+      // "IDs nas tabelas" desligado: remove a coluna cujo cabeçalho é exatamente "ID"
+      // (do cabeçalho e a célula correspondente de cada linha). Uma vez só, vale p/ todas as tabelas T().
+      if(!showIdsTbl){
+        const idx=cols.indexOf('ID')
+        if(idx>=0){
+          c=cols.filter((_,i)=>i!==idx)
+          r=rows.replace(/<tr[^>]*>[\s\S]*?<\/tr>/g,(tr)=>{
+            const open=tr.match(/^<tr[^>]*>/)[0]
+            const inner=tr.slice(open.length, tr.length-5)  // tira </tr>
+            const cells=inner.split(/(?=<td)/).filter(s=>s.startsWith('<td'))
+            if(cells.length>idx) cells.splice(idx,1)
+            return open+cells.join('')+'</tr>'
+          })
+        }
+      }
+      return `<table class="ex-tbl"><thead><tr>${c.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${r}</tbody></table>`
+    }
     const esc=s=>(s==null?'':String(s))
     // ── Número do pino na planta — para cruzar tabela ↔ planta ──
     // Mesma linguagem da planta: forma pelo local de instalação (○ parede △ teto □ chão), cor pela categoria.
@@ -2606,29 +2647,33 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // (pin/pinNum/pinCell já definidos no topo de buildExecHtml)
     const CATCOLOR={'Redes':'#0EA5E9','Segurança':'#DC2626','Sonorização':'#BE185D','Automação':'#059669','Gourmet':'#D97706'}
     const catColor=(cat)=>CATCOLOR[cat]||'#6B7280'
+    // Coluna de ID nas tabelas de IA — respeita o toggle "IDs nas tabelas".
+    const withId = showIdsTbl
+    const idCell = (v) => withId ? `<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(v)}</td>` : ''
+    const idHdr = withId ? ['ID'] : []
 
     // ── Tabela Automação (Interruptores, Tomadas, Sensores, Hub IR, Módulos) ──
     const tblAutomacao = (d.tabela_automacao||[]).length
-      ? T((d.tabela_automacao||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Automação'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.funcao)}</td><td style="font-size:10px">${esc(r.protocolo||'Zigbee')}</td><td style="text-align:center;font-size:10px;font-weight:600">${(()=>{ const m=_findMk(r.id,r.equip); const cx=m?(m.caixaTipo||caixaPadrao(classifyEle(m)?.sym)):''; return cx?esc(cx):'—' })()}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
-        ['#','ID','Equipamento','Ambiente','Função','Protocolo','Caixa','Posição/Altura','Obs'])
+      ? T((d.tabela_automacao||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Automação'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}${idCell(r.id)}<td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td>${esc(r.funcao)}</td><td style="font-size:10px">${esc(r.protocolo||'Zigbee')}</td><td style="text-align:center;font-size:10px;font-weight:600">${(()=>{ const m=_findMk(r.id,r.equip); const cx=m?(m.caixaTipo||caixaPadrao(classifyEle(m)?.sym)):''; return cx?esc(cx):'—' })()}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+        ['#',...idHdr,'Equipamento','Ambiente','Função','Protocolo','Caixa','Posição/Altura','Obs'])
       : ''
 
     // ── Tabela Segurança (Câmeras, Sensores de Alarme) ────────────────────────
     const tblSeguranca = (d.tabela_seguranca||[]).length
-      ? T((d.tabela_seguranca||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Segurança'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.resolucao||'—')}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px">${esc(r.angulo||'—')}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
-        ['#','ID','Equipamento','Ambiente','Resolução','Tipo','Posição','Ângulo','Obs'])
+      ? T((d.tabela_seguranca||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Segurança'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}${idCell(r.id)}<td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.resolucao||'—')}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px">${esc(r.angulo||'—')}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+        ['#',...idHdr,'Equipamento','Ambiente','Resolução','Tipo','Posição','Ângulo','Obs'])
       : ''
 
     // ── Tabela Som Ambiente ────────────────────────────────────────────────────
     const tblSom = (d.tabela_som||[]).length
-      ? T((d.tabela_som||[]).map(r=>{const _sub=/subwoofer|\bsub\b/.test(((r.equip||'')+' '+(r.id||'')).toLowerCase()); const _cabo=_sub?'RCA de sinal + elétrica':esc(r.cabo); const _obs=_sub?esc(r.obs||'Subwoofer: cabo RCA de sinal do amplificador + ponto de energia no local.'):esc(r.obs||''); return `<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Sonorização'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}${_sub?' <span style="font-size:8px;background:#BE185D;color:#fff;padding:1px 4px;border-radius:6px;font-weight:700">S+E</span>':''}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.zona)}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.saida_amplif)}</td><td style="font-size:10px${_sub?';font-weight:700;color:#BE185D':''}">${_cabo}</td><td style="font-size:10px;color:#D97706">${_obs}</td></tr>`}).join(''),
-        ['#','ID','Equipamento','Ambiente','Zona','Tipo','Saída Amplif.','Cabo','Obs'])
+      ? T((d.tabela_som||[]).map(r=>{const _sub=/subwoofer|\bsub\b/.test(((r.equip||'')+' '+(r.id||'')).toLowerCase()); const _cabo=_sub?'RCA de sinal + elétrica':esc(r.cabo); const _obs=_sub?esc(r.obs||'Subwoofer: cabo RCA de sinal do amplificador + ponto de energia no local.'):esc(r.obs||''); return `<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Sonorização'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}${idCell(r.id)}<td>${esc(r.equip)}${_sub?' <span style="font-size:8px;background:#BE185D;color:#fff;padding:1px 4px;border-radius:6px;font-weight:700">S+E</span>':''}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.zona)}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.saida_amplif)}</td><td style="font-size:10px${_sub?';font-weight:700;color:#BE185D':''}">${_cabo}</td><td style="font-size:10px;color:#D97706">${_obs}</td></tr>`}).join(''),
+        ['#',...idHdr,'Equipamento','Ambiente','Zona','Tipo','Saída Amplif.','Cabo','Obs'])
       : ''
 
     // ── Tabela Devices no Teto (APs, Câmeras, Caixas de Som, Sensores) ────────
     const tblTeto = (d.tabela_teto||[]).length
-      ? T((d.tabela_teto||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor(r.categoria||'Redes'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}<td style="font-family:monospace;font-size:10px;font-weight:700">${esc(r.id)}</td><td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.instalacao)}</td><td style="font-family:monospace;font-size:10px">${esc(r.origem)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px">${esc(r.metros)}m</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
-        ['#','ID','Equipamento','Ambiente','Posição Teto','Vem de / Origem','Cabo','m','Obs'])
+      ? T((d.tabela_teto||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor(r.categoria||'Redes'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}${idCell(r.id)}<td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.instalacao)}</td><td style="font-family:monospace;font-size:10px">${esc(r.origem)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px">${esc(r.metros)}m</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+        ['#',...idHdr,'Equipamento','Ambiente','Posição Teto','Vem de / Origem','Cabo','m','Obs'])
       : (d.modulos_teto||[]).length
         ? (d.modulos_teto||[]).map(mt=>`<h3 class="ex-amb">${esc(mt.ambiente)}</h3>${T((mt.itens||[]).map(it=>`<tr><td>${esc(it)}</td></tr>`).join(''),['Itens de teto / forro'])}`).join('')
         : ''
@@ -2881,8 +2926,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" ${dashP?`stroke-dasharray="${dashP}"`:''} style="stroke-width:5px" vector-effect="non-scaling-stroke"/>`}).join('')
         const condLabels = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
           const idLabel=c.conduiteId||(c.label?c.label.slice(0,8):''); if(!idLabel)return''
-          const mid=pts[Math.floor(pts.length/2)]
-          return `<div style="position:absolute;left:${mid.x}%;top:${mid.y}%;transform:translate(-50%,-50%);z-index:5;background:${c.color||col};color:#fff;font-size:9px;font-weight:800;font-family:monospace;padding:1px 5px;border-radius:7px;border:1px solid #fff;white-space:nowrap">${esc(idLabel)}</div>`}).join('')
+          // rótulo no ponto do conduíte mais longe de qualquer pino (não cobre item)
+          const cand=[]
+          for(let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1]
+            cand.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2},{x:a.x*0.75+b.x*0.25,y:a.y*0.75+b.y*0.25},{x:a.x*0.25+b.x*0.75,y:a.y*0.25+b.y*0.75}) }
+          const d2=(p,m)=>{const dx=p.x-m.x,dy=p.y-m.y;return dx*dx+dy*dy}
+          let mid=cand[0]||pts[Math.floor(pts.length/2)], bestD=-1
+          cand.forEach(p=>{ let mn=Infinity; markers.forEach(m=>{ const d=d2(p,m); if(d<mn)mn=d }); if(mn>bestD){bestD=mn;mid=p} })
+          return `<div style="position:absolute;left:${mid.x}%;top:${mid.y}%;transform:translate(-50%,-50%);z-index:6;background:${c.color||col};color:#fff;font-size:9px;font-weight:800;font-family:monospace;padding:1px 5px;border-radius:7px;border:1.5px solid #fff;white-space:nowrap;box-shadow:0 0 0 1.5px rgba(0,0,0,0.18)">${esc(idLabel)}</div>`}).join('')
         return `<div style="position:relative;width:100%;padding-bottom:${(ratio*100).toFixed(1)}%;border:1px solid #CBD5E1;border-radius:8px;overflow:hidden;margin-top:8px">
           <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.4)"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${lines}</svg>${itemDots}${caixaDots}${condLabels}
@@ -3112,8 +3163,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" ${dashP?`stroke-dasharray="${dashP}"`:''} style="stroke-width:5px" vector-effect="non-scaling-stroke"/>`}).join('')
         const condLabels = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
           const idLabel=c.conduiteId||(c.label||'').slice(0,6)||''; if(!idLabel)return''
-          const mid=pts[Math.floor(pts.length/2)]
-          return `<div style="position:absolute;left:${mid.x}%;top:${mid.y}%;transform:translate(-50%,-50%);z-index:5;background:${c.color||col};color:#fff;font-size:9px;font-weight:800;font-family:monospace;padding:1px 5px;border-radius:7px;border:1px solid #fff;white-space:nowrap">${esc(idLabel)}</div>`}).join('')
+          const cand=[]
+          for(let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1]
+            cand.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2},{x:a.x*0.75+b.x*0.25,y:a.y*0.75+b.y*0.25},{x:a.x*0.25+b.x*0.75,y:a.y*0.25+b.y*0.75}) }
+          const d2=(p,m)=>{const dx=p.x-m.x,dy=p.y-m.y;return dx*dx+dy*dy}
+          let mid=cand[0]||pts[Math.floor(pts.length/2)], bestD=-1
+          cand.forEach(p=>{ let mn=Infinity; markers.forEach(m=>{ const d=d2(p,m); if(d<mn)mn=d }); if(mn>bestD){bestD=mn;mid=p} })
+          return `<div style="position:absolute;left:${mid.x}%;top:${mid.y}%;transform:translate(-50%,-50%);z-index:6;background:${c.color||col};color:#fff;font-size:9px;font-weight:800;font-family:monospace;padding:1px 5px;border-radius:7px;border:1.5px solid #fff;white-space:nowrap;box-shadow:0 0 0 1.5px rgba(0,0,0,0.18)">${esc(idLabel)}</div>`}).join('')
         return `<div class="ex-plant">
           <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px;filter:grayscale(0.3)"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}${caixaDots}${condLabels}
@@ -3143,8 +3199,15 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:5px;opacity:0.5" vector-effect="non-scaling-stroke"/>`}).join('')
         const condLabelsC = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
           const idLabel=c.conduiteId||(c.label||'').slice(0,6)||''; if(!idLabel)return''
-          const mid=pts[Math.floor(pts.length/2)]
-          return `<div style="position:absolute;left:${mid.x}%;top:${mid.y}%;transform:translate(-50%,-50%);z-index:5;background:${c.color||col};color:#fff;font-size:8.5px;font-weight:800;font-family:monospace;padding:1px 4px;border-radius:6px;border:1px solid #fff;white-space:nowrap;opacity:0.85">${esc(idLabel)}</div>`}).join('')
+          // Posição do rótulo: ponto ao longo do conduíte MAIS LONGE de qualquer pino,
+          // pra não carimbar em cima de um item (some na impressão). Rótulo 100% opaco.
+          const cand=[]
+          for(let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1]
+            cand.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2},{x:a.x*0.75+b.x*0.25,y:a.y*0.75+b.y*0.25},{x:a.x*0.25+b.x*0.75,y:a.y*0.25+b.y*0.75}) }
+          const d2=(p,m)=>{const dx=p.x-m.x,dy=p.y-m.y;return dx*dx+dy*dy}
+          let pos=cand[0]||pts[Math.floor(pts.length/2)], bestD=-1
+          cand.forEach(p=>{ let mn=Infinity; markers.forEach(m=>{ const d=d2(p,m); if(d<mn)mn=d }); if(mn>bestD){bestD=mn;pos=p} })
+          return `<div style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-50%);z-index:6;background:${c.color||col};color:#fff;font-size:8.5px;font-weight:800;font-family:monospace;padding:1px 4px;border-radius:6px;border:1.5px solid #fff;white-space:nowrap;box-shadow:0 0 0 1.5px rgba(0,0,0,0.18)">${esc(idLabel)}</div>`}).join('')
         return `<div class="ex-plant">
           <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${linesCabos}${linesCond}</svg>${dots}${caixaDots}${condLabelsC}

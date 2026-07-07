@@ -1,5 +1,7 @@
 import { LOGO_MONO } from '../logos.js'
 import { brandName, brandSub, brandLogoMono, isDemo } from '../brand.js'
+// v279 — PROJETO EXECUTIVO: (#2) legenda COMPLETA de símbolos elétricos ABNT NBR 5444 na Planta Elétrica — todos os símbolos agrupados (Tomadas, Interruptores, Iluminação, Energia, Som, Rede, Infra) com significado (abntLegendaCompleta). VERIFICADO no render. (#5) rótulo do conduíte (C1/C2...) agora vai no ponto do trecho MAIS LONGE de qualquer pino (não carimba em cima de item) e 100% opaco com contorno branco, nas 3 plantas do documento. Compila; sem conduíte semeado no demo pra conferir no render (lógica direta). Vale produção e demo. Base: v278.
+// v278 — PROJETO EXECUTIVO: "IDs nas tabelas" agora vale para TODAS as tabelas do documento (não só Posição e Altura) — o helper T() remove a coluna cujo cabeçalho é "ID" (cabeçalho + célula de cada linha), então automação/segurança/som/teto/elétrica/conduítes/plano de obra também respeitam o toggle. VERIFICADO no preview: 25 cabeçalhos ID → 0, colunas alinhadas. Vale produção e demo. Base: v277.
 // v277 — PROJETO EXECUTIVO (tabelas): (1) nova tabela "Resumo por Item (tipos únicos)" — cada tipo de ponto aparece 1x com a quantidade (×N), serve de legenda; hideável. (2) Seletor de tabelas no painel "Opções do documento": grupo "Tabelas do documento" com chip "Todas as tabelas" (master) + chips individuais (Posição e Altura, Resumo por item), além das seções do Plano de Obra já existentes. (3) Toggle "IDs nas tabelas" (showIdsTbl) esconde a coluna de ID na tabela Posição e Altura. VERIFICADO no preview (build + render). Pendente: estender ocultar-ID às tabelas de IA (som/automação/etc.). Base: v276.
 // v276 — SEGURANÇA: logout automático após 30 min de inatividade (mouse/teclado/toque/scroll zeram o cronômetro; checa a cada 30s). Vale para produção e demo. useEffect em App.jsx. Base para as próximas mudanças do Projeto Executivo (legenda, elétrica, ocultar tabelas, anti-sobreposição, retrato) que exigem seu ciclo de teste.
 // v275 — DEMO: gate de acesso em /demo — pede usuário/senha (raro / @raro2026) antes de abrir a demonstração (trava LEVE client-side, não é auth real; senha fica no bundle). Aprovação fica em localStorage (raro_demo_auth); "Sair" limpa e exige o gate de novo. Componente DemoGate no App.jsx. PRODUÇÃO INTACTA.
@@ -59,7 +61,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v277 · build 2026-07
+          v279 · build 2026-07
         </div>
       </div>
     </div>
