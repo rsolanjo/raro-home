@@ -660,6 +660,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [filterLevels, setFilterLevels] = useState(()=>new Set())   // filtro por nível: piso/baixa/media/alta/teto (vazio = todos)
   const [showCabo, setShowCabo] = useState(true)   // mostrar a legenda de cabo (E/S/R) ao lado do pin
   const [showLegenda, setShowLegenda] = useState(true) // incluir o bloco de legenda (formas + cabos) nas plantas geradas
+  const [showIdsTbl, setShowIdsTbl] = useState(true)   // coluna de ID/código dentro das TABELAS do documento (não a planta)
   // ── Filtros do relatório (ocultar coisas na GERAÇÃO, sem apagar nada do projeto) ──
   const [pdfFiltersOpen, setPdfFiltersOpen] = useState(false)
   const [showPdfOpts, setShowPdfOpts] = useState(false)  // painel de opções na hora de gerar o PDF
@@ -2453,7 +2454,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     return ''
   })()}
 
-  ${(()=>{ if(isObra||_eletr) return ''
+  ${(()=>{ if(isObra||_eletr||secOff('pos_altura')) return ''
     const NIV={piso:'chão',baixa:'0,30 m',media:'1,10 m',alta:'1,80 m',teto:'teto'}
     const LOC={teto:'Teto',chao:'Piso',parede:'Parede'}
     const byRoom={}
@@ -2462,6 +2463,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(!rooms.length) return ''
     const th='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700"'
     const td='style="font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
+    const withId = showIdsTbl
+    const idTh = withId ? `<th ${th} style="width:70px;text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">ID</th>` : ''
     const simb=(m)=>{ const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:String(m.n??''),size:24}); const fam=cableFamily(m.cableType||guessCableType(m,m))
       return `<span style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:24px;height:24px">${pino}</span><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:${fam.cor};color:#fff;font-size:8.5px;font-weight:800;border:1px solid #fff" title="${fam.nome}">${fam.L}</span></span>` }
     return `<div class="ex-sec"><h2>Posição e Altura dos Pontos</h2>
@@ -2469,9 +2472,33 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       ${rooms.map(([amb,ms])=>`
         <div style="font-size:12px;font-weight:700;color:#0369A1;margin:12px 0 4px">${amb} <span style="font-weight:400;color:#94A3B8">· ${ms.length} ${ms.length===1?'ponto':'pontos'}</span></div>
         <table style="width:100%;border-collapse:collapse">
-          <thead><tr><th ${th} style="width:70px;text-align:center;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Ponto</th><th ${th} style="width:70px;text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">ID</th><th ${th}>Item</th><th ${th}>Local</th><th ${th}>Altura</th><th ${th}>Sistema</th></tr></thead>
-          <tbody>${ms.map(m=>{ const fam=cableFamily(m.cableType||guessCableType(m,m)); return `<tr><td ${td} style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0">${simb(m)}</td><td ${td} style="font-family:monospace;font-size:10px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#475569">${m.id||m.code||('#'+m.n)}</td><td ${td}>${m.name||'—'}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td} style="font-weight:600;font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B">${NIV[alturaOf(m)]||'—'}</td><td ${td} style="font-weight:600;color:${fam.cor}">${famOculta(fam.k)?'—':fam.nome}</td></tr>`}).join('')}</tbody>
+          <thead><tr><th ${th} style="width:70px;text-align:center;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Ponto</th>${idTh}<th ${th}>Item</th><th ${th}>Local</th><th ${th}>Altura</th><th ${th}>Sistema</th></tr></thead>
+          <tbody>${ms.map(m=>{ const fam=cableFamily(m.cableType||guessCableType(m,m)); return `<tr><td ${td} style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0">${simb(m)}</td>${withId?`<td ${td} style="font-family:monospace;font-size:10px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#475569">${m.id||m.code||('#'+m.n)}</td>`:''}<td ${td}>${m.name||'—'}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td} style="font-weight:600;font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B">${NIV[alturaOf(m)]||'—'}</td><td ${td} style="font-weight:600;color:${fam.cor}">${famOculta(fam.k)?'—':fam.nome}</td></tr>`}).join('')}</tbody>
         </table>`).join('')}
+    </div>`
+  })()}
+
+  ${(()=>{ if(isObra||_eletr||secOff('itens_unicos')) return ''
+    // Tabela de ITENS ÚNICOS: um item por tipo (dedup por nome+altura+local+sistema),
+    // com a quantidade. Ex.: 3 câmeras externas viram 1 linha "Câmera externa 4MP ·×3".
+    const NIV={piso:'chão',baixa:'0,30 m',media:'1,10 m',alta:'1,80 m',teto:'teto'}
+    const LOC={teto:'Teto',chao:'Piso',parede:'Parede'}
+    const vis=markers.filter(m=>!isRackItem(m.name,m.code)&&!hideCats.has(equipType(m.name))&&m.name)
+    if(!vis.length) return ''
+    const grupos=new Map()
+    vis.forEach(m=>{ const fam=cableFamily(m.cableType||guessCableType(m,m)); const chave=[m.name,alturaOf(m),mountOf(m),fam.k].join('|')
+      if(!grupos.has(chave)) grupos.set(chave,{m,fam,qtd:0}); grupos.get(chave).qtd++ })
+    const linhas=[...grupos.values()].sort((a,b)=>(a.m.name||'').localeCompare(b.m.name||''))
+    const th='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700"'
+    const td='style="font-size:11px;padding:6px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
+    const simb=(m,fam)=>{ const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:'',size:24})
+      return `<span style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:24px;height:24px">${pino}</span><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:${fam.cor};color:#fff;font-size:8.5px;font-weight:800;border:1px solid #fff" title="${fam.nome}">${fam.L}</span></span>` }
+    return `<div class="ex-sec"><h2>Resumo por Item (tipos únicos)</h2>
+      <p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Cada tipo de ponto aparece <b>uma vez</b>, com a quantidade total. Serve de legenda: o símbolo ao lado é o mesmo que se repete na planta. <b>Cor</b> = categoria, <b>forma</b> = local, <b>selo</b> = cabo (E elétrica, R rede, S som).</p>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr><th ${th} style="width:70px;text-align:center;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Símbolo</th><th ${th}>Item</th><th ${th}>Local</th><th ${th}>Altura</th><th ${th}>Sistema</th><th ${th} style="text-align:right;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Qtd.</th></tr></thead>
+        <tbody>${linhas.map(({m,fam,qtd})=>`<tr><td ${td} style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0">${simb(m,fam)}</td><td ${td} style="font-weight:600">${m.name||'—'}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td}>${NIV[alturaOf(m)]||'—'}</td><td ${td} style="font-weight:600;color:${fam.cor}">${famOculta(fam.k)?'—':fam.nome}</td><td ${td} style="text-align:right;font-weight:800">×${qtd}</td></tr>`).join('')}</tbody>
+      </table>
     </div>`
   })()}
 
@@ -3410,7 +3437,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   }
   // preview ao vivo: regenera o HTML quando qualquer opção muda (só enquanto o painel está aberto)
   const pdfPreviewHtml = useMemo(()=> showPdfOpts ? buildFullHtml(true) : '',
-    [showPdfOpts, showLegenda, showIdsPdf, pageOrient, plantPct, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables]) // eslint-disable-line
+    [showPdfOpts, showLegenda, showIdsPdf, showIdsTbl, pageOrient, plantPct, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables]) // eslint-disable-line
 
   async function saveToProposal(docOverride){
     const docToSave = typeof docOverride==='string' ? docOverride : execDoc
@@ -4713,6 +4740,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   <div><div style={{fontSize:12.5,fontWeight:600}}>Códigos dos pontos (IDs)</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Mostrar os IDs nas plantas do PDF</div></div>
                   {tgl(showIdsPdf,()=>setShowIdsPdf(v=>!v),'Com IDs','Limpo')}
                 </div>
+                <div style={rowSt}>
+                  <div><div style={{fontSize:12.5,fontWeight:600}}>IDs nas tabelas</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Coluna de código dentro das tabelas</div></div>
+                  {tgl(showIdsTbl,()=>setShowIdsTbl(v=>!v),'Com IDs','Sem')}
+                </div>
                 <div style={{...rowSt,display:'block'}}>
                   <div style={{fontSize:12.5,fontWeight:600,marginBottom:6}}>Orientação da planta</div>
                   <div style={{display:'flex',gap:5}}>
@@ -4754,6 +4785,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       ['pontos_tabela','Pontos: caixas e alturas'],
                       ['alim_keypads','Alimentação dos keypads'],
                     ].map(([k,label])=>chip(hideSecs.has(k), label, ()=>setHideSecs(p=>{const x=new Set(p); x.has(k)?x.delete(k):x.add(k); return x})))}
+                  </div>
+                  <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',borderTop:'1px solid rgba(255,255,255,0.1)',paddingTop:6,marginTop:2}}>
+                    <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5,width:'100%'}}>Tabelas do documento</span>
+                    {(()=>{ const tk=['pos_altura','itens_unicos','lista_geral','quadro_cargas','caixas_embutir','pontos_tabela','alim_keypads']; const todasOff=tk.every(k=>hideSecs.has(k)); return chip(todasOff,'Todas as tabelas',()=>setHideSecs(p=>{const x=new Set(p); if(todasOff){tk.forEach(k=>x.delete(k))}else{tk.forEach(k=>x.add(k))} return x})) })()}
+                    {[['pos_altura','Posição e Altura'],['itens_unicos','Resumo por item (únicos)']].map(([k,label])=>chip(hideSecs.has(k), label, ()=>setHideSecs(p=>{const x=new Set(p); x.has(k)?x.delete(k):x.add(k); return x})))}
                   </div>
                 </div>
               </div>

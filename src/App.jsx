@@ -148,6 +148,21 @@ export default function App() {
     setData(EMPTY)
   }
 
+  // ── Logout automático por inatividade (30 min sem movimento) ──────────────────
+  // Qualquer atividade (mouse, teclado, toque, scroll) zera o cronômetro. A cada
+  // 30s conferimos; passou de 30 min sem interação → desloga.
+  useEffect(() => {
+    if (!user) return
+    let last = Date.now()
+    const bump = () => { last = Date.now() }
+    const eventos = ['mousemove','mousedown','keydown','touchstart','scroll','click','wheel']
+    eventos.forEach(e => window.addEventListener(e, bump, { passive:true }))
+    const iv = setInterval(() => {
+      if (Date.now() - last > 30 * 60 * 1000) { logout() }
+    }, 30 * 1000)
+    return () => { clearInterval(iv); eventos.forEach(e => window.removeEventListener(e, bump)) }
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function handleImport() {
     const input = document.createElement('input')
     input.type = 'file'; input.accept = '.json'
@@ -305,7 +320,7 @@ export default function App() {
             <button className="mmenu-logout" onClick={logout}>
               <i className="ti ti-logout" aria-hidden/> Sair
             </button>
-            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v275 · build 2026-07</div>
+            <div style={{textAlign:'center',fontSize:10,color:'var(--text3)',marginTop:10,fontFamily:'monospace'}}>v277 · build 2026-07</div>
           </div>
         </div>
       )}

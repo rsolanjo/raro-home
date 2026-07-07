@@ -1,5 +1,7 @@
 import { LOGO_MONO } from '../logos.js'
 import { brandName, brandSub, brandLogoMono, isDemo } from '../brand.js'
+// v277 — PROJETO EXECUTIVO (tabelas): (1) nova tabela "Resumo por Item (tipos únicos)" — cada tipo de ponto aparece 1x com a quantidade (×N), serve de legenda; hideável. (2) Seletor de tabelas no painel "Opções do documento": grupo "Tabelas do documento" com chip "Todas as tabelas" (master) + chips individuais (Posição e Altura, Resumo por item), além das seções do Plano de Obra já existentes. (3) Toggle "IDs nas tabelas" (showIdsTbl) esconde a coluna de ID na tabela Posição e Altura. VERIFICADO no preview (build + render). Pendente: estender ocultar-ID às tabelas de IA (som/automação/etc.). Base: v276.
+// v276 — SEGURANÇA: logout automático após 30 min de inatividade (mouse/teclado/toque/scroll zeram o cronômetro; checa a cada 30s). Vale para produção e demo. useEffect em App.jsx. Base para as próximas mudanças do Projeto Executivo (legenda, elétrica, ocultar tabelas, anti-sobreposição, retrato) que exigem seu ciclo de teste.
 // v275 — DEMO: gate de acesso em /demo — pede usuário/senha (raro / @raro2026) antes de abrir a demonstração (trava LEVE client-side, não é auth real; senha fica no bundle). Aprovação fica em localStorage (raro_demo_auth); "Sair" limpa e exige o gate de novo. Componente DemoGate no App.jsx. PRODUÇÃO INTACTA.
 // v274 — DEMO (só demo; produção intacta): (1) LEITURA demo isolada — all() em supabase.js agora lê do estado demo (localStorage), não do Supabase real; corrige catálogo e estoque que "sumiam" segundos após aparecer e o modal "Categoria faltando no catálogo". (2) Catálogo/planta demo alinhados à taxonomia oficial (Segurança/Redes/Sonorização/Automação) e catálogo demo com margem 10% (venda = custo × 1,10). (3) Aba "Acerto entre sócios" escondida no demo (CaixaRaro). (4) Log de auditoria escondido no demo: botão "Ver log" (Stock) e aba "Log de auditoria" (Reports); getStockLog/getAuditLog retornam [] no demo. (5) Dois diários de obra fictícios no projeto demo. Seed demo v3→v4 para forçar reseed limpo.
 // v273 — DEMO: modelo/estilo do documento FIXO em Fable, sem escolha, nos 4 documentos: contrato, proposta, apresentação comercial e projeto executivo (seletores escondidos + default fable quando isDemo). PRODUÇÃO INTACTA: fora da demo, os seletores e defaults originais (novo/v2/nova) seguem iguais. Só o demo mudou.
@@ -57,7 +59,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace'}}>
-          v275 · build 2026-07
+          v277 · build 2026-07
         </div>
       </div>
     </div>
