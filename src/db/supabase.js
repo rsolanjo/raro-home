@@ -1,6 +1,7 @@
 // ─── RARO Home — Supabase layer ───────────────────────────────────────────────
 // Substitui database.js. Mesma API pública, agora async.
 import { createClient } from '@supabase/supabase-js'
+import { buildDemoData } from '../demo/demoData.js'
 
 const URL = import.meta.env.VITE_SUPABASE_URL
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -10,7 +11,22 @@ if (!URL || !KEY) console.error('⚠️  Variáveis VITE_SUPABASE_URL / VITE_SUP
 export const supabase = createClient(URL, KEY)
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+// Em /demo, TODA leitura de tabela vem do estado demo (localStorage isolado),
+// nunca do Supabase real. Sem isto, componentes que refazem getX() no mount
+// sobrescreviam os dados semeados com o banco real (vazio) — o catálogo/estoque
+// "sumiam" segundos depois de aparecer.
+function _demoRead(table) {
+  try {
+    const raw = localStorage.getItem('raro_demo_state_v4')
+    const st = raw ? JSON.parse(raw) : null
+    const data = st && st.data
+    if (data && Array.isArray(data[table])) return data[table]
+  } catch {}
+  try { const seed = buildDemoData(); if (Array.isArray(seed[table])) return seed[table] } catch {}
+  return []
+}
 async function all(table, order = 'id') {
+  if (_demo()) return _demoRead(table)
   const { data, error } = await supabase.from(table).select('*').order(order, { ascending: true })
   if (error) { console.error(table, error); return [] }
   return data || []
@@ -341,6 +357,7 @@ export async function addStockLog(entry) {
   if (error) console.error('addStockLog error:', error)
 }
 export async function getStockLog() {
+  if (_demo()) return []   // demo não expõe log do banco real
   const { data } = await supabase.from('stock_log').select('*').order('date',{ascending:false}).limit(300)
   return data || []
 }
@@ -351,6 +368,7 @@ export async function addAuditLog(entry) {
   await supabase.from('audit_log').insert({ ...entry, date: new Date().toISOString() })
 }
 export async function getAuditLog(filters={}) {
+  if (_demo()) return []   // demo não expõe log do banco real
   let q = supabase.from('audit_log').select('*').order('date',{ascending:false}).limit(filters.limit||200)
   if (filters.module) q = q.eq('module', filters.module)
   const { data } = await q
@@ -472,7 +490,7 @@ export async function saveDiary(projectId, diary) {
   if (_demo()) {
     // em demo, o diário fica no localStorage demo (não toca o banco real)
     try {
-      const k = 'raro_demo_state_v3'
+      const k = 'raro_demo_state_v4'
       const st = JSON.parse(localStorage.getItem(k) || '{}')
       if (st.data && Array.isArray(st.data.projects)) {
         st.data.projects = st.data.projects.map(p => p.id === projectId ? { ...p, diary } : p)
@@ -492,7 +510,7 @@ export async function saveDiary(projectId, diary) {
 export async function saveClientDiary(clientId, diary) {
   if (_demo()) {
     try {
-      const k = 'raro_demo_state_v3'
+      const k = 'raro_demo_state_v4'
       const st = JSON.parse(localStorage.getItem(k) || '{}')
       if (st.data && Array.isArray(st.data.clients)) {
         st.data.clients = st.data.clients.map(c => c.id === clientId ? { ...c, diary_obra: diary } : c)

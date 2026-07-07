@@ -143,7 +143,8 @@ export default function CaixaRaro({ proposals = [], projects = [] }) {
     { k: 'painel', l: 'Painel', i: 'ti-layout-dashboard' },
     { k: 'clientes', l: 'Clientes & Pagamentos', i: 'ti-users' },
     { k: 'fundo', l: 'Fundo de Reserva', i: 'ti-pig-money' },
-    { k: 'acerto', l: 'Acerto entre sócios', i: 'ti-arrows-exchange' },
+    // Acerto entre sócios expõe a divisão Rogério/Raphael: escondido no demo.
+    ...(_isDemo() ? [] : [{ k: 'acerto', l: 'Acerto entre sócios', i: 'ti-arrows-exchange' }]),
     { k: 'despesas', l: 'Despesas da empresa', i: 'ti-receipt' },
   ]
 

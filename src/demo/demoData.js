@@ -45,38 +45,38 @@ const FLOORS = [
     { name: 'Sala de Estar', icon: '◉', price: 8400, items: [
       I('Keypad 4 teclas', 'Automação', '⬡', 2, 890, 520),
       I('Módulo de iluminação 4 canais', 'Automação', '▣', 1, 1650, 980),
-      I('Caixa de som embutida', 'Som', '◍', 4, 620, 360),
+      I('Caixa de som embutida', 'Sonorização', '◍', 4, 620, 360),
     ]},
     { name: 'Cozinha / Gourmet', icon: '◉', price: 6200, items: [
       I('Keypad 2 teclas', 'Automação', '⬡', 1, 690, 400),
-      I('Caixa de som embutida', 'Som', '◍', 2, 620, 360),
-      I('Sensor de presença mmW', 'Sensor', '◈', 1, 540, 310),
+      I('Caixa de som embutida', 'Sonorização', '◍', 2, 620, 360),
+      I('Sensor de presença mmW', 'Automação', '◈', 1, 540, 310),
     ]},
     { name: 'Varanda', icon: '◉', price: 4100, items: [
-      I('Câmera externa 4MP', 'Câmera', '◆', 2, 780, 460),
+      I('Câmera externa 4MP', 'Segurança', '◆', 2, 780, 460),
       I('Módulo de cortina', 'Automação', '▣', 1, 1200, 720),
     ]},
     { name: 'Área Externa', icon: '◉', price: 5300, items: [
-      I('Câmera externa 4MP', 'Câmera', '◆', 3, 780, 460),
-      I('Access Point Wi-Fi 6', 'Rede', '◈', 1, 1100, 650),
+      I('Câmera externa 4MP', 'Segurança', '◆', 3, 780, 460),
+      I('Access Point Wi-Fi 6', 'Redes', '◈', 1, 1100, 650),
     ]},
   ]},
   { name: 'Superior', icon: '◈', rooms: [
     { name: 'Suíte Master', icon: '◉', price: 5600, items: [
       I('Keypad 4 teclas', 'Automação', '⬡', 1, 890, 520),
       I('Módulo de cortina', 'Automação', '▣', 2, 1200, 720),
-      I('Caixa de som embutida', 'Som', '◍', 2, 620, 360),
+      I('Caixa de som embutida', 'Sonorização', '◍', 2, 620, 360),
     ]},
     { name: 'Suíte 2', icon: '◉', price: 3200, items: [
       I('Keypad 2 teclas', 'Automação', '⬡', 1, 690, 400),
       I('Módulo de cortina', 'Automação', '▣', 1, 1200, 720),
     ]},
     { name: 'Home Office', icon: '◉', price: 2800, items: [
-      I('Access Point Wi-Fi 6', 'Rede', '◈', 1, 1100, 650),
+      I('Access Point Wi-Fi 6', 'Redes', '◈', 1, 1100, 650),
       I('Keypad 2 teclas', 'Automação', '⬡', 1, 690, 400),
     ]},
     { name: 'Circulação', icon: '◉', price: 1400, items: [
-      I('Sensor de presença mmW', 'Sensor', '◈', 2, 540, 310),
+      I('Sensor de presença mmW', 'Automação', '◈', 2, 540, 310),
     ]},
   ]},
 ]
@@ -111,16 +111,16 @@ export const DEMO_PROPOSAL = {
 
 // ── Catálogo demo (pequeno, fictício) ───────────────────────────────────────
 export const DEMO_CATALOG = [
-  { id: 1, name: 'Keypad 4 teclas', code: 'KP4', category: 'Automação', sale_price: 890, cost_price: 520, unit: 'un' },
-  { id: 2, name: 'Keypad 2 teclas', code: 'KP2', category: 'Automação', sale_price: 690, cost_price: 400, unit: 'un' },
-  { id: 3, name: 'Módulo de iluminação 4 canais', code: 'MOD4', category: 'Automação', sale_price: 1650, cost_price: 980, unit: 'un' },
-  { id: 4, name: 'Módulo de cortina', code: 'COR', category: 'Automação', sale_price: 1200, cost_price: 720, unit: 'un' },
-  { id: 5, name: 'Câmera externa 4MP', code: 'CAM4', category: 'Câmera', sale_price: 780, cost_price: 460, unit: 'un' },
-  { id: 6, name: 'Caixa de som embutida', code: 'SPEMB', category: 'Som', sale_price: 620, cost_price: 360, unit: 'un' },
-  { id: 7, name: 'Access Point Wi-Fi 6', code: 'APW6', category: 'Rede', sale_price: 1100, cost_price: 650, unit: 'un' },
-  { id: 8, name: 'Sensor de presença mmW', code: 'SENMMW', category: 'Sensor', sale_price: 540, cost_price: 310, unit: 'un' },
-  { id: 9, name: 'Central de automação', code: 'CENT', category: 'Automação', sale_price: 3200, cost_price: 1900, unit: 'un' },
-  { id: 10, name: 'Switch gerenciável 8 portas', code: 'SW8', category: 'Rede', sale_price: 1400, cost_price: 820, unit: 'un' },
+  { id: 1, name: 'Keypad 4 teclas', code: 'KP4', category: 'Automação', sale_price: 572, cost_price: 520, unit: 'un' },
+  { id: 2, name: 'Keypad 2 teclas', code: 'KP2', category: 'Automação', sale_price: 440, cost_price: 400, unit: 'un' },
+  { id: 3, name: 'Módulo de iluminação 4 canais', code: 'MOD4', category: 'Automação', sale_price: 1078, cost_price: 980, unit: 'un' },
+  { id: 4, name: 'Módulo de cortina', code: 'COR', category: 'Automação', sale_price: 792, cost_price: 720, unit: 'un' },
+  { id: 5, name: 'Câmera externa 4MP', code: 'CAM4', category: 'Segurança', sale_price: 506, cost_price: 460, unit: 'un' },
+  { id: 6, name: 'Caixa de som embutida', code: 'SPEMB', category: 'Sonorização', sale_price: 396, cost_price: 360, unit: 'un' },
+  { id: 7, name: 'Access Point Wi-Fi 6', code: 'APW6', category: 'Redes', sale_price: 715, cost_price: 650, unit: 'un' },
+  { id: 8, name: 'Sensor de presença mmW', code: 'SENMMW', category: 'Automação', sale_price: 341, cost_price: 310, unit: 'un' },
+  { id: 9, name: 'Central de automação', code: 'CENT', category: 'Automação', sale_price: 2090, cost_price: 1900, unit: 'un' },
+  { id: 10, name: 'Switch gerenciável 8 portas', code: 'SW8', category: 'Redes', sale_price: 902, cost_price: 820, unit: 'un' },
 ]
 
 // ── Projeto (fase de obra) demo ─────────────────────────────────────────────
@@ -132,6 +132,19 @@ export const DEMO_PROJECT = {
   phase: 'obra',
   progress: 45,
   created_at: '2026-05-10',
+  // Dois registros fictícios de diário de obra (aba Diários / consulta no demo).
+  diary: [
+    {
+      id: 'dd1', date: '2026-05-14', room: 'Sala de Estar', type: 'andamento',
+      text: 'Infraestrutura de eletrodutos concluída na sala. Passagem dos cabos de rede e de som iniciada; keypads posicionados conforme a planta. Sem intercorrências.',
+      author: 'Genivaldo (mestre de obra)', photos: [], video_link: '', created_at: '2026-05-14T13:20:00Z',
+    },
+    {
+      id: 'dd2', date: '2026-05-28', room: 'Área Externa', type: 'problema',
+      text: 'Ponto da câmera externa precisou ser reposicionado 40 cm por causa de uma viga. Cliente ciente e de acordo. Access Point Wi-Fi 6 instalado e testado, sinal ok na varanda.',
+      author: 'Genivaldo (mestre de obra)', photos: [], video_link: '', created_at: '2026-05-28T16:05:00Z',
+    },
+  ],
 }
 
 // ── Financeiro demo (ledger da aba Caixa) ───────────────────────────────────

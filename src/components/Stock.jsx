@@ -2,6 +2,7 @@ import PINModal from './PINModal.jsx'
 import { useState, useEffect } from 'react'
 import { saveStockItem, deleteStockItem, getStockWithReservations,
          getStockLog, addStockLog, addAuditLog, checkPINSession, verifyPIN, setPINSession } from '../db/supabase.js'
+import { isDemoMode } from '../demo/demoMode.js'
 
 const CABLE_MAP = {
   'PC-AZL':{ color:'#2563EB', label:'Dados' },
@@ -157,11 +158,11 @@ export default function Stock({ stock: rawStock, catalog: catalogItems=[], suppl
       <div className="topbar">
         <div className="topbar-title"><i className="ti ti-box" aria-hidden/>Controle de Estoque</div>
         <div className="topbar-acts">
-          <button className="btn" onClick={()=>setTab(tab==='items'?'log':'items')}>
+          {!isDemoMode() && <button className="btn" onClick={()=>setTab(tab==='items'?'log':'items')}>
             <i className={`ti ti-${tab==='items'?'history':'box'}`} aria-hidden/>
             {tab==='items'?'Ver log':'Ver estoque'}
-          </button>
-          {tab==='log'&&<button className="btn" onClick={exportLog} title="Exportar log como CSV">
+          </button>}
+          {!isDemoMode() && tab==='log'&&<button className="btn" onClick={exportLog} title="Exportar log como CSV">
             <i className="ti ti-download" aria-hidden/>Exportar log
           </button>}
           <button className="btn primary" onClick={openNew}><i className="ti ti-plus" aria-hidden/>Novo item</button>

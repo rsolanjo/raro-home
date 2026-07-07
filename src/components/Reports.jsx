@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getAuditLog, checkProposalStock, getProposals } from '../db/supabase.js'
+import { isDemoMode } from '../demo/demoMode.js'
 
 const PHASE_LABEL = {
   visit:'Visita', measurement:'Medição', project:'Projeto',
@@ -138,7 +139,8 @@ export default function Reports({ projects, proposals, stock, clients, currentUs
     { key:'status',    label:'Status por cliente',    icon:'ti-users' },
     { key:'pending',   label:'Pendências',             icon:'ti-alert-circle' },
     { key:'purchases', label:'Compras pendentes',      icon:'ti-shopping-cart' },
-    { key:'audit',     label:'Log de auditoria',       icon:'ti-history' },
+    // Log de auditoria escondido no demo (não há banco real por trás).
+    ...(isDemoMode() ? [] : [{ key:'audit', label:'Log de auditoria', icon:'ti-history' }]),
   ]
 
   const allUsers = [...new Set(auditLog.map(l => l.user_name).filter(Boolean))]
