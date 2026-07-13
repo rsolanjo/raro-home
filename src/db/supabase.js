@@ -17,7 +17,7 @@ export const supabase = createClient(URL, KEY)
 // "sumiam" segundos depois de aparecer.
 function _demoRead(table) {
   try {
-    const raw = localStorage.getItem('raro_demo_state_v4')
+    const raw = localStorage.getItem('raro_demo_state_v5')
     const st = raw ? JSON.parse(raw) : null
     const data = st && st.data
     if (data && Array.isArray(data[table])) return data[table]
@@ -490,7 +490,7 @@ export async function saveDiary(projectId, diary) {
   if (_demo()) {
     // em demo, o diário fica no localStorage demo (não toca o banco real)
     try {
-      const k = 'raro_demo_state_v4'
+      const k = 'raro_demo_state_v5'
       const st = JSON.parse(localStorage.getItem(k) || '{}')
       if (st.data && Array.isArray(st.data.projects)) {
         st.data.projects = st.data.projects.map(p => p.id === projectId ? { ...p, diary } : p)
@@ -510,7 +510,7 @@ export async function saveDiary(projectId, diary) {
 export async function saveClientDiary(clientId, diary) {
   if (_demo()) {
     try {
-      const k = 'raro_demo_state_v4'
+      const k = 'raro_demo_state_v5'
       const st = JSON.parse(localStorage.getItem(k) || '{}')
       if (st.data && Array.isArray(st.data.clients)) {
         st.data.clients = st.data.clients.map(c => c.id === clientId ? { ...c, diary_obra: diary } : c)

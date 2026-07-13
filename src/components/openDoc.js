@@ -2,6 +2,7 @@
 // Estratégia: abre uma aba com o HTML + dispara window.print() automaticamente.
 // O browser mostra "Salvar como PDF" — forma mais universal de gerar PDF.
 // Fallback: se popup bloqueado, baixa o .html para abrir localmente.
+import { demoWatermark } from '../brand.js'
 
 export function openHtmlDoc(html, filename = 'documento.html') {
   // Injeta auto-print no HTML para ele abrir o diálogo de PDF sozinho
@@ -63,7 +64,7 @@ export function wrapExecDoc(execDoc, clientName, code) {
   const title = `Projeto Executivo RARO Home — ${clientName || 'Cliente'}${code ? ' — ' + code : ''}`
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${title}</title>` +
     `<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">` +
-    `</head><body style="margin:0">${execDoc}</body></html>`
+    `</head><body style="margin:0">${demoWatermark()}${execDoc}</body></html>`
 }
 
 export const safeFileName = s =>

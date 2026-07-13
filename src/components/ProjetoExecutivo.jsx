@@ -737,6 +737,25 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const bgOnlyRef = useRef()
   const containerRef = useRef()
   const canvasRef = useRef()                 // wrapper rolável da planta no editor
+  const contentBoxRef = useRef(null)         // bbox (%) do DESENHO na planta (área não-branca), pra posicionar pontos importados
+  // Detecta a área desenhada da planta (ignora margem/moldura branca) via canvas.
+  // Guarda em contentBoxRef como {x0,y0,x1,y1} em %. Se falhar, deixa null (usa 0-100).
+  function computeContentBox(imgEl){
+    try{
+      if(!imgEl||!imgEl.naturalWidth) return
+      const W=Math.min(imgEl.naturalWidth,900), H=Math.round(imgEl.naturalHeight*(W/imgEl.naturalWidth))
+      const cv=document.createElement('canvas'); cv.width=W; cv.height=H
+      const ctx=cv.getContext('2d'); ctx.drawImage(imgEl,0,0,W,H)
+      const d=ctx.getImageData(0,0,W,H).data
+      let minX=W,maxX=0,minY=H,maxY=0,hit=0
+      for(let y=0;y<H;y+=2){ for(let x=0;x<W;x+=2){ const i=(y*W+x)*4
+        if(d[i]<225||d[i+1]<225||d[i+2]<225){ hit++; if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y } } }
+      if(hit<50){ contentBoxRef.current=null; return }
+      const box={ x0:minX/W*100, y0:minY/H*100, x1:maxX/W*100, y1:maxY/H*100 }
+      // só usa se a "moldura" for relevante (o desenho ocupa < 88% de alguma dimensão)
+      contentBoxRef.current = ((box.x1-box.x0)<88 || (box.y1-box.y0)<88) ? box : null
+    }catch{ contentBoxRef.current=null }
+  }
   const [canvasPan, setCanvasPan] = useState(null)  // {sx,sy,sl,st} enquanto arrasta o fundo
 
   // Attach wheel with passive:false so preventDefault() works
@@ -778,6 +797,10 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
     const cols=Math.ceil(Math.sqrt(semPos.length))||1
     const rows=Math.ceil(semPos.length/cols)||1
     let fbIdx=0
+    // Área útil = onde o DESENHO está (ignora moldura branca). Sem bbox conhecido, usa a folha toda.
+    const CB=contentBoxRef.current
+    const bx0=CB?CB.x0+1:3, bx1=CB?CB.x1-1:97, by0=CB?CB.y0+1:4, by1=CB?CB.y1-1:96
+    const bw=Math.max(6,bx1-bx0), bh=Math.max(6,by1-by0)
 
     grupos.forEach((room)=>{
       const per=room.items.length
@@ -793,23 +816,41 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
         spreadX = icols>1 ? clusterW/(icols-1) : 0
         spreadY = irows>1 ? clusterH/(irows-1) : 0
       } else {
-        // fallback: grade arbitrária
+        // fallback: grade DENTRO da área desenhada (não na moldura branca)
         const cx=fbIdx%cols, cy=Math.floor(fbIdx/cols); fbIdx++
-        const cellW=92/cols, cellH=88/rows
-        baseX = 4+cellW*cx+3; baseY = 6+cellH*cy+6
-        spreadX = (cellW-6)/Math.max(1,icols-0); spreadY = (cellH-10)/Math.max(1,irows)
+        const cellW=bw/cols, cellH=bh/rows
+        baseX = bx0+cellW*cx+cellW*0.18; baseY = by0+cellH*cy+cellH*0.18
+        spreadX = (cellW*0.64)/Math.max(1,icols-0); spreadY = (cellH*0.64)/Math.max(1,irows)
       }
       room.items.forEach((it,ii)=>{
         const ix=ii%icols, iy=Math.floor(ii/icols)
         const sub = inferCategory(it.name, it.category||'').sub || ''
         const newId = genItemId(it.room||'', sub, mk)
         mk.push({uid:Date.now()+Math.random(), n:n++, id:newId, code:it.code, name:it.name, room:it.room, note:'',
-          x:Math.min(96,Math.max(3, baseX+ix*spreadX)),
-          y:Math.min(94,Math.max(4, baseY+iy*spreadY)),
+          x:Math.min(bx1,Math.max(bx0, baseX+ix*spreadX)),
+          y:Math.min(by1,Math.max(by0, baseY+iy*spreadY)),
           cost:it.cost, sale:it.sale, category:it.category})
       })
     })
     return mk
+  }
+
+  // Reencaixa os pontos JÁ existentes dentro da área desenhada da planta (útil quando
+  // vieram espalhados na moldura branca). Mantém o layout relativo. É desfazível.
+  function encaixarPontosNaPlanta(){
+    if(!markers.length){ alert('Não há pontos para encaixar.'); return }
+    const im=containerRef.current?.querySelector('img'); if(im) computeContentBox(im)
+    const CB=contentBoxRef.current
+    if(!CB){ alert('A planta ocupa a folha inteira (sem moldura branca detectada), então os pontos já estão sobre o desenho. Se ainda saírem, me mande essa planta.'); return }
+    const xs=markers.map(m=>m.x), ys=markers.map(m=>m.y)
+    const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys)
+    const rx=(maxX-minX)||1, ry=(maxY-minY)||1
+    const bx0=CB.x0+2, bx1=CB.x1-2, by0=CB.y0+2, by1=CB.y1-2
+    if(!window.confirm(`Encaixar ${markers.length} ponto(s) dentro da área desenhada da planta?\n\nMantém a disposição relativa e dá para desfazer (Ctrl+Z).`)) return
+    pushHistory()
+    setMarkers(ms=>ms.map(m=>({...m,
+      x:+(bx0+(m.x-minX)/rx*(bx1-bx0)).toFixed(2),
+      y:+(by0+(m.y-minY)/ry*(by1-by0)).toFixed(2) })))
   }
 
   useEffect(()=>{
@@ -2170,13 +2211,25 @@ Responda APENAS JSON válido:
     const pinCell = (...keys)=>{ const m=_findMk(...keys); return `<td style="text-align:center">${m?pinMk(m):'<span style="color:#CBD5E1">—</span>'}</td>` }
 
     // Planta com marcadores
-    let planta=''
+    let planta='', plantaParede=''
     if(bgImage){
       const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         const f=cableFamily(m.cableType||guessCableType(m,m))
         const badge=(showCabo && !famOculta(f.k))?`<div style="position:absolute;top:-6px;right:-7px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
       planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
+      // ── PÁGINA "PAREDE DA OBRA" (decisão #4): última folha, planta completa no MAIOR tamanho
+      // possível (A4 paisagem), só a planta + legenda, pra imprimir e pregar na parede.
+      // Ancoragem à prova de corte: caixa com aspect-ratio da imagem + object-fit:fill (mesma
+      // proporção, sem distorção) → os pinos, em %, ficam SEMPRE exatos sobre o desenho.
+      const _wr = imgRatio || 0.66
+      plantaParede=`<div class="ex-wall-page" style="page:wallpage;page-break-before:always;text-align:center">
+        <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:#0D1420;letter-spacing:.5px;margin-bottom:6px">PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA</div>
+        <div style="position:relative;margin:0 auto;max-width:100%;max-height:172mm;aspect-ratio:${(1/_wr).toFixed(4)};border:1px solid #bbb">
+          <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill"/>${dots}
+        </div>
+        <div style="margin-top:8px;text-align:left">${pontosLegenda()}</div>
+      </div>`
     }
 
     const sec=(title,inner)=>inner?`<div class="ex-sec"><h2>${title}</h2>${inner}</div>`:''
@@ -3402,6 +3455,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             'Deixar fio-guia em todos os conduítes.',
             'Caixa 4×4 em todos os pontos com mais de um cabo chegando.',
           ])}</div></div>`,
+        // ÚLTIMA FOLHA — planta completa grande p/ parede da obra (#4)
+        plantaParede,
       ].filter(Boolean)
       return obraSections.join('\n') + '</div>'
     }
@@ -3425,12 +3480,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     d.premissas?.length ? cap('Premissas e Escopo do Projeto') + list(d.premissas) + '</div>' : '',
 
     // 2-4. SISTEMAS na ordem do valor percebido pelo contratante
-    (tblAutomacao||pontosHtml) ? cap('Automação — Interruptores, Keypads e Módulos') + (tblAutomacao||pontosHtml) + '</div>' : '',
-    tblSom ? cap('Som Ambiente — Zonas e Caixas') + tblSom + '</div>' : '',
-    tblSeguranca ? cap('Segurança — Câmeras e Sensores') + tblSeguranca + '</div>' : '',
+    (!secOff('tbl_automacao') && (tblAutomacao||pontosHtml)) ? cap('Automação — Interruptores, Keypads e Módulos') + (tblAutomacao||pontosHtml) + '</div>' : '',
+    (!secOff('tbl_som') && tblSom) ? cap('Som Ambiente — Zonas e Caixas') + tblSom + '</div>' : '',
+    (!secOff('tbl_seguranca') && tblSeguranca) ? cap('Segurança — Câmeras e Sensores') + tblSeguranca + '</div>' : '',
 
     // 5. REDE / RACK
-    hasRack && (d.rack_detalhe||rackItems.length) ? cap('Rack / CPD — Equipamentos e Portas',true) + (list(d.rack_detalhe)+(rackEquipTable?`<h3 class="ex-amb">Equipamentos do Rack</h3>${rackEquipTable}`:'')+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Cabos de Rede</h3>${rackCableTableHtml}`:'')) + '</div>' : '',
+    !secOff('tbl_rack') && hasRack && (d.rack_detalhe||rackItems.length) ? cap('Rack / CPD — Equipamentos e Portas',true) + (list(d.rack_detalhe)+(rackEquipTable?`<h3 class="ex-amb">Equipamentos do Rack</h3>${rackEquipTable}`:'')+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Cabos de Rede</h3>${rackCableTableHtml}`:'')) + '</div>' : '',
 
     // 6. PLANTA ELÉTRICA (NBR) e MAPA WI-FI
     buildPlantaEletrica(()=>_capNum(++_cap)),
@@ -3438,7 +3493,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       return (showHeatmap && aps.length) ? (()=>{_cap++; return buildHeatmap(()=>_capNum(_cap))})() : '' })(),
 
     // 6. TETO
-    plantaTeto ? cap('Planta de Teto — Itens sobre Forro e Laje',true) + plantaTeto.replace('<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>','') + '</div>' : '',
+    (!secOff('tbl_teto') && plantaTeto) ? cap('Planta de Teto — Itens sobre Forro e Laje',true) + plantaTeto.replace('<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>','') + '</div>' : '',
 
     // 7. INFRA: conduítes aqui; o detalhamento de cabeamento vive no Plano de Obra (anexo), sem duplicar
     (conduitesInline && !hidePdfConduites) ? cap('Cabeamento e Conduítes',true) + `<p class="ex-p" style="margin-bottom:10px">Detalhamento de cada conduíte com cabos dentro, bitola estimada e percurso. As plantas de cabeamento por família (Dados, Som, Elétrica), com tabelas de execução, estão no <b>Plano de Obra</b>, anexo deste documento.</p>` + conduitesInline + '</div>' : `<div class="ex-sec ex-breakable" style="page-break-before:always"><h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:12px">${_capNum(++_cap)}Cabeamento e Conduítes</h2><p class="ex-p">As plantas de cabeamento por família (Dados, Som, Elétrica), com tabelas de execução, estão no <b>Plano de Obra</b>, anexo deste documento.</p></div>`,
@@ -3457,7 +3512,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     (tblObservacoes ? '<h3 class="ex-amb">Observações dos Pontos</h3>' + tblObservacoes : '') +
     (fotosTxt ? '<h3 class="ex-amb" style="margin-top:16px">Fotos no Diário de Obra</h3>' + fotosTxt : '') + '</div>' : '',
 
-
+    // ÚLTIMA FOLHA — planta completa grande p/ parede da obra (#4)
+    plantaParede,
 
   ].filter(Boolean).join('\n') })()}
 </div>`
@@ -3474,12 +3530,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const _plantSizeCss = plantPct!==100 ? ` .ex-plant{width:${plantPct}%!important;max-width:${plantPct}%!important} .ex-plant img{width:100%!important;max-width:100%!important}` : ''
     let body, pageCss
     if(execMode==='completo'){
-      pageCss='@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}'+_plantSizeCss
+      pageCss='@page{size:A4;margin:12mm} @page wallpage{size:A4 landscape;margin:6mm} .ex-plant img{max-height:250mm!important} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}'+_plantSizeCss
       const quebraPag='<div style="break-before:page;page-break-before:always;height:0;margin:0;border:0"></div>'
       body = (_full||'') + (_obra ? quebraPag+_obra : '') + (_ele ? quebraPag+_ele : '')
     } else {
       const _isA3=(execMode==='obra'||execMode==='eletrica'||execMode==='conduites')
-      pageCss = (_isA3 ? '@page{size:A3 landscape;margin:10mm} .ex-plant img{max-height:245mm!important}' : '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important}')+_plantSizeCss
+      pageCss = (_isA3 ? '@page{size:A3 landscape;margin:10mm} .ex-plant img{max-height:245mm!important}' : '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important}')+' @page wallpage{size:A4 landscape;margin:6mm}'+_plantSizeCss
       body = (execMode==='obra'?_obra:execMode==='eletrica'?_ele:execMode==='conduites'?_cond:_full)||''
     }
     const fontLink='<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&family=Fraunces:ital,wght@0,400;0,600;1,500&display=swap" rel="stylesheet">'
@@ -4147,6 +4203,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <button onClick={limparItens} style={{height:32,borderRadius:6,border:'1px solid #DC262688',background:'rgba(220,38,38,0.12)',color:'#FCA5A5',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Remover todos os itens">
                   <i className="ti ti-eraser" aria-hidden/>Limpar
                 </button>
+                {bgImage && markers.length>0 && <button onClick={encaixarPontosNaPlanta} style={{height:32,borderRadius:6,border:'1px solid #0EA5E9',background:'rgba(14,165,233,0.15)',color:'#7DD3FC',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit',fontWeight:600}} title="Traz os pontos que ficaram na margem branca para dentro do desenho da planta (desfazível)">
+                  <i className="ti ti-viewport-narrow" aria-hidden/>Encaixar na planta
+                </button>}
                 <button onClick={voltarEtapa} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Voltar uma etapa">
                   <i className="ti ti-chevron-left" aria-hidden/>Voltar
                 </button>
@@ -4172,7 +4231,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <button onClick={()=>setZoom(z=>Math.min(3,z+0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>+</button>
               </div>
               <div ref={containerRef} style={{position:'relative',display:'block',margin:'0 auto',cursor:addMode?'crosshair':'default',width:bgImage?`${zoom*100}%`:`${Math.min(640*zoom,window.innerWidth*0.82)}px`,transformOrigin:'top center'}} onClick={onCanvasClick}>
-                {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false} onLoad={e=>{const im=e.target; if(im.naturalWidth)setImgRatio(im.naturalHeight/im.naturalWidth)}}/>
+                {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false} onLoad={e=>{const im=e.target; if(im.naturalWidth)setImgRatio(im.naturalHeight/im.naturalWidth); computeContentBox(im)}}/>
                   : <div style={{width:'100%',aspectRatio:'4/3',background:'repeating-linear-gradient(0deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px),repeating-linear-gradient(90deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px)',backgroundColor:'rgba(255,255,255,0.02)',border:'2px dashed rgba(255,255,255,0.15)',borderRadius:10,position:'relative'}}>
                       <div style={{position:'absolute',top:10,left:0,right:0,textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.45)',pointerEvents:'none'}}>Pontos posicionados — arraste para ajustar, ou carregue a planta.</div>
                     </div>}
@@ -4851,8 +4910,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   </div>
                   <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',borderTop:'1px solid rgba(255,255,255,0.1)',paddingTop:6,marginTop:2}}>
                     <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5,width:'100%'}}>Tabelas do documento</span>
-                    {(()=>{ const tk=['pos_altura','itens_unicos','lista_geral','quadro_cargas','caixas_embutir','pontos_tabela','alim_keypads']; const todasOff=tk.every(k=>hideSecs.has(k)); return chip(todasOff,'Todas as tabelas',()=>setHideSecs(p=>{const x=new Set(p); if(todasOff){tk.forEach(k=>x.delete(k))}else{tk.forEach(k=>x.add(k))} return x})) })()}
-                    {[['pos_altura','Posição e Altura'],['itens_unicos','Resumo por item (únicos)']].map(([k,label])=>chip(hideSecs.has(k), label, ()=>setHideSecs(p=>{const x=new Set(p); x.has(k)?x.delete(k):x.add(k); return x})))}
+                    {(()=>{ const tk=['pos_altura','itens_unicos','tbl_automacao','tbl_som','tbl_seguranca','tbl_rack','tbl_teto','lista_geral','quadro_cargas','caixas_embutir','pontos_tabela','alim_keypads']; const todasOff=tk.every(k=>hideSecs.has(k)); return chip(todasOff,'Todas as tabelas',()=>setHideSecs(p=>{const x=new Set(p); if(todasOff){tk.forEach(k=>x.delete(k))}else{tk.forEach(k=>x.add(k))} return x})) })()}
+                    {[['pos_altura','Posição e Altura'],['itens_unicos','Resumo por item (únicos)'],['tbl_automacao','Automação'],['tbl_som','Som Ambiente'],['tbl_seguranca','Segurança'],['tbl_rack','Rack / Portas'],['tbl_teto','Teto']].map(([k,label])=>chip(hideSecs.has(k), label, ()=>setHideSecs(p=>{const x=new Set(p); x.has(k)?x.delete(k):x.add(k); return x})))}
                   </div>
                 </div>
               </div>

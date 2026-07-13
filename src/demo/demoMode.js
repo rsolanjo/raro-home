@@ -6,8 +6,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { buildDemoData, DEMO_LEDGER, DEMO_EMPRESA, DEMO_USER } from './demoData.js'
 
-const KEY = 'raro_demo_state_v4'
-const KEY_LEGADO = 'raro_demo_state_v3'
+const KEY = 'raro_demo_state_v5'
+const KEY_LEGADO = 'raro_demo_state_v4'
 
 export function isDemoMode() {
   try {
@@ -21,6 +21,7 @@ export function isDemoMode() {
 export function loadDemoState() {
   // limpa qualquer estado de chaves antigas (podiam ter dados reais vazados de versões passadas)
   try { localStorage.removeItem(KEY_LEGADO) } catch {}
+  try { localStorage.removeItem('raro_demo_state_v3') } catch {}
   try { localStorage.removeItem('raro_demo_state_v2') } catch {}
   try { localStorage.removeItem('raro_demo_state_v1') } catch {}
   try {
