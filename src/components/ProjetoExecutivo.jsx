@@ -1933,7 +1933,7 @@ Responda APENAS JSON válido:
       ratio: 1/(imgRatio||0.75),
     }
   }
-  function buildExecHtml(d, mode='completo', versao){
+  function buildExecHtml(d, mode='completo', versao, embedded=false){
     const { bg:bgImage, mks:markers, cbs:cables, ratio:imgRatio } = _docView()
     const famOculta = fazFamOculta(hideFams)   // filtro de cabo (Dados/Som/Elétrica/HDMI...) aplicado ao doc
     // Traçado dos cabos na visão do documento: as PONTAS vêm destes markers (girados quando a planta gira)
@@ -2211,25 +2211,13 @@ Responda APENAS JSON válido:
     const pinCell = (...keys)=>{ const m=_findMk(...keys); return `<td style="text-align:center">${m?pinMk(m):'<span style="color:#CBD5E1">—</span>'}</td>` }
 
     // Planta com marcadores
-    let planta='', plantaParede=''
+    let planta=''
     if(bgImage){
       const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         const f=cableFamily(m.cableType||guessCableType(m,m))
         const badge=(showCabo && !famOculta(f.k))?`<div style="position:absolute;top:-6px;right:-7px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
       planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
-      // ── PÁGINA "PAREDE DA OBRA" (decisão #4): última folha, planta completa no MAIOR tamanho
-      // possível (A4 paisagem), só a planta + legenda, pra imprimir e pregar na parede.
-      // Ancoragem à prova de corte: caixa com aspect-ratio da imagem + object-fit:fill (mesma
-      // proporção, sem distorção) → os pinos, em %, ficam SEMPRE exatos sobre o desenho.
-      const _wr = imgRatio || 0.66
-      plantaParede=`<div class="ex-wall-page" style="page:wallpage;page-break-before:always;text-align:center">
-        <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:#0D1420;letter-spacing:.5px;margin-bottom:6px">PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA</div>
-        <div style="position:relative;margin:0 auto;max-width:100%;max-height:172mm;aspect-ratio:${(1/_wr).toFixed(4)};border:1px solid #bbb">
-          <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill"/>${dots}
-        </div>
-        <div style="margin-top:8px;text-align:left">${pontosLegenda()}</div>
-      </div>`
     }
 
     const sec=(title,inner)=>inner?`<div class="ex-sec"><h2>${title}</h2>${inner}</div>`:''
@@ -3387,7 +3375,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const obraPlantaCompleta = plantaGeralItens ? `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Planta Completa do Projeto</h2>
         <p class="ex-p" style="color:#6B7280">Todos os pontos posicionados na planta, visão geral antes de detalhar por tópico.</p>
         ${plantaGeralItens}</div>` : ''
-      const obraPosAlt = (()=>{ const byRoom={}
+      const obraPosAlt = (()=>{ if(secOff('pos_altura')) return ''
+        const byRoom={}
         markers.filter(m=>!isRackItem(m.name,m.code)).forEach(m=>{ const r=m.room||'Geral'; (byRoom[r]=byRoom[r]||[]).push(m) })
         const rooms=Object.entries(byRoom); if(!rooms.length) return ''
         return `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Posição e Altura dos Pontos</h2>
@@ -3398,7 +3387,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       // ── ELÉTRICA TUDO JUNTO: planta NBR + caixas/alturas + alimentação dos keypads, num tópico só ──
       const obraEletricaCompleta = (()=>{ const els=markers.filter(isPontoEletrico)
         if(!els.length && !(d.alim_keypads||[]).length) return ''
-        const plantaEle = buildPlantaEletrica(null)  // sem numeração de capítulo aqui, é dentro do tópico
+        const plantaEle = embedded ? '' : buildPlantaEletrica(null)  // no Completo, _full já traz a planta elétrica; aqui ficam só as tabelas
         const tabelaCaixas = (!secOff('pontos_tabela') && els.length) ? `<h3 class="ex-amb" style="margin-top:18px">Pontos Elétricos — Caixas e Alturas</h3>
           <p class="ex-p" style="color:#6B7280">Qual caixa embutir e em que altura, por ponto.</p>`+
           T(els.map(m=>{ const cls=classifyEle(m); const cx=m.caixaTipo||caixaPadrao(cls.sym)||'—'
@@ -3406,8 +3395,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const tabelaAlim = (!secOff('alim_keypads') && (d.alim_keypads||[]).length) ? `<h3 class="ex-amb" style="margin-top:18px">Alimentação dos Keypads (Fase + Neutro)</h3>
           <p class="ex-p" style="color:#6B7280">Keypads exigem neutro no fundo da caixa. Circuito dedicado do quadro.</p>`+
           T(d.alim_keypads.map(r=>`<tr>${pinCell(r.destino,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x1,5mm²')}</td></tr>`).join(''),['Nº','ID','Origem','Destino (Keypad)','Altura','Cômodo','m','Fios']) : ''
-        return `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Elétrica — Planta, Caixas e Alimentação</h2>
-          <p class="ex-p" style="color:#6B7280">Tudo da parte elétrica num lugar só: a planta com símbolos NBR, a caixa e altura de cada ponto, e a alimentação dos keypads.</p>
+        return `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">${embedded?'Elétrica — Caixas e Alimentação (detalhe de obra)':'Elétrica — Planta, Caixas e Alimentação'}</h2>
+          <p class="ex-p" style="color:#6B7280">${embedded?'A caixa e altura de cada ponto e a alimentação dos keypads. A planta elétrica NBR está no capítulo de Elétrica acima.':'Tudo da parte elétrica num lugar só: a planta com símbolos NBR, a caixa e altura de cada ponto, e a alimentação dos keypads.'}</p>
           ${plantaEle}${tabelaCaixas}${tabelaAlim}</div>`
       })()
       const obraQuant = (()=>{
@@ -3438,8 +3427,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Plano de Obra</h2>
           <p class="ex-p" style="color:#6B7280">Para impressão em A3. Cada tópico tem: planta dos cabos + tabela, planta dos conduítes + tabela, e visão completa sobreposta.</p>
           ${showLegenda?legendaMestreHtml:''}</div>`,
-        obraPlantaCompleta,
-        obraPosAlt,
+        embedded?'':obraPlantaCompleta,   // no Completo, _full já tem a Planta de Pontos
+        embedded?'':obraPosAlt,            // no Completo, _full já tem a Posição e Altura
         obraEletricaCompleta,
         obraQuant,
         ...(categoriaPaginas.length?categoriaPaginas:[`<p class="ex-p" style="color:#B45309">⚠ Nenhum cabo desenhado na planta. Use o modo "Cabos" no editor.</p>`]),
@@ -3455,8 +3444,6 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             'Deixar fio-guia em todos os conduítes.',
             'Caixa 4×4 em todos os pontos com mais de um cabo chegando.',
           ])}</div></div>`,
-        // ÚLTIMA FOLHA — planta completa grande p/ parede da obra (#4)
-        plantaParede,
       ].filter(Boolean)
       return obraSections.join('\n') + '</div>'
     }
@@ -3512,31 +3499,51 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     (tblObservacoes ? '<h3 class="ex-amb">Observações dos Pontos</h3>' + tblObservacoes : '') +
     (fotosTxt ? '<h3 class="ex-amb" style="margin-top:16px">Fotos no Diário de Obra</h3>' + fotosTxt : '') + '</div>' : '',
 
-    // ÚLTIMA FOLHA — planta completa grande p/ parede da obra (#4)
-    plantaParede,
-
   ].filter(Boolean).join('\n') })()}
 </div>`
   }
 
+  // Página "parede da obra" (#4): planta completa GRANDE (A4 paisagem), só planta + legenda,
+  // ancorada por aspect-ratio + object-fit:fill (pinos em % ficam exatos). Aparece 1× e por último.
+  function buildWallPage(){
+    if(!bgImage) return ''
+    const _fo=fazFamOculta(hideFams)
+    const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
+      const f=cableFamily(m.cableType||guessCableType(m,m))
+      const badge=(showCabo && !_fo(f.k))?`<div style="position:absolute;top:-6px;right:-7px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
+      return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
+    const _wr=imgRatio||0.66
+    return `<div class="ex-wall-page" style="page:wallpage;page-break-before:always;text-align:center">
+      <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:#0D1420;letter-spacing:.5px;margin-bottom:6px">PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA</div>
+      <div style="position:relative;margin:0 auto;max-width:100%;max-height:172mm;aspect-ratio:${(1/_wr).toFixed(4)};border:1px solid #bbb">
+        <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill"/>${dots}
+      </div>
+      <div style="margin-top:8px;text-align:left">${pontosLegenda()}</div>
+    </div>`
+  }
   function buildFullHtml(preview=false){
     const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
     const codigo=(fromProposal?.code||'').replace(/[\\/:*?"<>|]/g,'')
     const nomeDoc = execMode==='obra' ? 'Plano de Obra' : execMode==='eletrica' ? 'Planta Elétrica' : execMode==='conduites' ? 'Conduites' : 'Projeto Executivo'
     const tituloPdf=`${nomeDoc} — RARO Home — ${cliNome}${codigo?' — '+codigo:''}`
-    const _fresh = m => { if(!execData) return null; try{ return buildExecHtml(execData, m) }catch(e){ console.warn('rebuild export falhou:',e.message); return null } }
-    const _full=_fresh('completo')||execDoc, _obra=_fresh('obra')||execDocObra,
+    const _fresh = (m,emb=false) => { if(!execData) return null; try{ return buildExecHtml(execData, m, undefined, emb) }catch(e){ console.warn('rebuild export falhou:',e.message); return null } }
+    // No Completo, a obra entra como anexo ENXUTO (sem repetir planta/posição-altura que o corpo já tem)
+    const _full=_fresh('completo')|| execDoc, _obra=_fresh('obra', execMode==='completo')||execDocObra,
           _ele=_fresh('eletrica')||execDocEletrica, _cond=_fresh('conduites')||execDocConduites
     const _plantSizeCss = plantPct!==100 ? ` .ex-plant{width:${plantPct}%!important;max-width:${plantPct}%!important} .ex-plant img{width:100%!important;max-width:100%!important}` : ''
     let body, pageCss
     if(execMode==='completo'){
       pageCss='@page{size:A4;margin:12mm} @page wallpage{size:A4 landscape;margin:6mm} .ex-plant img{max-height:250mm!important} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}'+_plantSizeCss
       const quebraPag='<div style="break-before:page;page-break-before:always;height:0;margin:0;border:0"></div>'
-      body = (_full||'') + (_obra ? quebraPag+_obra : '') + (_ele ? quebraPag+_ele : '')
+      // wall page 1×, por último (depois de _full+_obra+_ele) — folha sozinha
+      // _ele (Planta Elétrica) NÃO entra: o corpo (_full) já traz a planta elétrica. Evita a 3ª cópia.
+      body = (_full||'') + (_obra ? quebraPag+_obra : '') + buildWallPage()
     } else {
       const _isA3=(execMode==='obra'||execMode==='eletrica'||execMode==='conduites')
       pageCss = (_isA3 ? '@page{size:A3 landscape;margin:10mm} .ex-plant img{max-height:245mm!important}' : '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important}')+' @page wallpage{size:A4 landscape;margin:6mm}'+_plantSizeCss
       body = (execMode==='obra'?_obra:execMode==='eletrica'?_ele:execMode==='conduites'?_cond:_full)||''
+      // wall page só no Plano de Obra (e no executivo/completo acima), por último
+      if(execMode==='obra') body += buildWallPage()
     }
     const fontLink='<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&family=Fraunces:ital,wght@0,400;0,600;1,500&display=swap" rel="stylesheet">'
     const fluido='<style>.ex-sec,.ex-sec.ex-breakable,.ex-obra-page,.ex-doc-cover,.ex-cover{page-break-before:auto!important;page-break-inside:auto!important;break-before:auto!important;break-inside:auto!important;min-height:0!important}.ex-doc-cover,.ex-cover{margin:0!important}</style>'
