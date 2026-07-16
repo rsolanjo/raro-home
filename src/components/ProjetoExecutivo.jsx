@@ -1965,14 +1965,17 @@ Responda APENAS JSON válido:
     // Tema do miolo do documento: no premium acompanha a casca (navy + dourado);
     // no clássico, cyan. NÃO mexe em cor que é dado (cabo, categoria, gráfico, telas de app).
     const _fable = _ver==='fable'
+    const _opus = _ver==='opus'   // modelo OPUS: acabamento máximo + aproveitamento de folha
     const TH = _fable
       ? { rule:'#B0854C', pin:'#131A2C', accent:'#B0854C' }
+      : _opus
+      ? { rule:'#0D1B2A', pin:'#0D1B2A', accent:'#B08D57' }
       : _prem
       ? { rule:'#1A2740', pin:'#1A2740', accent:'#9C7B45' }
       : { rule:'#0EA5E9', pin:'#0EA5E9', accent:'#0EA5E9' }
-    // Número de capítulo: premium/fable = algarismo dourado inline (estilizado pelo CSS .ex-sec-num);
+    // Número de capítulo: premium/fable/opus = algarismo dourado inline (estilizado pelo CSS .ex-sec-num);
     // clássico = bolinha cyan inline.
-    const _capNum = n => (_prem||_fable)
+    const _capNum = n => (_prem||_fable||_opus)
       ? `<span class="ex-sec-num">${n}</span>`
       : `<span class="ex-sec-num" style="background:#0EA5E9;color:#fff;padding:3px 10px;border-radius:5px;font-size:13px;margin-right:10px">${n}</span>`
 
@@ -2079,9 +2082,9 @@ Responda APENAS JSON válido:
       return `<div class="ex-sec ex-breakable">${titulo}
         <p class="ex-p" style="margin-bottom:10px">Pontos elétricos com símbolos normalizados (ABNT NBR 5444), em proporção real da planta. Mostra apenas os pontos elétricos (tomadas, interruptores, iluminação, quadro).</p>
         ${head}${fig}${legenda}${abntLegendaCompleta()}
-        ${secOff('lista_geral')?'':`<h3 class="ex-amb" style="margin-top:18px">Lista Geral — Todos os Pontos Elétricos</h3>${listaGeral}`}
-        ${secOff('caixas_embutir')?'':cxResumo}
-        ${secOff('quadro_cargas')?'':`<h3 class="ex-amb" style="margin-top:16px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}`}
+        ${(secOff('lista_geral')||secOff('t_eletrica_tab'))?'':`<h3 class="ex-amb" style="margin-top:18px">Lista Geral — Todos os Pontos Elétricos</h3>${listaGeral}`}
+        ${(secOff('caixas_embutir')||secOff('t_eletrica_tab'))?'':cxResumo}
+        ${(secOff('quadro_cargas')||secOff('t_eletrica_tab'))?'':`<h3 class="ex-amb" style="margin-top:16px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}`}
         <h3 class="ex-amb" style="margin-top:16px">Checklist Elétrico</h3>${checklistEle}
       </div>`
     }
@@ -2176,6 +2179,24 @@ Responda APENAS JSON válido:
             if(cells.length>idx) cells.splice(idx,1)
             return open+cells.join('')+'</tr>'
           })
+        }
+      }
+      // OPUS: remove colunas 100% vazias (só "—") — documento sem coluna morta.
+      if(_opus){
+        const ncol=c.length
+        const trList=r.match(/<tr[^>]*>[\s\S]*?<\/tr>/g)||[]
+        const parsed=trList.map(tr=>{ const open=tr.match(/^<tr[^>]*>/)[0]; const inner=tr.slice(open.length, tr.length-5); const cells=inner.split(/(?=<td)/).filter(s=>s.startsWith('<td')); return {open,cells} })
+        const dataRows=parsed.filter(p=>p.cells.length===ncol)
+        if(dataRows.length){
+          const txtOf=cell=>cell.replace(/<[^>]*>/g,'').replace(/&[a-z]+;/gi,' ').replace(/ /g,' ').trim()
+          const isBlank=t=>{ const s=t.replace(/[—–\-]/g,'').replace(/\s/g,''); return s===''||s==='m' }  // vazio, "—", "—m", "m"
+          const drop=[]
+          for(let i=1;i<ncol;i++){ if(dataRows.every(p=>isBlank(txtOf(p.cells[i])))) drop.push(i) }
+          if(drop.length && drop.length<ncol-1){
+            const keep=i=>!drop.includes(i)
+            c=c.filter((_,i)=>keep(i))
+            r=parsed.map(p=> p.cells.length===ncol ? (p.open+p.cells.filter((_,i)=>keep(i)).join('')+'</tr>') : (p.open+p.cells.join('')+'</tr>')).join('')
+          }
         }
       }
       return `<table class="ex-tbl"><thead><tr>${c.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${r}</tbody></table>`
@@ -2512,7 +2533,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
     const _eletr = mode==='eletrica'
     const _temWifi = showHeatmap && markers.some(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
-    return `<style>${_ver==='fable'?EXEC_CSS_FABLE:_ver==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
+    return `<style>${_ver==='opus'?EXEC_CSS_OPUS:_ver==='fable'?EXEC_CSS_FABLE:_ver==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
 <div class="ex-doc">
   <!-- CAPA -->
   <div class="ex-cover">
@@ -2522,10 +2543,17 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     <div class="ex-cover-title">${_eletr?(_temWifi?'Planta Elétrica e Cobertura Wi-Fi':'Planta Elétrica'):isObra?'Plano de Obra — Cabos e Infraestrutura':'Projeto Executivo de Automação'}</div>
     <div class="ex-cover-sub">${_eletr?(_temWifi?'Símbolos ABNT NBR 5444 · Quadro de cargas · Mapa de calor Wi-Fi<br>Pontos elétricos e cobertura aproximada':'Símbolos ABNT NBR 5444 · Quadro de cargas<br>Pontos e circuitos elétricos'):isObra?'Caminho dos cabos · Metragens · Alturas · Caixas 4×4<br>Guia direto para o eletricista e o pedreiro':'Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto'}</div>
     <div class="ex-cover-client"><div class="ex-cc-name">${esc(cliente)}</div><div class="ex-cc-meta">${hoje} · ${brandName()}</div></div>
+    ${_opus?(()=>{ const vis=markers.filter(m=>!isRackItem(m.name,m.code))
+      const pts=vis.length
+      const rooms=new Set(vis.map(m=>(m.room||'').trim()).filter(Boolean)).size
+      const sis=new Set(vis.map(m=>cableFamily(m.cableType||guessCableType(m,m)).nome)).size
+      const mts=(cables||[]).filter(c=>!c.free).reduce((s,c)=>s+(cableMeters(c)||0),0)
+      const cell=(n,l)=>`<div><div class="ex-scope-n">${n}</div><div class="ex-scope-l">${l}</div></div>`
+      return `<div class="ex-cover-scope">${cell(pts,'pontos')}${cell(rooms,'cômodos')}${cell(sis,'sistemas')}${(plantScale&&mts)?cell('~'+Math.round(mts)+'m','cabeamento'):''}</div>` })():''}
     <div class="ex-cover-foot">${brandName()}${brandName()==='RARO Home'?' · contato@rarohome.com.br · (21) 98170-9009':''}</div>
   </div>
 
-  ${(()=>{ if(isObra||_eletr) return ''
+  ${(()=>{ if(isObra||_eletr||secOff('t_planta')) return ''
     if(bgImage){
       const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         const f=cableFamily(m.cableType||guessCableType(m,m))
@@ -3307,13 +3335,26 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <td style="font-size:9.5px;color:#D97706">${esc(cond.obs||'')}</td>
           </tr>` }).join('')
 
-        return `<div class="ex-obra-page" style="page-break-before:${idx===0?'auto':'always'}">
-          <div style="break-inside:avoid;page-break-inside:avoid">
-          <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid ${col};padding-bottom:8px;margin-bottom:10px;break-after:avoid;page-break-after:avoid">
+        const _famHeader = `<div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid ${col};padding-bottom:8px;margin-bottom:10px;break-after:avoid;page-break-after:avoid">
             <div style="width:30px;height:30px;border-radius:8px;background:${col};display:flex;align-items:center;justify-content:center"><span style="width:18px;height:4px;background:#fff;border-radius:2px"></span></div>
             <div><div style="font-size:20px;font-weight:800;color:#0D1420">${lb}</div>
             <div style="font-size:12px;color:#64748B">${arr.length} cabo(s) · ${sp.spec} · ${sp.conector}${totM>0?` · total ~${Math.round(totM)}m`:''}${conduitesFamilia.length?` · ${conduitesFamilia.length} conduíte(s)`:''}</div></div>
-          </div>
+          </div>`
+        if(_opus){
+          // OPUS: planta COMPACTA + tabela na MESMA folha; sem "visão completa" redundante.
+          return `<div class="ex-obra-page" style="page-break-before:${idx===0?'auto':'always'}">
+            <div style="break-inside:avoid;page-break-inside:avoid">${_famHeader}
+            <h3 class="ex-amb" style="color:${col};margin-bottom:4px">Planta e Cabos — ${lb}</h3></div>
+            <div class="ex-opus-fig">${pagePlantaCabos(t,arr,col)}</div>
+            ${T(rows,['Nº','Origem → Destino','Cômodo','Cabo','Metros','Conduíte'])}
+            ${conduitesFamilia.length ? `
+            <h3 class="ex-amb" style="color:${col};margin-top:16px;margin-bottom:4px;break-after:avoid;page-break-after:avoid">Conduítes — ${lb}</h3>
+            <div class="ex-opus-fig">${pagePlantaConduites(conduitesFamilia, col)}</div>
+            ${T(rowsCond,['ID','Trecho','Nº','Eletroduto','Metros','Cabos dentro','Obs'])}` : ''}
+          </div>`
+        }
+        return `<div class="ex-obra-page" style="page-break-before:${idx===0?'auto':'always'}">
+          <div style="break-inside:avoid;page-break-inside:avoid">${_famHeader}
           <h3 class="ex-amb" style="color:${col};margin-bottom:4px">Cabos — ${lb}</h3>
           </div>
           ${T(rows,['Nº','Origem → Destino','Cômodo','Cabo','Metros','Conduíte'])}
@@ -3428,13 +3469,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           <p class="ex-p" style="color:#6B7280">Para impressão em A3. Cada tópico tem: planta dos cabos + tabela, planta dos conduítes + tabela, e visão completa sobreposta.</p>
           ${showLegenda?legendaMestreHtml:''}</div>`,
         embedded?'':obraPlantaCompleta,   // no Completo, _full já tem a Planta de Pontos
-        embedded?'':obraPosAlt,            // no Completo, _full já tem a Posição e Altura
-        obraEletricaCompleta,
-        obraQuant,
-        ...(categoriaPaginas.length?categoriaPaginas:[`<p class="ex-p" style="color:#B45309">⚠ Nenhum cabo desenhado na planta. Use o modo "Cabos" no editor.</p>`]),
-        paginaRestantes,
-        plantaTeto ? `<div class="ex-obra-page" style="page-break-before:always">${plantaTeto.replace('<div class="ex-sec ex-breakable">','<div>')}</div>` : '',
-        obraChecklists,
+        (embedded||secOff('pos_altura'))?'':obraPosAlt,            // no Completo, _full já tem a Posição e Altura
+        secOff('t_obra_eletrica')?'':obraEletricaCompleta,
+        secOff('t_quant')?'':obraQuant,
+        ...(secOff('t_cabos')?[]:(categoriaPaginas.length?categoriaPaginas:[`<p class="ex-p" style="color:#B45309">⚠ Nenhum cabo desenhado na planta. Use o modo "Cabos" no editor.</p>`])),
+        secOff('t_cabos')?'':paginaRestantes,
+        (!secOff('tbl_teto') && plantaTeto) ? `<div class="ex-obra-page" style="page-break-before:always">${plantaTeto.replace('<div class="ex-sec ex-breakable">','<div>')}</div>` : '',
+        secOff('t_checklists')?'':obraChecklists,
         `<div class="ex-obra-page" style="page-break-before:always">
           <div style="break-inside:avoid;page-break-inside:avoid">
           <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Notas de Infraestrutura</h2>
@@ -3464,7 +3505,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
     return [
     // 1. PREMISSAS — o que o projeto entrega
-    d.premissas?.length ? cap('Premissas e Escopo do Projeto') + list(d.premissas) + '</div>' : '',
+    (!secOff('t_premissas') && d.premissas?.length) ? cap('Premissas e Escopo do Projeto') + list(d.premissas) + '</div>' : '',
 
     // 2-4. SISTEMAS na ordem do valor percebido pelo contratante
     (!secOff('tbl_automacao') && (tblAutomacao||pontosHtml)) ? cap('Automação — Interruptores, Keypads e Módulos') + (tblAutomacao||pontosHtml) + '</div>' : '',
@@ -3472,30 +3513,30 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     (!secOff('tbl_seguranca') && tblSeguranca) ? cap('Segurança — Câmeras e Sensores') + tblSeguranca + '</div>' : '',
 
     // 5. REDE / RACK
-    !secOff('tbl_rack') && hasRack && (d.rack_detalhe||rackItems.length) ? cap('Rack / CPD — Equipamentos e Portas',true) + (list(d.rack_detalhe)+(rackEquipTable?`<h3 class="ex-amb">Equipamentos do Rack</h3>${rackEquipTable}`:'')+rackVisual+(rackCableTableHtml?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Cabos de Rede</h3>${rackCableTableHtml}`:'')) + '</div>' : '',
+    !secOff('tbl_rack') && hasRack && (d.rack_detalhe||rackItems.length) ? cap('Rack / CPD — Equipamentos e Portas',true) + (list(d.rack_detalhe)+((rackEquipTable&&!secOff('tbl_rack_tab'))?`<h3 class="ex-amb">Equipamentos do Rack</h3>${rackEquipTable}`:'')+rackVisual+((rackCableTableHtml&&!secOff('tbl_rack_tab'))?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Cabos de Rede</h3>${rackCableTableHtml}`:'')) + '</div>' : '',
 
     // 6. PLANTA ELÉTRICA (NBR) e MAPA WI-FI
-    buildPlantaEletrica(()=>_capNum(++_cap)),
-    (()=>{ const aps=markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
+    secOff('t_eletrica') ? '' : buildPlantaEletrica(()=>_capNum(++_cap)),
+    secOff('t_wifi') ? '' : (()=>{ const aps=markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
       return (showHeatmap && aps.length) ? (()=>{_cap++; return buildHeatmap(()=>_capNum(_cap))})() : '' })(),
 
     // 6. TETO
     (!secOff('tbl_teto') && plantaTeto) ? cap('Planta de Teto — Itens sobre Forro e Laje',true) + plantaTeto.replace('<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>','') + '</div>' : '',
 
     // 7. INFRA: conduítes aqui; o detalhamento de cabeamento vive no Plano de Obra (anexo), sem duplicar
-    (conduitesInline && !hidePdfConduites) ? cap('Cabeamento e Conduítes',true) + `<p class="ex-p" style="margin-bottom:10px">Detalhamento de cada conduíte com cabos dentro, bitola estimada e percurso. As plantas de cabeamento por família (Dados, Som, Elétrica), com tabelas de execução, estão no <b>Plano de Obra</b>, anexo deste documento.</p>` + conduitesInline + '</div>' : `<div class="ex-sec ex-breakable" style="page-break-before:always"><h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:12px">${_capNum(++_cap)}Cabeamento e Conduítes</h2><p class="ex-p">As plantas de cabeamento por família (Dados, Som, Elétrica), com tabelas de execução, estão no <b>Plano de Obra</b>, anexo deste documento.</p></div>`,
+    secOff('t_conduites') ? '' : ((conduitesInline && !hidePdfConduites) ? cap('Cabeamento e Conduítes',true) + `<p class="ex-p" style="margin-bottom:10px">Detalhamento de cada conduíte com cabos dentro, bitola estimada e percurso. As plantas de cabeamento por família (Dados, Som, Elétrica), com tabelas de execução, estão no <b>Plano de Obra</b>, anexo deste documento.</p>` + conduitesInline + '</div>' : `<div class="ex-sec ex-breakable" style="page-break-before:always"><h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:12px">${_capNum(++_cap)}Cabeamento e Conduítes</h2><p class="ex-p">As plantas de cabeamento por família (Dados, Som, Elétrica), com tabelas de execução, estão no <b>Plano de Obra</b>, anexo deste documento.</p></div>`),
 
     // 8. EQUIPAMENTOS E PEÇAS
-    cap('Equipamentos por Cômodo e Lista de Peças') +
+    secOff('t_pecas') ? '' : cap('Equipamentos por Cômodo e Lista de Peças') +
     (itensComodoHtml ? itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml : '') +
     ((d.pecas||[]).length?'<h3 class="ex-amb" style="margin-top:16px">Lista Completa de Peças</h3>' + T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td style="text-align:center"><b>${esc(r.qtd)}</b></td></tr>`).join(''),['Item','Qtd']):'') + '</div>',
 
     // 9. GRÁFICOS E GESTÃO
-    cap('Gráficos e Gestão do Projeto') + (grafico1 + grafico2 + grafico3 + grafico4) +
+    secOff('t_graficos') ? '' : cap('Gráficos e Gestão do Projeto') + (grafico1 + grafico2 + grafico3 + grafico4) +
     (gestaoTxt ? '<h3 class="ex-amb" style="margin-top:18px">Gestão e Controle</h3>' + gestaoTxt : '') + '</div>',
 
     // 10. OBSERVAÇÕES E FOTOS
-    (tblObservacoes||fotosTxt) ? cap('Observações e Fotos') +
+    (!secOff('t_observ') && (tblObservacoes||fotosTxt)) ? cap('Observações e Fotos') +
     (tblObservacoes ? '<h3 class="ex-amb">Observações dos Pontos</h3>' + tblObservacoes : '') +
     (fotosTxt ? '<h3 class="ex-amb" style="margin-top:16px">Fotos no Diário de Obra</h3>' + fotosTxt : '') + '</div>' : '',
 
@@ -3547,10 +3588,20 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     }
     const fontLink='<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&family=Fraunces:ital,wght@0,400;0,600;1,500&display=swap" rel="stylesheet">'
     const fluido='<style>.ex-sec,.ex-sec.ex-breakable,.ex-obra-page,.ex-doc-cover,.ex-cover{page-break-before:auto!important;page-break-inside:auto!important;break-before:auto!important;break-inside:auto!important;min-height:0!important}.ex-doc-cover,.ex-cover{margin:0!important}</style>'
+    // Quebras de página inteligentes: título NUNCA fica órfão (cola no conteúdo seguinte),
+    // planta/figura não parte no meio, linha de tabela não corta, cabeçalho de tabela repete.
+    const quebras='<style>'
+      +'h2,h3,h4,.ex-amb{break-after:avoid!important;page-break-after:avoid!important}'
+      +'.ex-plant,.ex-plant-wrap{break-inside:avoid!important;page-break-inside:avoid!important}'
+      +'.ex-plant img,.ex-obra-page img{break-inside:avoid!important}'
+      +'div[style*="padding-bottom:"][style*="position:relative"]{break-inside:avoid!important;page-break-inside:avoid!important}'
+      +'.ex-p{orphans:3;widows:3}'
+      +'.ex-tbl tr,.ex-tbl thead,tbody tr{break-inside:avoid!important}.ex-tbl thead{display:table-header-group}'
+      +'</style>'
     const _pgIsA3 = (execMode==='obra'||execMode==='eletrica'||execMode==='conduites')
     const _previewCss = preview ? `<style>html{background:#525659}body{max-width:${_pgIsA3?1512:703}px;margin:10px auto!important;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.35);padding:0 8px}</style>` : ''
     return `<html><head><title>${tituloPdf}</title><meta charset="utf-8">${fontLink}
-      <style>${pageCss} body{margin:0}${execVersao==='fable'?EXEC_CSS_FABLE:execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>${fluido}${_previewCss}</head><body>
+      <style>${pageCss} body{margin:0}${execVersao==='opus'?EXEC_CSS_OPUS:execVersao==='fable'?EXEC_CSS_FABLE:execVersao==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>${fluido}${quebras}${_previewCss}</head><body>
       ${demoWatermark()}
       ${body}
       </body></html>`
@@ -4739,7 +4790,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
               )})}
               {!isDemo() && <><span style={{width:1,height:22,background:'#E2E8F0',margin:'0 6px'}}/>
               <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:2}}>Estilo:</span>
-              {[['nova','Novo'],['antiga','Clássico'],['fable','Fable']].map(([v,label])=>(
+              {[['opus','Opus ✦'],['nova','Novo'],['antiga','Clássico'],['fable','Fable']].map(([v,label])=>(
                 <button key={v} onClick={()=>{
                   setExecVersao(v)
                   try{
@@ -4905,20 +4956,30 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Categorias</span>
                     {catList.map(c=>{ const n=markers.filter(m=>equipType(m.name)===c).length; return chip(hideCats.has(c), `${c} · ${n}`, ()=>setHideCats(p=>{const x=new Set(p); x.has(c)?x.delete(c):x.add(c); return x})) })}
                   </div>
-                  <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',borderTop:'1px solid rgba(255,255,255,0.1)',paddingTop:6,marginTop:2}}>
-                    <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5,width:'100%'}}>Seções do Plano de Obra</span>
-                    {[
-                      ['lista_geral','Lista geral de pontos'],
-                      ['quadro_cargas','Quadro de cargas'],
-                      ['caixas_embutir','Caixas de embutir'],
-                      ['pontos_tabela','Pontos: caixas e alturas'],
-                      ['alim_keypads','Alimentação dos keypads'],
-                    ].map(([k,label])=>chip(hideSecs.has(k), label, ()=>setHideSecs(p=>{const x=new Set(p); x.has(k)?x.delete(k):x.add(k); return x})))}
-                  </div>
-                  <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',borderTop:'1px solid rgba(255,255,255,0.1)',paddingTop:6,marginTop:2}}>
-                    <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5,width:'100%'}}>Tabelas do documento</span>
-                    {(()=>{ const tk=['pos_altura','itens_unicos','tbl_automacao','tbl_som','tbl_seguranca','tbl_rack','tbl_teto','lista_geral','quadro_cargas','caixas_embutir','pontos_tabela','alim_keypads']; const todasOff=tk.every(k=>hideSecs.has(k)); return chip(todasOff,'Todas as tabelas',()=>setHideSecs(p=>{const x=new Set(p); if(todasOff){tk.forEach(k=>x.delete(k))}else{tk.forEach(k=>x.add(k))} return x})) })()}
-                    {[['pos_altura','Posição e Altura'],['itens_unicos','Resumo por item (únicos)'],['tbl_automacao','Automação'],['tbl_som','Som Ambiente'],['tbl_seguranca','Segurança'],['tbl_rack','Rack / Portas'],['tbl_teto','Teto']].map(([k,label])=>chip(hideSecs.has(k), label, ()=>setHideSecs(p=>{const x=new Set(p); x.has(k)?x.delete(k):x.add(k); return x})))}
+                  <div style={{borderTop:'1px solid rgba(255,255,255,0.1)',paddingTop:8,marginTop:4}}>
+                    <span style={{fontSize:12,color:'#fff',fontWeight:600,display:'block'}}>Ocultar do documento — por tópico</span>
+                    <span style={{fontSize:10,color:'rgba(255,255,255,0.42)',display:'block',margin:'2px 0 7px'}}><b>Tópico</b> tira o título + planta + tabela. <b>Só tabela</b> mantém a planta. Riscado = fora.</span>
+                    {(()=>{
+                      const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Posição e altura'],['itens_unicos','Resumo por item (únicos)'],['tbl_automacao','Automação'],['tbl_som','Som ambiente'],['tbl_seguranca','Segurança'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto'],['t_conduites','Cabeamento e conduítes'],['t_pecas','Equipamentos e peças'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos']]
+                      const OBRA=[['t_obra_eletrica','Elétrica (caixas + alimentação)'],['t_quant','Quantitativo de material'],['t_cabos','Cabeamento por família'],['t_checklists','Checklists de obra']]
+                      const allKeys=[...EXEC,...OBRA].map(t=>t[0])
+                      const off=k=>hideSecs.has(k)
+                      const tgl=k=>()=>setHideSecs(p=>{const x=new Set(p); x.has(k)?x.delete(k):x.add(k); return x})
+                      const allOff=allKeys.every(k=>off(k))
+                      const row=([k,label,tab])=>(
+                        <div key={k} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'1.5px 0'}}>
+                          <span style={{flex:1,fontSize:11,minWidth:0,color:off(k)?'rgba(255,255,255,0.32)':'rgba(255,255,255,0.82)',textDecoration:off(k)?'line-through':'none'}}>{label}</span>
+                          {chip(off(k),'tópico',tgl(k))}
+                          {tab?chip(off(k)||off(tab),'só tabela',tgl(tab)):<span style={{width:70,flexShrink:0}}/>}
+                        </div>)
+                      return <>
+                        <div style={{marginBottom:5}}>{chip(allOff,'✦ Ocultar tudo',()=>setHideSecs(p=>{const x=new Set(p); if(allOff){allKeys.forEach(k=>x.delete(k))}else{allKeys.forEach(k=>x.add(k))} return x}))}</div>
+                        <span style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5,display:'block',margin:'6px 0 2px'}}>Projeto Executivo</span>
+                        {EXEC.map(row)}
+                        <span style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5,display:'block',margin:'8px 0 2px'}}>Plano de Obra (anexo)</span>
+                        {OBRA.map(row)}
+                      </>
+                    })()}
                   </div>
                 </div>
               </div>
@@ -5083,6 +5144,35 @@ const EXEC_CSS_FABLE = EXEC_CSS_PREMIUM + `
 .ex-tbl tbody tr:nth-child(even) td{background:#FAF5EC}
 .ex-obra-page{background:#fff}
 .ex-obra-page h2{font-family:'Fraunces','DM Serif Display',Georgia,serif;color:#131A2C;border-color:#B0854C!important}
+`
+
+// ── EXEC_CSS_OPUS: acabamento máximo. Navy profundo + dourado quente, tipografia serifada,
+// tabelas com fio dourado, espaçamento enxuto (aproveita folha) e faixa de escopo na capa.
+const EXEC_CSS_OPUS = EXEC_CSS_PREMIUM + `
+.ex-doc{font-family:'EB Garamond','Georgia',serif;color:#20252E}
+.ex-sec{padding:20px 34px 20px;border-bottom:1px solid #ECEAE3}
+.ex-sec h2{color:#0D1B2A;border-bottom:2px solid #B08D57;font-size:17.5px}
+.ex-sec-num{color:#B08D57}
+.ex-amb{color:#0D1B2A;border-left:2px solid #B08D57;font-size:12.5px}
+.ex-tbl th{background:#0D1B2A;color:#EBD9B8;letter-spacing:.4px;border-bottom:2px solid #B08D57}
+.ex-tbl td{border-bottom:1px solid #EDEBE4;color:#242B36}
+.ex-tbl tr:nth-child(even) td{background:#FBFAF7}
+.ex-p{color:#2A303B}
+.ex-cover{background:#fff;color:#0D1B2A;border-bottom:3px solid #B08D57;padding:60px 40px 36px}
+.ex-cover-top{color:#6A5A3A;letter-spacing:3.5px}
+.ex-cover-tag{color:#B08D57;letter-spacing:5px}
+.ex-cover-title{color:#0D1B2A;font-size:34px}
+.ex-cover-client{border-color:#0D1B2A}
+.ex-cc-name{color:#0D1B2A}
+.ex-cover-scope{display:flex;justify-content:center;margin:28px auto 0;max-width:600px;border-top:1px solid #E4DCC8;border-bottom:1px solid #E4DCC8}
+.ex-cover-scope>div{flex:1;padding:13px 6px;border-left:1px solid #EDE6D6}
+.ex-cover-scope>div:first-child{border-left:none}
+.ex-scope-n{font-family:'EB Garamond',serif;font-size:25px;font-weight:600;color:#0D1B2A;line-height:1}
+.ex-scope-l{font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;color:#8A7C5E;margin-top:5px}
+/* planta + tabela na MESMA folha: figura compacta que deixa espaço pra tabela embaixo */
+.ex-opus-fig{break-inside:avoid;page-break-inside:avoid;margin:4px 0 8px}
+.ex-opus-fig .ex-plant img,.ex-opus-fig img{max-height:112mm!important}
+@media print{ .ex-sec{padding:15px 26px 15px} .ex-opus-fig .ex-plant img,.ex-opus-fig img{max-height:108mm!important} }
 `
 
 const btnPrimary={background:'#0EA5E9',color:'#fff',border:'none',padding:'8px 16px',borderRadius:6,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:6}
