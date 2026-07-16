@@ -7,6 +7,8 @@ const ROLE_LABEL = { admin:'Admin (tudo)', viewer:'Visualizador', mestre:'Mestre
 export default function Admins({ admins, clients=[], currentUser, onRefresh }) {
   const [showModal, setShowModal] = useState(false)
   const [editId, setEditId] = useState(null)
+  // Modelos antigos de documento (Novo/Clássico/Fable). Padrão: ocultos — só o Opus vale.
+  const [legadosOn, setLegadosOn] = useState(()=>{ try{ return localStorage.getItem('raro_modelos_legados')==='1' }catch{ return false } })
   const [form, setForm] = useState({name:'',gmail:'',role:'admin',obra_scope:'all',client_ids:[]})
   const [showPIN, setShowPIN] = useState(false)
   const [pinAction, setPinAction] = useState(null)
@@ -112,6 +114,28 @@ export default function Admins({ admins, clients=[], currentUser, onRefresh }) {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="section" style={{marginTop:14}}>
+          <div className="sec-hdr"><div className="sec-title">Modelos de documento</div></div>
+          <div style={{padding:'12px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
+            <div style={{flex:1,minWidth:240}}>
+              <div style={{fontSize:13,fontWeight:600}}>Modelos antigos — Novo · Clássico · Fable</div>
+              <div style={{fontSize:11.5,color:'var(--text3)',marginTop:3,lineHeight:1.5}}>
+                O padrão dos documentos é o <b>Opus</b>, e os modelos antigos ficam ocultos. Ligue aqui só se precisar gerar algum documento no formato antigo — o seletor <b>Estilo</b> volta a aparecer no Projeto Executivo.
+              </div>
+            </div>
+            <button className={legadosOn?'btn danger':'btn'} style={{flexShrink:0}} onClick={()=>requirePIN(()=>{
+              const novo=!legadosOn
+              try{ localStorage.setItem('raro_modelos_legados', novo?'1':'0') }catch{}
+              setLegadosOn(novo)
+              alert(novo
+                ? 'Modelos antigos reabilitados. Abra o Projeto Executivo — o seletor "Estilo" vai aparecer.'
+                : 'Modelos antigos ocultos. Só o Opus fica disponível.')
+            })}>
+              <i className={legadosOn?'ti ti-eye-off':'ti ti-eye'} aria-hidden/>{legadosOn?'Ocultar antigos':'Reabilitar antigos'}
+            </button>
+          </div>
         </div>
       </div>
 

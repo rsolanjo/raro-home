@@ -297,7 +297,7 @@ function drawPin(m, { size=20, color='#374151', idLabel='', badgeFam=null }={}){
   const core = pinShapeSVG({ mount:mountOf(m), alt:alturaOf(m), color:col, label:String(m.n??''), size })
   const _fams = Array.isArray(badgeFam) ? badgeFam : (badgeFam ? [badgeFam] : [])
   const badge = _fams.length
-    ? _fams.map((f,i)=>`<div style="position:absolute;top:-6px;right:${-7 - i*11}px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`).join('')
+    ? _fams.map((f,i)=>`<div style="position:absolute;top:-3px;right:${-3 - i*11}px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`).join('')
     : ''
   const idl = idLabel
     ? `<div style="position:absolute;left:50%;top:${size+2}px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${idLabel}</div>`
@@ -696,7 +696,10 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [rotBg, setRotBg] = useState(null) // planta girada 90° (gerada em canvas quando necessário)
   const [plantPct, setPlantPct] = useState(100) // largura da planta nas páginas do documento (%) — ajustável na tela
   const [execData, setExecData] = useState(()=> fromProposal?.planta_data?.exec_data || null) // dados crus da IA — persistidos p/ reconstruir o documento com as opções atuais
-  const [execVersao, setExecVersao] = useState(isDemo() ? 'fable' : 'nova') // demo: Fable fixo. real: escolha livre
+  // Modelo do documento: OPUS é o padrão e o único visível.
+  // Os legados (Novo/Clássico/Fable) só reaparecem se reabilitados em Admins → Modelos de documento.
+  const modelosLegadosOn = (()=>{ try{ return localStorage.getItem('raro_modelos_legados')==='1' }catch{ return false } })()
+  const [execVersao, setExecVersao] = useState('opus')
   const [execProgress, setExecProgress] = useState('')
   const [zoom, setZoom] = useState(1)
   const [selected, setSelected] = useState(null)
@@ -1178,11 +1181,12 @@ Responda APENAS JSON válido:
   function undo(){
     setHistory(h=>{ if(!h.length) return h; const prev=h[h.length-1]; setMarkers(prev); return h.slice(0,-1) })
   }
-  // pede senha 456 + confirmação para ações destrutivas
+  // pede senha 123 + confirmação para ações destrutivas / que regeram o documento
+  const SENHA_ACAO = '123'
   function confirmarComSenha(mensagem){
-    const senha = window.prompt(`${mensagem}\n\n⚠ Ação destrutiva. Digite a senha para confirmar:`)
+    const senha = window.prompt(`${mensagem}\n\n⚠ Ação protegida. Digite a senha para confirmar:`)
     if(senha===null) return false   // cancelou
-    if(senha.trim()!=='456'){ alert('Senha incorreta. Ação cancelada.'); return false }
+    if(senha.trim()!==SENHA_ACAO){ alert('Senha incorreta. Ação cancelada.'); return false }
     return true
   }
   function limparItens(){
@@ -1801,6 +1805,8 @@ Responda APENAS JSON válido:
   }
 
   async function generateExec(){
+    // Regerar com IA sobrescreve o documento (e gasta API): exige senha.
+    if(!confirmarComSenha('Gerar/Regerar o documento com IA? Isso substitui o documento atual.')) return
     if(!confirmarGeracao()) return
     setLoading(true)
     setExecProgress('Coletando dados...')
@@ -2208,8 +2214,8 @@ Responda APENAS JSON válido:
       if(m){
         const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||color,label:String(m.n??n),size:22})
         const fam=cableFamily(m.cableType||guessCableType(m,m))
-        const seloFam = famOculta(fam.k) ? '' : `<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:4px;background:${fam.cor};color:#fff;font-size:8px;font-weight:800;border:1px solid #fff" title="${fam.nome}">${fam.L}</span>`
-        return `<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle"><span style="width:22px;height:22px;display:inline-block">${pino}</span>${seloFam}</span>`
+        const seloFam = famOculta(fam.k) ? '' : `<span style="position:absolute;top:-3px;right:-3px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${fam.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span>`
+        return `<span style="position:relative;display:inline-block;width:22px;height:22px;vertical-align:middle">${pino}${seloFam}</span>`
       }
       return `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${color};color:#fff;font-size:9px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);vertical-align:middle">${n}</span>`
     }
@@ -2236,7 +2242,7 @@ Responda APENAS JSON válido:
     if(bgImage){
       const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         const f=cableFamily(m.cableType||guessCableType(m,m))
-        const badge=(showCabo && !famOculta(f.k))?`<div style="position:absolute;top:-6px;right:-7px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
+        const badge=(showCabo && !famOculta(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
       planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
     }
@@ -2557,7 +2563,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(bgImage){
       const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         const f=cableFamily(m.cableType||guessCableType(m,m))
-        const badge=showCabo?`<div style="position:absolute;top:-6px;right:-7px;min-width:13px;height:13px;padding:0 1px;border-radius:7px;background:${f.cor};color:#fff;font-size:8.5px;font-weight:800;line-height:13px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
+        const badge=showCabo?`<div style="position:absolute;top:-3px;right:-3px;min-width:13px;height:13px;padding:0 1px;border-radius:7px;background:${f.cor};color:#fff;font-size:8.5px;font-weight:800;line-height:13px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:24px;height:24px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:24})}${badge}</div>`}).join('')
       return `<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
     }
@@ -2576,7 +2582,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const withId = showIdsTbl
     const idTh = withId ? `<th ${th} style="width:70px;text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">ID</th>` : ''
     const simb=(m)=>{ const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:String(m.n??''),size:24}); const fam=cableFamily(m.cableType||guessCableType(m,m))
-      return `<span style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:24px;height:24px">${pino}</span><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:${fam.cor};color:#fff;font-size:8.5px;font-weight:800;border:1px solid #fff" title="${fam.nome}">${fam.L}</span></span>` }
+      return `<span style="position:relative;display:inline-block;width:24px;height:24px;vertical-align:middle">${pino}<span style="position:absolute;top:-3px;right:-3px;min-width:13px;height:13px;padding:0 1px;border-radius:7px;background:${fam.cor};color:#fff;font-size:8.5px;font-weight:800;line-height:13px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span></span>` }
     return `<div class="ex-sec"><h2>Posição e Altura dos Pontos</h2>
       <p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Conferência para a obra. Cada ponto com seu símbolo: <b>cor</b> = categoria, <b>forma</b> = local (△ teto, ○ parede, □ chão), <b>tracinho</b> = altura, <b>selo</b> = cabo (E elétrica, R rede, S som).</p>
       ${rooms.map(([amb,ms])=>`
@@ -2602,7 +2608,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const th='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700"'
     const td='style="font-size:11px;padding:6px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
     const simb=(m,fam)=>{ const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:'',size:24})
-      return `<span style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:24px;height:24px">${pino}</span><span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:${fam.cor};color:#fff;font-size:8.5px;font-weight:800;border:1px solid #fff" title="${fam.nome}">${fam.L}</span></span>` }
+      return `<span style="position:relative;display:inline-block;width:24px;height:24px;vertical-align:middle">${pino}<span style="position:absolute;top:-3px;right:-3px;min-width:13px;height:13px;padding:0 1px;border-radius:7px;background:${fam.cor};color:#fff;font-size:8.5px;font-weight:800;line-height:13px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span></span>` }
     return `<div class="ex-sec"><h2>Resumo por Item (tipos únicos)</h2>
       <p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Cada tipo de ponto aparece <b>uma vez</b>, com a quantidade total. Serve de legenda: o símbolo ao lado é o mesmo que se repete na planta. <b>Cor</b> = categoria, <b>forma</b> = local, <b>selo</b> = cabo (E elétrica, R rede, S som).</p>
       <table style="width:100%;border-collapse:collapse">
@@ -3551,7 +3557,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const _fo=fazFamOculta(hideFams)
     const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
       const f=cableFamily(m.cableType||guessCableType(m,m))
-      const badge=(showCabo && !_fo(f.k))?`<div style="position:absolute;top:-6px;right:-7px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
+      const badge=(showCabo && !_fo(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
       return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
     const _wr=imgRatio||0.66
     return `<div class="ex-wall-page" style="page:wallpage;page-break-before:always;text-align:center">
@@ -4788,7 +4794,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   <i className={`ti ${icon}`} aria-hidden/>{label}
                 </button>
               )})}
-              {!isDemo() && <><span style={{width:1,height:22,background:'#E2E8F0',margin:'0 6px'}}/>
+              {!isDemo() && modelosLegadosOn && <><span style={{width:1,height:22,background:'#E2E8F0',margin:'0 6px'}}/>
               <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:2}}>Estilo:</span>
               {[['opus','Opus ✦'],['nova','Novo'],['antiga','Clássico'],['fable','Fable']].map(([v,label])=>(
                 <button key={v} onClick={()=>{
