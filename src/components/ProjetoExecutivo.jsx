@@ -152,7 +152,12 @@ function classifyEle(m){
     const mb=n.match(/(\d+)\s*(bot|tecla|gang)/)
     const nb=mb?parseInt(mb[1]):1
     if(nb>=6) return {sym:'interruptor_6', label:'S6', tipo:`Interruptor/Keypad ${nb} teclas`}
-    if(nb>=3) return {sym:'interruptor_intermediario', label:`S${nb}`, tipo:`Interruptor/Keypad ${nb} teclas`}
+    // 4-5 teclas → interruptor_4 (S4). Antes caía em interruptor_intermediario, que DESENHA S3
+    // com a sigla escrita "S4" — o mesmo ponto dizia S3 e S4. De quebra, interruptor_4 é o que
+    // caixaPadrao() usa pra devolver 4x4; sem passar por aqui, keypad de 4 teclas ia pro
+    // quantitativo como 4x2. Não existe glifo S5: o 5 teclas usa o S4 e o "tipo" carrega o nº real.
+    if(nb>=4) return {sym:'interruptor_4', label:'S4', tipo:`Interruptor/Keypad ${nb} teclas`}
+    if(nb===3) return {sym:'interruptor_intermediario', label:'S3', tipo:'Interruptor/Keypad 3 teclas'}
     if(nb===2) return {sym:'interruptor_paralelo', label:'S2', tipo:'Interruptor/Keypad 2 teclas'}
     return {sym:'interruptor_simples', label:'S', tipo:'Interruptor / Keypad'}
   }
@@ -1951,6 +1956,9 @@ Responda APENAS JSON válido:
     // ── LEGENDA MESTRE (decisão 3): símbolo técnico NBR + pino da planta lado a lado,
     // só dos tipos presentes no projeto. Mesma legenda em todos os documentos.
     const legendaMestreHtml = (()=>{
+      // OPUS: a legenda vira a lista dos tipos desta planta (legendaOpusHtml). Os outros
+      // modelos seguem com a legenda abstrata cor/forma/selo + grade NBR, intactos.
+      if((versao||execVersao)==='opus') return legendaOpusHtml()
       const vistos=new Map()
       markers.forEach(m=>{ const c=classifyEle(m); if(c && !vistos.has(c.sym)) vistos.set(c.sym,{sym:c.sym,tipo:(ELE_TYPE_INFO[c.sym]?.tipo)||c.tipo||'',m}) })
       const NIVL={piso:'chão',baixa:'0,30 m',media:'1,10 m',alta:'1,80 m',teto:'teto'}
@@ -2595,6 +2603,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   })()}
 
   ${(()=>{ if(isObra||_eletr||secOff('itens_unicos')) return ''
+    // OPUS: a legenda embaixo da planta JÁ é esta tabela (mesma dedup, e ainda com ABNT +
+    // desempate). Manter as duas era imprimir o mesmo conteúdo 2×. Os outros modelos seguem.
+    if(_opus) return ''
     // Tabela de ITENS ÚNICOS: um item por tipo (dedup por nome+altura+local+sistema),
     // com a quantidade. Ex.: 3 câmeras externas viram 1 linha "Câmera externa 4MP ·×3".
     const NIV={piso:'chão',baixa:'0,30 m',media:'1,10 m',alta:'1,80 m',teto:'teto'}
@@ -3550,6 +3561,122 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 </div>`
   }
 
+  // Cor do pino — FONTE ÚNICA. A planta desenha com catColorOf(m) || EQUIP_STYLE; a legenda
+  // caía num cinza fixo quando catColorOf devolvia null (itens sem categoria mapeada, tipo
+  // "Módulo de cortina"), então legenda e planta mostravam o MESMO ponto em cores diferentes
+  // (cinza #64748B × índigo #6366F1). Quem desenha pino usa isto, e só isto.
+  function corDoPino(m){
+    return catColorOf(m) || (EQUIP_STYLE[equipType(m && m.name)] || EQUIP_STYLE.Outro).c
+  }
+
+  // Código do TIPO do ponto (KP2, KP4, SPEMB…) — é ele que casa o desenho na planta com a linha
+  // da legenda, porque itens diferentes desenham igual (Keypad 2 e 4 teclas = círculo verde + R).
+  // Vem do CATÁLOGO, indexado por nome: o marcador só tem a etiqueta da instância (m.code =
+  // "KP-01"), que não sabe o tipo. Sem casar no catálogo, cai no prefixo da instância ("KP-01"
+  // → "KP") — ambíguo, mas melhor que nada.
+  const _codeByName = useMemo(()=>{
+    const map=new Map()
+    ;(catalog||[]).forEach(c=>{ if(c && c.name && c.code) map.set(String(c.name).trim().toLowerCase(), String(c.code).trim()) })
+    return map
+  },[catalog])
+  function tipoCodigo(m){
+    if(!m) return ''
+    const doCat=_codeByName.get(String(m.name||'').trim().toLowerCase())
+    if(doCat) return doCat
+    const inst=String(m.code||m.id||'')
+    const pref=inst.split(/[-_\s]/)[0]
+    return (pref && /[A-Za-z]/.test(pref)) ? pref.toUpperCase() : inst
+  }
+
+  // Legenda OPUS: a legenda É a lista do que existe NESTA planta, um símbolo por TIPO
+  // (10 keystones no teto = 1 linha ×10). O código do catálogo (KP2/KP4/SPEMB) desempata
+  // desenhos idênticos — Keypad 2 e 4 teclas são o mesmo círculo verde. Substitui a legenda
+  // abstrata cor/forma/selo, que obrigava o peão a fazer 3 consultas e combinar de cabeça.
+  function legendaOpusHtml(){
+    const _fo = fazFamOculta(hideFams)
+    const _e = s => String(s==null?'':s).replace(/</g,'&lt;')
+    const vis = markers.filter(m=>!isRackItem(m.name,m.code) && !hideCats.has(equipType(m.name)) && m.name)
+    if(!vis.length) return ''
+    const NIVL={piso:'no chão',baixa:'0,30 m',media:'1,10 m',alta:'1,80 m',teto:'no teto'}
+    const grupos=new Map()
+    // Agrupa por NOME (não por m.code: esse é a etiqueta da INSTÂNCIA — KP-01, SP-02 — e
+    // agruparia 1 linha por ponto). Nome + altura + local + cabo = um desenho, uma linha.
+    vis.forEach(m=>{ const fam=cableFamily(m.cableType||guessCableType(m,m))
+      const chave=[m.name,alturaOf(m),mountOf(m),fam.k].join('|')
+      if(!grupos.has(chave)) grupos.set(chave,{m,fam,qtd:0})
+      grupos.get(chave).qtd++ })
+    const linhas=[...grupos.values()].sort((a,b)=>(a.m.name||'').localeCompare(b.m.name||''))
+    // O pino NÃO leva código na planta (poluía com muitos itens). Então, quando dois tipos
+    // DESENHAM IGUAL (mesma cor+forma+selo — Keypad 2 e 4 teclas), a legenda ficaria ambígua.
+    // Nesses casos — e só neles — a linha diz em quais pontos aquele tipo está. Desenho único
+    // não ganha nada, então a coluna não incha quando o projeto é grande.
+    const desenho=g=>[corDoPino(g.m),mountOf(g.m),alturaOf(g.m),_fo(g.fam.k)?'':g.fam.k].join('|')
+    const porDesenho=new Map()
+    linhas.forEach(g=>{ const d=desenho(g); porDesenho.set(d,(porDesenho.get(d)||0)+1) })
+    const numerosDe=g=>vis.filter(m=>m.name===g.m.name && alturaOf(m)===alturaOf(g.m) && mountOf(m)===mountOf(g.m))
+      .map(m=>m.n).filter(n=>n!=null).sort((a,b)=>a-b)
+
+    const exemplo=`<svg width="66" height="44" viewBox="0 0 66 44" style="flex-shrink:0;overflow:visible">
+      <circle cx="33" cy="24" r="17" fill="#DC2626" stroke="#fff" stroke-width="3"/>
+      <text x="33" y="30.5" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="15" font-weight="800" fill="#fff">9</text>
+      <circle cx="47" cy="11" r="7.5" fill="#2563EB" stroke="#fff" stroke-width="2"/>
+      <text x="47" y="14.5" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="7.5" font-weight="800" fill="#fff">R</text>
+    </svg>`
+    const diz=(o,t)=>`<div style="font-size:10px;color:#334155;line-height:1.45"><b style="color:#0D1B2A">${o}</b> ${t}</div>`
+    const anatomia=`<div style="display:flex;align-items:center;gap:16px;padding:11px 13px;background:#fff;border:1px solid #E2E8F0;border-radius:8px;margin-bottom:7px">
+      ${exemplo}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 18px;flex:1">
+        ${diz('A cor','diz o que é.')}
+        ${diz('A forma','diz onde instalar: △ teto · ○ parede · □ chão.')}
+        ${diz('O selo','diz o cabo: E elétrica · R rede · S som.')}
+        ${diz('O número','é o nº do ponto: acha na lista abaixo e nas tabelas.')}
+        ${diz('A coluna ABNT','é o mesmo símbolo da Planta Elétrica (S2 = 2 teclas, S4 = 4).')}
+      </div>
+    </div>`
+
+    const th='style="text-align:left;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700"'
+    const td='style="font-size:10.5px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
+    // Ponte com a Planta Elétrica: o mesmo símbolo ABNT (S2/S4/TUG…) que aparece lá. É a norma
+    // que já resolve "quantas teclas" — S2 = 2 teclas, S4 = 4 teclas. Ponto não-elétrico: "—".
+    const abnt=(m)=>{ const c=classifyEle(m); if(!c) return '<span style="color:#CBD5E1">—</span>'
+      const sim=ELE_SYMBOLS[c.sym]||ELE_SYMBOLS.generico
+      return `<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle"><svg viewBox="-12 -14 24 32" width="17" height="22" style="flex-shrink:0">${sim}</svg><span style="font-family:monospace;font-size:9px;color:#475569">${_e(c.label||'')}</span></span>` }
+    const simb=(m,fam)=>{ const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:corDoPino(m),label:'',size:22})
+      const selo=_fo(fam.k)?'':`<span style="position:absolute;top:-3px;right:-3px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${fam.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${fam.L}</span>`
+      return `<span style="position:relative;display:inline-block;width:22px;height:22px;vertical-align:middle">${pino}${selo}</span>` }
+    const corpo=linhas.map(g=>{
+      const {m,fam,qtd}=g
+      const cod=tipoCodigo(m)
+      const ambiguo=(porDesenho.get(desenho(g))||0)>1
+      const ns=ambiguo?numerosDe(g):[]
+      const dica=ns.length?`<div style="font-size:9px;color:#B45309;font-weight:600;margin-top:1px">mesmo desenho de outro item — ${ns.length===1?'ponto':'pontos'} ${ns.join(', ')}</div>`:''
+      return `<tr>
+        <td ${td} style="text-align:center;padding:3px 8px;border-bottom:.5px solid #E2E8F0">${simb(m,fam)}</td>
+        <td ${td} style="text-align:center;padding:3px 6px;border-bottom:.5px solid #E2E8F0">${abnt(m)}</td>
+        <td ${td} style="font-family:monospace;font-weight:700;color:#0D1B2A">${_e(cod)||'—'}</td>
+        <td ${td} style="font-weight:600">${_e(m.name)||'—'}${dica}</td>
+        <td ${td}>${NIVL[alturaOf(m)]||'—'}</td>
+        <td ${td} style="font-weight:600;color:${_fo(fam.k)?'#94A3B8':fam.cor}">${_fo(fam.k)?'—':_e(fam.nome)}</td>
+        <td ${td} style="text-align:right;font-weight:800">×${qtd}</td>
+      </tr>` }).join('')
+
+    return `<div style="margin-top:10px;padding:11px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px">
+      <div style="font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94A3B8;margin-bottom:7px">Legenda — o que existe nesta planta</div>
+      ${anatomia}
+      <table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #E2E8F0;border-radius:6px">
+        <thead><tr>
+          <th ${th} style="width:44px;text-align:center;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Pino</th>
+          <th ${th} style="width:56px;text-align:center;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 6px;border-bottom:1.5px solid #CBD5E1;font-weight:700" title="Mesmo símbolo da Planta Elétrica">ABNT</th>
+          <th ${th} style="width:64px;text-align:left;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Código</th>
+          <th ${th}>O que é</th><th ${th} style="width:62px;text-align:left;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Altura</th>
+          <th ${th} style="width:78px;text-align:left;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Cabo</th>
+          <th ${th} style="width:38px;text-align:right;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Qtd.</th>
+        </tr></thead>
+        <tbody>${corpo}</tbody>
+      </table>
+    </div>`
+  }
+
   // Página "parede da obra" (#4): planta completa GRANDE (A4 paisagem), só planta + legenda,
   // ancorada por aspect-ratio + object-fit:fill (pinos em % ficam exatos). Aparece 1× e por último.
   function buildWallPage(){
@@ -3565,7 +3692,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       <div style="position:relative;margin:0 auto;max-width:100%;max-height:172mm;aspect-ratio:${(1/_wr).toFixed(4)};border:1px solid #bbb">
         <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill"/>${dots}
       </div>
-      <div style="margin-top:8px;text-align:left">${pontosLegenda()}</div>
+      <div style="margin-top:8px;text-align:left">${execVersao==='opus'?legendaOpusHtml():pontosLegenda()}</div>
     </div>`
   }
   function buildFullHtml(preview=false){
