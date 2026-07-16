@@ -51,47 +51,111 @@ function equipType(name='') {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// SÍMBOLOS ELÉTRICOS — padrão ABNT NBR 5444 (representação em planta baixa)
-// Cada símbolo é um <g> SVG desenhado num espaço ~20×20 centrado em (0,0).
+// SÍMBOLOS ELÉTRICOS — padrão da prancha de legenda da RARO (foto do quadro
+// "LEGENDA DE PONTOS DE ELÉTRICA", 16/07/2026). Espaço ~20×20 centrado em (0,0).
+//
+// A GRAMÁTICA (não inventar fora dela):
+//  · Todo ponto de parede é um "pirulito": HASTE horizontal à esquerda (encosta
+//    na parede) + CABEÇA que diz o que é.
+//  · PREENCHIMENTO = ALTURA. Vazado = 0,30m · metade = 1,10m · cheio = 1,80m.
+//    (era o "tracinho" de 2px de antes — invisível impresso; o preenchimento
+//    se lê de longe e sobrevive ao preto e branco.)
+//  · PISO e TETO saem da parede: viram a cabeça DENTRO DE UM QUADRADO, sem
+//    haste. Piso = vazado (é o mais baixo), teto = cheio (o mais alto).
+//  · COR = sistema. Vermelho = comando/iluminação (keypad, arandela, luz).
+//    Azul = o resto (tomada, rede, som).
+//  · Keypad: círculo vermelho + N-1 traços radiais = N teclas (1 tecla = liso).
+//    As letras a/b/c da prancha original nomeiam o CIRCUITO de cada tecla —
+//    não se aplicam aqui: na RARO é tudo Zigbee/cena, o keypad não fia circuito.
+//  · Three-way (3W) e four-way (4W) da prancha NÃO entram: são topologia de
+//    fiação, e a RARO não puxa paralelo — dois keypads na mesma luz é cena.
 // ─────────────────────────────────────────────────────────────────────────
+const ELE_AZUL = '#2563EB'   // tomada, rede, som — tudo que não é comando
+const ELE_VERM = '#DC2626'   // keypad, arandela, ponto de luz — comando/iluminação
+// Haste do pirulito: sai à esquerda e encosta na cabeça.
+const _haste = (cor=ELE_AZUL) => `<line x1="-11.5" y1="0" x2="-6" y2="0" stroke="${cor}" stroke-width="1.3"/>`
+// Cabeça triangular da tomada, apontando pra direita. nivel: 0 vazado · 1 metade · 2 cheio.
+// O "metade" corta na vertical: enche a porção colada na haste.
+const _seta = (nivel, cor=ELE_AZUL) => {
+  const pts='-6,-6.5 6,0 -6,6.5'
+  if(nivel>=2) return `<polygon points="${pts}" fill="${cor}" stroke="${cor}" stroke-width="1.2" stroke-linejoin="round"/>`
+  const base=`<polygon points="${pts}" fill="#fff" stroke="${cor}" stroke-width="1.2" stroke-linejoin="round"/>`
+  if(nivel<=0) return base
+  return base+`<polygon points="-6,-6.5 0,-3.25 0,3.25 -6,6.5" fill="${cor}"/>`
+}
+// Caixa de piso/teto: a cabeça dentro de um quadrado, sem haste.
+const _caixa = (cor=ELE_AZUL) => `<rect x="-9.5" y="-9.5" width="19" height="19" fill="#fff" stroke="${cor}" stroke-width="1.3"/>`
+// Meia-lua da arandela (luz de parede), preenchida conforme a altura.
+const _arandela = (nivel) => {
+  const meia='M-7 5 A7 7 0 0 1 7 5 Z'
+  const corpo = nivel>=2
+    ? `<path d="${meia}" fill="${ELE_VERM}" stroke="${ELE_VERM}" stroke-width="1.2"/>`
+    : nivel>=1
+    ? `<path d="${meia}" fill="#fff" stroke="${ELE_VERM}" stroke-width="1.2"/><path d="M-7 5 A7 7 0 0 1 0 -2 L0 5 Z" fill="${ELE_VERM}"/>`
+    : `<path d="${meia}" fill="#fff" stroke="${ELE_VERM}" stroke-width="1.2"/>`
+  return corpo+`<line x1="-9" y1="5" x2="9" y2="5" stroke="${ELE_VERM}" stroke-width="1.3"/>`
+}
+// Keypad: círculo vermelho + (n-1) traços radiais no topo = n teclas.
+const _keypad = (n) => {
+  const t=[]
+  for(let i=1;i<Math.min(n,6);i++){
+    const ang=-90+(i-(Math.min(n,6)-1)/2)*22
+    const r1=7, r2=10.5, rad=ang*Math.PI/180
+    t.push(`<line x1="${(Math.cos(rad)*r1).toFixed(2)}" y1="${(Math.sin(rad)*r1).toFixed(2)}" x2="${(Math.cos(rad)*r2).toFixed(2)}" y2="${(Math.sin(rad)*r2).toFixed(2)}" stroke="${ELE_VERM}" stroke-width="1.2" stroke-linecap="round"/>`)
+  }
+  return `<circle r="7" fill="#fff" stroke="${ELE_VERM}" stroke-width="1.4"/>${t.join('')}`
+}
+// Cabeça quadrada com letra dentro (rede, som, caixa de passagem) — como na prancha.
+const _letra = (L, cor=ELE_AZUL, nivel=0) => {
+  const q=`<rect x="-6.5" y="-6.5" width="13" height="13" fill="#fff" stroke="${cor}" stroke-width="1.3"/>`
+  const meio = nivel>=2 ? `<rect x="-6.5" y="-6.5" width="13" height="13" fill="${cor}"/>`
+    : nivel>=1 ? `<rect x="-6.5" y="0" width="13" height="6.5" fill="${cor}"/>` : ''
+  const txt = L ? `<text x="0" y="3.2" font-size="8" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="700" fill="${nivel>=2?'#fff':cor}">${L}</text>` : ''
+  return q+meio+txt
+}
 const ELE_SYMBOLS = {
   // Tomada baixa (até 0,30m) — círculo com meia-lua preenchida + 2 traços (NBR 5444)
-  tomada_baixa: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="0" y1="-11" x2="0" y2="-7" stroke="#111" stroke-width="1.3"/>`,
-  // Tomada média/alta (1,30m+) — igual com 3 traços de altura
-  tomada_media: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="-2.5" y1="-11" x2="-2.5" y2="-7" stroke="#111" stroke-width="1.1"/><line x1="2.5" y1="-11" x2="2.5" y2="-7" stroke="#111" stroke-width="1.1"/>`,
-  tomada_alta: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="-4" y1="-11" x2="-4" y2="-7" stroke="#111" stroke-width="1.1"/><line x1="0" y1="-11" x2="0" y2="-7" stroke="#111" stroke-width="1.1"/><line x1="4" y1="-11" x2="4" y2="-7" stroke="#111" stroke-width="1.1"/>`,
-  // Tomada de piso — círculo com X dentro
-  tomada_piso: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-4.5" y1="-4.5" x2="4.5" y2="4.5" stroke="#111" stroke-width="1.2"/><line x1="-4.5" y1="4.5" x2="4.5" y2="-4.5" stroke="#111" stroke-width="1.2"/>`,
-  tomada_teto: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><path d="M-7 0 A7 7 0 0 1 7 0 Z" fill="#111"/><line x1="0" y1="7" x2="0" y2="11" stroke="#111" stroke-width="1.3"/><text x="0" y="-1.5" font-size="5.5" font-weight="700" text-anchor="middle" fill="#fff">T</text>`,
-  keystone_teto: `<rect x="-7" y="-7" width="14" height="14" rx="2" fill="#fff" stroke="#111" stroke-width="1.2"/><circle cx="0" cy="0" r="3.5" fill="none" stroke="#111" stroke-width="1.1"/><line x1="0" y1="7" x2="0" y2="11" stroke="#111" stroke-width="1.2"/><text x="0" y="-9" font-size="5" text-anchor="middle" fill="#111">KS</text>`,
-  keystone_alto: `<rect x="-6.5" y="-6.5" width="13" height="13" rx="2" fill="#fff" stroke="#2563EB" stroke-width="1.3"/><circle cx="0" cy="0" r="3" fill="none" stroke="#2563EB" stroke-width="1.1"/><line x1="0" y1="-10.5" x2="0" y2="-6.5" stroke="#2563EB" stroke-width="1.2"/>`,
-  keystone_baixo: `<rect x="-6.5" y="-6.5" width="13" height="13" rx="2" fill="#fff" stroke="#2563EB" stroke-width="1.3"/><circle cx="0" cy="0" r="3" fill="none" stroke="#2563EB" stroke-width="1.1"/><line x1="0" y1="6.5" x2="0" y2="10.5" stroke="#2563EB" stroke-width="1.2"/>`,
-  ponto_som_teto: `<circle r="7" fill="#fff" stroke="#BE185D" stroke-width="1.4"/><circle r="3" fill="#BE185D"/><line x1="0" y1="7" x2="0" y2="11" stroke="#BE185D" stroke-width="1.3"/>`,
-  ponto_som_parede: `<circle r="7" fill="#fff" stroke="#BE185D" stroke-width="1.4"/><circle r="3" fill="#BE185D"/><line x1="0" y1="-11" x2="0" y2="-7" stroke="#BE185D" stroke-width="1.3"/>`,
-  ponto_som_piso: `<rect x="-7" y="-7" width="14" height="14" fill="#fff" stroke="#BE185D" stroke-width="1.4"/><circle r="3" fill="#BE185D"/>`,
-  ponto_energia_piso: `<rect x="-7" y="-7" width="14" height="14" fill="#fff" stroke="#16A34A" stroke-width="1.4"/><line x1="-4" y1="0" x2="4" y2="0" stroke="#16A34A" stroke-width="1.3"/><line x1="0" y1="-4" x2="0" y2="4" stroke="#16A34A" stroke-width="1.3"/>`,
-  ponto_energia_parede: `<circle r="7" fill="#fff" stroke="#16A34A" stroke-width="1.5"/><line x1="-4.5" y1="0" x2="4.5" y2="0" stroke="#16A34A" stroke-width="1.3"/><line x1="0" y1="-4.5" x2="0" y2="4.5" stroke="#16A34A" stroke-width="1.3"/><line x1="0" y1="-11" x2="0" y2="-7" stroke="#16A34A" stroke-width="1.2"/>`,
-  interruptor_4: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3.5" font-size="7.5" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S4</text>`,
-  // Ponto de energia no teto (fase+neutro) — círculo com cruz (símbolo de ponto de luz/saída no teto, NBR)
-  ponto_energia_teto: `<circle r="7" fill="#fff" stroke="#16A34A" stroke-width="1.5"/><line x1="-4.5" y1="0" x2="4.5" y2="0" stroke="#16A34A" stroke-width="1.3"/><line x1="0" y1="-4.5" x2="0" y2="4.5" stroke="#16A34A" stroke-width="1.3"/>`,
-  // Interruptor simples — letra S (representação usual em planta)
-  interruptor_simples: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3" font-size="7.5" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S1</text>`,
-  // Interruptor paralelo (three-way) — S com traço
-  interruptor_paralelo: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3" font-size="7.5" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S2</text>`,
-  // Interruptor intermediário (four-way)
-  interruptor_intermediario: `<circle r="7" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3" font-size="7.5" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S3</text>`,
-  interruptor_6: `<circle r="7.5" fill="#fff" stroke="#111" stroke-width="1.3"/><text x="0" y="3" font-size="7" text-anchor="middle" font-family="serif" font-weight="700" fill="#111">S6</text>`,
-  // Ponto de luz no teto — círculo com 4 traços (luminária)
-  ponto_luz: `<circle r="6.5" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="0" x2="-6.5" y2="0" stroke="#111" stroke-width="1.1"/><line x1="6.5" y1="0" x2="9" y2="0" stroke="#111" stroke-width="1.1"/><line x1="0" y1="-9" x2="0" y2="-6.5" stroke="#111" stroke-width="1.1"/><line x1="0" y1="6.5" x2="0" y2="9" stroke="#111" stroke-width="1.1"/><circle r="2" fill="#111"/>`,
-  // Arandela (luz de parede) — meio círculo
-  arandela: `<path d="M-7 6 A7 7 0 0 1 7 6 Z" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="6" x2="9" y2="6" stroke="#111" stroke-width="1.3"/>`,
-  arandela_teto: `<circle r="6.5" fill="#fff" stroke="#111" stroke-width="1.3"/><line x1="-9" y1="0" x2="-6.5" y2="0" stroke="#111" stroke-width="1.1"/><line x1="6.5" y1="0" x2="9" y2="0" stroke="#111" stroke-width="1.1"/><circle r="2" fill="#fff" stroke="#111" stroke-width="1"/>`,
-  prumada: `<circle r="8" fill="#fff" stroke="#7C3AED" stroke-width="1.6"/><path d="M0 -5 L0 5 M-3 -2 L0 -5 L3 -2 M-3 2 L0 5 L3 2" fill="none" stroke="#7C3AED" stroke-width="1.4" stroke-linecap="round"/>`,
-  caixa_conduite: `<rect x="-8" y="-8" width="16" height="16" fill="#fff" stroke="#1E3A8A" stroke-width="1.6" stroke-dasharray="2,1"/><line x1="-8" y1="0" x2="8" y2="0" stroke="#1E3A8A" stroke-width="1.2"/><line x1="0" y1="-8" x2="0" y2="8" stroke="#1E3A8A" stroke-width="1.2"/>`,
-  modulo_cabeceira: `<rect x="-11" y="-7" width="22" height="14" rx="2" fill="#fff" stroke="#111" stroke-width="1.2"/><circle cx="-6" cy="0" r="3" fill="none" stroke="#111" stroke-width="1"/><line x1="-7.5" y1="-1.5" x2="-4.5" y2="1.5" stroke="#111" stroke-width="0.9"/><line x1="-7.5" y1="1.5" x2="-4.5" y2="-1.5" stroke="#111" stroke-width="0.9"/><rect x="-1" y="-3" width="3" height="6" rx="1" fill="none" stroke="#111" stroke-width="0.9"/><text x="7" y="2.5" font-size="5.5" text-anchor="middle" font-weight="700" fill="#0891B2">USB</text>`,
-  // Quadro de distribuição (QDL)
-  quadro: `<rect x="-10" y="-7" width="20" height="14" fill="#fff" stroke="#111" stroke-width="1.5"/><line x1="-10" y1="-2.5" x2="10" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="-5" y1="-7" x2="-5" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="0" y1="-7" x2="0" y2="-2.5" stroke="#111" stroke-width="1"/><line x1="5" y1="-7" x2="5" y2="-2.5" stroke="#111" stroke-width="1"/>`,
-  // Genérico
+  // ── TOMADAS (azul) — haste + seta; preenchimento = altura ──
+  tomada_baixa: _haste() + _seta(0),
+  tomada_media: _haste() + _seta(1),
+  tomada_alta:  _haste() + _seta(2),
+  tomada_piso:  _caixa() + `<polygon points="-5,-5.5 5,0 -5,5.5" fill="#fff" stroke="${ELE_AZUL}" stroke-width="1.2" stroke-linejoin="round"/>`,
+  tomada_teto:  _caixa() + `<polygon points="-5,-5.5 5,0 -5,5.5" fill="${ELE_AZUL}" stroke="${ELE_AZUL}" stroke-width="1.2" stroke-linejoin="round"/>`,
+
+  // ── REDE / KEYSTONE (azul) — cabeça quadrada com R, preenchimento = altura ──
+  keystone_baixo: _haste() + _letra('R', ELE_AZUL, 0),
+  keystone_alto:  _haste() + _letra('R', ELE_AZUL, 1),
+  keystone_teto:  _caixa() + `<text x="0" y="3.2" font-size="8" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="700" fill="${ELE_AZUL}">R</text>`,
+
+  // ── SOM (azul) — cabeça quadrada com S, como "CAIXA DE SOM NA PAREDE" da prancha ──
+  ponto_som_parede: _haste() + _letra('S', ELE_AZUL, 2),
+  ponto_som_teto:   _caixa() + `<text x="0" y="3.2" font-size="8" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="700" fill="${ELE_AZUL}">S</text>`,
+  ponto_som_piso:   _caixa() + `<text x="0" y="3.2" font-size="8" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="600" fill="${ELE_AZUL}">S</text>`,
+
+  // ── PONTO DE ENERGIA (azul) — tomada de força: seta com traço, altura pelo preenchimento ──
+  ponto_energia_parede: _haste() + _seta(1) + `<line x1="-3" y1="-9" x2="-3" y2="9" stroke="${ELE_AZUL}" stroke-width="1.1"/>`,
+  ponto_energia_teto:   _caixa() + `<polygon points="-5,-5.5 5,0 -5,5.5" fill="${ELE_AZUL}"/><line x1="-2" y1="-7" x2="-2" y2="7" stroke="#fff" stroke-width="1.1"/>`,
+  ponto_energia_piso:   _caixa() + `<polygon points="-5,-5.5 5,0 -5,5.5" fill="#fff" stroke="${ELE_AZUL}" stroke-width="1.2"/><line x1="-2" y1="-5" x2="-2" y2="5" stroke="${ELE_AZUL}" stroke-width="1.1"/>`,
+
+  // ── KEYPADS (vermelho) — traços radiais = nº de teclas. Sem 3W/4W: a RARO não faz paralelo. ──
+  interruptor_simples:       _haste(ELE_VERM) + _keypad(1),
+  interruptor_paralelo:      _haste(ELE_VERM) + _keypad(2),   // nome legado = 2 teclas
+  interruptor_intermediario: _haste(ELE_VERM) + _keypad(3),   // nome legado = 3 teclas
+  interruptor_4:             _haste(ELE_VERM) + _keypad(4),
+  interruptor_6:             _haste(ELE_VERM) + _keypad(6),
+
+  // ── ILUMINAÇÃO (vermelho) ──
+  arandela:      _haste(ELE_VERM) + _arandela(1),
+  arandela_teto: _caixa(ELE_VERM) + `<path d="M-6 4 A6 6 0 0 1 6 4 Z" fill="${ELE_VERM}"/>`,
+  ponto_luz:     `<circle r="6.5" fill="#fff" stroke="${ELE_VERM}" stroke-width="1.3"/><line x1="-9.5" y1="0" x2="-6.5" y2="0" stroke="${ELE_VERM}" stroke-width="1.2"/><line x1="6.5" y1="0" x2="9.5" y2="0" stroke="${ELE_VERM}" stroke-width="1.2"/><line x1="0" y1="-9.5" x2="0" y2="-6.5" stroke="${ELE_VERM}" stroke-width="1.2"/><line x1="0" y1="6.5" x2="0" y2="9.5" stroke="${ELE_VERM}" stroke-width="1.2"/><circle r="2" fill="${ELE_VERM}"/>`,
+
+  // ── CAIXA DE PASSAGEM (azul) — quadrado limpo, como na prancha ──
+  caixa_conduite: _haste() + _letra('', ELE_AZUL, 0),
+
+  // ── Fora da prancha da RARO: não têm símbolo na legenda, desenhados no mesmo idioma ──
+  modulo_cabeceira: _haste() + `<rect x="-6.5" y="-6.5" width="13" height="13" fill="#fff" stroke="${ELE_AZUL}" stroke-width="1.3"/><rect x="-6.5" y="0" width="13" height="6.5" fill="${ELE_AZUL}"/><text x="0" y="-1.5" font-size="6" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="700" fill="${ELE_AZUL}">M</text>`,
+  quadro: `<rect x="-10" y="-7" width="20" height="14" fill="#fff" stroke="${ELE_VERM}" stroke-width="1.5"/><line x1="-10" y1="-2.5" x2="10" y2="-2.5" stroke="${ELE_VERM}" stroke-width="1"/><line x1="-5" y1="-7" x2="-5" y2="-2.5" stroke="${ELE_VERM}" stroke-width="1"/><line x1="0" y1="-7" x2="0" y2="-2.5" stroke="${ELE_VERM}" stroke-width="1"/><line x1="5" y1="-7" x2="5" y2="-2.5" stroke="${ELE_VERM}" stroke-width="1"/>`,
+  prumada: `<circle r="8" fill="#fff" stroke="${ELE_AZUL}" stroke-width="1.5"/><path d="M0 -5 L0 5 M-3 -2 L0 -5 L3 -2 M-3 2 L0 5 L3 2" fill="none" stroke="${ELE_AZUL}" stroke-width="1.4" stroke-linecap="round"/>`,
   generico: `<circle r="6" fill="#fff" stroke="#111" stroke-width="1.2"/><circle r="1.6" fill="#111"/>`,
 }
 // classifica um marcador em símbolo elétrico NBR
@@ -104,11 +168,15 @@ const ELE_TYPE_INFO = {
   ponto_energia_teto:{label:'⊕T', tipo:'Ponto elétrica no teto (fase+neutro)'},
   ponto_energia_piso:{label:'⊕P', tipo:'Ponto elétrica no piso'},
   ponto_energia_parede:{label:'⊕', tipo:'Ponto elétrica na parede'},
-  interruptor_simples:{label:'S1', tipo:'Interruptor 1 tecla'},
-  interruptor_paralelo:{label:'S2', tipo:'Interruptor 2 teclas'},
-  interruptor_intermediario:{label:'S3', tipo:'Interruptor 3 teclas'},
-  interruptor_4:{label:'S4', tipo:'Interruptor 4 teclas'},
-  interruptor_6:{label:'S6', tipo:'Interruptor / Keypad 6 teclas'},
+  // As chaves interruptor_paralelo/intermediario são LEGADO: os nomes dizem topologia
+  // (paralelo = three-way, intermediário = four-way), mas sempre significaram nº de teclas
+  // aqui. A RARO não puxa paralelo — é tudo Zigbee/cena —, então a topologia não existe no
+  // escopo e a única propriedade é a tecla. Chave mantida pra não quebrar projeto salvo.
+  interruptor_simples:{label:'1 tecla', tipo:'Keypad 1 tecla'},
+  interruptor_paralelo:{label:'2 teclas', tipo:'Keypad 2 teclas'},
+  interruptor_intermediario:{label:'3 teclas', tipo:'Keypad 3 teclas'},
+  interruptor_4:{label:'4 teclas', tipo:'Keypad 4 teclas'},
+  interruptor_6:{label:'6 teclas', tipo:'Keypad 6 teclas'},
   modulo_cabeceira:{label:'MOD', tipo:'Módulo cabeceira (tomada+interruptor+2 USB)'},
   keystone_alto:{label:'KS-M', tipo:'Keystone parede média (1,10m) CAT6'},
   keystone_teto:{label:'KS-T', tipo:'Keystone de teto (rede)'},
@@ -145,21 +213,25 @@ function classifyEle(m){
   if(/caixa.*conduite|conduite.*caixa|caixa.*passagem|caixa.*deriva|junction/.test(n)) return {sym:'caixa_conduite', label:'CX', tipo:'Caixa de conduíte (passagem/derivação)'}
   if(/prumada|shaft|descida.*andar|descida.*pavimento|coluna.*vertical/.test(n)) return {sym:'prumada', label:'⇵', tipo:'Prumada (descida entre pavimentos)'}
   if(/quadro|qdl|qd |distribui/.test(n)) return {sym:'quadro', label:'QDL', tipo:'Quadro de Distribuição'}
-  if(/interruptor.*(intermedi|four)/.test(n)) return {sym:'interruptor_intermediario', label:'S3', tipo:'Interruptor 3 teclas'}
-  if(/interruptor.*(paralel|three|hotel)|paralelo/.test(n)) return {sym:'interruptor_paralelo', label:'S2', tipo:'Interruptor 2 teclas'}
-  // keypad: detecta nº de botões/teclas (ex: "Keypad 2 botões" → interruptor 2 teclas)
-  if(/keypad|botão|botões|botoes|tecla|interruptor/.test(n)){
+  // Keypad: a ÚNICA propriedade que importa é o nº de teclas — a RARO não puxa paralelo
+  // (three-way) nem intermediário (four-way): dois keypads na mesma luz é cena Zigbee, não
+  // fiação. Por isso "paralelo/three-way/hotel" no nome NÃO define topologia aqui; se vier,
+  // o nº de teclas do nome continua mandando. Chaves interruptor_paralelo/intermediario são
+  // legado e valem 2 e 3 teclas (ver ELE_TYPE_INFO).
+  if(/keypad|botão|botões|botoes|tecla|interruptor|pulsador|paralelo/.test(n)){
     const mb=n.match(/(\d+)\s*(bot|tecla|gang)/)
     const nb=mb?parseInt(mb[1]):1
-    if(nb>=6) return {sym:'interruptor_6', label:'S6', tipo:`Interruptor/Keypad ${nb} teclas`}
-    // 4-5 teclas → interruptor_4 (S4). Antes caía em interruptor_intermediario, que DESENHA S3
-    // com a sigla escrita "S4" — o mesmo ponto dizia S3 e S4. De quebra, interruptor_4 é o que
+    const nTec=Math.max(1,nb)
+    const info=(sym)=>({sym, label:`${nTec} tecla${nTec>1?'s':''}`, tipo:`Keypad ${nTec} tecla${nTec>1?'s':''}`})
+    // 4-5 teclas → interruptor_4. Antes caía em interruptor_intermediario, que DESENHA 3 traços,
+    // com a sigla escrita "S4" — o mesmo ponto dizia S3 e S4. E interruptor_4 é o que
     // caixaPadrao() usa pra devolver 4x4; sem passar por aqui, keypad de 4 teclas ia pro
-    // quantitativo como 4x2. Não existe glifo S5: o 5 teclas usa o S4 e o "tipo" carrega o nº real.
-    if(nb>=4) return {sym:'interruptor_4', label:'S4', tipo:`Interruptor/Keypad ${nb} teclas`}
-    if(nb===3) return {sym:'interruptor_intermediario', label:'S3', tipo:'Interruptor/Keypad 3 teclas'}
-    if(nb===2) return {sym:'interruptor_paralelo', label:'S2', tipo:'Interruptor/Keypad 2 teclas'}
-    return {sym:'interruptor_simples', label:'S', tipo:'Interruptor / Keypad'}
+    // quantitativo como 4x2.
+    if(nTec>=6) return info('interruptor_6')
+    if(nTec>=4) return info('interruptor_4')
+    if(nTec===3) return info('interruptor_intermediario')
+    if(nTec===2) return info('interruptor_paralelo')
+    return info('interruptor_simples')
   }
   if(/tomada.*teto|tomada de teto/.test(n)) return {sym:'tomada_teto', label:'TUG-T', tipo:'Tomada de teto'}
   if(/tomada.*piso|tomada.*ch[ãa]o/.test(n)) return {sym:'tomada_piso', label:'TUG-P', tipo:'Tomada de piso'}
