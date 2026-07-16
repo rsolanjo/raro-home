@@ -224,7 +224,7 @@ function classifyEle(m){
     const mb=n.match(/(\d+)\s*(bot|tecla|gang)/)
     const nb=mb?parseInt(mb[1]):1
     const nTec=Math.max(1,nb)
-    const info=(sym)=>({sym, label:`${nTec} tecla${nTec>1?'s':''}`, tipo:`Interruptor ${nTec} tecla${nTec>1?'s':''}`})
+    const info=(sym)=>({sym, teclas:nTec, label:`${nTec} tecla${nTec>1?'s':''}`, tipo:`Interruptor ${nTec} tecla${nTec>1?'s':''}`})
     // 4-5 teclas → interruptor_4. Antes caía em interruptor_intermediario, que DESENHA 3 traços,
     // com a sigla escrita "S4" — o mesmo ponto dizia S3 e S4. E interruptor_4 é o que
     // caixaPadrao() usa pra devolver 4x4; sem passar por aqui, keypad de 4 teclas ia pro
@@ -249,6 +249,59 @@ function classifyEle(m){
   if(/arandela/.test(n)) return {sym:'arandela', label:'L', tipo:'Arandela de parede'}
   if(/luz|luminária|luminaria|spot|lustre|plafon|ponto de luz/.test(n)) return {sym:'ponto_luz', label:'L', tipo:'Ponto de luz'}
   return null  // não é elétrico → não entra na planta elétrica
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CAIXA E CABO POR PONTO — FONTE ÚNICA.
+//
+// É a resposta do Plano de Obra: o peão está com a parede crua na frente e só
+// precisa saber ONDE deixar a ponta e QUE cabo é. Antes isto vivia em TRÊS lugares
+// que se contradiziam no MESMO documento (o ponto KP-04, keypad de 2 teclas, saía
+// como "4×4 + NEUTRO · 3×2,5mm² (F+N+T)" na Automação e "4x2 · 2×1,5mm² (retorno)"
+// na Planta Elétrica):
+//   · caboDe()/caixaDe()  — hardcoded dentro do gerador sem IA
+//   · caixaPadrao()       — no módulo, usado pela planta elétrica e pelo quantitativo
+//   · fiosDe()            — hardcoded dentro do renderizador
+// Agora é só isto aqui. Se divergir de novo, é porque alguém recriou uma tabela.
+//
+// REGRAS (ditadas pelo Raphael + convenções RARO já escritas no prompt da IA):
+//  · Caixa do keypad: até 3 teclas = 4x2 · acima de 3 = 4x4.
+//  · Cabo do keypad: SEMPRE fase+neutro+terra 2,5mm². Keypad Zigbee é dispositivo
+//    ALIMENTADO — não é interruptor burro, não leva "retorno". O "2×1,5mm² (retorno)"
+//    que a Planta Elétrica mostrava tratava o keypad como interruptor comum.
+const SPEC_PADRAO = { caixa:'—', cabo:'—' }
+function specDoPonto(m){
+  if(!m) return SPEC_PADRAO
+  if(m.caixaTipo || m.caboTipo){
+    const base = _specAuto(m)
+    return { caixa: m.caixaTipo || base.caixa, cabo: m.caboTipo || base.cabo }
+  }
+  return _specAuto(m)
+}
+function _specAuto(m){
+  const c = classifyEle(m)
+  const sym = (c && c.sym) || ''
+  const n = (((m && m.name) || '') + ' ' + ((m && m.note) || '')).toLowerCase()
+  if(/interruptor/.test(sym)){
+    const t = (c && c.teclas) || 1
+    return { caixa: t<=3 ? '4x2' : '4x4', cabo:'3×2,5mm² (F+N+T)' }
+  }
+  if(sym==='modulo_cabeceira')            return { caixa:'4x2', cabo:'3×2,5mm² (F+N+T)' }
+  if(/^tomada/.test(sym))                 return { caixa: sym==='tomada_piso' ? 'caixa de piso' : sym==='tomada_teto' ? 'forro' : '4x2', cabo:'3×2,5mm²' }
+  if(/^ponto_energia/.test(sym))          return { caixa: sym==='ponto_energia_piso' ? 'caixa de piso' : sym==='ponto_energia_teto' ? 'forro' : '4x2', cabo:'3×2,5mm² (F+N+T)' }
+  if(/^keystone/.test(sym))               return { caixa: sym==='keystone_teto' ? 'forro' : '4x2', cabo:'CAT6' }
+  if(/^ponto_som/.test(sym))              return { caixa: sym==='ponto_som_teto' ? 'forro' : sym==='ponto_som_piso' ? 'caixa de piso' : '4x2', cabo:'2×1,5mm²' }
+  if(sym==='ponto_luz'||/^arandela/.test(sym)) return { caixa:'forro', cabo:'2×1,5mm²' }
+  if(sym==='quadro')                      return { caixa:'quadro', cabo:'alimentação geral' }
+  if(sym==='caixa_conduite')              return { caixa:'passagem', cabo:'—' }
+  if(sym==='prumada')                     return { caixa:'—', cabo:'—' }
+  // Não-elétricos: câmera, AP, sensor, cortina/módulo — caem pelo nome.
+  if(/cortina|persiana/.test(n))          return { caixa:'forro', cabo:'2×2,5mm² (F+N)' }
+  if(/m[óo]dulo|qarz/.test(n))            return { caixa:'forro', cabo:'2×2,5mm² (F+N)' }
+  if(/c[âa]mera|camera|dome|access point|\bap\b|wi-?fi/.test(n)) return { caixa:'forro', cabo:'CAT6 PoE' }
+  if(/sensor|presen[çc]a/.test(n))        return { caixa:'forro', cabo:'CAT6' }
+  if(/som|caixa ac|amplificador|receiver/.test(n)) return { caixa:'forro', cabo:'2×1,5mm²' }
+  return SPEC_PADRAO
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1718,8 +1771,11 @@ Responda APENAS JSON válido:
     const isSensor  = m => /sensor|presença/.test(lc(m.name))
     const isHubIR   = m => /hub ir|qair/.test(lc(m.name))
     const alturaDe = m => isKeypad(m) ? '1,10m' : isTomada(m) ? '0,30m' : isCortina(m) ? '2,55m' : isModulo(m) ? 'forro' : isCam(m)||isAP(m) ? 'teto' : isSom(m) ? 'teto' : isSensor(m) ? '2,20m' : '—'
-    const caixaDe  = m => isKeypad(m) ? '4×4 + NEUTRO' : isTomada(m) ? '4×2' : isModulo(m)||isCortina(m) ? 'forro' : '—'
-    const caboDe   = m => isKeypad(m) ? '3×2,5mm² (F+N+T)' : isTomada(m) ? '3×2,5mm²' : isCam(m)||isAP(m) ? 'CAT6 PoE' : isSom(m) ? '2×1,5mm²' : isCortina(m)||isModulo(m) ? '2×2,5mm² (F+N)' : 'CAT6'
+    // Caixa e cabo vêm da FONTE ÚNICA (specDoPonto). Antes eram hardcoded aqui e
+    // contradiziam a planta elétrica no mesmo documento — inclusive dando "4×4 + NEUTRO"
+    // pra todo keypad, quando a regra é 4x2 até 3 teclas.
+    const caixaDe  = m => specDoPonto(m).caixa
+    const caboDe   = m => specDoPonto(m).cabo
 
     const aps  = markers.filter(isAP).length
     const cams = markers.filter(isCam).length
@@ -2083,8 +2139,10 @@ Responda APENAS JSON válido:
       const altPadrao = sym => ({tomada_baixa:'0,30m',tomada_alta:'1,30m',tomada_piso:'piso',tomada_teto:'teto',
         interruptor_simples:'1,10m',interruptor_paralelo:'1,10m',interruptor_intermediario:'1,10m',
         ponto_luz:'teto',ponto_energia_teto:'teto',arandela:'2,20m',arandela_teto:'teto',quadro:'1,50m'})[sym]||'—'
-      // bitola/fios por tipo — elétrica 1,5mm²
-      const fiosDe = sym => /tomada/.test(sym)?'3×1,5mm² (F+N+T)':/interruptor/.test(sym)?'2×1,5mm² (retorno)':/luz|arandela|energia/.test(sym)?'2×1,5mm²':sym==='quadro'?'alimentação geral':'—'
+      // Bitola/fios: FONTE ÚNICA (specDoPonto), recebendo o MARCADOR — não o sym.
+      // Antes esta tabela era hardcoded aqui e dizia "2×1,5mm² (retorno)" pro keypad,
+      // tratando um dispositivo Zigbee alimentado como interruptor burro.
+      const fiosDe = m => specDoPonto(m).cabo
       // ── símbolos como SVG individuais (cada um num quadradinho que NÃO distorce) ──
       // tomadas ficam menores (costumam ser muitas); demais maiores
       const symPxDe = sym => /tomada/.test(sym) ? 21 : 30
@@ -2118,7 +2176,7 @@ Responda APENAS JSON válido:
         const cond = cab ? (CABLE_CONDUITE[cab.type] ? 'compartilhado' : 'exclusivo') : '—'
         const mt = cab?cableMeters(cab):null
         const origem = cab ? (markers.find(x=>x.uid===(cab.fromUid===m.uid?cab.toUid:cab.fromUid))?.name||'Quadro') : (qdl?'Quadro QDL':'—')
-        const cx = m.caixaTipo || caixaPadrao(cls.sym) || '—'
+        const cx = specDoPonto(m).caixa || '—'
         return `<tr>
           <td style="text-align:center"><span style="display:inline-flex;align-items:center;gap:3px"><svg viewBox="-12 -14 24 30" width="22" height="27" style="overflow:visible">${ELE_SYMBOLS[cls.sym]||ELE_SYMBOLS.generico}</svg><span style="font-size:8.5px;font-weight:800;color:#131A2C;border:1px solid #131A2C;border-radius:50%;width:13px;height:13px;display:inline-flex;align-items:center;justify-content:center">${m.n}</span></span></td>
           <td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td>
@@ -2126,7 +2184,7 @@ Responda APENAS JSON válido:
           <td style="font-size:11px">${esc(m.room||'—')}</td>
           <td style="font-weight:700">${esc(m.note&&/\d/.test(m.note)?m.note:altPadrao(cls.sym))}</td>
           <td style="text-align:center;font-weight:600">${esc(cx)}</td>
-          <td style="font-size:10.5px">${esc(fiosDe(cls.sym))}</td>
+          <td style="font-size:10.5px">${esc(fiosDe(m))}</td>
           <td>${esc(origem)}</td>
           <td style="font-size:10.5px">${esc(cond)}</td>
           <td style="text-align:right">${mt!=null?mt+'m':'—'}</td>
@@ -2164,7 +2222,7 @@ Responda APENAS JSON válido:
         </div></div>`
       const titulo = numFn ? `<h2><span class="ex-sec-num">${numFn()}</span>Planta Elétrica (ABNT NBR 5444)</h2>` : `<h2>Planta Elétrica (ABNT NBR 5444)</h2>`
       // resumo de caixas de embutir (lista de compra do eletricista)
-      const cxCount={}; eleMarks.forEach(({m,cls})=>{ const cx=m.caixaTipo||caixaPadrao(cls.sym); if(cx) cxCount[cx]=(cxCount[cx]||0)+1 })
+      const cxCount={}; eleMarks.forEach(({m})=>{ const cx=specDoPonto(m).caixa; if(cx&&cx!=='—') cxCount[cx]=(cxCount[cx]||0)+1 })
       const cxResumo = Object.keys(cxCount).length ? `<h3 class="ex-amb" style="margin-top:16px">Caixas de Embutir — Resumo</h3>
         ${T(Object.entries(cxCount).sort().map(([cx,n])=>`<tr><td style="font-weight:700;text-align:center">${esc(cx)}</td><td style="text-align:center">${n}</td><td style="font-size:10px;color:#64748B">${cx==='4x4'?'Keypad 6 teclas / 4+ módulos':cx==='4x2'?'Interruptores e tomadas (1–3 módulos)':cx==='octogonal'?'Pontos de teto':''}</td></tr>`).join(''),['Caixa','Qtd','Uso'])}` : ''
       return `<div class="ex-sec ex-breakable">${titulo}
@@ -2666,12 +2724,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const simb=(m)=>{ const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:String(m.n??''),size:24}); const fam=cableFamily(m.cableType||guessCableType(m,m))
       return `<span style="position:relative;display:inline-block;width:24px;height:24px;vertical-align:middle">${pino}<span style="position:absolute;top:-3px;right:-3px;min-width:13px;height:13px;padding:0 1px;border-radius:7px;background:${fam.cor};color:#fff;font-size:8.5px;font-weight:800;line-height:13px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span></span>` }
     return `<div class="ex-sec"><h2>Posição e Altura dos Pontos</h2>
-      <p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Conferência para a obra. Cada ponto com seu símbolo: <b>cor</b> = categoria, <b>forma</b> = local (△ teto, ○ parede, □ chão), <b>tracinho</b> = altura, <b>selo</b> = cabo (E elétrica, R rede, S som).</p>
+      <p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Conferência para a obra, cômodo a cômodo: <b>onde</b> deixar a ponta e <b>qual cabo</b> é. O símbolo repete o da planta — <b>forma</b> = local (△ teto, ○ parede, □ chão), <b>selo</b> = família do cabo.</p>
       ${rooms.map(([amb,ms])=>`
         <div style="font-size:12px;font-weight:700;color:#0369A1;margin:12px 0 4px">${amb} <span style="font-weight:400;color:#94A3B8">· ${ms.length} ${ms.length===1?'ponto':'pontos'}</span></div>
         <table style="width:100%;border-collapse:collapse">
-          <thead><tr><th ${th} style="width:70px;text-align:center;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Ponto</th>${idTh}<th ${th}>Item</th><th ${th}>Local</th><th ${th}>Altura</th><th ${th}>Sistema</th></tr></thead>
-          <tbody>${ms.map(m=>{ const fam=cableFamily(m.cableType||guessCableType(m,m)); return `<tr><td ${td} style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0">${simb(m)}</td>${withId?`<td ${td} style="font-family:monospace;font-size:10px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#475569">${m.id||m.code||('#'+m.n)}</td>`:''}<td ${td}>${m.name||'—'}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td} style="font-weight:600;font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B">${NIV[alturaOf(m)]||'—'}</td><td ${td} style="font-weight:600;color:${fam.cor}">${famOculta(fam.k)?'—':fam.nome}</td></tr>`}).join('')}</tbody>
+          <thead><tr><th ${th} style="width:70px;text-align:center;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Ponto</th>${idTh}<th ${th}>Item</th><th ${th}>Local</th><th ${th}>Altura</th><th ${th}>Caixa</th><th ${th}>Cabo</th></tr></thead>
+          <tbody>${ms.map(m=>{ const sp=specDoPonto(m); return `<tr><td ${td} style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0">${simb(m)}</td>${withId?`<td ${td} style="font-family:monospace;font-size:10px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#475569">${m.id||m.code||('#'+m.n)}</td>`:''}<td ${td}>${funcaoDoPonto(m)}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td} style="font-weight:600;font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B">${NIV[alturaOf(m)]||'—'}</td><td ${td} style="text-align:center;font-weight:700">${sp.caixa||'—'}</td><td ${td} style="font-weight:600;font-size:10.5px">${sp.cabo||'—'}</td></tr>`}).join('')}</tbody>
         </table>`).join('')}
     </div>`
   })()}
@@ -3522,8 +3580,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const plantaEle = embedded ? '' : buildPlantaEletrica(null)  // no Completo, _full já traz a planta elétrica; aqui ficam só as tabelas
         const tabelaCaixas = (!secOff('pontos_tabela') && els.length) ? `<h3 class="ex-amb" style="margin-top:18px">Pontos Elétricos — Caixas e Alturas</h3>
           <p class="ex-p" style="color:#6B7280">Qual caixa embutir e em que altura, por ponto.</p>`+
-          T(els.map(m=>{ const cls=classifyEle(m); const cx=m.caixaTipo||caixaPadrao(cls.sym)||'—'
-            return `<tr><td style="text-align:center">${pin(m.n,undefined,m)}</td><td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td><td>${esc(cls.tipo)}</td><td>${esc(m.room||'—')}</td><td style="text-align:center;font-weight:700">${esc(cx)}</td><td style="font-weight:700">${NIVL[alturaOf(m)]||'—'}</td></tr>`}).join(''),['Nº','ID','Tipo','Cômodo','Caixa','Altura']) : ''
+          T(els.map(m=>{ const cls=classifyEle(m); const sp=specDoPonto(m)
+            return `<tr><td style="text-align:center">${pin(m.n,undefined,m)}</td><td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td><td>${esc(cls.tipo)}</td><td>${esc(m.room||'—')}</td><td style="text-align:center;font-weight:700">${esc(sp.caixa||'—')}</td><td style="font-weight:700">${NIVL[alturaOf(m)]||'—'}</td><td style="font-size:10px">${esc(sp.cabo||'—')}</td></tr>`}).join(''),['Nº','ID','Tipo','Cômodo','Caixa','Altura','Cabo']) : ''
         const tabelaAlim = (!secOff('alim_keypads') && (d.alim_keypads||[]).length) ? `<h3 class="ex-amb" style="margin-top:18px">Alimentação dos Keypads (Fase + Neutro)</h3>
           <p class="ex-p" style="color:#6B7280">Keypads exigem neutro no fundo da caixa. Circuito dedicado do quadro.</p>`+
           T(d.alim_keypads.map(r=>`<tr>${pinCell(r.destino,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x1,5mm²')}</td></tr>`).join(''),['Nº','ID','Origem','Destino (Keypad)','Altura','Cômodo','m','Fios']) : ''
@@ -3532,7 +3590,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           ${plantaEle}${tabelaCaixas}${tabelaAlim}</div>`
       })()
       const obraQuant = (()=>{
-        const caixas={}; markers.filter(isPontoEletrico).forEach(m=>{ const cx=m.caixaTipo||caixaPadrao(classifyEle(m).sym); if(cx) caixas[cx]=(caixas[cx]||0)+1 })
+        const caixas={}; markers.filter(isPontoEletrico).forEach(m=>{ const cx=specDoPonto(m).caixa; if(cx&&cx!=='—') caixas[cx]=(caixas[cx]||0)+1 })
         const fams={}; cablesUnificados(cables,markers).filter(c=>!c.free).forEach(c=>{ const f=cableFamily(c.type||'dados'); if(famOculta(f.k)) return; const mt=cableMeters(c)||0; fams[f.nome]=(fams[f.nome]||0)+mt })
         const conds=(cables||[]).filter(c=>c.free); const condM=conds.reduce((s,c)=>s+(cableMeters(c)||0),0)
         const rows=[
