@@ -269,6 +269,64 @@ function classifyEle(m){
 //  · Cabo do keypad: SEMPRE fase+neutro+terra 2,5mm². Keypad Zigbee é dispositivo
 //    ALIMENTADO — não é interruptor burro, não leva "retorno". O "2×1,5mm² (retorno)"
 //    que a Planta Elétrica mostrava tratava o keypad como interruptor comum.
+// FAMÍLIA DO CABO DO PONTO — fonte única, e com regra dura por cima do cadastro.
+//
+// "Keypad nunca é rede, é elétrica... keystone é" (Raphael). É regra do negócio, não default:
+// o keypad Zigbee é alimentado (3×2,5mm² F+N+T), então marcá-lo como Rede/Dados fazia o MESMO
+// ponto declarar duas famílias no documento — selo R na planta e cabo elétrico na tabela.
+// Por isso aqui a regra VENCE o m.cableType gravado: dado torto no cadastro (ou semente antiga)
+// não tem direito de contradizer o cabo. guessCableType já classificava certo — o problema era
+// que ele só falava quando não havia cableType.
+function guessCableType(from, to){
+  const n=((from&&from.name)+' '+(to&&to.name)).toLowerCase()
+  if(/uplink|gateway|dream machine|provedor|ont|modem/.test(n)) return 'uplink'
+  if(/som|caixa ac[uú]stica|caixa de som|amplificador|receiver|subwoofer|sub /.test(n)) return 'som'
+  if(/tv|hdmi|tel[aã]o|projetor|matriz de v[ií]deo/.test(n)) return 'hdmi'
+  if(/sensor|presen[çc]a|mmwave|infraverm|receptor ir/.test(n)) return 'eletrica'
+  if(/keypad|interruptor|tomada|m[óo]dulo|cortina|hub ir|quadro|qdl|pulsador|pulsante/.test(n)) return 'eletrica'
+  return 'dados'
+}
+// Família do cabo do ponto. Quem MANDA são os dois campos do editor — "Tipo do ponto" e
+// "Cabo que chega neste ponto". O app não sobrepõe a escolha de quem cadastrou: se não houver
+// escolha, sugere pelo nome (guessCableType, que já sabe que keypad é elétrica).
+// A coerência entre tipo e cabo é CONFERIDA, não imposta — ver alertaDoPonto().
+function familiaDoPontoTipo(m){
+  return (m && m.cableType) || guessCableType(m, m)
+}
+
+// FAMÍLIA QUE O TIPO EXIGE fisicamente — ou null quando o tipo aceita mais de uma.
+// Não serve pra sobrescrever nada; serve pra saber quando avisar.
+function familiaExigidaPeloTipo(m){
+  const c = classifyEle(m)
+  if(c){
+    if(/^interruptor/.test(c.sym) || c.sym==='modulo_cabeceira') return 'eletrica'
+    if(/^tomada/.test(c.sym) || /^ponto_energia/.test(c.sym)) return 'eletrica'
+    if(c.sym==='ponto_luz' || /^arandela/.test(c.sym)) return 'eletrica'
+    if(/^keystone/.test(c.sym)) return 'dados'
+    if(/^ponto_som/.test(c.sym)) return 'som'
+    return null
+  }
+  // Fora do classifyEle (que só conhece ponto ELÉTRICO): sensor mmW e módulo/cortina são
+  // Zigbee alimentados — exigem elétrica. Sem isto o sensor não era conferido por ninguém.
+  const n = (((m && m.name) || '') + ' ' + ((m && m.note) || '')).toLowerCase()
+  if(/sensor|presen[çc]a|mmwave/.test(n)) return 'eletrica'
+  if(/cortina|persiana|m[óo]dulo|qarz/.test(n)) return 'eletrica'
+  return null
+}
+
+// ALERTA de combinação impossível: "tomada no teto com cabo de rede" não existe — não tem como.
+// Devolve null quando está coerente, ou o texto do aviso. Quem decide continua sendo o editor;
+// isto só bate na mesa antes de virar documento e ir pra obra.
+const _FAM_NOME = { eletrica:'elétrica', dados:'rede', som:'som', hdmi:'HDMI', uplink:'uplink', fibra:'fibra óptica' }
+function alertaDoPonto(m){
+  const exige = familiaExigidaPeloTipo(m)
+  if(!exige) return null
+  const tem = familiaDoPontoTipo(m)
+  if(tem === exige) return null
+  const c = classifyEle(m)
+  const oQue = (c && c.tipo) || 'este ponto'
+  return `${oQue} não recebe cabo de ${_FAM_NOME[tem]||tem} — é ponto de ${_FAM_NOME[exige]||exige}.`
+}
 const SPEC_PADRAO = { caixa:'—', cabo:'—' }
 function specDoPonto(m){
   if(!m) return SPEC_PADRAO
@@ -299,9 +357,120 @@ function _specAuto(m){
   if(/cortina|persiana/.test(n))          return { caixa:'forro', cabo:'2×2,5mm² (F+N)' }
   if(/m[óo]dulo|qarz/.test(n))            return { caixa:'forro', cabo:'2×2,5mm² (F+N)' }
   if(/c[âa]mera|camera|dome|access point|\bap\b|wi-?fi/.test(n)) return { caixa:'forro', cabo:'CAT6 PoE' }
-  if(/sensor|presen[çc]a/.test(n))        return { caixa:'forro', cabo:'CAT6' }
+  // Sensor mmW é ELÉTRICA (Raphael) — eu tinha escrito CAT6 aqui, chutando. É dispositivo
+  // Zigbee alimentado, igual ao módulo: fase+neutro no forro, não puxa rede.
+  if(/sensor|presen[çc]a|mmwave/.test(n)) return { caixa:'forro', cabo:'2×2,5mm² (F+N)' }
   if(/som|caixa ac|amplificador|receiver/.test(n)) return { caixa:'forro', cabo:'2×1,5mm²' }
   return SPEC_PADRAO
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// IDIOMA DOS PINOS (planta de pontos) — definido pelo Raphael, 16/07/2026.
+// Duas leituras só, e cada uma tem UM dono:
+//   · FORMA + COR = o que o ponto é.
+//   · PREENCHIMENTO = a altura.  (mesma lógica da prancha de elétrica deles)
+// Mais os traços do interruptor = nº de teclas (1 traço = 1 tecla, 6 = 6).
+// Antes a cor era "categoria" (6 cores) e a forma era o plano de montagem, com um
+// tracinho de 2px pra altura — ilegível impresso. Agora a altura é o preenchimento,
+// que se lê de longe e sobrevive ao P&B.
+// ─────────────────────────────────────────────────────────────────────────
+const PIN_TIPOS = {
+  interruptor: { forma:'circulo',  cor:'#DC2626', nome:'Interruptor' },
+  tomada:      { forma:'seta',     cor:'#2563EB', nome:'Tomada' },
+  rede:        { forma:'meialua',  cor:'#F59E0B', nome:'Ponto de rede' },
+  som:         { forma:'quadrado', cor:'#EA580C', nome:'Ponto de som' },
+  eletrica:    { forma:'losango',  cor:'#111827', nome:'Ponto de elétrica' },
+  quadro:      { forma:'quadro',   cor:'#111827', nome:'Quadro QDL' },
+}
+function pinTipoDe(m){
+  const c = classifyEle(m)
+  const sym = (c && c.sym) || ''
+  const n = (((m && m.name) || '') + ' ' + ((m && m.code) || '')).toLowerCase()
+  if(sym==='quadro' || /quadro|qdl/.test(n)) return 'quadro'
+  if(/^interruptor/.test(sym)) return 'interruptor'
+  if(/^tomada/.test(sym)) return 'tomada'
+  if(/^keystone/.test(sym)) return 'rede'
+  if(/^ponto_som/.test(sym)) return 'som'
+  if(/^ponto_energia/.test(sym) || sym==='ponto_luz' || /^arandela/.test(sym) || sym==='modulo_cabeceira') return 'eletrica'
+  // Fora do classifyEle: o que importa é o PONTO que fica na parede, não o aparelho.
+  if(/c[âa]mera|camera|dome|bullet|access point|\bap\b|wi-?fi|keystone|\bks\b/.test(n)) return 'rede'
+  if(/som|caixa ac|caixa de som|alto-?falante|speaker|subwoofer/.test(n)) return 'som'
+  if(/sensor|presen[çc]a|mmwave|cortina|persiana|m[óo]dulo|qarz/.test(n)) return 'eletrica'
+  return 'eletrica'
+}
+// Letra dentro da meia lua: diz QUAL ponto de rede é. Substitui o selo "R", que só repetia
+// o que a cor amarela já diz.
+function pinLetraDe(m){
+  if(pinTipoDe(m)!=='rede') return ''
+  const n = (((m && m.name) || '') + ' ' + ((m && m.code) || '')).toLowerCase()
+  if(/c[âa]mera|camera|dome|bullet/.test(n)) return 'C'
+  if(/access point|\bap\b|wi-?fi|u6|u7|uap/.test(n)) return 'A'
+  return 'K'
+}
+// Preenchimento = altura. vazio 0,30 · metade horizontal 1,10 · metade vertical 1,80 ·
+// cheio teto · X piso.
+function pinFillDe(m){
+  const a = alturaOf(m)
+  if(a==='teto')  return 'cheio'
+  if(a==='piso')  return 'x'
+  if(a==='alta')  return 'meiaV'
+  if(a==='media') return 'meiaH'
+  return 'vazio'
+}
+let _pinSeq = 0
+function pinNovoSVG({ m, size=22, label='', sel=false }){
+  const tipo = pinTipoDe(m)
+  const T = PIN_TIPOS[tipo] || PIN_TIPOS.eletrica
+  const cor = T.cor
+  const fill = tipo==='quadro' ? 'cheio' : pinFillDe(m)
+  const id = 'pc'+(++_pinSeq)
+  const corpo = {
+    circulo:  `<circle cx="12" cy="12" r="9.5"/>`,
+    seta:     `<polygon points="4,3.5 20.5,12 4,20.5"/>`,
+    meialua:  `<path d="M12 2.5 A9.5 9.5 0 0 1 12 21.5 Z"/>`,
+    quadrado: `<rect x="3" y="3" width="18" height="18" rx="1.5"/>`,
+    losango:  `<polygon points="12,2 22,12 12,22 2,12"/>`,
+    quadro:   `<rect x="1.5" y="5.5" width="21" height="13" rx="1.5"/>`,
+  }[T.forma]
+  // A área preenchida é sempre recortada pela própria forma — nunca vaza.
+  const recorte = {
+    vazio: '',
+    meiaH: `<rect x="0" y="12" width="24" height="12"/>`,
+    meiaV: `<rect x="0" y="0" width="12" height="24"/>`,
+    cheio: `<rect x="0" y="0" width="24" height="24"/>`,
+    x:     '',
+  }[fill]
+  // O retângulo da metade é desenhado DENTRO do clip da forma — por isso nunca vaza.
+  const preenchimento = fill==='x'
+    ? `<g clip-path="url(#${id})"><line x1="1" y1="1" x2="23" y2="23" stroke="${cor}" stroke-width="3"/><line x1="23" y1="1" x2="1" y2="23" stroke="${cor}" stroke-width="3"/></g>`
+    : fill==='vazio' ? ''
+    : `<g clip-path="url(#${id})">${recorte.replace('/>',` fill="${cor}"/>`)}</g>`
+  // Traços do interruptor = nº de teclas.
+  const teclas = tipo==='interruptor' ? (((classifyEle(m)||{}).teclas) || 1) : 0
+  let tics=''
+  for(let i=0;i<teclas;i++){
+    const ang = -90 + (i-(teclas-1)/2)*20
+    const r = ang*Math.PI/180
+    tics += `<line x1="${(12+Math.cos(r)*9.5).toFixed(2)}" y1="${(12+Math.sin(r)*9.5).toFixed(2)}" x2="${(12+Math.cos(r)*13).toFixed(2)}" y2="${(12+Math.sin(r)*13).toFixed(2)}" stroke="${cor}" stroke-width="1.6" stroke-linecap="round"/>`
+  }
+  const letra = pinLetraDe(m)
+  // Número do ponto: contorno branco (paint-order) pra ficar legível sobre qualquer
+  // preenchimento — cheio, meio ou X.
+  const txt = label!=='' && label!=null
+    ? `<text x="12" y="15.8" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="10" fill="${cor}" stroke="#fff" stroke-width="2.6" paint-order="stroke" style="paint-order:stroke">${label}</text>`
+    : ''
+  const letraTxt = letra
+    ? `<text x="14.5" y="15.4" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="8" fill="#7C4A03" stroke="#fff" stroke-width="2" paint-order="stroke" style="paint-order:stroke">${letra}</text>`
+    : ''
+  const halo = sel ? `<g opacity="0.32">${corpo.replace('/>',` fill="${cor}"/>`)}</g>` : ''
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="display:block;overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.45))">`
+    + `<defs><clipPath id="${id}">${corpo}</clipPath></defs>`
+    + halo
+    + corpo.replace('/>',` fill="#fff" stroke="${cor}" stroke-width="1.8" stroke-linejoin="round"/>`)
+    + preenchimento + tics
+    + (tipo==='quadro' ? `<line x1="1.5" y1="9.5" x2="22.5" y2="9.5" stroke="#fff" stroke-width="1.1"/>` : '')
+    + (letra ? letraTxt : txt)
+    + `</svg>`
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -398,7 +567,11 @@ function fazFamOculta(hideFamsSet){
 }
 
 // Desenha o pin como SVG (forma + borda branca + número). Reutilizável no editor e nas plantas geradas.
-function pinShapeSVG({ mount='parede', alt='', color='#374151', label='', size=22, sel=false }){
+// Recebendo o MARCADOR (m), desenha no idioma novo: forma+cor = o que é, preenchimento =
+// altura, traços = teclas. Sem m (exemplos genéricos da legenda antiga), cai no desenho
+// velho — os modelos legados continuam coerentes com a legenda deles.
+function pinShapeSVG({ m=null, mount='parede', alt='', color='#374151', label='', size=22, sel=false }){
+  if(m) return pinNovoSVG({ m, size, label, sel })
   const shape = SHAPE_BY_ALT[alt] || SHAPE_BY_MOUNT[mount] || 'circulo'
   const stroke='#fff', sw=2, txt=_textOn(color)
   let body='', halo=''
@@ -426,10 +599,10 @@ function pinShapeSVG({ mount='parede', alt='', color='#374151', label='', size=2
 // Pin completo posicionado (forma por local + cor + selo de cabo opcional + rótulo opcional).
 function drawPin(m, { size=20, color='#374151', idLabel='', badgeFam=null }={}){
   const col = catColorOf(m) || color
-  const core = pinShapeSVG({ mount:mountOf(m), alt:alturaOf(m), color:col, label:String(m.n??''), size })
+  const core = pinShapeSVG({m:m, mount:mountOf(m), alt:alturaOf(m), color:col, label:String(m.n??''), size })
   const _fams = Array.isArray(badgeFam) ? badgeFam : (badgeFam ? [badgeFam] : [])
   const badge = _fams.length
-    ? _fams.map((f,i)=>`<div style="position:absolute;top:-3px;right:${-3 - i*11}px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`).join('')
+    ? _fams.map((f,i)=>`<div style="position:absolute;top:-3px;right:${-3 - i*11}px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`).join('')
     : ''
   const idl = idLabel
     ? `<div style="position:absolute;left:50%;top:${size+2}px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${idLabel}</div>`
@@ -1490,15 +1663,6 @@ Responda APENAS JSON válido:
   }
   const mk = uid => markers.find(m=>m.uid===uid)
   // adivinha o tipo de cabo pela natureza dos itens conectados
-  function guessCableType(from, to){
-    const n=(from?.name+' '+to?.name).toLowerCase()
-    if(/uplink|gateway|dream machine|provedor|ont|modem/.test(n)) return 'uplink'
-    if(/som|caixa ac[uú]stica|caixa de som|amplificador|receiver|subwoofer|sub /.test(n)) return 'som'
-    if(/tv|hdmi|tel[aã]o|projetor|matriz de v[ií]deo/.test(n)) return 'hdmi'
-    if(/sensor|presen[çc]a|mmwave|infraverm|receptor ir/.test(n)) return 'eletrica'
-    if(/keypad|interruptor|tomada|m[óo]dulo|cortina|hub ir|quadro|qdl|pulsador|pulsante/.test(n)) return 'eletrica'
-    return 'dados'
-  }
   function onCableItemClick(uid){
     // modo de edição de conduíte: clique num item → adiciona ou retira seus cabos do conduíte selecionado
     if(conduitEditMode && selCable){
@@ -2095,7 +2259,7 @@ Responda APENAS JSON válido:
       const linhas=[...vistos.values()].map(u=>{ const alt=alturaOf(u.m)
         return `<div style="display:flex;align-items:center;gap:8px;padding:4px 7px;border:1px solid #E2E8F0;border-radius:6px;background:#fff">
           <svg viewBox="-12 -14 24 32" width="20" height="26">${ELE_SYMBOLS[u.sym]||ELE_SYMBOLS.generico}</svg>
-          <span style="width:20px;height:20px;display:inline-block;flex-shrink:0">${pinShapeSVG({mount:mountOf(u.m),alt,color:catColorOf(u.m)||'#64748B',label:'',size:20})}</span>
+          <span style="width:20px;height:20px;display:inline-block;flex-shrink:0">${pinShapeSVG({m:u.m, mount:mountOf(u.m),alt,color:catColorOf(u.m)||'#64748B',label:'',size:20})}</span>
           <span style="font-size:9.5px;color:#334155;line-height:1.3"><b>${String(u.tipo).replace(/</g,'&lt;')}</b><br><span style="color:#94A3B8">${NIVL[alt]||''}</span></span>
         </div>` }).join('')
       return pontosLegenda() + (linhas?`<div style="margin-top:8px;padding:10px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px">
@@ -2352,9 +2516,9 @@ Responda APENAS JSON válido:
     // Mesma linguagem da planta: forma pelo local de instalação (○ parede △ teto □ chão), cor pela categoria.
     const pin=(n,color=TH.pin,m=null)=>{
       if(m){
-        const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||color,label:String(m.n??n),size:22})
-        const fam=cableFamily(m.cableType||guessCableType(m,m))
-        const seloFam = famOculta(fam.k) ? '' : `<span style="position:absolute;top:-3px;right:-3px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${fam.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span>`
+        const pino=pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||color,label:String(m.n??n),size:22})
+        const fam=cableFamily(familiaDoPontoTipo(m))
+        const seloFam = famOculta(fam.k) ? '' : `<span style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${fam.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span>`
         return `<span style="position:relative;display:inline-block;width:22px;height:22px;vertical-align:middle">${pino}${seloFam}</span>`
       }
       return `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${color};color:#fff;font-size:9px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);vertical-align:middle">${n}</span>`
@@ -2362,7 +2526,7 @@ Responda APENAS JSON válido:
     // versão fiel à planta: recebe o próprio marker
     const pinMk = m => { if(!m) return ''
       const cor=catColorOf(m)||(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
-      return `<span style="display:inline-flex;vertical-align:middle">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:cor,label:String(m.n??''),size:20})}</span>` }
+      return `<span style="display:inline-flex;vertical-align:middle">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:cor,label:String(m.n??''),size:20})}</span>` }
     const _normKey = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'')
     const _findMk = (...keys)=>{
       for(const k of keys){ if(k==null) continue; const kk=_normKey(k); if(!kk) continue
@@ -2381,9 +2545,9 @@ Responda APENAS JSON válido:
     let planta=''
     if(bgImage){
       const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
-        const f=cableFamily(m.cableType||guessCableType(m,m))
-        const badge=(showCabo && !famOculta(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
-        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
+        const f=cableFamily(familiaDoPontoTipo(m))
+        const badge=(showCabo && !famOculta(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
+        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
       planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
     }
 
@@ -2692,7 +2856,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     ${_opus?(()=>{ const vis=markers.filter(m=>!isRackItem(m.name,m.code))
       const pts=vis.length
       const rooms=new Set(vis.map(m=>(m.room||'').trim()).filter(Boolean)).size
-      const sis=new Set(vis.map(m=>cableFamily(m.cableType||guessCableType(m,m)).nome)).size
+      const sis=new Set(vis.map(m=>cableFamily(familiaDoPontoTipo(m)).nome)).size
       const mts=(cables||[]).filter(c=>!c.free).reduce((s,c)=>s+(cableMeters(c)||0),0)
       const cell=(n,l)=>`<div><div class="ex-scope-n">${n}</div><div class="ex-scope-l">${l}</div></div>`
       return `<div class="ex-cover-scope">${cell(pts,'pontos')}${cell(rooms,'cômodos')}${cell(sis,'sistemas')}${(plantScale&&mts)?cell('~'+Math.round(mts)+'m','cabeamento'):''}</div>` })():''}
@@ -2702,9 +2866,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   ${(()=>{ if(isObra||_eletr||secOff('t_planta')) return ''
     if(bgImage){
       const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
-        const f=cableFamily(m.cableType||guessCableType(m,m))
-        const badge=showCabo?`<div style="position:absolute;top:-3px;right:-3px;min-width:13px;height:13px;padding:0 1px;border-radius:7px;background:${f.cor};color:#fff;font-size:8.5px;font-weight:800;line-height:13px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
-        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:24px;height:24px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:24})}${badge}</div>`}).join('')
+        const f=cableFamily(familiaDoPontoTipo(m))
+        const badge=showCabo?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
+        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:24px;height:24px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:24})}${badge}</div>`}).join('')
       return `<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
     }
     return ''
@@ -2721,8 +2885,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const td='style="font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
     const withId = showIdsTbl
     const idTh = withId ? `<th ${th} style="width:70px;text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">ID</th>` : ''
-    const simb=(m)=>{ const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:String(m.n??''),size:24}); const fam=cableFamily(m.cableType||guessCableType(m,m))
-      return `<span style="position:relative;display:inline-block;width:24px;height:24px;vertical-align:middle">${pino}<span style="position:absolute;top:-3px;right:-3px;min-width:13px;height:13px;padding:0 1px;border-radius:7px;background:${fam.cor};color:#fff;font-size:8.5px;font-weight:800;line-height:13px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span></span>` }
+    const simb=(m)=>{ const pino=pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:String(m.n??''),size:24}); const fam=cableFamily(familiaDoPontoTipo(m))
+      return `<span style="position:relative;display:inline-block;width:24px;height:24px;vertical-align:middle">${pino}<span style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${fam.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span></span>` }
     return `<div class="ex-sec"><h2>Posição e Altura dos Pontos</h2>
       <p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Conferência para a obra, cômodo a cômodo: <b>onde</b> deixar a ponta e <b>qual cabo</b> é. O símbolo repete o da planta — <b>forma</b> = local (△ teto, ○ parede, □ chão), <b>selo</b> = família do cabo.</p>
       ${rooms.map(([amb,ms])=>`
@@ -2745,13 +2909,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const vis=markers.filter(m=>!isRackItem(m.name,m.code)&&!hideCats.has(equipType(m.name))&&m.name)
     if(!vis.length) return ''
     const grupos=new Map()
-    vis.forEach(m=>{ const fam=cableFamily(m.cableType||guessCableType(m,m)); const chave=[m.name,alturaOf(m),mountOf(m),fam.k].join('|')
+    vis.forEach(m=>{ const fam=cableFamily(familiaDoPontoTipo(m)); const chave=[m.name,alturaOf(m),mountOf(m),fam.k].join('|')
       if(!grupos.has(chave)) grupos.set(chave,{m,fam,qtd:0}); grupos.get(chave).qtd++ })
     const linhas=[...grupos.values()].sort((a,b)=>(a.m.name||'').localeCompare(b.m.name||''))
     const th='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700"'
     const td='style="font-size:11px;padding:6px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
-    const simb=(m,fam)=>{ const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:'',size:24})
-      return `<span style="position:relative;display:inline-block;width:24px;height:24px;vertical-align:middle">${pino}<span style="position:absolute;top:-3px;right:-3px;min-width:13px;height:13px;padding:0 1px;border-radius:7px;background:${fam.cor};color:#fff;font-size:8.5px;font-weight:800;line-height:13px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span></span>` }
+    const simb=(m,fam)=>{ const pino=pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:'',size:24})
+      return `<span style="position:relative;display:inline-block;width:24px;height:24px;vertical-align:middle">${pino}<span style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${fam.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span></span>` }
     return `<div class="ex-sec"><h2>Resumo por Item (tipos únicos)</h2>
       <p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Cada tipo de ponto aparece <b>uma vez</b>, com a quantidade total. Serve de legenda: o símbolo ao lado é o mesmo que se repete na planta. <b>Cor</b> = categoria, <b>forma</b> = local, <b>selo</b> = cabo (E elétrica, R rede, S som).</p>
       <table style="width:100%;border-collapse:collapse">
@@ -2907,10 +3071,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       ${T(tetoMarkers.map(m=>{ const cab=(cables||[]).find(c=>!c.free&&(c.toUid===m.uid||c.fromUid===m.uid)); const mt=cab?cableMeters(cab):null
         const nm=((m.name||'')+' '+(m.code||'')).toLowerCase()
         const tipo=classifyEle(m)?.tipo || equipType(m.name) || '—'
-        const cabo=(()=>{ if(cab){ const f=cableFamily(cab.type||'dados'); return `${f.nome}${mt!=null?' · '+mt+'m':''}` }
-          if(/zigbee/.test(nm) && !/poe|ethernet|cat6|lan/.test(nm)) return 'Zigbee · sem cabo (mesh)'
-          if(/poe|access point|\bap\b|c[âa]mera|gateway/.test(nm)) return 'CAT6 (PoE) · trace na planta'
-          return '—' })()
+        // Cabo pela FONTE ÚNICA (specDoPonto) + metragem quando existe cabo traçado. Antes esta
+        // tabela derivava o cabo por conta própria e destoava do resto do documento: o sensor
+        // saía "—" e o AP saía "CAT6 (PoE) · trace na planta" enquanto as outras diziam "CAT6 PoE".
+        const cabo=(()=>{ const base=specDoPonto(m).cabo
+          const ok = base && base!=='—' ? base : (cab ? cableFamily(cab.type||'dados').nome : '')
+          if(!ok) return '—'
+          return mt!=null ? `${ok} · ${mt}m` : ok })()
         return `<tr>${pinCell(m.id,m.code,m.n)}<td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td><td>${esc(m.name)}</td><td style="font-size:11px">${esc(m.room||'—')}</td><td style="font-size:11px">${esc(tipo)}</td><td style="font-size:10px">${cabo}</td><td style="font-size:10px;color:#D97706">${esc(m.note||'')}</td></tr>` }).join(''),
         ['Nº','ID','Item','Cômodo','Tipo','Cabo','Obs'])}
     ` : ''
@@ -2918,7 +3085,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const ratio=imgRatio||0.66
       const dots=tetoMarkers.map(m=>{
         const color=(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
-        const badgeFam=showCabo?cableFamiliesOf(m,m.cableType||guessCableType(m,m)):null
+        const badgeFam=showCabo?cableFamiliesOf(m,familiaDoPontoTipo(m)):null
         return drawPin({...m,mount:'teto'},{size:20,color,idLabel:showIdsPdf?esc(m.id||m.code||''):'',badgeFam})
       }).join('')
       const cabosLinha=(cables||[]).filter(c=>!c.free&&tetoMarkers.some(m=>m.uid===c.fromUid||m.uid===c.toUid)).map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''; return `<path d="${pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')}" fill="none" stroke="${c.color||'#0891B2'}" stroke-dasharray="4,2.5" vector-effect="non-scaling-stroke" style="stroke-width:2px"/>`}).join('')
@@ -3327,7 +3494,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             </div>`
           }
           const color=(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
-          const badgeFam=showCabo?cableFamiliesOf(m,m.cableType||guessCableType(m,m)):null
+          const badgeFam=showCabo?cableFamiliesOf(m,familiaDoPontoTipo(m)):null
           return drawPin(m,{size:18,color,idLabel,badgeFam})
         }).join('')
         return `<div class="ex-plant">
@@ -3404,7 +3571,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
             ${showIdsPdf?`<div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>`:''}
           </div>`
-          const badgeFam=showCabo?cableFamiliesOf(m,m.cableType||guessCableType(m,m)):null
+          const badgeFam=showCabo?cableFamiliesOf(m,familiaDoPontoTipo(m)):null
           return drawPin(m,{size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):'',badgeFam})
         }).join('')
         const caixaDots = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
@@ -3728,17 +3895,18 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // distintos são duas linhas, mesmo que desenhem igual e a função pareça a mesma — quem
     // decide isso é o catálogo, não a gente. (Nem por m.code: esse é a etiqueta da INSTÂNCIA
     // — KP-01, SP-02 — e daria 1 linha por ponto.) O que aparece escrito é funcaoDoPonto().
-    vis.forEach(m=>{ const fam=cableFamily(m.cableType||guessCableType(m,m))
+    vis.forEach(m=>{ const fam=cableFamily(familiaDoPontoTipo(m))
       const chave=[m.name,alturaOf(m),mountOf(m),fam.k].join('|')
       if(!grupos.has(chave)) grupos.set(chave,{m,fam,qtd:0})
       grupos.get(chave).qtd++ })
     const linhas=[...grupos.values()].sort((a,b)=>funcaoDoPonto(a.m).localeCompare(funcaoDoPonto(b.m)))
-    // Quando duas FUNÇÕES desenham igual (mesma cor+forma+selo — interruptor 2 e 4 teclas),
-    // a linha diz em quais pontos aquela função está. Só nesses casos: desenho único não ganha
-    // nada, então não incha quando o projeto é grande.
-    // O que o peão consegue distinguir OLHANDO: o pino na planta + o símbolo ABNT da linha.
-    // Se o ABNT já separa (interruptor de 2 × 4 teclas = 2 × 4 traços), não há ambiguidade.
-    const desenho=g=>[corDoPino(g.m),mountOf(g.m),alturaOf(g.m),_fo(g.fam.k)?'':g.fam.k,(classifyEle(g.m)||{}).sym||''].join('|')
+    // Quando dois itens desenham IGUAL, a linha diz em quais pontos aquele item está. Só nesses
+    // casos: desenho único não ganha nada, então não incha quando o projeto é grande.
+    // A assinatura é exatamente o que o pino desenha — tipo (forma+cor), preenchimento (altura),
+    // nº de traços (teclas) e a letra da meia lua. Nada mais entra: se bate nos quatro, o peão
+    // vê a mesma coisa. (Antes usava a cor velha e o símbolo ABNT; a cor velha não desenha mais
+    // nada e a coluna ABNT saiu, então o teste estava medindo o que não existe.)
+    const desenho=g=>[pinTipoDe(g.m),pinFillDe(g.m),((classifyEle(g.m)||{}).teclas)||0,pinLetraDe(g.m)].join('|')
     const porDesenho=new Map()
     linhas.forEach(g=>{ const d=desenho(g); porDesenho.set(d,(porDesenho.get(d)||0)+1) })
     const numerosDe=g=>vis.filter(m=>m.name===g.m.name && alturaOf(m)===alturaOf(g.m) && mountOf(m)===mountOf(g.m))
@@ -3746,13 +3914,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
     const th='style="text-align:left;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700"'
     const td='style="font-size:10.5px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
-    // Ponte com a Planta Elétrica: o mesmo símbolo ABNT (S2/S4/TUG…) que aparece lá. É a norma
-    // que já resolve "quantas teclas" — S2 = 2 teclas, S4 = 4 teclas. Ponto não-elétrico: "—".
-    const abnt=(m)=>{ const c=classifyEle(m); if(!c) return '<span style="color:#CBD5E1">—</span>'
-      const sim=ELE_SYMBOLS[c.sym]||ELE_SYMBOLS.generico
-      return `<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle"><svg viewBox="-12 -14 24 32" width="17" height="22" style="flex-shrink:0">${sim}</svg><span style="font-family:monospace;font-size:9px;color:#475569">${_e(c.label||'')}</span></span>` }
-    const simb=(m,fam)=>{ const pino=pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:corDoPino(m),label:'',size:22})
-      const selo=_fo(fam.k)?'':`<span style="position:absolute;top:-3px;right:-3px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${fam.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${fam.L}</span>`
+    // A coluna ABNT saiu: os símbolos da elétrica e os pinos passaram a falar a MESMA língua
+    // (v301), então ela virava um espelho do desenho ao lado — o interruptor aparecia como
+    // círculo vermelho com traços nas duas colunas.
+    const simb=(m,fam)=>{ const pino=pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:corDoPino(m),label:'',size:22})
+      const selo=_fo(fam.k)?'':`<span style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${fam.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${fam.L}</span>`
       return `<span style="position:relative;display:inline-block;width:22px;height:22px;vertical-align:middle">${pino}${selo}</span>` }
     const corpo=linhas.map(g=>{
       const {m,fam,qtd}=g
@@ -3761,7 +3927,6 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const dica=ns.length?`<div style="font-size:9px;color:#B45309;font-weight:600;margin-top:1px">mesmo desenho de outro item — ${ns.length===1?'ponto':'pontos'} ${ns.join(', ')}</div>`:''
       return `<tr>
         <td ${td} style="text-align:center;padding:3px 8px;border-bottom:.5px solid #E2E8F0">${simb(m,fam)}</td>
-        <td ${td} style="text-align:center;padding:3px 6px;border-bottom:.5px solid #E2E8F0">${abnt(m)}</td>
         <td ${td} style="font-weight:600">${_e(funcaoDoPonto(m))}${dica}</td>
         <td ${td}>${NIVL[alturaOf(m)]||'—'}</td>
         <td ${td} style="font-weight:600;color:${_fo(fam.k)?'#94A3B8':fam.cor}">${_fo(fam.k)?'—':_e(fam.nome)}</td>
@@ -3773,7 +3938,6 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       <table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #E2E8F0;border-radius:6px">
         <thead><tr>
           <th ${th} style="width:44px;text-align:center;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Pino</th>
-          <th ${th} style="width:56px;text-align:center;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 6px;border-bottom:1.5px solid #CBD5E1;font-weight:700" title="Mesmo símbolo da Planta Elétrica">ABNT</th>
           <th ${th}>O que é</th><th ${th} style="width:62px;text-align:left;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Altura</th>
           <th ${th} style="width:78px;text-align:left;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Cabo</th>
           <th ${th} style="width:38px;text-align:right;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Qtd.</th>
@@ -3789,9 +3953,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(!bgImage) return ''
     const _fo=fazFamOculta(hideFams)
     const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
-      const f=cableFamily(m.cableType||guessCableType(m,m))
-      const badge=(showCabo && !_fo(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:12px;height:12px;padding:0 1px;border-radius:6px;background:${f.cor};color:#fff;font-size:8px;font-weight:800;line-height:12px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
-      return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
+      const f=cableFamily(familiaDoPontoTipo(m))
+      const badge=(showCabo && !_fo(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
+      return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
     const _wr=imgRatio||0.66
     return `<div class="ex-wall-page" style="page:wallpage;page-break-before:always;text-align:center">
       <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:#0D1420;letter-spacing:.5px;margin-bottom:6px">PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA</div>
@@ -4685,10 +4849,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     {conduitMode && isCaixaCond && <div style={{position:'absolute',inset:-8,background:'rgba(34,211,238,0.2)',border:'2.5px solid #22D3EE',borderRadius:4,pointerEvents:'none',animation:'pulse 1.5s infinite'}}/>}
                     {isRack
                       ? <div style={{width:sel?30:24,height:sel?30:24,borderRadius:5,background:'#4C1D95',color:'#C4B5FD',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #7C3AED',boxShadow:sel?`0 0 0 3px #7C3AED`:'0 2px 6px rgba(0,0,0,0.6)'}}><i className="ti ti-server" aria-hidden style={{fontSize:13}}/></div>
-                      : (()=>{ const mount=mountOf(m); const fam=cableFamily(m.cableType||guessCableType(m,m))
+                      : (()=>{ const mount=mountOf(m); const fam=cableFamily(familiaDoPontoTipo(m))
                           return <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                            <div dangerouslySetInnerHTML={{__html: pinShapeSVG({mount, alt:alturaOf(m), color:catColorOf(m)||st.c, label:String(m.n??''), size:sel?26:22, sel})}}/>
-                            {showCabo && <div title={`Cabo: ${fam.nome}`} style={{position:'absolute',top:-7,right:-9,minWidth:12,height:12,padding:'0 1px',borderRadius:6,background:fam.cor,color:'#fff',fontSize:8,fontWeight:800,lineHeight:'12px',textAlign:'center',border:'1.5px solid #fff',pointerEvents:'none',fontFamily:"'DM Sans',sans-serif",boxShadow:'0 1px 2px rgba(0,0,0,0.4)'}}>{fam.L}</div>}
+                            <div dangerouslySetInnerHTML={{__html: pinShapeSVG({m, mount, alt:alturaOf(m), color:catColorOf(m)||st.c, label:String(m.n??''), size:sel?26:22, sel})}}/>
+                            {showCabo && <div title={`Cabo: ${fam.nome}`} style={{position:'absolute',top:-3,right:-3,minWidth:9,height:9,padding:0,borderRadius:5,background:fam.cor,color:'#fff',fontSize:6,fontWeight:800,lineHeight:'9px',textAlign:'center',border:'1px solid #fff',pointerEvents:'none',fontFamily:"'DM Sans',sans-serif"}}>{fam.L}</div>}
                           </div> })()}
                     {/* rótulo de código só quando selecionado ou no modo "ver IDs" — planta mais limpa */}
                     {(sel||showIds) && <div style={{position:'absolute',left:'50%',top:sel?28:24,transform:'translateX(-50%)',background:'rgba(0,0,0,0.75)',color:isRack?'#C4B5FD':'#fff',borderRadius:3,padding:'1px 4px',fontSize:7.5,whiteSpace:'nowrap',fontFamily:'monospace',fontWeight:600,pointerEvents:'none'}}>{isRack?'RACK CPD':m.code}</div>}
@@ -4930,11 +5094,17 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     </select></>
                   })()}
                   <label style={lbl}>Cabo que chega neste ponto</label>
-                  {(()=>{ const det=guessCableType(m,m); const detL=CABLE_LABELS[det]||det
+                  {(()=>{ const det=familiaDoPontoTipo(m); const detL=CABLE_LABELS[det]||det
                     return <select value={m.cableType||'auto'} onChange={e=>{const v=e.target.value; setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,cableType:v==='auto'?undefined:v}:x))}} style={{...inputDark,marginBottom:8}}>
                     <option value="auto">✨ Automático → {detL}</option>
                     {Object.entries(CABLE_LABELS).filter(([k])=>k!=='ap'&&k!=='camera').map(([k,v])=><option key={k} value={k}>{k==='dados'?'Dados (rede CAT6)':v} · {CABLE_SPEC[k]?.spec||''}</option>)}
                   </select> })()}
+                  {/* Conferência, não trava: quem manda é o tipo + o cabo escolhidos acima.
+                      Só avisa quando a combinação não existe ("tomada com cabo de rede"). */}
+                  {(()=>{ const al=alertaDoPonto(m); if(!al) return null
+                    return <div style={{display:'flex',alignItems:'flex-start',gap:6,marginBottom:8,padding:'7px 9px',borderRadius:7,background:'rgba(220,38,38,0.13)',border:'1px solid rgba(248,113,113,0.45)',color:'#FCA5A5',fontSize:11,lineHeight:1.4}}>
+                      <i className="ti ti-alert-triangle" aria-hidden style={{fontSize:13,flexShrink:0,marginTop:1}}/><span>{al}</span>
+                    </div> })()}
                   {/tomada|modulo_cabeceira/.test(classifyEle(m)?.sym||'') && (()=>{
                     const volt = /220/.test(m.note||'')?'220':/110|127/.test(m.note||'')?'110':''
                     const setVolt=v=>{ const base=(m.note||'').replace(/\b(110|127|220)\s*V?\b/gi,'').replace(/\s{2,}/g,' ').trim()
