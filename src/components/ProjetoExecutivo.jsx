@@ -201,11 +201,19 @@ function caixaPadrao(sym){
   if(/tomada|modulo/.test(sym||'')) return '4x2'
   return ''
 }
+// Nº de teclas é propriedade do SÍMBOLO — fica aqui, num lugar só. Sem isto, o caminho manual
+// (tipo escolhido no dropdown do editor) devolvia o tipo SEM `teclas`, o desenho caía no
+// `teclas || 1` e interruptor de 1, 2 e 3 teclas saía com O MESMO traço na planta e na legenda.
+const TECLAS_POR_SYM = { interruptor_simples:1, interruptor_paralelo:2, interruptor_intermediario:3, interruptor_4:4, interruptor_6:6 }
 // FONTE ÚNICA do nome/rótulo do tipo: ELE_TYPE_INFO. O caminho inferido NÃO repete o texto.
-function _eleInfo(sym, extra){ return { sym, ...(ELE_TYPE_INFO[sym]||{}), ...(extra||{}) } }
+function _eleInfo(sym, extra){
+  const t = TECLAS_POR_SYM[sym]
+  return { sym, ...(ELE_TYPE_INFO[sym]||{}), ...(t?{teclas:t}:{}), ...(extra||{}) }
+}
 function classifyEle(m){
-  // 1) tipo elétrico definido manualmente (dropdown no marcador) tem prioridade
-  if(m.eleType && ELE_TYPE_INFO[m.eleType]) return { sym:m.eleType, ...ELE_TYPE_INFO[m.eleType] }
+  // 1) tipo elétrico definido manualmente (dropdown no marcador) tem prioridade.
+  // Passa pelo _eleInfo igual ao caminho inferido — senão volta a sair sem `teclas`.
+  if(m.eleType && ELE_TYPE_INFO[m.eleType]) return _eleInfo(m.eleType)
   if(m.eleType==='nenhum') return null  // marcado explicitamente como "não é elétrico"
   // 2) senão, infere pelo nome/nota
   const n=((m.name||'')+' '+(m.note||'')).toLowerCase()
@@ -2382,6 +2390,39 @@ Responda APENAS JSON válido:
     })()
     const _ver = versao || execVersao
     const isObra = mode==='obra'
+
+    // ── CÂMERAS: como configuramos e por quê ──────────────────────────────────
+    // Padroniza a configuração em todas as casas e deixa registrado o que foi feito.
+    // As credenciais entram MASCARADAS; em claro só na Folha de Credenciais.
+    const temCam = markers.some(m=>/c[âa]mera|camera|dome|bullet|nvr/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
+    // Rede/Wi-Fi no projeto: AP, gateway ou qualquer ponto de rede. Decide se o Plano de
+    // Instalação ganha o capítulo de rede — se não tem, não enche o documento.
+    const temWifiNoProjeto = markers.some(m=>/access point|\bap\b|wi-?fi|u6|u7|unifi|gateway|dream machine|udm|switch|keystone/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
+    const blocoCamerasHtml = () => { if(!temCam) return ''
+      const _ckc = (itens=[]) => `<div style="display:flex;flex-direction:column;gap:0">${itens.map(it=>`
+        <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
+          <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
+          <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
+        </div>`).join('')}</div>`
+      return `<h3 class="ex-amb" style="margin-top:16px">Como as câmeras são configuradas</h3>
+        <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">Padrão RARO, igual em todas as casas. Câmera é o ponto mais sensível da instalação: ela vê dentro da casa do cliente.</p>
+        ${_ckc([
+          'Trocar a senha de fábrica de <b>todas</b> as câmeras e do NVR — senha padrão é a porta de entrada mais explorada.',
+          'Câmeras em <b>VLAN própria</b>, isolada da rede da casa: câmera comprometida não enxerga computador nem celular da família.',
+          '<b>O cliente acessa as câmeras pelo app, de onde estiver</b> — a VLAN não é fechada para a internet. O que se bloqueia é a câmera enxergar o resto da casa, não o dono ver a própria casa.',
+          'Acesso remoto <b>pelo app do fabricante/gateway</b>, com a conta do cliente — sem abrir porta no roteador (nada de DMZ ou port forwarding). O app não precisa disso e a porta aberta é o que expõe a câmera na internet.',
+          'UPnP desligado no gateway — é ele que abre porta sozinho, sem ninguém pedir.',
+          'Usuário administrador só para a RARO; criar usuário separado, sem poder de configuração, para o cliente.',
+          'Gravação contínua no NVR + retenção combinada com o cliente (conferir capacidade do HD).',
+          'Horário/NTP sincronizado — gravação com hora errada não serve como prova.',
+          'Conferir o ângulo de cada câmera com o cliente <b>antes</b> de fechar o forro.',
+          'Nenhuma câmera apontada para área do vizinho ou via pública além do necessário.',
+          'Firmware atualizado antes da entrega.',
+          'Credenciais entregues em mão ao cliente (Folha de Credenciais) e removidas de qualquer grupo de mensagens.',
+        ])}
+        ${blocoCredenciaisHtml(false)}`
+    }
+
     const _prem = _ver==='nova'
     // Tema do miolo do documento: no premium acompanha a casca (navy + dourado);
     // no clássico, cyan. NÃO mexe em cor que é dado (cabo, categoria, gráfico, telas de app).
@@ -2542,22 +2583,36 @@ Responda APENAS JSON válido:
           <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
           <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
         </div>`).join('')}</div>`
-      // Uma linha por TECLA de cada keypad: é isso que se programa, uma a uma.
+      // DUAS linhas por tecla: o keypad da RARO comporta 2 cenas por tecla (Raphael: "é sempre
+      // o dobro" — 2 botões = 4 cenas, 6 botões = 12). Cada cena é programada individualmente,
+      // então cada uma ganha a sua linha pra ser preenchida. Sem isto, a tabela pedia metade
+      // do que o keypad faz.
       const linhas = keypads.map(m=>{
         const t = ((classifyEle(m)||{}).teclas)||1
-        return Array.from({length:t},(_,i)=>`<tr>
-          <td style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">${esc(m.id||m.code||('#'+m.n))}</td>
-          <td style="padding:4px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">${esc(m.room||'—')}</td>
-          <td style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px;font-weight:700">${i+1}</td>
-          <td style="padding:4px 8px;border-bottom:.5px solid #E2E8F0"></td>
-          <td style="padding:4px 8px;border-bottom:.5px solid #E2E8F0"></td>
-        </tr>`).join('')
+        return Array.from({length:t},(_,i)=>
+          ['1ª','2ª'].map((cena,j)=>`<tr>
+            ${j===0?`<td rowspan="2" style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px;vertical-align:middle">${esc(m.id||m.code||('#'+m.n))}</td>
+            <td rowspan="2" style="padding:4px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px;vertical-align:middle">${esc(m.room||'—')}</td>
+            <td rowspan="2" style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0;font-size:12px;font-weight:800;vertical-align:middle">${i+1}</td>`:''}
+            <td style="text-align:center;padding:4px 6px;border-bottom:${j===0?'.5px dotted #CBD5E1':'.5px solid #E2E8F0'};font-size:10px;color:#94A3B8">${cena}</td>
+            <td style="padding:4px 8px;border-bottom:${j===0?'.5px dotted #CBD5E1':'.5px solid #E2E8F0'}"></td>
+            <td style="padding:4px 8px;border-bottom:${j===0?'.5px dotted #CBD5E1':'.5px solid #E2E8F0'}"></td>
+          </tr>`).join('')
+        ).join('')
       }).join('')
+      const totalTeclas = keypads.reduce((s,m)=>s+((((classifyEle(m)||{}).teclas)||1)),0)
       const th='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700"'
       return `<h3 class="ex-amb" style="margin-top:18px">Cenas e Configurações</h3>
-        <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">A obra entrega o cabo; a cena é o que o cliente sente. Cada tecla é programada individualmente — preencha com o cliente e guarde: é o que documenta o que foi entregue.</p>
+        <div style="padding:9px 11px;border:1.5px solid #F59E0B;border-radius:8px;background:#FFFBEB;margin:2px 0 8px">
+          <div style="font-size:11.5px;font-weight:700;color:#92400E">Preencher com o cliente antes de programar.</div>
+          <div style="font-size:10.5px;color:#92400E;line-height:1.5;margin-top:2px">
+            Cada tecla do keypad comporta <b>2 cenas</b> — é sempre o dobro: 2 teclas = 4 cenas, 6 teclas = 12.
+            Este projeto tem <b>${totalTeclas} tecla${totalTeclas===1?'':'s'}</b>, ou seja, <b>até ${totalTeclas*2} cenas</b> a definir.
+            A tabela abaixo tem uma linha para cada uma: escreva o que ela faz. Cena não preenchida é tecla que não vai fazer nada na casa.
+          </div>
+        </div>
         <table style="width:100%;border-collapse:collapse">
-          <thead><tr><th ${th} style="width:64px">Keypad</th><th ${th}>Cômodo</th><th ${th} style="width:44px;text-align:center">Tecla</th><th ${th}>O que faz (cena)</th><th ${th} style="width:120px">Testado / OK</th></tr></thead>
+          <thead><tr><th ${th} style="width:64px">Keypad</th><th ${th}>Cômodo</th><th ${th} style="width:44px;text-align:center">Tecla</th><th ${th} style="width:34px;text-align:center">Cena</th><th ${th}>O que faz (preencher)</th><th ${th} style="width:100px">Testado / OK</th></tr></thead>
           <tbody>${linhas}</tbody>
         </table>
         <h3 class="ex-amb" style="margin-top:14px">Configurações a fazer</h3>
@@ -2578,6 +2633,46 @@ Responda APENAS JSON válido:
     // ── MAPA DE CALOR Wi-Fi — propagação aproximada dos APs (paredes de concreto) ──
     // Modelo simples: cada AP irradia um gradiente radial. Concreto atenua forte,
     // então o raio "bom" é curto. Gera mancha verde→amarelo→vermelho + aviso de zonas mortas.
+    // Padrão RARO de rede — usado no Projeto Executivo E no Plano de Instalação.
+    function blocoRedeHtml(){
+        // ── PADRÃO RARO DE REDE: SSIDs, VLANs, guest e segurança — em forma de check ──
+        // É o que a RARO faz em TODA casa. Vira checklist pra ninguém esquecer e pra o cliente
+        // ver o que está sendo entregue. As credenciais entram MASCARADAS (folha à parte).
+        // thW/tdW são locais daqui: os do buildHeatmap não alcançam esta função.
+        const thW='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1"'
+        const tdW='style="font-size:10.5px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
+        const _ck = (itens=[]) => `<div style="display:flex;flex-direction:column;gap:0">${itens.map(it=>`
+          <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
+            <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
+            <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
+          </div>`).join('')}</div>`
+        return `<h3 class="ex-amb" style="margin-top:16px">Padrão de rede RARO — SSIDs e VLANs</h3>
+          <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">Separar em VLANs impede que um dispositivo comprometido enxergue os outros. É o mesmo padrão em todas as casas.</p>
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr><th ${thW}>SSID</th><th ${thW}>VLAN</th><th ${thW}>Quem entra</th><th ${thW}>Por quê</th></tr></thead>
+            <tbody>
+              <tr><td ${tdW}><b>Principal</b></td><td ${tdW}>Confiável</td><td ${tdW}>Celulares e computadores da família</td><td ${tdW}>Acesso pleno à casa</td></tr>
+              <tr><td ${tdW}><b>IoT</b></td><td ${tdW}>Automação</td><td ${tdW}>TVs, assistentes, eletros conectados</td><td ${tdW}>Isola quem tem firmware fraco</td></tr>
+              <tr><td ${tdW}><b>Câmeras</b></td><td ${tdW}>CFTV</td><td ${tdW}>Câmeras e NVR</td><td ${tdW}>Isolada da casa; o cliente acessa pelo app normalmente</td></tr>
+              <tr><td ${tdW}><b>Guest</b></td><td ${tdW}>Visitante</td><td ${tdW}>Visitas</td><td ${tdW}>Só internet — não enxerga nada da casa</td></tr>
+            </tbody>
+          </table>
+          <h3 class="ex-amb" style="margin-top:14px">Checklist de configuração — rede</h3>
+          ${_ck([
+            'Criar as 4 VLANs no gateway e amarrar cada SSID à sua VLAN.',
+            'Guest com <b>isolamento de cliente</b> ligado (visitante não vê visitante) e sem acesso às demais VLANs.',
+            'VLAN de câmeras <b>sem rota para as outras VLANs</b> da casa. A internet fica liberada: é por ela que o app do cliente funciona de fora.',
+            'Bloquear tráfego entre IoT e a VLAN principal, liberando só o necessário (cast, impressora).',
+            'Trocar a senha padrão do gateway e desligar administração pela WAN.',
+            'Firmware do gateway, switch e APs atualizado antes da entrega.',
+            'IP fixo (ou reserva DHCP) para gateway, switch, APs, NVR e câmeras.',
+            'Nomear cada AP pelo cômodo, para manutenção futura.',
+            'Wi-Fi 2,4 GHz habilitado onde houver automação — sensor não fala 5 GHz.',
+            'Senha do Wi-Fi principal e do guest anotadas na Folha de Credenciais e entregues ao cliente.',
+          ])}
+          ${blocoCredenciaisHtml(false)}`
+    }
+
     function buildHeatmap(numFn){
       const aps = markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
       if(!bgImage || aps.length===0) return ''  // sem AP no projeto → não mostra mapa de calor
@@ -2643,39 +2738,7 @@ Responda APENAS JSON válido:
         </table>
         <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin-top:6px">Sensores e keypads Zigbee não ocupam o Wi-Fi: falam com o gateway numa rede própria (mesh), deixando o Wi-Fi livre para as pessoas.</p>`
 
-      // ── PADRÃO RARO DE REDE: SSIDs, VLANs, guest e segurança — em forma de check ──
-      // É o que a RARO faz em TODA casa. Vira checklist pra ninguém esquecer e pra o cliente
-      // ver o que está sendo entregue. As credenciais entram MASCARADAS (folha à parte).
-      const _ck = (itens=[]) => `<div style="display:flex;flex-direction:column;gap:0">${itens.map(it=>`
-        <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
-          <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
-          <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
-        </div>`).join('')}</div>`
-      const padraoSSID = `<h3 class="ex-amb" style="margin-top:16px">Padrão de rede RARO — SSIDs e VLANs</h3>
-        <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">Separar em VLANs impede que um dispositivo comprometido enxergue os outros. É o mesmo padrão em todas as casas.</p>
-        <table style="width:100%;border-collapse:collapse">
-          <thead><tr><th ${thW}>SSID</th><th ${thW}>VLAN</th><th ${thW}>Quem entra</th><th ${thW}>Por quê</th></tr></thead>
-          <tbody>
-            <tr><td ${tdW}><b>Principal</b></td><td ${tdW}>Confiável</td><td ${tdW}>Celulares e computadores da família</td><td ${tdW}>Acesso pleno à casa</td></tr>
-            <tr><td ${tdW}><b>IoT</b></td><td ${tdW}>Automação</td><td ${tdW}>TVs, assistentes, eletros conectados</td><td ${tdW}>Isola quem tem firmware fraco</td></tr>
-            <tr><td ${tdW}><b>Câmeras</b></td><td ${tdW}>CFTV</td><td ${tdW}>Câmeras e NVR</td><td ${tdW}>Sem internet de saída: câmera não "liga pra casa"</td></tr>
-            <tr><td ${tdW}><b>Guest</b></td><td ${tdW}>Visitante</td><td ${tdW}>Visitas</td><td ${tdW}>Só internet — não enxerga nada da casa</td></tr>
-          </tbody>
-        </table>
-        <h3 class="ex-amb" style="margin-top:14px">Checklist de configuração — rede</h3>
-        ${_ck([
-          'Criar as 4 VLANs no gateway e amarrar cada SSID à sua VLAN.',
-          'Guest com <b>isolamento de cliente</b> ligado (visitante não vê visitante) e sem acesso às demais VLANs.',
-          'VLAN de câmeras <b>sem rota para a internet</b> — acesso remoto só pelo NVR/gateway.',
-          'Bloquear tráfego entre IoT e a VLAN principal, liberando só o necessário (cast, impressora).',
-          'Trocar a senha padrão do gateway e desligar administração pela WAN.',
-          'Firmware do gateway, switch e APs atualizado antes da entrega.',
-          'IP fixo (ou reserva DHCP) para gateway, switch, APs, NVR e câmeras.',
-          'Nomear cada AP pelo cômodo, para manutenção futura.',
-          'Wi-Fi 2,4 GHz habilitado onde houver automação — sensor não fala 5 GHz.',
-          'Senha do Wi-Fi principal e do guest anotadas na Folha de Credenciais e entregues ao cliente.',
-        ])}
-        ${blocoCredenciaisHtml(false)}`
+      const padraoSSID = blocoRedeHtml()
       return `<div class="ex-sec ex-breakable">${titulo}
         <p class="ex-p" style="margin-bottom:10px">Estimativa visual do alcance dos Access Points considerando <b>paredes de concreto</b> (alta atenuação). A mancha verde indica sinal forte; amarelo, médio; vermelho, sinal fraco na borda. É uma aproximação — a cobertura real depende de mobiliário, espelhos e interferências.</p>
         ${head}${fig}${legenda}${aviso}${tabelaBandas}${padraoSSID}</div>`
@@ -3128,10 +3191,17 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             'Sobra organizada no rack — nem esticado, nem novelo. Raio de curva respeitado.',
             'Régua e fonte por último; nada energizado durante a crimpagem.',
           ])}</div>` : '',
+        // Configuração: cenas + rede + câmeras. Cada bloco só entra se existir no projeto —
+        // quem instala precisa das 3 coisas, não só das cenas (Raphael).
         `<div class="ex-obra-page" style="page-break-before:always">
           <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Configuração</h2>
-          ${blocoCenasHtml()}
-          ${blocoCredenciaisHtml(false)}</div>`,
+          ${blocoCenasHtml()}</div>`,
+        temWifiNoProjeto ? `<div class="ex-obra-page" style="page-break-before:always">
+          <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Configuração — Rede e Wi-Fi</h2>
+          ${blocoRedeHtml()}</div>` : '',
+        temCam ? `<div class="ex-obra-page" style="page-break-before:always">
+          <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Configuração — Câmeras</h2>
+          ${blocoCamerasHtml()}</div>` : '',
         `<div class="ex-obra-page" style="page-break-before:always">
           <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Entrega</h2>
           <h3 class="ex-amb">Teste final — ponto a ponto</h3>
@@ -3378,33 +3448,6 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         ['#',...idHdr,'Equipamento','Ambiente','Resolução','Tipo','Posição','Ângulo','Obs'])
       : ''
 
-    // ── CÂMERAS: como configuramos e por quê ──────────────────────────────────
-    // Padroniza a configuração em todas as casas e deixa registrado o que foi feito.
-    // As credenciais entram MASCARADAS; em claro só na Folha de Credenciais.
-    const temCam = markers.some(m=>/c[âa]mera|camera|dome|bullet|nvr/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
-    const blocoCamerasHtml = () => { if(!temCam) return ''
-      const _ckc = (itens=[]) => `<div style="display:flex;flex-direction:column;gap:0">${itens.map(it=>`
-        <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
-          <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
-          <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
-        </div>`).join('')}</div>`
-      return `<h3 class="ex-amb" style="margin-top:16px">Como as câmeras são configuradas</h3>
-        <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">Padrão RARO, igual em todas as casas. Câmera é o ponto mais sensível da instalação: ela vê dentro da casa do cliente.</p>
-        ${_ckc([
-          'Trocar a senha de fábrica de <b>todas</b> as câmeras e do NVR — senha padrão é a porta de entrada mais explorada.',
-          'Câmeras na <b>VLAN de CFTV, sem saída para a internet</b>: se o firmware tiver backdoor, ele não fala com fora.',
-          'Acesso remoto <b>só pelo app do fabricante/gateway</b> — nunca abrir porta no roteador (nada de DMZ ou port forwarding).',
-          'UPnP desligado no gateway.',
-          'Usuário administrador só para a RARO; criar usuário separado, sem poder de configuração, para o cliente.',
-          'Gravação contínua no NVR + retenção combinada com o cliente (conferir capacidade do HD).',
-          'Horário/NTP sincronizado — gravação com hora errada não serve como prova.',
-          'Conferir o ângulo de cada câmera com o cliente <b>antes</b> de fechar o forro.',
-          'Nenhuma câmera apontada para área do vizinho ou via pública além do necessário.',
-          'Firmware atualizado antes da entrega.',
-          'Credenciais entregues em mão ao cliente (Folha de Credenciais) e removidas de qualquer grupo de mensagens.',
-        ])}
-        ${blocoCredenciaisHtml(false)}`
-    }
 
     // ── Tabela Som Ambiente ────────────────────────────────────────────────────
     const tblSom = (d.tabela_som||[]).length
