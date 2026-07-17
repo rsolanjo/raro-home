@@ -124,8 +124,12 @@ const ELE_SYMBOLS = {
   tomada_teto:  _caixa() + `<polygon points="-5,-5.5 5,0 -5,5.5" fill="${ELE_AZUL}" stroke="${ELE_AZUL}" stroke-width="1.2" stroke-linejoin="round"/>`,
 
   // ── REDE / KEYSTONE (azul) — cabeça quadrada com R, preenchimento = altura ──
+  // 5 alturas, espelhando a tomada (Raphael): piso · baixo 0,30 · média 1,10 · alto 1,80 · teto.
+  // preenchimento do R = altura (0 vazado · 1 metade · 2 cheio); piso/teto saem da parede (caixa).
+  keystone_piso:  _caixa() + `<text x="0" y="3.2" font-size="8" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="700" fill="${ELE_AZUL}">R</text><line x1="-6" y1="6" x2="6" y2="-6" stroke="${ELE_AZUL}" stroke-width="1"/>`,
   keystone_baixo: _haste() + _letra('R', ELE_AZUL, 0),
-  keystone_alto:  _haste() + _letra('R', ELE_AZUL, 1),
+  keystone_media: _haste() + _letra('R', ELE_AZUL, 1),
+  keystone_alto:  _haste() + _letra('R', ELE_AZUL, 2),
   keystone_teto:  _caixa() + `<text x="0" y="3.2" font-size="8" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="700" fill="${ELE_AZUL}">R</text>`,
 
   // ── SOM (azul) — cabeça quadrada com S, como "CAIXA DE SOM NA PAREDE" da prancha ──
@@ -181,9 +185,15 @@ const ELE_TYPE_INFO = {
   interruptor_4:{label:'4 teclas', tipo:'Interruptor 4 teclas'},
   interruptor_6:{label:'6 teclas', tipo:'Interruptor 6 teclas'},
   modulo_cabeceira:{label:'MOD', tipo:'Módulo cabeceira (tomada+interruptor+2 USB)'},
-  keystone_alto:{label:'KS-M', tipo:'Keystone parede média (1,10m) CAT6'},
-  keystone_teto:{label:'KS-T', tipo:'Keystone de teto (rede)'},
+  // Keystone: 5 alturas iguais à tomada. ATENÇÃO ao legado: até a v315 keystone_alto queria
+  // dizer MÉDIA (1,10m) — o nome era errado. Agora keystone_alto = 1,80m (correto) e a média
+  // ganhou a chave própria keystone_media. Ponto salvo antigo com keystone_alto passa a mostrar
+  // 1,80m; se algum vier assim, é só reescolher a altura no editor.
+  keystone_piso:{label:'KS-P', tipo:'Keystone de piso CAT6'},
   keystone_baixo:{label:'KS-B', tipo:'Keystone baixo (0,30m) CAT6'},
+  keystone_media:{label:'KS-M', tipo:'Keystone parede média (1,10m) CAT6'},
+  keystone_alto:{label:'KS-A', tipo:'Keystone alto (1,80m) CAT6'},
+  keystone_teto:{label:'KS-T', tipo:'Keystone de teto (rede)'},
   ponto_som_teto:{label:'♪T', tipo:'Ponto de som no teto'},
   ponto_som_parede:{label:'♪P', tipo:'Ponto de som parede alta'},
   ponto_som_piso:{label:'♪C', tipo:'Ponto de som no piso'},
@@ -218,8 +228,11 @@ function classifyEle(m){
   // 2) senão, infere pelo nome/nota
   const n=((m.name||'')+' '+(m.note||'')).toLowerCase()
   if(/keystone.*teto|teto.*keystone/.test(n)) return _eleInfo('keystone_teto')
-  if(/keystone.*alto|keystone.*banca|keystone.*1[,.]?10/.test(n)) return _eleInfo('keystone_alto')
-  if(/keystone.*baixo|keystone.*0[,.]?30/.test(n)) return _eleInfo('keystone_baixo')
+  if(/keystone.*(piso|ch[ãa]o)/.test(n)) return _eleInfo('keystone_piso')
+  if(/keystone.*(alto|alta|1[,.]?80|2[,.]?00)/.test(n)) return _eleInfo('keystone_alto')
+  if(/keystone.*(m[ée]dia|banca|1[,.]?10|1[,.]?30|0[,.]?90)/.test(n)) return _eleInfo('keystone_media')
+  if(/keystone.*(baixo|baixa|0[,.]?30)/.test(n)) return _eleInfo('keystone_baixo')
+  if(/keystone/.test(n)) return _eleInfo('keystone_media')
   if(/ponto.*energia.*teto|energia.*teto.*fase|fase.*neutro.*teto/.test(n)) return _eleInfo('ponto_energia_teto')
   if(/ponto.*som.*teto|som.*teto|caixa.*embutida.*som|teto.*som/.test(n)) return _eleInfo('ponto_som_teto')
   if(/modulo.*cabeceira|cabeceira|tomada.*usb|usb.*tomada/.test(n)) return _eleInfo('modulo_cabeceira')
@@ -333,7 +346,7 @@ function alturaAfirmadaPeloTipo(m){
   const c = classifyEle(m)
   if(!c) return null
   const A = {
-    keystone_baixo:'baixa', keystone_alto:'media', keystone_teto:'teto',
+    keystone_piso:'piso', keystone_baixo:'baixa', keystone_media:'media', keystone_alto:'alta', keystone_teto:'teto',
     tomada_baixa:'baixa', tomada_media:'media', tomada_alta:'alta', tomada_piso:'piso', tomada_teto:'teto',
     ponto_som_teto:'teto', ponto_som_piso:'piso',
     ponto_energia_teto:'teto', ponto_energia_piso:'piso',
@@ -394,7 +407,7 @@ function _specAuto(m){
   if(sym==='modulo_cabeceira')            return { caixa:'4x2', cabo:'3×2,5mm² (F+N+T)' }
   if(/^tomada/.test(sym))                 return { caixa: sym==='tomada_piso' ? 'caixa de piso' : sym==='tomada_teto' ? 'forro' : '4x2', cabo:'3×2,5mm²' }
   if(/^ponto_energia/.test(sym))          return { caixa: sym==='ponto_energia_piso' ? 'caixa de piso' : sym==='ponto_energia_teto' ? 'forro' : '4x2', cabo:'3×2,5mm² (F+N+T)' }
-  if(/^keystone/.test(sym))               return { caixa: sym==='keystone_teto' ? 'forro' : '4x2', cabo:'CAT6' }
+  if(/^keystone/.test(sym))               return { caixa: sym==='keystone_teto' ? 'forro' : sym==='keystone_piso' ? 'caixa de piso' : '4x2', cabo:'CAT6' }
   if(/^ponto_som/.test(sym))              return { caixa: sym==='ponto_som_teto' ? 'forro' : sym==='ponto_som_piso' ? 'caixa de piso' : '4x2', cabo:'2×1,5mm²' }
   if(sym==='ponto_luz'||/^arandela/.test(sym)) return { caixa:'forro', cabo:'2×1,5mm²' }
   if(sym==='quadro')                      return { caixa:'quadro', cabo:'alimentação geral' }
@@ -513,8 +526,11 @@ function pinNovoSVG({ m, size=22, label='', sel=false }){
   // não achava correspondência no desenho. A meia lua ocupa só a METADE DIREITA do pino, então
   // o número vai na metade esquerda, que está vazia: os dois cabem sem disputar espaço.
   // O número obedece ao toggle "Nº dentro do pino"; a letra não — ela diz o que o ponto é.
-  const numX = letra ? 6 : 12
-  const numFs = letra ? 9 : 10
+  // Número MENOR (Raphael): a fonte 10 cobria o símbolo no pino de 18px da planta — o X do som
+  // no piso, por exemplo, sumia atrás do número e não batia com a legenda. Reduzido pra 7,5 e
+  // empurrado pro alto, liberando o miolo do símbolo. Continua ocultável pelo "Nº dentro do pino".
+  const numX = letra ? 6.5 : 12
+  const numFs = letra ? 7 : 7.5
   // Contorno branco (paint-order) pra ficar legível sobre qualquer preenchimento — cheio, meio ou X.
   const txt = label!=='' && label!=null
     ? `<text x="${numX}" y="15.8" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="${numFs}" fill="${cor}" stroke="#fff" stroke-width="2.6" paint-order="stroke" style="paint-order:stroke">${label}</text>`
@@ -576,7 +592,7 @@ function mountOf(m){
   if(m && (m.mount==='teto'||m.mount==='parede'||m.mount==='chao')) return m.mount
   const n=(((m&&m.name)||'')+' '+((m&&m.note)||'')).toLowerCase()
   const sym=classifyEle(m)?.sym||''
-  if(sym==='tomada_piso' || sym==='ponto_energia_piso' || sym==='ponto_som_piso' || /\bpiso\b|ch[ãa]o|subwoofer|\bsub\b/.test(n)) return 'chao'
+  if(sym==='tomada_piso' || sym==='ponto_energia_piso' || sym==='ponto_som_piso' || sym==='keystone_piso' || /\bpiso\b|ch[ãa]o|subwoofer|\bsub\b/.test(n)) return 'chao'
   if(['tomada_teto','keystone_teto','ponto_som_teto','ponto_energia_teto','ponto_luz','arandela_teto'].includes(sym)) return 'teto'
   if(/teto|forro|c[âa]mera|dome|bullet|access point|\bap\b|wi-?fi|spot|lustre|plafon|luminári|luminari|sensor|presen[çc]a|mmwave|proje(tor|ção|cao)|caixa (ac[uú]stica|de som|som)|alto-?falante|speaker|\bir\b|infraverm|receptor ir/.test(n)) return 'teto'
   return 'parede'
@@ -702,7 +718,7 @@ function abntLegendaCompleta(){
     ['Iluminação', ['ponto_luz','arandela','arandela_teto']],
     ['Pontos de energia', ['ponto_energia_parede','ponto_energia_teto','ponto_energia_piso']],
     ['Som', ['ponto_som_parede','ponto_som_teto','ponto_som_piso']],
-    ['Rede / Dados', ['keystone_alto','keystone_teto','keystone_baixo']],
+    ['Rede / Dados', ['keystone_piso','keystone_baixo','keystone_media','keystone_alto','keystone_teto']],
     ['Infraestrutura', ['quadro','caixa_conduite','prumada','modulo_cabeceira']],
   ]
   const item = sym => { const info=ELE_TYPE_INFO[sym]||{label:'',tipo:sym}
@@ -1078,7 +1094,9 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [hideFams, setHideFams] = useState(new Set())      // famílias de cabo fora do PDF (dados, som, camera...)
   const [hideCats, setHideCats] = useState(new Set())      // categorias de equipamento fora das plantas do PDF
   const [hidePdfConduites, setHidePdfConduites] = useState(false) // tirar todos os conduítes do PDF
-  const [hideSecs, setHideSecs] = useState(new Set())      // seções do Plano de Obra fora do PDF
+  // t_pecas ("Equipamentos por Cômodo e Lista de Peças") vem OCULTO por padrão (Raphael);
+  // religa no seletor de tópicos do painel de PDF.
+  const [hideSecs, setHideSecs] = useState(()=>new Set(['t_pecas']))  // seções fora do PDF
   const secOff = k => hideSecs.has(k)
   const [pageOrient, setPageOrient] = useState('original') // orientação da PLANTA no documento: 'original' | 'paisagem' | 'retrato' — o app gira a imagem e converte pins/cabos
   const [rotBg, setRotBg] = useState(null) // planta girada 90° (gerada em canvas quando necessário)
@@ -2564,10 +2582,10 @@ Responda APENAS JSON válido:
         <p class="ex-p" style="margin-bottom:10px">Pontos elétricos com símbolos normalizados (ABNT NBR 5444), em proporção real da planta. Mostra apenas os pontos elétricos (tomadas, interruptores, iluminação, quadro).</p>
         ${head}${fig}${legenda}${abntLegendaCompleta()}
         ${(secOff('lista_geral')||secOff('t_eletrica_tab'))?'':`<h3 class="ex-amb" style="margin-top:18px">Lista Geral — Todos os Pontos Elétricos</h3>${listaGeral}`}
-        ${(secOff('caixas_embutir')||secOff('t_eletrica_tab'))?'':cxResumo}
-        ${(secOff('quadro_cargas')||secOff('t_eletrica_tab'))?'':`<h3 class="ex-amb" style="margin-top:16px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}`}
+        ${(isObra||secOff('caixas_embutir')||secOff('t_eletrica_tab'))?'':cxResumo}
+        ${(isObra||secOff('quadro_cargas')||secOff('t_eletrica_tab'))?'':`<h3 class="ex-amb" style="margin-top:16px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}`}
         <h3 class="ex-amb" style="margin-top:16px">Checklist Elétrico</h3>${checklistEle}
-        ${blocoCenasHtml()}
+        ${isObra?'':blocoCenasHtml()}
       </div>`
     }
 
@@ -3238,6 +3256,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         </div>${secs.join('\n')}</div>`
     }
 
+    // "Detalhes de Pontos por Cômodo" (ex-"Posição e Altura") deixa de sair solto antes dos
+    // capítulos e entra na lista numerada como #2 (Raphael). Aqui só computo o CORPO (sem título);
+    // o título numerado é aplicado lá embaixo, logo após Premissas.
+    let _detalhesPontosBody = ''
     return `<style>${_ver==='opus'?EXEC_CSS_OPUS:_ver==='fable'?EXEC_CSS_FABLE:_ver==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
 <div class="ex-doc">
   <!-- CAPA -->
@@ -3285,19 +3307,16 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const idTh = withId ? `<th ${th} style="width:70px;text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">ID</th>` : ''
     const simb=(m)=>{ const pino=pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:_pinLabel(m),size:24}); const fam=cableFamily(familiaDoPontoTipo(m))
       return `<span style="position:relative;display:inline-block;width:24px;height:24px;vertical-align:middle">${pino}<span style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${fam.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span></span>` }
-    return `<div class="ex-sec"><h2>Posição e Altura dos Pontos</h2>
-      <p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Conferência para a obra, cômodo a cômodo: <b>onde</b> deixar a ponta e <b>qual cabo</b> é. O símbolo repete o da planta — <b>forma</b> = local (△ teto, ○ parede, □ chão), <b>selo</b> = família do cabo.</p>
+    // Só o CORPO (título numerado é aplicado na lista de capítulos, como #2). Emite '' aqui.
+    _detalhesPontosBody = `<p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Conferência para a obra, cômodo a cômodo: <b>onde</b> deixar a ponta e <b>qual cabo</b> é. O símbolo repete o da planta — <b>forma</b> = local (△ teto, ○ parede, □ chão), <b>selo</b> = família do cabo.</p>
       ${rooms.map(([amb,ms])=>`
         <div style="font-size:12px;font-weight:700;color:#0369A1;margin:12px 0 4px">${amb} <span style="font-weight:400;color:#94A3B8">· ${ms.length} ${ms.length===1?'ponto':'pontos'}</span></div>
         <table style="width:100%;border-collapse:collapse">
           <thead><tr><th ${th} style="width:70px;text-align:center;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Ponto</th>${idTh}<th ${th}>Item</th><th ${th}>Equip.</th><th ${th}>Local</th><th ${th}>Altura</th><th ${th}>Caixa</th><th ${th}>Cabo</th></tr></thead>
           <tbody>${ms.map(m=>{ const sp=specDoPonto(m); const fn=funcaoDoPonto(m); const eq=(m.name||'').trim()
-            // "Item" = a função (o que o ponto É). "Equip." = o produto do catálogo que vai ali —
-            // é a única coluna que a tabela de Automação tinha e esta não; ela sobrevive aqui.
-            // Se o nome do produto for igual à função, não repete: mostra "—".
             return `<tr><td ${td} style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0">${simb(m)}</td>${withId?`<td ${td} style="font-family:monospace;font-size:10px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#475569">${m.id||m.code||('#'+m.n)}</td>`:''}<td ${td} style="font-weight:600">${fn}</td><td ${td} style="font-size:10px;color:#64748B">${(eq&&eq!==fn)?eq:'—'}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td} style="font-weight:600;font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B">${NIV[alturaOf(m)]||'—'}</td><td ${td} style="text-align:center;font-weight:700">${sp.caixa||'—'}</td><td ${td} style="font-weight:600;font-size:10.5px">${sp.cabo||'—'}</td></tr>`}).join('')}</tbody>
-        </table>`).join('')}
-    </div>`
+        </table>`).join('')}`
+    return ''
   })()}
 
   ${(()=>{ if(isObra||_eletr||secOff('itens_unicos')) return ''
@@ -4144,7 +4163,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const byRoom={}
         markers.filter(m=>!isRackItem(m.name,m.code)).forEach(m=>{ const r=m.room||'Geral'; (byRoom[r]=byRoom[r]||[]).push(m) })
         const rooms=Object.entries(byRoom); if(!rooms.length) return ''
-        return `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Posição e Altura dos Pontos</h2>
+        return `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Detalhes de Pontos por Cômodo</h2>
           <p class="ex-p" style="color:#6B7280">Cômodo a cômodo: <b>onde</b> deixar a ponta e <b>qual cabo</b> é. O símbolo repete o da planta.</p>`+
           rooms.map(([amb,ms])=>`<h3 class="ex-amb">${esc(amb)} · ${ms.length} ${ms.length===1?'ponto':'pontos'}</h3>`+
             T(ms.map(m=>{ const sp=specDoPonto(m); const fn=funcaoDoPonto(m); const eq=(m.name||'').trim()
@@ -4202,7 +4221,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         (embedded||secOff('pos_altura'))?'':obraPosAlt,            // no Completo, _full já tem a Posição e Altura
         secOff('t_obra_eletrica')?'':obraEletricaCompleta,
         secOff('t_quant')?'':obraQuant,
+        // Sentinelas: o Projeto Executivo extrai estas plantas de cabo (por família) daqui, sem
+        // duplicar código — antes o PE só tinha as plantas de conduíte e faltava a de cabos.
+        secOff('t_cabos')?'':'<!--CABOS-INI-->',
         ...(secOff('t_cabos')?[]:(categoriaPaginas.length?categoriaPaginas:[`<p class="ex-p" style="color:#B45309">⚠ Nenhum cabo desenhado na planta. Use o modo "Cabos" no editor.</p>`])),
+        secOff('t_cabos')?'':'<!--CABOS-FIM-->',
         secOff('t_cabos')?'':paginaRestantes,
         (!secOff('tbl_teto') && plantaTeto) ? `<div class="ex-obra-page" style="page-break-before:always">${plantaTeto.replace('<div class="ex-sec ex-breakable">','<div>')}</div>` : '',
         secOff('t_checklists')?'':obraChecklists,
@@ -4225,25 +4248,28 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const cap = (t,brk=false) => `<div class="ex-sec ex-breakable" style="${brk?'page-break-before:always;':''}"><h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:12px">${_capNum(++_cap)}${t}</h2>`
 
     // ── gera os conteúdos de Obra e Conduítes inline (sem duplicação) ──
-    let obraInline = '', conduitesInline = ''
+    let obraInline = '', conduitesInline = '', cabosInline = ''
     try {
       const obraFull = buildExecHtml(d,'obra')
       const condFull = buildExecHtml(d,'conduites')
       const extrair = html => { const i=html.indexOf('<div class="ex-obra-page"'); const j=html.lastIndexOf('</div>'); return (i>=0)?html.slice(i, j):'' }
       obraInline = extrair(obraFull)
       conduitesInline = extrair(condFull)
+      // Plantas de cabo por família, extraídas do doc de obra pelas sentinelas — mesmas plantas
+      // que o Plano de Obra, agora também no Executivo (Raphael: "faltou a planta com os cabos").
+      const ci=obraFull.indexOf('<!--CABOS-INI-->'), cf=obraFull.indexOf('<!--CABOS-FIM-->')
+      if(ci>=0 && cf>ci) cabosInline = obraFull.slice(ci+16, cf)
     } catch(e){ console.warn('inline obra/cond:',e) }
 
     return [
     // 1. PREMISSAS — o que o projeto entrega
     (!secOff('t_premissas') && d.premissas?.length) ? cap('Premissas e Escopo do Projeto') + list(d.premissas) + '</div>' : '',
 
-    // 2-4. SISTEMAS na ordem do valor percebido pelo contratante.
-    // A tabela "Automação — Interruptores, Keypads e Módulos" foi ELIMINADA (Raphael): ela era
-    // por cômodo e a "Posição e Altura" também, com as mesmas colunas — a mestra já dizia tudo
-    // que ela dizia. A única coluna exclusiva dela (Equip., o produto do catálogo) migrou pra lá.
-    (!secOff('tbl_som') && tblSom) ? cap('Som Ambiente — Zonas e Caixas') + tblSom + '</div>' : '',
-    (!secOff('tbl_seguranca') && (tblSeguranca||temCam)) ? cap('Segurança — Câmeras e Sensores') + tblSeguranca + blocoCamerasHtml() + '</div>' : '',
+    // 2. DETALHES DE PONTOS POR CÔMODO (ex-"Posição e Altura", movida pra cá como #2 — Raphael).
+    _detalhesPontosBody ? cap('Detalhes de Pontos por Cômodo') + _detalhesPontosBody + '</div>' : '',
+
+    // 3-4. SISTEMAS. Som e Segurança agora entram DENTRO de Cabeamento e Conduítes (ver #7),
+    // nos tópicos respectivos — pedido do Raphael. Ficam fora daqui.
 
     // 5. REDE / RACK
     !secOff('tbl_rack') && hasRack && (d.rack_detalhe||rackItems.length) ? cap('Rack / CPD — Equipamentos e Portas',true) + (list(d.rack_detalhe)+((rackEquipTable&&!secOff('tbl_rack_tab'))?`<h3 class="ex-amb">Equipamentos do Rack</h3>${rackEquipTable}`:'')+rackVisual+((rackCableTableHtml&&!secOff('tbl_rack_tab'))?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Cabos de Rede</h3>${rackCableTableHtml}`:'')) + '</div>' : '',
@@ -4257,8 +4283,15 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // 6. TETO
     (!secOff('tbl_teto') && plantaTeto) ? cap('Planta de Teto — Itens sobre Forro e Laje',true) + plantaTeto.replace('<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>','') + '</div>' : '',
 
-    // 7. INFRA: conduítes aqui; o detalhamento de cabeamento vive no Plano de Obra (anexo), sem duplicar
-    secOff('t_conduites') ? '' : ((conduitesInline && !hidePdfConduites) ? cap('Cabeamento e Conduítes',true) + `<p class="ex-p" style="margin-bottom:10px">Detalhamento de cada conduíte com cabos dentro, bitola estimada e percurso. As plantas de cabeamento por família (Dados, Som, Elétrica), com tabelas de execução, estão no <b>Plano de Obra</b>, anexo deste documento.</p>` + conduitesInline + '</div>' : `<div class="ex-sec ex-breakable" style="page-break-before:always"><h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:12px">${_capNum(++_cap)}Cabeamento e Conduítes</h2><p class="ex-p">As plantas de cabeamento por família (Dados, Som, Elétrica), com tabelas de execução, estão no <b>Plano de Obra</b>, anexo deste documento.</p></div>`),
+    // 7. CABEAMENTO E CONDUÍTES — agora com as PLANTAS DE CABO por família (cabosInline, extraídas
+    // do doc de obra) + os conduítes, e com Som e Segurança dobrados aqui dentro como subseções,
+    // cada um no seu tópico (Raphael). Antes só tinha conduíte e apontava pro Plano de Obra.
+    secOff('t_conduites') ? '' : cap('Cabeamento e Conduítes',true) +
+      `<p class="ex-p" style="margin-bottom:10px">Por família de cabo (Dados, Som, Elétrica): a planta com o caminho dos cabos e a dos conduítes, com as tabelas de execução.</p>` +
+      (cabosInline || (conduitesInline||'')) +
+      ((!secOff('tbl_som') && tblSom) ? `<h2 style="border-top:2px solid ${TH.rule};margin-top:22px;padding-top:12px">Som Ambiente — Zonas e Caixas</h2>${tblSom}` : '') +
+      ((!secOff('tbl_seguranca') && (tblSeguranca||temCam)) ? `<h2 style="border-top:2px solid ${TH.rule};margin-top:22px;padding-top:12px">Segurança — Câmeras e Sensores</h2>${tblSeguranca}${blocoCamerasHtml()}` : '') +
+      '</div>',
 
     // 8. EQUIPAMENTOS E PEÇAS — mantido como estava (Raphael: "pode manter como está").
     secOff('t_pecas') ? '' : cap('Equipamentos por Cômodo e Lista de Peças') +
@@ -5566,7 +5599,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       <option value="modulo_cabeceira">Módulo Cabeceira</option>
                     </optgroup>
                     <optgroup label="🔵 DADOS · selo R">
-                      <option value="keystone_alto">Keystone Parede Média</option>
+                      <option value="keystone_piso">Keystone Piso</option>
+                      <option value="keystone_baixo">Keystone Baixa (0,30m)</option>
+                      <option value="keystone_media">Keystone Média (1,10m)</option>
+                      <option value="keystone_alto">Keystone Alta (1,80m)</option>
                       <option value="keystone_teto">Keystone Teto</option>
                     </optgroup>
                     <optgroup label="🔊 SOM · selo S">
@@ -5921,8 +5957,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <span style={{fontSize:12,color:'#fff',fontWeight:600,display:'block'}}>Ocultar do documento — por tópico</span>
                     <span style={{fontSize:10,color:'rgba(255,255,255,0.42)',display:'block',margin:'2px 0 7px'}}><b>Tópico</b> tira o título + planta + tabela. <b>Só tabela</b> mantém a planta. Riscado = fora.</span>
                     {(()=>{
-                      const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Posição e altura'],['itens_unicos','Resumo por item (únicos)'],['tbl_automacao','Automação'],['tbl_som','Som ambiente'],['tbl_seguranca','Segurança'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto'],['t_conduites','Cabeamento e conduítes'],['t_pecas','Equipamentos e peças'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos']]
-                      const OBRA=[['t_obra_eletrica','Elétrica (caixas + alimentação)'],['t_quant','Quantitativo de material'],['t_cabos','Cabeamento por família'],['t_checklists','Checklists de obra']]
+                      const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança (em Cabeamento)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto'],['t_conduites','Cabeamento e conduítes'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos']]
+                      const OBRA=[['t_obra_eletrica','Elétrica (caixas + alimentação)'],['lista_geral','↳ Lista geral de pontos elétricos'],['pontos_tabela','↳ Pontos elétricos — caixas e alturas'],['alim_keypads','↳ Alimentação dos keypads'],['t_quant','Quantitativo de material'],['t_cabos','Cabeamento por família'],['t_checklists','Checklists de obra']]
                       const allKeys=[...EXEC,...OBRA].map(t=>t[0])
                       const off=k=>hideSecs.has(k)
                       const tgl=k=>()=>setHideSecs(p=>{const x=new Set(p); x.has(k)?x.delete(k):x.add(k); return x})
