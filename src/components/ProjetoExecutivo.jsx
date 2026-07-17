@@ -567,6 +567,9 @@ function fazFamOculta(hideFamsSet){
 }
 
 // Desenha o pin como SVG (forma + borda branca + número). Reutilizável no editor e nas plantas geradas.
+// Tamanho do pino nas plantas do documento. 18px é o da "Planta Completa" do Plano de Obra,
+// que o Raphael aprovou — a Planta de Pontos usava 24 e ficava desproporcional.
+const PIN_PX = 18
 // Recebendo o MARCADOR (m), desenha no idioma novo: forma+cor = o que é, preenchimento =
 // altura, traços = teclas. Sem m (exemplos genéricos da legenda antiga), cai no desenho
 // velho — os modelos legados continuam coerentes com a legenda deles.
@@ -597,9 +600,11 @@ function pinShapeSVG({ m=null, mount='parede', alt='', color='#374151', label=''
 }
 
 // Pin completo posicionado (forma por local + cor + selo de cabo opcional + rótulo opcional).
-function drawPin(m, { size=20, color='#374151', idLabel='', badgeFam=null }={}){
+// `label` vem de FORA: quem chama é que sabe se o nº dentro do pino está ligado (é estado do
+// componente, e isto aqui é escopo de módulo). Sem label explícito, mostra o nº do ponto.
+function drawPin(m, { size=20, color='#374151', idLabel='', badgeFam=null, label=null }={}){
   const col = catColorOf(m) || color
-  const core = pinShapeSVG({m:m, mount:mountOf(m), alt:alturaOf(m), color:col, label:String(m.n??''), size })
+  const core = pinShapeSVG({m:m, mount:mountOf(m), alt:alturaOf(m), color:col, label: label!=null ? label : String((m&&m.n)??''), size })
   const _fams = Array.isArray(badgeFam) ? badgeFam : (badgeFam ? [badgeFam] : [])
   const badge = _fams.length
     ? _fams.map((f,i)=>`<div style="position:absolute;top:-3px;right:${-3 - i*11}px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`).join('')
@@ -985,6 +990,9 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [showHeatmap, setShowHeatmap] = useState(true)  // mostrar mapa de calor de Wi-Fi no executivo
   const [showIds, setShowIds] = useState(false)  // códigos nos pinos DO EDITOR (para trabalhar)
   const [showIdsPdf, setShowIdsPdf] = useState(false)  // códigos nas plantas DO RELATÓRIO/PDF (default: limpo)
+  // Número do ponto DENTRO do pino, nas plantas do PDF. Desligado, o pino vira só o símbolo —
+  // a planta fica limpa, e quem precisa cruzar com as tabelas religa.
+  const [showNumPin, setShowNumPin] = useState(true)
   const [filterLevels, setFilterLevels] = useState(()=>new Set())   // filtro por nível: piso/baixa/media/alta/teto (vazio = todos)
   const [showCabo, setShowCabo] = useState(true)   // mostrar a legenda de cabo (E/S/R) ao lado do pin
   const [showLegenda, setShowLegenda] = useState(true) // incluir o bloco de legenda (formas + cabos) nas plantas geradas
@@ -2516,7 +2524,7 @@ Responda APENAS JSON válido:
     // Mesma linguagem da planta: forma pelo local de instalação (○ parede △ teto □ chão), cor pela categoria.
     const pin=(n,color=TH.pin,m=null)=>{
       if(m){
-        const pino=pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||color,label:String(m.n??n),size:22})
+        const pino=pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||color,label:(_pinLabel(m)||String(n??"")),size:22})
         const fam=cableFamily(familiaDoPontoTipo(m))
         const seloFam = famOculta(fam.k) ? '' : `<span style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${fam.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span>`
         return `<span style="position:relative;display:inline-block;width:22px;height:22px;vertical-align:middle">${pino}${seloFam}</span>`
@@ -2526,7 +2534,7 @@ Responda APENAS JSON válido:
     // versão fiel à planta: recebe o próprio marker
     const pinMk = m => { if(!m) return ''
       const cor=catColorOf(m)||(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
-      return `<span style="display:inline-flex;vertical-align:middle">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:cor,label:String(m.n??''),size:20})}</span>` }
+      return `<span style="display:inline-flex;vertical-align:middle">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:cor,label:_pinLabel(m),size:20})}</span>` }
     const _normKey = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'')
     const _findMk = (...keys)=>{
       for(const k of keys){ if(k==null) continue; const kk=_normKey(k); if(!kk) continue
@@ -2547,7 +2555,7 @@ Responda APENAS JSON válido:
       const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         const f=cableFamily(familiaDoPontoTipo(m))
         const badge=(showCabo && !famOculta(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
-        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
+        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:_pinLabel(m),size:22})}${badge}</div>`}).join('')
       planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
     }
 
@@ -2842,16 +2850,17 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 </div>`
 
     const _eletr = mode==='eletrica'
-    const _temWifi = showHeatmap && markers.some(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
+    // Conduítes não tinha ramo de capa: caía no else e se apresentava como "Projeto Executivo".
+    const _cond  = mode==='conduites'
     return `<style>${_ver==='opus'?EXEC_CSS_OPUS:_ver==='fable'?EXEC_CSS_FABLE:_ver==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
 <div class="ex-doc">
   <!-- CAPA -->
   <div class="ex-cover">
-    <div class="ex-cover-top">${_eletr?(_temWifi?'DOCUMENTO TÉCNICO · ELÉTRICA E Wi-Fi':'DOCUMENTO TÉCNICO · ELÉTRICA'):isObra?'DOCUMENTO DE OBRA · INFRAESTRUTURA':'DOCUMENTO TÉCNICO · PROJETO EXECUTIVO'}</div>
+    <div class="ex-cover-top">${_cond?'DOCUMENTO TÉCNICO · CONDUÍTES':_eletr?'DOCUMENTO TÉCNICO · ELÉTRICA':isObra?'DOCUMENTO DE OBRA · INFRAESTRUTURA':'DOCUMENTO TÉCNICO · PROJETO EXECUTIVO'}</div>
     <img src="${brandLogoExec()}" alt="Logo" style="width:170px;max-width:50%;margin:0 auto 8px;display:block"/>
     <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
-    <div class="ex-cover-title">${_eletr?(_temWifi?'Planta Elétrica e Cobertura Wi-Fi':'Planta Elétrica'):isObra?'Plano de Obra — Cabos e Infraestrutura':'Projeto Executivo de Automação'}</div>
-    <div class="ex-cover-sub">${_eletr?(_temWifi?'Símbolos ABNT NBR 5444 · Quadro de cargas · Mapa de calor Wi-Fi<br>Pontos elétricos e cobertura aproximada':'Símbolos ABNT NBR 5444 · Quadro de cargas<br>Pontos e circuitos elétricos'):isObra?'Caminho dos cabos · Metragens · Alturas · Caixas 4×4<br>Guia direto para o eletricista e o pedreiro':'Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto'}</div>
+    <div class="ex-cover-title">${_cond?'Conduítes e Infraestrutura':_eletr?'Planta Elétrica':isObra?'Plano de Obra — Cabos e Infraestrutura':'Projeto Executivo de Automação'}</div>
+    <div class="ex-cover-sub">${_cond?'Caminho dos eletrodutos · Bitolas · Caixas de passagem<br>Guia de infraestrutura para a obra':_eletr?'Símbolos ABNT NBR 5444 · Quadro de cargas<br>Pontos e circuitos elétricos':isObra?'Caminho dos cabos · Metragens · Alturas · Caixas 4×4<br>Guia direto para o eletricista e o pedreiro':'Posições exatas · Cabeamento · Pré-instalação<br>Guia técnico para obra e arquiteto'}</div>
     <div class="ex-cover-client"><div class="ex-cc-name">${esc(cliente)}</div><div class="ex-cc-meta">${hoje} · ${brandName()}</div></div>
     ${_opus?(()=>{ const vis=markers.filter(m=>!isRackItem(m.name,m.code))
       const pts=vis.length
@@ -2868,7 +2877,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         const f=cableFamily(familiaDoPontoTipo(m))
         const badge=showCabo?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
-        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:24px;height:24px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:24})}${badge}</div>`}).join('')
+        // 18px = mesmo tamanho da "Planta Completa" do Plano de Obra, que o Raphael aprovou.
+        // Estava 24px: 33% maior numa planta MAIS ESTREITA, então proporcionalmente o pino
+        // dominava o desenho. O número acompanha (o SVG é viewBox 24 escalado por size).
+        return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:${PIN_PX}px;height:${PIN_PX}px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:_pinLabel(m),size:PIN_PX})}${badge}</div>`}).join('')
       return `<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
     }
     return ''
@@ -2885,15 +2897,19 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const td='style="font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
     const withId = showIdsTbl
     const idTh = withId ? `<th ${th} style="width:70px;text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">ID</th>` : ''
-    const simb=(m)=>{ const pino=pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:String(m.n??''),size:24}); const fam=cableFamily(familiaDoPontoTipo(m))
+    const simb=(m)=>{ const pino=pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:_pinLabel(m),size:24}); const fam=cableFamily(familiaDoPontoTipo(m))
       return `<span style="position:relative;display:inline-block;width:24px;height:24px;vertical-align:middle">${pino}<span style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${fam.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span></span>` }
     return `<div class="ex-sec"><h2>Posição e Altura dos Pontos</h2>
       <p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Conferência para a obra, cômodo a cômodo: <b>onde</b> deixar a ponta e <b>qual cabo</b> é. O símbolo repete o da planta — <b>forma</b> = local (△ teto, ○ parede, □ chão), <b>selo</b> = família do cabo.</p>
       ${rooms.map(([amb,ms])=>`
         <div style="font-size:12px;font-weight:700;color:#0369A1;margin:12px 0 4px">${amb} <span style="font-weight:400;color:#94A3B8">· ${ms.length} ${ms.length===1?'ponto':'pontos'}</span></div>
         <table style="width:100%;border-collapse:collapse">
-          <thead><tr><th ${th} style="width:70px;text-align:center;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Ponto</th>${idTh}<th ${th}>Item</th><th ${th}>Local</th><th ${th}>Altura</th><th ${th}>Caixa</th><th ${th}>Cabo</th></tr></thead>
-          <tbody>${ms.map(m=>{ const sp=specDoPonto(m); return `<tr><td ${td} style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0">${simb(m)}</td>${withId?`<td ${td} style="font-family:monospace;font-size:10px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#475569">${m.id||m.code||('#'+m.n)}</td>`:''}<td ${td}>${funcaoDoPonto(m)}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td} style="font-weight:600;font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B">${NIV[alturaOf(m)]||'—'}</td><td ${td} style="text-align:center;font-weight:700">${sp.caixa||'—'}</td><td ${td} style="font-weight:600;font-size:10.5px">${sp.cabo||'—'}</td></tr>`}).join('')}</tbody>
+          <thead><tr><th ${th} style="width:70px;text-align:center;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Ponto</th>${idTh}<th ${th}>Item</th><th ${th}>Equip.</th><th ${th}>Local</th><th ${th}>Altura</th><th ${th}>Caixa</th><th ${th}>Cabo</th></tr></thead>
+          <tbody>${ms.map(m=>{ const sp=specDoPonto(m); const fn=funcaoDoPonto(m); const eq=(m.name||'').trim()
+            // "Item" = a função (o que o ponto É). "Equip." = o produto do catálogo que vai ali —
+            // é a única coluna que a tabela de Automação tinha e esta não; ela sobrevive aqui.
+            // Se o nome do produto for igual à função, não repete: mostra "—".
+            return `<tr><td ${td} style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0">${simb(m)}</td>${withId?`<td ${td} style="font-family:monospace;font-size:10px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#475569">${m.id||m.code||('#'+m.n)}</td>`:''}<td ${td} style="font-weight:600">${fn}</td><td ${td} style="font-size:10px;color:#64748B">${(eq&&eq!==fn)?eq:'—'}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td} style="font-weight:600;font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B">${NIV[alturaOf(m)]||'—'}</td><td ${td} style="text-align:center;font-weight:700">${sp.caixa||'—'}</td><td ${td} style="font-weight:600;font-size:10.5px">${sp.cabo||'—'}</td></tr>`}).join('')}</tbody>
         </table>`).join('')}
     </div>`
   })()}
@@ -3086,7 +3102,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const dots=tetoMarkers.map(m=>{
         const color=(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
         const badgeFam=showCabo?cableFamiliesOf(m,familiaDoPontoTipo(m)):null
-        return drawPin({...m,mount:'teto'},{size:20,color,idLabel:showIdsPdf?esc(m.id||m.code||''):'',badgeFam})
+        return drawPin({label:_pinLabel(m),...m,mount:'teto'},{size:20,color,idLabel:showIdsPdf?esc(m.id||m.code||''):'',badgeFam})
       }).join('')
       const cabosLinha=(cables||[]).filter(c=>!c.free&&tetoMarkers.some(m=>m.uid===c.fromUid||m.uid===c.toUid)).map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''; return `<path d="${pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')}" fill="none" stroke="${c.color||'#0891B2'}" stroke-dasharray="4,2.5" vector-effect="non-scaling-stroke" style="stroke-width:2px"/>`}).join('')
       return `<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>
@@ -3296,7 +3312,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
             <div style="width:16px;height:16px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
           </div>`
-          return drawPin(m,{size:16,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c})
+          return drawPin(m,{label:_pinLabel(m),size:16,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c})
         }).join('')
         // caixas
         const caixaDots = caixasConduite.map(m=>`
@@ -3495,7 +3511,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           }
           const color=(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
           const badgeFam=showCabo?cableFamiliesOf(m,familiaDoPontoTipo(m)):null
-          return drawPin(m,{size:18,color,idLabel,badgeFam})
+          return drawPin(m,{label:_pinLabel(m),size:18,color,idLabel,badgeFam})
         }).join('')
         return `<div class="ex-plant">
           <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
@@ -3515,7 +3531,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
             ${showIdsPdf?`<div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>`:''}
           </div>`
-          return drawPin(m,{size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):''})
+          return drawPin(m,{label:_pinLabel(m),size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):''})
         }).join('')
         const lines = arr.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
           return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:${condW}px" vector-effect="non-scaling-stroke"/>` }).join('')
@@ -3537,7 +3553,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
             <div style="width:18px;height:18px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
           </div>`
-          return drawPin(m,{size:18,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c})
+          return drawPin(m,{label:_pinLabel(m),size:18,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c})
         }).join('')
         const caixaDots = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
           <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
@@ -3572,7 +3588,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             ${showIdsPdf?`<div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>`:''}
           </div>`
           const badgeFam=showCabo?cableFamiliesOf(m,familiaDoPontoTipo(m)):null
-          return drawPin(m,{size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):'',badgeFam})
+          return drawPin(m,{label:_pinLabel(m),size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):'',badgeFam})
         }).join('')
         const caixaDots = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
           <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
@@ -3823,8 +3839,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // 1. PREMISSAS — o que o projeto entrega
     (!secOff('t_premissas') && d.premissas?.length) ? cap('Premissas e Escopo do Projeto') + list(d.premissas) + '</div>' : '',
 
-    // 2-4. SISTEMAS na ordem do valor percebido pelo contratante
-    (!secOff('tbl_automacao') && (tblAutomacao||pontosHtml)) ? cap('Automação — Interruptores, Keypads e Módulos') + (tblAutomacao||pontosHtml) + '</div>' : '',
+    // 2-4. SISTEMAS na ordem do valor percebido pelo contratante.
+    // A tabela "Automação — Interruptores, Keypads e Módulos" foi ELIMINADA (Raphael): ela era
+    // por cômodo e a "Posição e Altura" também, com as mesmas colunas — a mestra já dizia tudo
+    // que ela dizia. A única coluna exclusiva dela (Equip., o produto do catálogo) migrou pra lá.
     (!secOff('tbl_som') && tblSom) ? cap('Som Ambiente — Zonas e Caixas') + tblSom + '</div>' : '',
     (!secOff('tbl_seguranca') && tblSeguranca) ? cap('Segurança — Câmeras e Sensores') + tblSeguranca + '</div>' : '',
 
@@ -3832,9 +3850,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     !secOff('tbl_rack') && hasRack && (d.rack_detalhe||rackItems.length) ? cap('Rack / CPD — Equipamentos e Portas',true) + (list(d.rack_detalhe)+((rackEquipTable&&!secOff('tbl_rack_tab'))?`<h3 class="ex-amb">Equipamentos do Rack</h3>${rackEquipTable}`:'')+rackVisual+((rackCableTableHtml&&!secOff('tbl_rack_tab'))?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Cabos de Rede</h3>${rackCableTableHtml}`:'')) + '</div>' : '',
 
     // 6. PLANTA ELÉTRICA (NBR) e MAPA WI-FI
-    secOff('t_eletrica') ? '' : buildPlantaEletrica(()=>_capNum(++_cap)),
+    // Wi-Fi ANTES da elétrica (Raphael): rede é o que o cliente vê; a elétrica fecha o bloco técnico.
     secOff('t_wifi') ? '' : (()=>{ const aps=markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
       return (showHeatmap && aps.length) ? (()=>{_cap++; return buildHeatmap(()=>_capNum(_cap))})() : '' })(),
+    secOff('t_eletrica') ? '' : buildPlantaEletrica(()=>_capNum(++_cap)),
 
     // 6. TETO
     (!secOff('tbl_teto') && plantaTeto) ? cap('Planta de Teto — Itens sobre Forro e Laje',true) + plantaTeto.replace('<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>','') + '</div>' : '',
@@ -3842,7 +3861,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // 7. INFRA: conduítes aqui; o detalhamento de cabeamento vive no Plano de Obra (anexo), sem duplicar
     secOff('t_conduites') ? '' : ((conduitesInline && !hidePdfConduites) ? cap('Cabeamento e Conduítes',true) + `<p class="ex-p" style="margin-bottom:10px">Detalhamento de cada conduíte com cabos dentro, bitola estimada e percurso. As plantas de cabeamento por família (Dados, Som, Elétrica), com tabelas de execução, estão no <b>Plano de Obra</b>, anexo deste documento.</p>` + conduitesInline + '</div>' : `<div class="ex-sec ex-breakable" style="page-break-before:always"><h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:12px">${_capNum(++_cap)}Cabeamento e Conduítes</h2><p class="ex-p">As plantas de cabeamento por família (Dados, Som, Elétrica), com tabelas de execução, estão no <b>Plano de Obra</b>, anexo deste documento.</p></div>`),
 
-    // 8. EQUIPAMENTOS E PEÇAS
+    // 8. EQUIPAMENTOS E PEÇAS — mantido como estava (Raphael: "pode manter como está").
     secOff('t_pecas') ? '' : cap('Equipamentos por Cômodo e Lista de Peças') +
     (itensComodoHtml ? itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml : '') +
     ((d.pecas||[]).length?'<h3 class="ex-amb" style="margin-top:16px">Lista Completa de Peças</h3>' + T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td style="text-align:center"><b>${esc(r.qtd)}</b></td></tr>`).join(''),['Item','Qtd']):'') + '</div>',
@@ -3851,14 +3870,18 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     secOff('t_graficos') ? '' : cap('Gráficos e Gestão do Projeto') + (grafico1 + grafico2 + grafico3 + grafico4) +
     (gestaoTxt ? '<h3 class="ex-amb" style="margin-top:18px">Gestão e Controle</h3>' + gestaoTxt : '') + '</div>',
 
-    // 10. OBSERVAÇÕES E FOTOS
-    (!secOff('t_observ') && (tblObservacoes||fotosTxt)) ? cap('Observações e Fotos') +
-    (tblObservacoes ? '<h3 class="ex-amb">Observações dos Pontos</h3>' + tblObservacoes : '') +
-    (fotosTxt ? '<h3 class="ex-amb" style="margin-top:16px">Fotos no Diário de Obra</h3>' + fotosTxt : '') + '</div>' : '',
+    // 10. FOTOS — a tabela "Observações dos Pontos" saiu (Raphael): a observação de cada ponto
+    // já viaja junto do ponto nas tabelas por cômodo; repetir tudo numa lista solta no fim não
+    // ajudava ninguém. As fotos do diário ficam.
+    (!secOff('t_observ') && fotosTxt) ? cap('Fotos do Diário de Obra') + fotosTxt + '</div>' : '',
 
   ].filter(Boolean).join('\n') })()}
 </div>`
   }
+
+  // Número dentro do pino, nas plantas do documento — obedece ao toggle "Nº dentro do pino".
+  // Declarada como function pra ser içada (hoisted): as plantas são montadas acima daqui.
+  function _pinLabel(m){ return showNumPin ? String((m&&m.n)??'') : '' }
 
   // Cor do pino — FONTE ÚNICA. A planta desenha com catColorOf(m) || EQUIP_STYLE; a legenda
   // caía num cinza fixo quando catColorOf devolvia null (itens sem categoria mapeada, tipo
@@ -3877,8 +3900,15 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   // mesmo rótulo. Isto AQUI é só exibição: quem agrupa é o item (ver a chave da dedup).
   function funcaoDoPonto(m){
     const cls = classifyEle(m)
-    if(cls && cls.tipo) return cls.tipo
-    return (m && m.name) || '—'
+    const base = (cls && cls.tipo) ? cls.tipo : ((m && m.name) || '—')
+    // Ponto de rede: a letra do pino (C câmera · A access point · K keystone) diz QUAL é. Sem
+    // isso, um keystone de teto para câmera, um para AP e um solto escrevem a MESMA coisa e a
+    // legenda parece repetida — três linhas idênticas que só diferem por uma letra no desenho.
+    // Só acrescenta quando o texto já não disser (senão vira "Câmera externa 4MP — câmera").
+    const L = pinLetraDe(m)
+    if(L==='C' && !/c[âa]mera|dome|bullet/i.test(base)) return base + ' — câmera'
+    if(L==='A' && !/access point|\bap\b|wi-?fi/i.test(base)) return base + ' — access point'
+    return base
   }
 
   // Legenda OPUS: a legenda É a lista do que existe NESTA planta, uma linha por FUNÇÃO
@@ -3891,12 +3921,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(!vis.length) return ''
     const NIVL={piso:'no chão',baixa:'0,30 m',media:'1,10 m',alta:'1,80 m',teto:'no teto'}
     const grupos=new Map()
-    // Agrupa pelo ITEM (nome do catálogo). NUNCA fundir itens diferentes: dois produtos
-    // distintos são duas linhas, mesmo que desenhem igual e a função pareça a mesma — quem
-    // decide isso é o catálogo, não a gente. (Nem por m.code: esse é a etiqueta da INSTÂNCIA
-    // — KP-01, SP-02 — e daria 1 linha por ponto.) O que aparece escrito é funcaoDoPonto().
+    // LEGENDA: um de cada (Raphael). Agrupa pelo que a LINHA MOSTRA — desenho (tipo, forma,
+    // preenchimento, traços, letra) + o texto (função) + o cabo. Dois produtos diferentes com a
+    // mesma função desenham igual e escrevem igual: na legenda são a MESMA linha.
+    // A regra "não fundir itens" continua valendo nas TABELAS, onde o item é o assunto; aqui o
+    // assunto é o símbolo — agrupar por m.name gerava linhas gêmeas ("Interruptor 3 teclas ×3"
+    // e "×4" logo abaixo), que é ruído, não informação.
     vis.forEach(m=>{ const fam=cableFamily(familiaDoPontoTipo(m))
-      const chave=[m.name,alturaOf(m),mountOf(m),fam.k].join('|')
+      const chave=[funcaoDoPonto(m),pinTipoDe(m),pinFillDe(m),((classifyEle(m)||{}).teclas)||0,pinLetraDe(m),fam.k].join('|')
       if(!grupos.has(chave)) grupos.set(chave,{m,fam,qtd:0})
       grupos.get(chave).qtd++ })
     const linhas=[...grupos.values()].sort((a,b)=>funcaoDoPonto(a.m).localeCompare(funcaoDoPonto(b.m)))
@@ -3955,7 +3987,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
       const f=cableFamily(familiaDoPontoTipo(m))
       const badge=(showCabo && !_fo(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
-      return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:String(m.n??''),size:22})}${badge}</div>`}).join('')
+      return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:_pinLabel(m),size:22})}${badge}</div>`}).join('')
     const _wr=imgRatio||0.66
     return `<div class="ex-wall-page" style="page:wallpage;page-break-before:always;text-align:center">
       <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:#0D1420;letter-spacing:.5px;margin-bottom:6px">PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA</div>
@@ -4017,7 +4049,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   }
   // preview ao vivo: regenera o HTML quando qualquer opção muda (só enquanto o painel está aberto)
   const pdfPreviewHtml = useMemo(()=> showPdfOpts ? buildFullHtml(true) : '',
-    [showPdfOpts, showLegenda, showIdsPdf, showIdsTbl, pageOrient, plantPct, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables]) // eslint-disable-line
+    [showPdfOpts, showLegenda, showIdsPdf, showIdsTbl, showNumPin, pageOrient, plantPct, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables]) // eslint-disable-line
 
   async function saveToProposal(docOverride){
     const docToSave = typeof docOverride==='string' ? docOverride : execDoc
@@ -4851,7 +4883,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       ? <div style={{width:sel?30:24,height:sel?30:24,borderRadius:5,background:'#4C1D95',color:'#C4B5FD',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #7C3AED',boxShadow:sel?`0 0 0 3px #7C3AED`:'0 2px 6px rgba(0,0,0,0.6)'}}><i className="ti ti-server" aria-hidden style={{fontSize:13}}/></div>
                       : (()=>{ const mount=mountOf(m); const fam=cableFamily(familiaDoPontoTipo(m))
                           return <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                            <div dangerouslySetInnerHTML={{__html: pinShapeSVG({m, mount, alt:alturaOf(m), color:catColorOf(m)||st.c, label:String(m.n??''), size:sel?26:22, sel})}}/>
+                            <div dangerouslySetInnerHTML={{__html: pinShapeSVG({m, mount, alt:alturaOf(m), color:catColorOf(m)||st.c, label:_pinLabel(m), size:sel?26:22, sel})}}/>
                             {showCabo && <div title={`Cabo: ${fam.nome}`} style={{position:'absolute',top:-3,right:-3,minWidth:9,height:9,padding:0,borderRadius:5,background:fam.cor,color:'#fff',fontSize:6,fontWeight:800,lineHeight:'9px',textAlign:'center',border:'1px solid #fff',pointerEvents:'none',fontFamily:"'DM Sans',sans-serif"}}>{fam.L}</div>}
                           </div> })()}
                     {/* rótulo de código só quando selecionado ou no modo "ver IDs" — planta mais limpa */}
@@ -5176,7 +5208,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             {/* Seletor de versão do documento (Completo · Obra · Elétrica) */}
             <div style={{maxWidth:820,margin:'0 auto 14px',display:'flex',gap:8,alignItems:'center',padding:'0 4px',flexWrap:'wrap'}}>
               <span style={{fontSize:12,color:'#475569',fontWeight:600,marginRight:4}}>Documento:</span>
-              {[['completo','Completo','ti-file-text'],['obra','Obra','ti-tools'],['eletrica','Elétrica','ti-bolt'],['conduites','Conduítes','ti-route']].map(([m,label,icon])=>{
+              {/* Ordem pedida pelo Raphael: é a ordem da OBRA acontecendo — primeiro o pedreiro
+                  deixa a infra, depois o projeto, depois o instalador, e a elétrica/conduíte
+                  como anexos técnicos. */}
+              {[['obra','Plano de Obra','ti-tools'],['completo','Projeto Executivo','ti-file-text'],['eletrica','Elétrica','ti-bolt'],['conduites','Conduítes','ti-route']].map(([m,label,icon])=>{
                 const _stored = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:m==='conduites'?execDocConduites:execDoc
                 let doc=_stored
                 if(execData){ try{ doc=buildExecHtml(execData, m) }catch(e){ console.warn('re-render preview falhou, usando salvo:',e.message); doc=_stored } }
@@ -5328,6 +5363,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <div style={rowSt}>
                   <div><div style={{fontSize:12.5,fontWeight:600}}>Códigos dos pontos (IDs)</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Mostrar os IDs nas plantas do PDF</div></div>
                   {tgl(showIdsPdf,()=>setShowIdsPdf(v=>!v),'Com IDs','Limpo')}
+                </div>
+                <div style={rowSt}>
+                  <div><div style={{fontSize:12.5,fontWeight:600}}>Nº dentro do pino</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Desligado, o pino vira só o símbolo. É o nº que cruza com as tabelas.</div></div>
+                  {tgl(showNumPin,()=>setShowNumPin(v=>!v),'Com nº','Só símbolo')}
                 </div>
                 <div style={rowSt}>
                   <div><div style={{fontSize:12.5,fontWeight:600}}>IDs nas tabelas</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Coluna de código dentro das tabelas</div></div>
