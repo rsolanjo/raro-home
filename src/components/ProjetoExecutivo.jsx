@@ -2602,38 +2602,27 @@ Responda APENAS JSON válido:
           <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
           <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
         </div>`).join('')}</div>`
-      // DUAS linhas por tecla: o keypad da RARO comporta 2 cenas por tecla (Raphael: "é sempre
-      // o dobro" — 2 botões = 4 cenas, 6 botões = 12). Cada cena é programada individualmente,
-      // então cada uma ganha a sua linha pra ser preenchida. Sem isto, a tabela pedia metade
-      // do que o keypad faz.
+      // COMPACTO (Raphael): uma linha por TECLA, com as 2 cenas lado a lado — metade da altura
+      // da versão anterior (2 linhas por tecla). O keypad da RARO comporta 2 cenas por tecla.
       const linhas = keypads.map(m=>{
         const t = ((classifyEle(m)||{}).teclas)||1
-        return Array.from({length:t},(_,i)=>
-          ['1ª','2ª'].map((cena,j)=>`<tr>
-            ${j===0?`<td rowspan="2" style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px;vertical-align:middle">${esc(m.id||m.code||('#'+m.n))}</td>
-            <td rowspan="2" style="padding:4px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px;vertical-align:middle">${esc(m.room||'—')}</td>
-            <td rowspan="2" style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0;font-size:12px;font-weight:800;vertical-align:middle">${i+1}</td>`:''}
-            <td style="text-align:center;padding:4px 6px;border-bottom:${j===0?'.5px dotted #CBD5E1':'.5px solid #E2E8F0'};font-size:10px;color:#94A3B8">${cena}</td>
-            <td style="padding:4px 8px;border-bottom:${j===0?'.5px dotted #CBD5E1':'.5px solid #E2E8F0'}"></td>
-            <td style="padding:4px 8px;border-bottom:${j===0?'.5px dotted #CBD5E1':'.5px solid #E2E8F0'}"></td>
-          </tr>`).join('')
-        ).join('')
+        return Array.from({length:t},(_,i)=>`<tr>
+          <td style="text-align:center;font-family:monospace;font-size:9.5px;color:#475569">${esc(m.id||m.code||('#'+m.n))}</td>
+          <td style="font-size:10px">${esc(m.room||'—')}</td>
+          <td style="text-align:center;font-size:12px;font-weight:800;color:#0369A1">${i+1}</td>
+          <td style="border-left:2px solid #E5E7EB"><span style="font-size:8px;color:#B45309;font-weight:700">1ª&nbsp;</span></td>
+          <td><span style="font-size:8px;color:#B45309;font-weight:700">2ª&nbsp;</span></td>
+        </tr>`).join('')
       }).join('')
       const totalTeclas = keypads.reduce((s,m)=>s+((((classifyEle(m)||{}).teclas)||1)),0)
-      const th='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700"'
       return `<h3 class="ex-amb" style="margin-top:18px">Cenas e Configurações</h3>
-        <div style="padding:9px 11px;border:1.5px solid #F59E0B;border-radius:8px;background:#FFFBEB;margin:2px 0 8px">
-          <div style="font-size:11.5px;font-weight:700;color:#92400E">Preencher com o cliente antes de programar.</div>
-          <div style="font-size:10.5px;color:#92400E;line-height:1.5;margin-top:2px">
-            Cada tecla do keypad comporta <b>2 cenas</b> — é sempre o dobro: 2 teclas = 4 cenas, 6 teclas = 12.
-            Este projeto tem <b>${totalTeclas} tecla${totalTeclas===1?'':'s'}</b>, ou seja, <b>até ${totalTeclas*2} cenas</b> a definir.
-            A tabela abaixo tem uma linha para cada uma: escreva o que ela faz. Cena não preenchida é tecla que não vai fazer nada na casa.
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;background:linear-gradient(90deg,#FFF7ED,#FFFBEB);border:1px solid #FCD9A8;margin:2px 0 10px">
+          <div style="flex-shrink:0;width:34px;height:34px;border-radius:9px;background:#F59E0B;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800">${totalTeclas*2}</div>
+          <div style="font-size:10.5px;color:#7C4A03;line-height:1.4">
+            <b>${totalTeclas*2} cenas a definir</b> — cada tecla comporta 2 (é sempre o dobro). Preencha com o cliente; cena em branco é tecla que não faz nada.
           </div>
         </div>
-        <table style="width:100%;border-collapse:collapse">
-          <thead><tr><th ${th} style="width:64px">Keypad</th><th ${th}>Cômodo</th><th ${th} style="width:44px;text-align:center">Tecla</th><th ${th} style="width:34px;text-align:center">Cena</th><th ${th}>O que faz (preencher)</th><th ${th} style="width:100px">Testado / OK</th></tr></thead>
-          <tbody>${linhas}</tbody>
-        </table>
+        <table class="ex-tbl"><thead><tr><th style="width:56px">Keypad</th><th>Cômodo</th><th style="width:40px;text-align:center">Tecla</th><th>Cena 1 (preencher)</th><th>Cena 2 (preencher)</th></tr></thead><tbody>${linhas}</tbody></table>
         <h3 class="ex-amb" style="margin-top:14px">Configurações a fazer</h3>
         ${_ckc([
           'Nomear cada dispositivo pelo cômodo no app — nome genérico vira suporte eterno.',
@@ -2810,10 +2799,12 @@ Responda APENAS JSON válido:
         </table>
         <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin-top:6px">Sensores e keypads Zigbee não ocupam o Wi-Fi: falam com o gateway numa rede própria (mesh), deixando o Wi-Fi livre para as pessoas.</p>`
 
-      const padraoSSID = blocoRedeHtml()
+      // As configs (SSID/VLAN, checklist, equipamentos, câmeras) saíram daqui pra um TÓPICO
+      // próprio "Configurações e Melhores Práticas", ANTES do mapa de calor (Raphael). Aqui fica
+      // só a cobertura Wi-Fi.
       return `<div class="ex-sec ex-breakable">${titulo}
         <p class="ex-p" style="margin-bottom:10px">Estimativa visual do alcance dos Access Points considerando <b>paredes de concreto</b> (alta atenuação). A mancha verde indica sinal forte; amarelo, médio; vermelho, sinal fraco na borda. É uma aproximação — a cobertura real depende de mobiliário, espelhos e interferências.</p>
-        ${head}${fig}${legenda}${aviso}${tabelaBandas}${padraoSSID}</div>`
+        ${head}${fig}${legenda}${aviso}${tabelaBandas}</div>`
     }
 
     const cliente=projectInfo.client||fromProposal?.client_name||'Cliente'
@@ -4350,6 +4341,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // 5. REDE / RACK
     !secOff('tbl_rack') && hasRack && (d.rack_detalhe||rackItems.length) ? cap('Rack / CPD — Equipamentos e Portas',true) + (list(d.rack_detalhe)+((rackEquipTable&&!secOff('tbl_rack_tab'))?`<h3 class="ex-amb">Equipamentos do Rack</h3>${rackEquipTable}`:'')+rackVisual+((rackCableTableHtml&&!secOff('tbl_rack_tab'))?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Cabos de Rede</h3>${rackCableTableHtml}`:'')) + '</div>' : '',
 
+    // CONFIGURAÇÕES E MELHORES PRÁTICAS (Raphael) — SSID/VLAN, checklist de rede, boas práticas
+    // dos equipamentos, segurança e câmeras. Vem ANTES do mapa de calor Wi-Fi, em tópico próprio.
+    secOff('t_wifi') ? '' : cap('Configurações e Melhores Práticas',true) + blocoRedeHtml() + '</div>',
+
     // 6. PLANTA ELÉTRICA (NBR) e MAPA WI-FI
     // Wi-Fi ANTES da elétrica (Raphael): rede é o que o cliente vê; a elétrica fecha o bloco técnico.
     secOff('t_wifi') ? '' : (()=>{ const aps=markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
@@ -4600,7 +4595,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const _plantSizeCss = plantPct!==100 ? ` .ex-plant{width:${plantPct}%!important;max-width:${plantPct}%!important} .ex-plant img{width:100%!important;max-width:100%!important}` : ''
     let body, pageCss
     if(execMode==='completo'){
-      pageCss='@page{size:A4;margin:12mm} @page wallpage{size:A4 landscape;margin:6mm} .ex-plant img{max-height:250mm!important} @media print{.ex-doc-cover{margin:-12mm -12mm 0}}'+_plantSizeCss
+      // Mesmo @page dos outros documentos (Raphael: o PE tinha margem diferente). O bleed da capa
+      // (.ex-doc-cover margin:-12mm) foi removido pra a margem bater com o resto.
+      pageCss='@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @page wallpage{size:A4 landscape;margin:6mm}'+_plantSizeCss
       const quebraPag='<div style="break-before:page;page-break-before:always;height:0;margin:0;border:0"></div>'
       // wall page 1×, por último (depois de _full+_obra+_ele) — folha sozinha
       // _ele (Planta Elétrica) NÃO entra: o corpo (_full) já traz a planta elétrica. Evita a 3ª cópia.
@@ -5858,7 +5855,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 Mostrar mapa de calor Wi-Fi
               </label>}
             </div>
-            <div style={{maxWidth:(execMode==='obra'||execMode==='eletrica'||execMode==='conduites'||execMode==='instalacao')?1180:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)',transition:'max-width 0.2s'}}>
+            {/* Todos os documentos são A4 agora — mesma largura de preview (Raphael: o PE mostrava
+                margens diferentes do resto porque usava 820 e os outros 1180). */}
+            <div style={{maxWidth:1180,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)',transition:'max-width 0.2s'}}>
               {(()=>{ const cur = execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execMode==='conduites'?execDocConduites:execMode==='instalacao'?execDocInstal:execDoc
                 const nome = execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='instalacao'?'Instalacao':'Completa'
                 return cur
