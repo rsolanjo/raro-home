@@ -200,21 +200,23 @@ function caixaPadrao(sym){
   if(/tomada|modulo/.test(sym||'')) return '4x2'
   return ''
 }
+// FONTE ÚNICA do nome/rótulo do tipo: ELE_TYPE_INFO. O caminho inferido NÃO repete o texto.
+function _eleInfo(sym, extra){ return { sym, ...(ELE_TYPE_INFO[sym]||{}), ...(extra||{}) } }
 function classifyEle(m){
   // 1) tipo elétrico definido manualmente (dropdown no marcador) tem prioridade
   if(m.eleType && ELE_TYPE_INFO[m.eleType]) return { sym:m.eleType, ...ELE_TYPE_INFO[m.eleType] }
   if(m.eleType==='nenhum') return null  // marcado explicitamente como "não é elétrico"
   // 2) senão, infere pelo nome/nota
   const n=((m.name||'')+' '+(m.note||'')).toLowerCase()
-  if(/keystone.*teto|teto.*keystone/.test(n)) return {sym:'keystone_teto', label:'KS-T', tipo:'Keystone de teto (rede)'}
-  if(/keystone.*alto|keystone.*banca|keystone.*1[,.]?10/.test(n)) return {sym:'keystone_alto', label:'KS-A', tipo:'Keystone alto/bancada (1,10m)'}
-  if(/keystone.*baixo|keystone.*0[,.]?30/.test(n)) return {sym:'keystone_baixo', label:'KS-B', tipo:'Keystone baixo (0,30m)'}
-  if(/ponto.*energia.*teto|energia.*teto.*fase|fase.*neutro.*teto/.test(n)) return {sym:'ponto_energia_teto', label:'⊕', tipo:'Ponto de energia no teto'}
-  if(/ponto.*som.*teto|som.*teto|caixa.*embutida.*som|teto.*som/.test(n)) return {sym:'ponto_som_teto', label:'♪T', tipo:'Ponto de som (teto)'}
-  if(/modulo.*cabeceira|cabeceira|tomada.*usb|usb.*tomada/.test(n)) return {sym:'modulo_cabeceira', label:'MOD', tipo:'Módulo cabeceira (tomada+interruptor+2 USB)'}
-  if(/caixa.*conduite|conduite.*caixa|caixa.*passagem|caixa.*deriva|junction/.test(n)) return {sym:'caixa_conduite', label:'CX', tipo:'Caixa de conduíte (passagem/derivação)'}
-  if(/prumada|shaft|descida.*andar|descida.*pavimento|coluna.*vertical/.test(n)) return {sym:'prumada', label:'⇵', tipo:'Prumada (descida entre pavimentos)'}
-  if(/quadro|qdl|qd |distribui/.test(n)) return {sym:'quadro', label:'QDL', tipo:'Quadro de Distribuição'}
+  if(/keystone.*teto|teto.*keystone/.test(n)) return _eleInfo('keystone_teto')
+  if(/keystone.*alto|keystone.*banca|keystone.*1[,.]?10/.test(n)) return _eleInfo('keystone_alto')
+  if(/keystone.*baixo|keystone.*0[,.]?30/.test(n)) return _eleInfo('keystone_baixo')
+  if(/ponto.*energia.*teto|energia.*teto.*fase|fase.*neutro.*teto/.test(n)) return _eleInfo('ponto_energia_teto')
+  if(/ponto.*som.*teto|som.*teto|caixa.*embutida.*som|teto.*som/.test(n)) return _eleInfo('ponto_som_teto')
+  if(/modulo.*cabeceira|cabeceira|tomada.*usb|usb.*tomada/.test(n)) return _eleInfo('modulo_cabeceira')
+  if(/caixa.*conduite|conduite.*caixa|caixa.*passagem|caixa.*deriva|junction/.test(n)) return _eleInfo('caixa_conduite')
+  if(/prumada|shaft|descida.*andar|descida.*pavimento|coluna.*vertical/.test(n)) return _eleInfo('prumada')
+  if(/quadro|qdl|qd |distribui/.test(n)) return _eleInfo('quadro')
   // Keypad: a ÚNICA propriedade que importa é o nº de teclas — a RARO não puxa paralelo
   // (three-way) nem intermediário (four-way): dois keypads na mesma luz é cena Zigbee, não
   // fiação. Por isso "paralelo/three-way/hotel" no nome NÃO define topologia aqui; se vier,
@@ -235,19 +237,19 @@ function classifyEle(m){
     if(nTec===2) return info('interruptor_paralelo')
     return info('interruptor_simples')
   }
-  if(/tomada.*teto|tomada de teto/.test(n)) return {sym:'tomada_teto', label:'TUG-T', tipo:'Tomada de teto'}
-  if(/tomada.*piso|tomada.*ch[ãa]o/.test(n)) return {sym:'tomada_piso', label:'TUG-P', tipo:'Tomada de piso'}
-  if(/tomada.*(alta|1[,.]80|2[,.]00|for[çc]a)/.test(n)) return {sym:'tomada_alta', label:'TUG-A', tipo:'Tomada alta (1,80m)'}
-  if(/tomada.*(m[ée]dia|1[,.]10|1[,.]30|banca|0[,.]90)/.test(n)) return {sym:'tomada_media', label:'TUG-M', tipo:'Tomada média (1,10m)'}
-  if(/tomada/.test(n)) return {sym:'tomada_baixa', label:'TUG-B', tipo:'Tomada baixa (0,30m)'}
+  if(/tomada.*teto|tomada de teto/.test(n)) return _eleInfo('tomada_teto')
+  if(/tomada.*piso|tomada.*ch[ãa]o/.test(n)) return _eleInfo('tomada_piso')
+  if(/tomada.*(alta|1[,.]80|2[,.]00|for[çc]a)/.test(n)) return _eleInfo('tomada_alta')
+  if(/tomada.*(m[ée]dia|1[,.]10|1[,.]30|banca|0[,.]90)/.test(n)) return _eleInfo('tomada_media')
+  if(/tomada/.test(n)) return _eleInfo('tomada_baixa')
   if(/ponto.*el[ée]tric|ponto.*energia|ponto.*for[çc]a/.test(n)){
-    if(/teto|forro/.test(n)) return {sym:'ponto_energia_teto', label:'⊕T', tipo:'Ponto elétrica no teto'}
-    if(/piso|ch[ãa]o/.test(n)) return {sym:'ponto_energia_piso', label:'⊕P', tipo:'Ponto elétrica no piso'}
-    return {sym:'ponto_energia_parede', label:'⊕', tipo:'Ponto elétrica na parede'}
+    if(/teto|forro/.test(n)) return _eleInfo('ponto_energia_teto')
+    if(/piso|ch[ãa]o/.test(n)) return _eleInfo('ponto_energia_piso')
+    return _eleInfo('ponto_energia_parede')
   }
-  if(/arandela.*teto|arandela de teto/.test(n)) return {sym:'arandela_teto', label:'L', tipo:'Arandela de teto'}
-  if(/arandela/.test(n)) return {sym:'arandela', label:'L', tipo:'Arandela de parede'}
-  if(/luz|luminária|luminaria|spot|lustre|plafon|ponto de luz/.test(n)) return {sym:'ponto_luz', label:'L', tipo:'Ponto de luz'}
+  if(/arandela.*teto|arandela de teto/.test(n)) return _eleInfo('arandela_teto')
+  if(/arandela/.test(n)) return _eleInfo('arandela')
+  if(/luz|luminária|luminaria|spot|lustre|plafon|ponto de luz/.test(n)) return _eleInfo('ponto_luz')
   return null  // não é elétrico → não entra na planta elétrica
 }
 
@@ -485,9 +487,16 @@ function pinNovoSVG({ m, size=22, label='', sel=false }){
   const teclas = tipo==='interruptor' ? (((classifyEle(m)||{}).teclas) || 1) : 0
   let tics=''
   for(let i=0;i<teclas;i++){
-    const ang = -90 + (i-(teclas-1)/2)*20
+    const ang = -90 + (i-(teclas-1)/2)*22
     const r = ang*Math.PI/180
-    tics += `<line x1="${(12+Math.cos(r)*9.5).toFixed(2)}" y1="${(12+Math.sin(r)*9.5).toFixed(2)}" x2="${(12+Math.cos(r)*13).toFixed(2)}" y2="${(12+Math.sin(r)*13).toFixed(2)}" stroke="${cor}" stroke-width="1.6" stroke-linecap="round"/>`
+    // Traços mais longos (r 9→15,5) e grossos (2px), com contorno branco por baixo. Com 1,6px
+    // indo só até r=13 eles não se distinguiam no tamanho da legenda: 1, 2 e 3 teclas pareciam
+    // o MESMO desenho — foi a queixa do Raphael na foto. Mesmo erro do tracinho de altura de
+    // 2px que a gente já tinha matado uma vez: detalhe fino não sobrevive ao papel.
+    const x1=(12+Math.cos(r)*9).toFixed(2), y1=(12+Math.sin(r)*9).toFixed(2)
+    const x2=(12+Math.cos(r)*15.5).toFixed(2), y2=(12+Math.sin(r)*15.5).toFixed(2)
+    tics += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/>`
+      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${cor}" stroke-width="2" stroke-linecap="round"/>`
   }
   const letra = pinLetraDe(m)
   // LETRA E NÚMERO CONVIVEM (Raphael). Antes a letra SUBSTITUÍA o número, e câmera, AP e
@@ -3822,14 +3831,21 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const obraPlantaCompleta = plantaGeralItens ? `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Planta Completa do Projeto</h2>
         <p class="ex-p" style="color:#6B7280">Todos os pontos posicionados na planta, visão geral antes de detalhar por tópico.</p>
         ${plantaGeralItens}</div>` : ''
+      // MESMA tabela do Projeto Executivo (Raphael: "quero igual do projeto executivo").
+      // Era um SEGUNDO construtor da mesma coisa — sem Equip./Caixa/Cabo e mostrando o nome
+      // comercial em vez da função. Duas fontes de verdade pra uma tabela só; quando o executivo
+      // ganhou colunas na v304, esta ficou pra trás. Agora ela ganha as mesmas colunas e as
+      // mesmas regras (funcaoDoPonto + specDoPonto).
       const obraPosAlt = (()=>{ if(secOff('pos_altura')) return ''
         const byRoom={}
         markers.filter(m=>!isRackItem(m.name,m.code)).forEach(m=>{ const r=m.room||'Geral'; (byRoom[r]=byRoom[r]||[]).push(m) })
         const rooms=Object.entries(byRoom); if(!rooms.length) return ''
         return `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Posição e Altura dos Pontos</h2>
-          <p class="ex-p" style="color:#6B7280">Onde cada ponto é instalado e em que altura. Cor = categoria, forma = local (△ teto, ○ parede, □ chão), selo = cabo.</p>`+
+          <p class="ex-p" style="color:#6B7280">Cômodo a cômodo: <b>onde</b> deixar a ponta e <b>qual cabo</b> é. O símbolo repete o da planta.</p>`+
           rooms.map(([amb,ms])=>`<h3 class="ex-amb">${esc(amb)} · ${ms.length} ${ms.length===1?'ponto':'pontos'}</h3>`+
-            T(ms.map(m=>`<tr><td style="text-align:center">${pin(m.n,undefined,m)}</td><td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||('#'+m.n))}</b></td><td>${esc(m.name||'')}</td><td>${LOCL[mountOf(m)]||'—'}</td><td style="font-weight:700">${NIVL[alturaOf(m)]||'—'}</td></tr>`).join(''),['Ponto','ID','Item','Local','Altura'])).join('')+`</div>`
+            T(ms.map(m=>{ const sp=specDoPonto(m); const fn=funcaoDoPonto(m); const eq=(m.name||'').trim()
+              return `<tr><td style="text-align:center">${pin(m.n,undefined,m)}</td><td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||('#'+m.n))}</b></td><td style="font-weight:600">${esc(fn)}</td><td style="font-size:10px;color:#64748B">${(eq&&eq!==fn)?esc(eq):'—'}</td><td>${LOCL[mountOf(m)]||'—'}</td><td style="font-weight:700">${NIVL[alturaOf(m)]||'—'}</td><td style="text-align:center;font-weight:700">${esc(sp.caixa||'—')}</td><td style="font-size:10px">${esc(sp.cabo||'—')}</td></tr>` }).join(''),
+              ['Ponto','ID','Item','Equip.','Local','Altura','Caixa','Cabo'])).join('')+`</div>`
       })()
       // ── ELÉTRICA TUDO JUNTO: planta NBR + caixas/alturas + alimentação dos keypads, num tópico só ──
       const obraEletricaCompleta = (()=>{ const els=markers.filter(isPontoEletrico)
