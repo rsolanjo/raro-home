@@ -712,7 +712,9 @@ function pontosLegenda(){
 
 // Legenda COMPLETA de símbolos elétricos (ABNT NBR 5444) — referência fixa da RARO.
 // Mostra todos os símbolos agrupados, cada um com significado. Vai na planta elétrica.
-function abntLegendaCompleta(){
+// usados = Set de syms presentes na planta. Só mostra esses (Raphael: "só os símbolos das
+// coisas que contêm na planta"). Sem o Set (ou vazio), cai no comportamento antigo (mostra tudo).
+function abntLegendaCompleta(usados){
   const grupos = [
     ['Tomadas', ['tomada_baixa','tomada_media','tomada_alta','tomada_piso','tomada_teto']],
     ['Interruptores', ['interruptor_simples','interruptor_paralelo','interruptor_intermediario','interruptor_4','interruptor_6']],
@@ -722,14 +724,17 @@ function abntLegendaCompleta(){
     ['Rede / Dados', ['keystone_piso','keystone_baixo','keystone_media','keystone_alto','keystone_teto']],
     ['Infraestrutura', ['quadro','caixa_conduite','prumada','modulo_cabeceira']],
   ]
+  const usa = (usados && usados.size) ? (s=>usados.has(s)) : (()=>true)
+  const gruposFiltrados = grupos.map(([t,syms])=>[t, syms.filter(usa)]).filter(([,syms])=>syms.length)
+  if(!gruposFiltrados.length) return ''
   const item = sym => { const info=ELE_TYPE_INFO[sym]||{label:'',tipo:sym}
     return `<div style="display:flex;align-items:center;gap:8px;font-size:10px;color:#334155;padding:4px 7px;border:1px solid #E2E8F0;border-radius:6px;background:#fff">
       <svg viewBox="-12 -14 24 32" width="22" height="28" style="flex-shrink:0">${ELE_SYMBOLS[sym]||ELE_SYMBOLS.generico}</svg>
       <span><b>${info.label}</b> — ${info.tipo}</span></div>` }
   return `<div style="margin-top:12px;padding:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px">
     <div style="font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#0D1420;margin-bottom:2px">Legenda de Símbolos — Elétrica (ABNT NBR 5444)</div>
-    <div style="font-size:9.5px;color:#94A3B8;margin-bottom:9px">Padrão RARO. Cada símbolo tem significado fixo; os mesmos aparecem sobre a planta.</div>
-    ${grupos.map(([titulo,syms])=>`<div style="margin-bottom:9px"><div style="font-size:8.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94A3B8;margin-bottom:5px">${titulo}</div><div style="display:flex;flex-wrap:wrap;gap:6px">${syms.map(item).join('')}</div></div>`).join('')}
+    <div style="font-size:9.5px;color:#94A3B8;margin-bottom:9px">Só os símbolos que aparecem nesta planta.</div>
+    ${gruposFiltrados.map(([titulo,syms])=>`<div style="margin-bottom:9px"><div style="font-size:8.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94A3B8;margin-bottom:5px">${titulo}</div><div style="display:flex;flex-wrap:wrap;gap:6px">${syms.map(item).join('')}</div></div>`).join('')}
   </div>`
 }
 
@@ -2532,12 +2537,16 @@ Responda APENAS JSON válido:
       eleMarks.forEach(({m,cls})=>{ if(cls.sym==='quadro')return; const r=m.room||'Geral'; (byRoomCarga[r]=byRoomCarga[r]||{tom:0,int:0,luz:0});
         if(/tomada/.test(cls.sym))byRoomCarga[r].tom++; else if(cls.sym.startsWith('interruptor'))byRoomCarga[r].int++; else if(/luz|arandela/.test(cls.sym))byRoomCarga[r].luz++ })
       const VA_TUG=100, VA_LUZ=60
-      const cargaRows = Object.entries(byRoomCarga).map(([r,c])=>{
+      // Só cômodos com CARGA (tomada ou ponto de luz). Antes, cômodo só com interruptor entrava
+      // com "— / — / 0 VA" e virava linha em branco (Raphael) — interruptor comanda carga, não é
+      // carga. Na RARO a luz é via keypad/módulo (raramente há "ponto de luz" marcado), então
+      // muitos cômodos ficavam 0 VA. Agora esses não entram no quadro.
+      const cargaRows = Object.entries(byRoomCarga).filter(([,c])=>(c.tom*VA_TUG+c.luz*VA_LUZ)>0).map(([r,c])=>{
         const va=c.tom*VA_TUG+c.luz*VA_LUZ
-        return `<tr><td><b>${esc(r)}</b></td><td style="text-align:center">${c.tom||'—'}</td><td style="text-align:center">${c.int||'—'}</td><td style="text-align:center">${c.luz||'—'}</td><td style="text-align:right">${va} VA</td></tr>`
+        return `<tr><td><b>${esc(r)}</b></td><td style="text-align:center">${c.tom||'—'}</td><td style="text-align:center">${c.luz||'—'}</td><td style="text-align:right">${va} VA</td></tr>`
       }).join('')
       const totalVA = Object.values(byRoomCarga).reduce((s,c)=>s+(c.tom*VA_TUG+c.luz*VA_LUZ),0)
-      const cargaTbl = cargaRows ? `<table class="ex-tbl"><thead><tr><th>Cômodo</th><th style="text-align:center">Tomadas</th><th style="text-align:center">Interrup.</th><th style="text-align:center">Pts Luz</th><th style="text-align:right">Carga estimada</th></tr></thead><tbody>${cargaRows}<tr style="background:#0D1420;color:#fff"><td colspan="4"><b>Demanda total estimada</b></td><td style="text-align:right"><b>${totalVA} VA</b></td></tr></tbody></table>
+      const cargaTbl = cargaRows ? `<table class="ex-tbl"><thead><tr><th>Cômodo</th><th style="text-align:center">Tomadas</th><th style="text-align:center">Pts Luz</th><th style="text-align:right">Carga estimada</th></tr></thead><tbody>${cargaRows}<tr style="background:#0D1420;color:#fff"><td colspan="3"><b>Demanda total estimada</b></td><td style="text-align:right"><b>${totalVA} VA</b></td></tr></tbody></table>
         <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin-top:4px">Estimativa simplificada (TUG ${VA_TUG}VA · ponto de luz ${VA_LUZ}VA). Dimensionamento final por engenheiro eletricista (ART/NBR 5410).</p>` : ''
       // checklist elétrico
       // Checklist com CAIXA pra marcar (Raphael) — era <ul> de bolinhas, que não se marca.
@@ -2570,18 +2579,21 @@ Responda APENAS JSON válido:
       // som também pedem 4x2, mas ficam fora do ELE_SYMS_SET, então a lista saía CURTA.
       // Só entra o que é caixa de verdade — "forro" e "quadro" são lugar, não caixa.
       const _ehCaixa = cx => /^4x2$|^4x4$|^octogonal$|caixa de piso/i.test(cx||'')
-      const cxCount={}
+      // Agrupa os PONTOS por caixa (não só conta): assim dá pra ver ONDE está cada caixa — quais
+      // keypads são 4x4, onde ficam as de piso (Raphael). Também vira o diagnóstico: se um keypad
+      // de 6 teclas aparecer em 4x2, o erro está no tipo/nome dele.
+      const cxPontos={}
       markers.filter(m=>!isRackItem(m.name,m.code) && !hideCats.has(equipType(m.name)) && m.name).forEach(m=>{
-        const cx=specDoPonto(m).caixa; if(_ehCaixa(cx)) cxCount[cx]=(cxCount[cx]||0)+1 })
-      const _usoCx = cx => cx==='4x4' ? 'Keypad 4+ teclas / 4+ módulos'
-        : cx==='4x2' ? 'Interruptor até 3 teclas · tomada · keystone · ponto de som'
-        : /piso/i.test(cx) ? 'Pontos de piso' : cx==='octogonal' ? 'Pontos de teto' : ''
-      const cxResumo = Object.keys(cxCount).length ? `<h3 class="ex-amb" style="margin-top:16px">Caixas de Embutir — Resumo</h3>
-        <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin:-2px 0 6px">Todos os pontos do projeto que pedem caixa — elétrica, rede e som.</p>
-        ${T(Object.entries(cxCount).sort().map(([cx,n])=>`<tr><td style="font-weight:700;text-align:center">${esc(cx)}</td><td style="text-align:center">${n}</td><td style="font-size:10px;color:#64748B">${_usoCx(cx)}</td></tr>`).join(''),['Caixa','Qtd','Uso'])}` : ''
+        const cx=specDoPonto(m).caixa; if(_ehCaixa(cx)) (cxPontos[cx]=cxPontos[cx]||[]).push(m) })
+      const cxResumo = Object.keys(cxPontos).length ? `<h3 class="ex-amb" style="margin-top:16px">Caixas de Embutir — Resumo</h3>
+        <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin:-2px 0 6px">Todos os pontos do projeto que pedem caixa — elétrica, rede e som — e onde cada um está.</p>
+        ${T(Object.entries(cxPontos).sort().map(([cx,ms])=>{
+          const quais = ms.map(m=>`${esc(m.id||m.code||('#'+m.n))} (${esc(funcaoDoPonto(m))}${m.room?' · '+esc(m.room):''})`).join(' · ')
+          return `<tr><td style="font-weight:700;text-align:center;vertical-align:top">${esc(cx)}</td><td style="text-align:center;vertical-align:top">${ms.length}</td><td style="font-size:9.5px;color:#475569;line-height:1.5">${quais}</td></tr>`
+        }).join(''),['Caixa','Qtd','Pontos (ID · tipo · cômodo)'])}` : ''
       return `<div class="ex-sec ex-breakable">${titulo}
         <p class="ex-p" style="margin-bottom:10px">Pontos elétricos com símbolos normalizados (ABNT NBR 5444), em proporção real da planta. Mostra apenas os pontos elétricos (tomadas, interruptores, iluminação, quadro).</p>
-        ${head}${fig}${legenda}${abntLegendaCompleta()}
+        ${head}${fig}${legenda}${abntLegendaCompleta(new Set(eleMarks.map(x=>x.cls.sym)))}
         ${(secOff('lista_geral')||secOff('t_eletrica_tab'))?'':`<h3 class="ex-amb" style="margin-top:18px">Lista Geral — Todos os Pontos Elétricos</h3>${listaGeral}`}
         ${(isObra||secOff('caixas_embutir')||secOff('t_eletrica_tab'))?'':cxResumo}
         ${(isObra||secOff('quadro_cargas')||secOff('t_eletrica_tab'))?'':`<h3 class="ex-amb" style="margin-top:16px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}`}
@@ -2602,17 +2614,33 @@ Responda APENAS JSON válido:
           <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
           <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
         </div>`).join('')}</div>`
-      // COMPACTO (Raphael): uma linha por TECLA, com as 2 cenas lado a lado — metade da altura
-      // da versão anterior (2 linhas por tecla). O keypad da RARO comporta 2 cenas por tecla.
+      // Sugestão de cenas por CÔMODO (Raphael: "customizada pro item do cômodo"). Cada ambiente
+      // ganha um par de cenas típicas como placeholder cinza — ponto de partida pra combinar com
+      // o cliente, não texto fixo. A tecla 1 costuma ser a luz principal do ambiente.
+      const sugereCena = (room, tecla)=>{
+        const r=(room||'').toLowerCase()
+        const par = /estar|sala|home|cinema|tv|living/.test(r) ? ['Luz geral','Cena cinema (spots + TV)']
+          : /su[íi]te|quarto|dorm/.test(r) ? ['Luz geral','Cena leitura / noite']
+          : /jantar/.test(r) ? ['Luz geral','Cena jantar (pendente + dimm)']
+          : /cozinha|gourmet/.test(r) ? ['Luz geral','Luz de bancada']
+          : /banh|lavabo|wc/.test(r) ? ['Luz geral','Luz espelho']
+          : /externa|varanda|jardim|piscina|gourmet|churrasq/.test(r) ? ['Luz geral','Luz de fachada / paisagismo']
+          : /circula|corredor|hall|escada/.test(r) ? ['Luz geral','Luz noturna (brilho baixo)']
+          : /closet|vestiario/.test(r) ? ['Luz geral','Luz de espelho']
+          : ['Luz geral','—']
+        return tecla===0 ? par[0] : par[1]
+      }
+      // COMPACTO: uma linha por TECLA, 2 cenas lado a lado (o keypad da RARO comporta 2 por tecla).
       const linhas = keypads.map(m=>{
         const t = ((classifyEle(m)||{}).teclas)||1
-        return Array.from({length:t},(_,i)=>`<tr>
+        return Array.from({length:t},(_,i)=>{
+          return `<tr>
           <td style="text-align:center;font-family:monospace;font-size:9.5px;color:#475569">${esc(m.id||m.code||('#'+m.n))}</td>
           <td style="font-size:10px">${esc(m.room||'—')}</td>
           <td style="text-align:center;font-size:12px;font-weight:800;color:#0369A1">${i+1}</td>
-          <td style="border-left:2px solid #E5E7EB"><span style="font-size:8px;color:#B45309;font-weight:700">1ª&nbsp;</span></td>
-          <td><span style="font-size:8px;color:#B45309;font-weight:700">2ª&nbsp;</span></td>
-        </tr>`).join('')
+          <td style="border-left:2px solid #E5E7EB"><span style="font-size:8px;color:#B45309;font-weight:700">1ª</span> <span style="font-size:9px;color:#B8BEC9;font-style:italic">${esc(sugereCena(m.room,0))}</span></td>
+          <td><span style="font-size:8px;color:#B45309;font-weight:700">2ª</span> <span style="font-size:9px;color:#B8BEC9;font-style:italic">${esc(sugereCena(m.room,1))}</span></td>
+        </tr>`}).join('')
       }).join('')
       const totalTeclas = keypads.reduce((s,m)=>s+((((classifyEle(m)||{}).teclas)||1)),0)
       return `<h3 class="ex-amb" style="margin-top:18px">Cenas e Configurações</h3>
@@ -3281,9 +3309,97 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         `<div class="ex-obra-page" style="page-break-before:always">
           <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Configuração</h2>
           ${blocoCenasHtml()}</div>`,
+        // GUIA TÉCNICO PASSO A PASSO (Raphael) — só no Plano de Instalação, pra um terceiro
+        // configurar do zero: VLANs, SSIDs, UniFi/owner, permissões, IoT externo, guest, sensores,
+        // zigbee, som. Tailored pelo que existe no rack/projeto.
         temWifiNoProjeto ? `<div class="ex-obra-page" style="page-break-before:always">
-          <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Configuração — Rede e Wi-Fi</h2>
-          ${blocoRedeHtml()}</div>` : '',
+          <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Configuração de Rede — Passo a Passo</h2>
+          ${(()=>{
+            const nomes = m => (((m&&m.name)||'')+' '+((m&&m.code)||'')).toLowerCase()
+            const rackEq = (markers.find(m=>isRackItem(m.name||'', m.code||''))||{}).rackEquip || []
+            // detecção ampla: marcadores + rackEquip do marcador + rack_items da IA + tabela de portas
+            const txtRack = [
+              ...rackEq.map(e=>(e.name||'')+' '+(e.code||'')),
+              ...((d.rack_items||[]).map(r=>(r.equip||r.name||''))),
+              ...((d.rack_cable_table||[]).map(r=>(r.device_origem||'')+' '+(r.device_nome||''))),
+            ].join(' ').toLowerCase()
+            const has = re => markers.some(m=>re.test(nomes(m))) || re.test(txtRack)
+            // Rede na RARO é sempre UniFi (Dream Machine): o passo de owner/permissões é core e
+            // aparece sempre que há rede. Switch aparece se detectado OU se há PoE (câmera/AP).
+            const hasCam = has(/c[âa]mera|camera|dome|bullet|nvr|protect/)
+            const hasAP = has(/access point|\bap\b|\bu6\b|\bu7\b|unifi ap|antena|wi-?fi/)
+            const hasUDM = true
+            const hasSwitch = has(/switch/) || hasCam || hasAP
+            const hasZig = has(/zigbee|hue|gateway zigbee|hub|bridge|controladora|conson|sonoff/)
+            const hasSensor = has(/sensor|presen[çc]a|mmwave/)
+            const hasSom = has(/som|amplificador|receiver|caixa ac|sonos|amp/)
+            const hasSolar = has(/solar|inversor|fotovolt|painel/)
+            const passo = (n,t,itens)=>`<div style="break-inside:avoid;margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="flex-shrink:0;width:22px;height:22px;border-radius:6px;background:#0D1420;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">${n}</span><span style="font-size:12.5px;font-weight:700;color:#0D1420">${t}</span></div>
+              ${_cki(itens)}</div>`
+            let n=0
+            const passos=[]
+            passos.push(passo(++n,'VLANs — criar a segmentação',[
+              '<b>VLAN 10 — Principal</b> (confiável): celulares e computadores da família. Acesso pleno.',
+              '<b>VLAN 20 — IoT</b>: TVs, assistentes, eletros, hub Zigbee. Sem acesso à VLAN 10.',
+              '<b>VLAN 30 — Câmeras/CFTV</b>: câmeras e NVR. Isolada das outras VLANs; internet liberada (é por ela que o app do cliente funciona de fora).',
+              '<b>VLAN 40 — Guest</b>: visitantes. Só internet, isolamento de cliente ligado, sem enxergar nenhuma VLAN.',
+              hasSolar?'<b>VLAN 50 — Utilidades externas</b>: inversor solar, portão, interfone IP. IoT externo NÃO vai no Guest nem na Principal — VLAN própria, sem acesso à casa.':'Se houver inversor solar / portão / interfone IP: VLAN própria de utilidades externas (nunca no Guest nem na Principal).',
+            ]))
+            passos.push(passo(++n,'SSIDs — amarrar cada rede à sua VLAN',[
+              '<b>"[Casa]"</b> → VLAN 10 (Principal), WPA2/WPA3, 2,4 + 5 GHz.',
+              '<b>"[Casa]-IoT"</b> → VLAN 20, só 2,4 GHz (a maioria dos IoT não fala 5 GHz).',
+              '<b>"[Casa]-Guest"</b> → VLAN 40, via portal guest do controlador, com limite de banda.',
+              'Não criar SSID para câmeras — elas entram por cabo na VLAN 30 (PoE).',
+            ]))
+            if(hasUDM) passos.push(passo(++n,'UniFi / Gateway — conta e permissões',[
+              'Adotar o gateway na conta UniFi <b>da RARO</b> (owner = RARO). O cliente recebe acesso limitado, nunca owner.',
+              'Criar site/console com nome do cliente; 2FA obrigatório na conta owner.',
+              'Cliente: papel <b>somente visualização</b> (ou "limited admin" sem poder de rede) — vê câmeras e status, não muda VLAN/firewall.',
+              'Administração pela WAN desligada; SSH desligado; UPnP desligado.',
+              'Firmware do gateway e updates automáticos ligados; backup de config na nuvem + local.',
+            ]))
+            if(hasSwitch) passos.push(passo(++n,'Switch PoE — portas e VLANs',[
+              'Marcar a porta de cada câmera como <b>PoE + VLAN 30</b> (untagged CFTV).',
+              'Porta de cada AP: <b>trunk</b> (todas as VLANs de SSID) para o AP distribuir os SSIDs.',
+              'Porta do hub Zigbee / IoT: VLAN 20. Porta do NVR: VLAN 30.',
+              'Desligar PoE nas portas não usadas; nomear cada porta pelo destino.',
+            ]))
+            passos.push(passo(++n,'Firewall entre VLANs',[
+              'Regra padrão: <b>bloquear tudo entre VLANs</b>, liberar só o necessário.',
+              'IoT (20) → Principal (10): bloqueado, exceto mDNS/cast para TV e impressora.',
+              'Câmeras (30): sem rota para 10/20/40; só saída de internet para o app.',
+              'Guest (40): só internet. Externas/solar (50): só internet, sem acesso à casa.',
+            ]))
+            if(hasCam) passos.push(passo(++n,'Câmeras / NVR',[
+              'Trocar a senha de fábrica de todas as câmeras e do NVR.',
+              'Câmeras na VLAN 30; acesso remoto <b>só pelo app do fabricante</b> (sem port forwarding/DMZ).',
+              'Usuário admin só para a RARO; usuário do cliente sem poder de configuração.',
+              'Gravação contínua no NVR + retenção combinada; NTP sincronizado (hora certa = prova).',
+            ]))
+            if(hasZig) passos.push(passo(++n,'Hub Zigbee / Automação',[
+              'Hub Zigbee na VLAN 20 (IoT), IP fixo.',
+              'Parear keypads, módulos e sensores; nomear cada um pelo cômodo.',
+              'Rotinas e cenas no hub/controlador (ver a tabela de Cenas); backup da config.',
+            ]))
+            if(hasSensor) passos.push(passo(++n,'Sensores de presença',[
+              'Parear na VLAN de automação; definir sensibilidade e tempo de retardo por ambiente.',
+              'Amarrar cada sensor à cena do cômodo (acende/mantém/apaga).',
+              'Em circulação/escada: brilho baixo à noite, não acionar de dia.',
+            ]))
+            if(hasSom) passos.push(passo(++n,'Som ambiente',[
+              'Amplificador/receiver na VLAN Principal (streaming) ou IoT, IP fixo.',
+              'Nomear cada zona pelo cômodo; testar volume por zona.',
+              'Integrar ao controlador para a cena "som" por ambiente.',
+            ]))
+            passos.push(passo(++n,'Entrega da rede',[
+              'IP fixo (ou reserva DHCP) para gateway, switch, APs, NVR, hub e câmeras.',
+              'Testar cada SSID no cômodo mais distante; guest sem enxergar a casa.',
+              'Credenciais na Folha de Credenciais, entregues em mão; conta owner permanece com a RARO.',
+            ]))
+            return `<p class="ex-p" style="color:#6B7280;margin-bottom:10px">Configuração completa da rede, na ordem. Substitua "[Casa]" pelo nome do projeto. VLANs/SSIDs são o padrão RARO; ajuste os números ao equipamento do rack.</p>${passos.join('')}`
+          })()}
+          ${blocoEquipConfigHtml()}</div>` : '',
         temCam ? `<div class="ex-obra-page" style="page-break-before:always">
           <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Configuração — Câmeras</h2>
           ${blocoCamerasHtml()}</div>` : '',
