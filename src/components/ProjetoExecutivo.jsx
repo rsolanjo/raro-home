@@ -529,11 +529,12 @@ function pinNovoSVG({ m, size=22, label='', sel=false }){
   // Número MENOR (Raphael): a fonte 10 cobria o símbolo no pino de 18px da planta — o X do som
   // no piso, por exemplo, sumia atrás do número e não batia com a legenda. Reduzido pra 7,5 e
   // empurrado pro alto, liberando o miolo do símbolo. Continua ocultável pelo "Nº dentro do pino".
-  const numX = letra ? 6.5 : 12
-  const numFs = letra ? 7 : 7.5
-  // Contorno branco (paint-order) pra ficar legível sobre qualquer preenchimento — cheio, meio ou X.
-  const txt = label!=='' && label!=null
-    ? `<text x="${numX}" y="15.8" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="${numFs}" fill="${cor}" stroke="#fff" stroke-width="2.6" paint-order="stroke" style="paint-order:stroke">${label}</text>`
+  // NÚMERO NO CANTO, não no miolo (Raphael: "quero igual à legenda"). Dentro do símbolo ele
+  // cobria o desenho — o X do som no piso sumia atrás dele. Agora vai num badge pequeno no
+  // canto superior esquerdo (o selo do cabo fica no direito), deixando o símbolo limpo,
+  // idêntico ao da legenda. Continua ocultável pelo toggle "Nº dentro do pino".
+  const txt = (label!=='' && label!=null)
+    ? `<circle cx="4.5" cy="4.5" r="5" fill="#fff" stroke="${cor}" stroke-width="1.2"/><text x="4.5" y="6.9" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="6.5" fill="${cor}">${label}</text>`
     : ''
   const letraTxt = letra
     ? `<text x="15.5" y="15.4" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="8" fill="#7C4A03" stroke="#fff" stroke-width="2" paint-order="stroke" style="paint-order:stroke">${letra}</text>`
@@ -2688,7 +2689,60 @@ Responda APENAS JSON válido:
             'Wi-Fi 2,4 GHz habilitado onde houver automação — sensor não fala 5 GHz.',
             'Senha do Wi-Fi principal e do guest anotadas na Folha de Credenciais e entregues ao cliente.',
           ])}
+          ${blocoEquipConfigHtml()}
+          ${(!secOff('tbl_seguranca') && temCam) ? `<h3 class="ex-amb" style="margin-top:16px">Segurança — Câmeras e Sensores</h3>${blocoSegurancaTbl()}` : ''}
+          ${blocoCamerasHtml()}
           ${blocoCredenciaisHtml(false)}`
+    }
+
+    // Tabela de câmeras/sensores montada AQUI (dos marcadores) — o tblSeguranca do template vive
+    // num IIFE fora do escopo desta função. Espelha as colunas úteis pra obra.
+    function blocoSegurancaTbl(){
+      const cams = markers.filter(m=>/c[âa]mera|camera|dome|bullet|sensor|presen[çc]a|nvr/.test((((m.name||'')+' '+(m.code||''))).toLowerCase()) && !isRackItem(m.name,m.code))
+      if(!cams.length) return ''
+      const rows = cams.map(m=>`<tr>${pinCell(m.id,m.code,m.n)}<td>${esc(funcaoDoPonto(m))}</td><td style="font-size:10px;color:#64748B">${esc(m.name||'—')}</td><td>${esc(m.room||'—')}</td></tr>`).join('')
+      return T(rows,['Nº','Tipo','Equipamento','Cômodo'])
+    }
+
+    // ── CONFIGURAÇÃO E BOAS PRÁTICAS DOS EQUIPAMENTOS (Raphael) — UDM, switch, antenas, câmeras ──
+    // Só entra o que existe no projeto (rack + marcadores). É o padrão RARO, igual em toda casa.
+    function blocoEquipConfigHtml(){
+      const _ck = (itens=[]) => `<div style="display:flex;flex-direction:column;gap:0">${itens.map(it=>`
+        <div style="display:flex;align-items:flex-start;gap:9px;padding:6px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
+          <span style="flex-shrink:0;width:14px;height:14px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
+          <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
+        </div>`).join('')}</div>`
+      const nomes = m => (((m&&m.name)||'')+' '+((m&&m.code)||'')).toLowerCase()
+      const rackEq = (markers.find(m=>isRackItem(m.name||'', m.code||''))||{}).rackEquip || []
+      const txtRack = rackEq.map(e=>((e.name||'')+' '+(e.code||'')).toLowerCase()).join(' ')
+      const has = re => markers.some(m=>re.test(nomes(m))) || re.test(txtRack)
+      const hasUDM = has(/dream machine|udm|gateway|roteador|cloud key/)
+      const hasSwitch = has(/switch/)
+      const hasAP = has(/access point|\bap\b|\bu6\b|\bu7\b|unifi ap|antena/)
+      const blocos = []
+      if(hasUDM) blocos.push(['UDM / Gateway (Dream Machine)', [
+        'Trocar a senha padrão do admin e habilitar 2FA na conta do fabricante.',
+        'Administração pela WAN <b>desligada</b>; acesso remoto só pelo app oficial.',
+        'Firmware atualizado antes da entrega e updates automáticos ligados.',
+        'Backup da configuração salvo (nuvem do fabricante + cópia local).',
+        'DNS e horário (NTP) corretos — base para logs e para as câmeras.',
+      ]])
+      if(hasSwitch) blocos.push(['Switch PoE', [
+        'PoE ligado só nas portas usadas (AP e câmera); demais desabilitadas.',
+        'Cada porta nomeada pelo destino (AP-Estar, CAM-Garagem…).',
+        'VLANs propagadas do gateway; porta de câmera só na VLAN de CFTV.',
+        'Firmware atualizado; senha padrão trocada.',
+      ]])
+      if(hasAP) blocos.push(['Antenas (Access Points)', [
+        'Nome do AP = cômodo, para manutenção futura.',
+        'Canais 2,4 e 5 GHz sem sobreposição entre APs vizinhos.',
+        'Potência ajustada ao ambiente — potência máxima gera interferência, não cobertura.',
+        'Band steering e fast roaming ligados para o cliente andar pela casa sem cair.',
+        '2,4 GHz mantido onde há automação (sensor/keypad não fala 5 GHz).',
+      ]])
+      if(!blocos.length) return ''
+      return `<h3 class="ex-amb" style="margin-top:16px">Equipamentos — configuração e boas práticas</h3>`
+        + blocos.map(([t,itens])=>`<div style="font-size:11.5px;font-weight:700;color:#0369A1;margin:10px 0 2px">${t}</div>${_ck(itens)}`).join('')
     }
 
     function buildHeatmap(numFn){
@@ -2802,6 +2856,28 @@ Responda APENAS JSON válido:
       return `<table class="ex-tbl"><thead><tr>${c.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${r}</tbody></table>`
     }
     const esc=s=>(s==null?'':String(s))
+
+    // ── LISTA DE EQUIPAMENTOS (Raphael) — vai no FIM de todos os documentos, com quantidades.
+    // Conta os pontos por PRODUTO (nome do catálogo) + os equipamentos do rack. É a lista de
+    // compra/conferência: o que foi especificado e quanto.
+    function blocoListaEquipamentos(brk=true){
+      const cont=new Map()
+      markers.filter(m=>!isRackItem(m.name,m.code) && m.name).forEach(m=>{
+        const k=(m.name||'').trim(); if(!k) return
+        cont.set(k,(cont.get(k)||0)+1)
+      })
+      const rackEq=(markers.find(m=>isRackItem(m.name||'', m.code||''))||{}).rackEquip || []
+      rackEq.forEach(e=>{ const k=(e.name||e.equip||'').trim(); if(!k) return; cont.set(k,(cont.get(k)||0)+(Number(e.qty)||1)) })
+      if(!cont.size) return ''
+      const linhas=[...cont.entries()].sort((a,b)=>a[0].localeCompare(b[0]))
+        .map(([nome,q])=>`<tr><td>${esc(nome)}</td><td style="text-align:center;font-weight:800">${q}</td></tr>`).join('')
+      const total=[...cont.values()].reduce((s,q)=>s+q,0)
+      return `<div class="ex-sec ex-breakable" ${brk?'style="page-break-before:always"':''}>
+        <h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:10px">Lista de Equipamentos</h2>
+        <p class="ex-p" style="color:#6B7280;margin-bottom:8px">Todos os equipamentos do projeto e suas quantidades — pontos na planta + equipamentos do rack. Total: <b>${total}</b> ${total===1?'item':'itens'}.</p>
+        ${T(linhas,['Equipamento','Qtd'])}
+      </div>`
+    }
     // ── Número do pino na planta — para cruzar tabela ↔ planta ──
     // Mesma linguagem da planta: forma pelo local de instalação (○ parede △ teto □ chão), cor pela categoria.
     const pin=(n,color=TH.pin,m=null)=>{
@@ -3307,15 +3383,15 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const idTh = withId ? `<th ${th} style="width:70px;text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">ID</th>` : ''
     const simb=(m)=>{ const pino=pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||'#64748B',label:_pinLabel(m),size:24}); const fam=cableFamily(familiaDoPontoTipo(m))
       return `<span style="position:relative;display:inline-block;width:24px;height:24px;vertical-align:middle">${pino}<span style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${fam.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif" title="${fam.nome}">${fam.L}</span></span>` }
-    // Só o CORPO (título numerado é aplicado na lista de capítulos, como #2). Emite '' aqui.
-    _detalhesPontosBody = `<p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Conferência para a obra, cômodo a cômodo: <b>onde</b> deixar a ponta e <b>qual cabo</b> é. O símbolo repete o da planta — <b>forma</b> = local (△ teto, ○ parede, □ chão), <b>selo</b> = família do cabo.</p>
-      ${rooms.map(([amb,ms])=>`
-        <div style="font-size:12px;font-weight:700;color:#0369A1;margin:12px 0 4px">${amb} <span style="font-weight:400;color:#94A3B8">· ${ms.length} ${ms.length===1?'ponto':'pontos'}</span></div>
-        <table style="width:100%;border-collapse:collapse">
-          <thead><tr><th ${th} style="width:70px;text-align:center;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Ponto</th>${idTh}<th ${th}>Item</th><th ${th}>Equip.</th><th ${th}>Local</th><th ${th}>Altura</th><th ${th}>Caixa</th><th ${th}>Cabo</th></tr></thead>
-          <tbody>${ms.map(m=>{ const sp=specDoPonto(m); const fn=funcaoDoPonto(m); const eq=(m.name||'').trim()
-            return `<tr><td ${td} style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0">${simb(m)}</td>${withId?`<td ${td} style="font-family:monospace;font-size:10px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#475569">${m.id||m.code||('#'+m.n)}</td>`:''}<td ${td} style="font-weight:600">${fn}</td><td ${td} style="font-size:10px;color:#64748B">${(eq&&eq!==fn)?eq:'—'}</td><td ${td}>${LOC[mountOf(m)]||'—'}</td><td ${td} style="font-weight:600;font-size:11px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B">${NIV[alturaOf(m)]||'—'}</td><td ${td} style="text-align:center;font-weight:700">${sp.caixa||'—'}</td><td ${td} style="font-weight:600;font-size:10.5px">${sp.cabo||'—'}</td></tr>`}).join('')}</tbody>
-        </table>`).join('')}`
+    // Layout da tabela IGUAL à de Equipamentos do Rack (Raphael): usa o helper T(), que gera
+    // <table class="ex-tbl"> com o cabeçalho navy + dourado do OPUS, em vez do header cinza inline.
+    _detalhesPontosBody = `<p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Conferência para a obra, cômodo a cômodo: <b>onde</b> deixar a ponta e <b>qual cabo</b> é. O símbolo repete o da planta — <b>forma</b> = local, <b>selo</b> = família do cabo.</p>
+      ${rooms.map(([amb,ms])=>{
+        const cols = ['Ponto', ...(withId?['ID']:[]), 'Item','Equip.','Local','Altura','Caixa','Cabo']
+        const rowsHtml = ms.map(m=>{ const sp=specDoPonto(m); const fn=funcaoDoPonto(m); const eq=(m.name||'').trim()
+          return `<tr><td style="text-align:center">${simb(m)}</td>${withId?`<td style="font-family:monospace;font-size:10px">${m.id||m.code||('#'+m.n)}</td>`:''}<td style="font-weight:600">${fn}</td><td style="font-size:10px;color:#64748B">${(eq&&eq!==fn)?esc(eq):'—'}</td><td>${LOC[mountOf(m)]||'—'}</td><td style="font-weight:600">${NIV[alturaOf(m)]||'—'}</td><td style="text-align:center;font-weight:700">${sp.caixa||'—'}</td><td style="font-size:10.5px">${sp.cabo||'—'}</td></tr>` }).join('')
+        return `<h3 class="ex-amb" style="margin-top:14px">${esc(amb)} <span style="font-weight:400;color:#94A3B8">· ${ms.length} ${ms.length===1?'ponto':'pontos'}</span></h3>${T(rowsHtml, cols)}`
+      }).join('')}`
     return ''
   })()}
 
@@ -4283,14 +4359,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // 6. TETO
     (!secOff('tbl_teto') && plantaTeto) ? cap('Planta de Teto — Itens sobre Forro e Laje',true) + plantaTeto.replace('<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>','') + '</div>' : '',
 
-    // 7. CABEAMENTO E CONDUÍTES — agora com as PLANTAS DE CABO por família (cabosInline, extraídas
-    // do doc de obra) + os conduítes, e com Som e Segurança dobrados aqui dentro como subseções,
-    // cada um no seu tópico (Raphael). Antes só tinha conduíte e apontava pro Plano de Obra.
+    // 7. CABEAMENTO E CONDUÍTES — plantas de cabo por família (cabosInline) + conduítes.
+    // Som Ambiente foi REMOVIDO (Raphael). Segurança/Câmeras foi movido pro tópico 3 (Rede).
     secOff('t_conduites') ? '' : cap('Cabeamento e Conduítes',true) +
       `<p class="ex-p" style="margin-bottom:10px">Por família de cabo (Dados, Som, Elétrica): a planta com o caminho dos cabos e a dos conduítes, com as tabelas de execução.</p>` +
       (cabosInline || (conduitesInline||'')) +
-      ((!secOff('tbl_som') && tblSom) ? `<h2 style="border-top:2px solid ${TH.rule};margin-top:22px;padding-top:12px">Som Ambiente — Zonas e Caixas</h2>${tblSom}` : '') +
-      ((!secOff('tbl_seguranca') && (tblSeguranca||temCam)) ? `<h2 style="border-top:2px solid ${TH.rule};margin-top:22px;padding-top:12px">Segurança — Câmeras e Sensores</h2>${tblSeguranca}${blocoCamerasHtml()}` : '') +
       '</div>',
 
     // 8. EQUIPAMENTOS E PEÇAS — mantido como estava (Raphael: "pode manter como está").
@@ -4393,16 +4466,18 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   // genérica ("Módulo") e achataria "Módulo de cortina" e "Módulo de iluminação 4 canais" no
   // mesmo rótulo. Isto AQUI é só exibição: quem agrupa é o item (ver a chave da dedup).
   function funcaoDoPonto(m){
+    // Ponto de rede: nome limpo por função (Raphael). Câmera → "Câmera", access point → "Antena",
+    // keystone → "Ponto de Rede {Baixo/Médio/Alto/Piso/Teto}". O modelo do produto fica na
+    // coluna Equip.; aqui é a FUNÇÃO. A letra do pino (C/A/K) já distingue os três desenhos.
+    if(pinTipoDe(m)==='rede'){
+      const L = pinLetraDe(m)
+      if(L==='C') return 'Câmera'
+      if(L==='A') return 'Antena'
+      const A = {piso:'Piso',baixa:'Baixo',media:'Médio',alta:'Alto',teto:'Teto'}
+      return 'Ponto de Rede'+(A[alturaOf(m)]?' '+A[alturaOf(m)]:'')
+    }
     const cls = classifyEle(m)
-    const base = (cls && cls.tipo) ? cls.tipo : ((m && m.name) || '—')
-    // Ponto de rede: a letra do pino (C câmera · A access point · K keystone) diz QUAL é. Sem
-    // isso, um keystone de teto para câmera, um para AP e um solto escrevem a MESMA coisa e a
-    // legenda parece repetida — três linhas idênticas que só diferem por uma letra no desenho.
-    // Só acrescenta quando o texto já não disser (senão vira "Câmera externa 4MP — câmera").
-    const L = pinLetraDe(m)
-    if(L==='C' && !/c[âa]mera|dome|bullet/i.test(base)) return base + ' — câmera'
-    if(L==='A' && !/access point|\bap\b|wi-?fi/i.test(base)) return base + ' — access point'
-    return base
+    return (cls && cls.tipo) ? cls.tipo : ((m && m.name) || '—')
   }
 
   // Legenda OPUS: a legenda É a lista do que existe NESTA planta, uma linha por FUNÇÃO
@@ -4491,6 +4566,27 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       <div style="margin-top:8px;text-align:left">${execVersao==='opus'?legendaOpusHtml():pontosLegenda()}</div>
     </div>`
   }
+  // LISTA DE EQUIPAMENTOS — montada aqui (escopo do componente) e anexada UMA vez pelo
+  // buildFullHtml, no fim do documento final. Antes eu anexava dentro do buildExecHtml, mas os
+  // sub-documentos (obra/conduítes) são extraídos e embutidos no Executivo, então a lista deles
+  // vazava e aparecia 2-3×. Aqui é o único ponto de montagem do doc final: uma lista, sempre.
+  function listaEquipamentosHtml(){
+    const cont=new Map()
+    ;(markers||[]).filter(m=>!isRackItem(m.name,m.code) && m.name).forEach(m=>{ const k=(m.name||'').trim(); if(k) cont.set(k,(cont.get(k)||0)+1) })
+    const rk=((markers||[]).find(m=>isRackItem(m.name||'', m.code||''))||{}).rackEquip || []
+    rk.forEach(e=>{ const k=(e.name||e.equip||'').trim(); if(k) cont.set(k,(cont.get(k)||0)+(Number(e.qty)||1)) })
+    if(!cont.size) return ''
+    const _e=s=>String(s==null?'':s).replace(/</g,'&lt;')
+    const total=[...cont.values()].reduce((s,q)=>s+q,0)
+    const rows=[...cont.entries()].sort((a,b)=>a[0].localeCompare(b[0]))
+      .map(([n,q])=>`<tr><td>${_e(n)}</td><td style="text-align:center;font-weight:800">${q}</td></tr>`).join('')
+    return `<div class="ex-sec ex-breakable" style="page-break-before:always">
+      <h2 style="border-bottom:3px solid #0D1B2A;padding-bottom:8px;margin-bottom:10px">Lista de Equipamentos</h2>
+      <p class="ex-p" style="color:#6B7280;margin-bottom:8px">Todos os equipamentos do projeto e suas quantidades — pontos na planta + equipamentos do rack. Total: <b>${total}</b> ${total===1?'item':'itens'}.</p>
+      <table class="ex-tbl"><thead><tr><th>Equipamento</th><th>Qtd</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`
+  }
+
   function buildFullHtml(preview=false){
     const cliNome=(projectInfo.client||fromProposal?.client_name||'Cliente').replace(/[\\/:*?"<>|]/g,'')
     const codigo=(fromProposal?.code||'').replace(/[\\/:*?"<>|]/g,'')
@@ -4508,13 +4604,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const quebraPag='<div style="break-before:page;page-break-before:always;height:0;margin:0;border:0"></div>'
       // wall page 1×, por último (depois de _full+_obra+_ele) — folha sozinha
       // _ele (Planta Elétrica) NÃO entra: o corpo (_full) já traz a planta elétrica. Evita a 3ª cópia.
-      body = (_full||'') + (_obra ? quebraPag+_obra : '') + buildWallPage()
+      body = (_full||'') + (_obra ? quebraPag+_obra : '') + listaEquipamentosHtml() + buildWallPage()
     } else {
       // TUDO A4 (Raphael). Obra, elétrica e conduítes saíam em A3 PAISAGEM — só o Completo era
       // A4. Era a origem do "Para impressão em A3" que abria o Plano de Obra, e da diferença de
       // escala entre os documentos. A folha da parede segue A4 paisagem: ela é uma só, pra pregar.
       pageCss = '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @page wallpage{size:A4 landscape;margin:6mm}'+_plantSizeCss
-      body = (execMode==='obra'?_obra:execMode==='eletrica'?_ele:execMode==='conduites'?_cond:execMode==='instalacao'?_inst:_full)||''
+      body = ((execMode==='obra'?_obra:execMode==='eletrica'?_ele:execMode==='conduites'?_cond:execMode==='instalacao'?_inst:_full)||'') + listaEquipamentosHtml()
       // wall page só no Plano de Obra (e no executivo/completo acima), por último
       if(execMode==='obra') body += buildWallPage()
     }
