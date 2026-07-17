@@ -314,22 +314,58 @@ function familiaExigidaPeloTipo(m){
   return null
 }
 
+// ALTURA QUE O TIPO AFIRMA — o nome do tipo carrega a altura chumbada ("Keystone alto/bancada
+// (1,10m)", "Tomada baixa (0,30m)", "Ponto de som no teto"). Quando o tipo é inferido pelo NOME
+// e a altura vem do DADO, os dois divergem e o documento imprime "Keystone parede média (1,10m)
+// · 0,30 m" — afirmando duas alturas para o mesmo ponto. Null = o tipo não afirma altura.
+function alturaAfirmadaPeloTipo(m){
+  const c = classifyEle(m)
+  if(!c) return null
+  const A = {
+    keystone_baixo:'baixa', keystone_alto:'media', keystone_teto:'teto',
+    tomada_baixa:'baixa', tomada_media:'media', tomada_alta:'alta', tomada_piso:'piso', tomada_teto:'teto',
+    ponto_som_teto:'teto', ponto_som_piso:'piso',
+    ponto_energia_teto:'teto', ponto_energia_piso:'piso',
+    arandela_teto:'teto', ponto_luz:'teto',
+  }
+  return A[c.sym] || null
+}
+const _ALT_NOME = { piso:'no chão', baixa:'0,30 m', media:'1,10 m', alta:'1,80 m', teto:'no teto' }
+
 // ALERTA de combinação impossível: "tomada no teto com cabo de rede" não existe — não tem como.
 // Devolve null quando está coerente, ou o texto do aviso. Quem decide continua sendo o editor;
 // isto só bate na mesa antes de virar documento e ir pra obra.
 const _FAM_NOME = { eletrica:'elétrica', dados:'rede', som:'som', hdmi:'HDMI', uplink:'uplink', fibra:'fibra óptica' }
 function alertaDoPonto(m){
-  const exige = familiaExigidaPeloTipo(m)
-  if(!exige) return null
-  const tem = familiaDoPontoTipo(m)
-  if(tem === exige) return null
   const c = classifyEle(m)
   const oQue = (c && c.tipo) || 'este ponto'
-  return `${oQue} não recebe cabo de ${_FAM_NOME[tem]||tem} — é ponto de ${_FAM_NOME[exige]||exige}.`
+  // 1) Cabo × tipo
+  const exige = familiaExigidaPeloTipo(m)
+  if(exige){
+    const tem = familiaDoPontoTipo(m)
+    if(tem !== exige) return `${oQue} não recebe cabo de ${_FAM_NOME[tem]||tem} — é ponto de ${_FAM_NOME[exige]||exige}.`
+  }
+  // 2) Altura × tipo — o tipo foi deduzido do NOME e afirma uma altura; a altura real vem do
+  // dado. Divergiu, o documento imprime as duas ("Keystone parede média (1,10m) · 0,30 m").
+  const altTipo = alturaAfirmadaPeloTipo(m)
+  if(altTipo){
+    const altReal = alturaOf(m)
+    if(altReal !== altTipo)
+      return `${oQue} está a ${_ALT_NOME[altReal]||altReal} — o tipo diz ${_ALT_NOME[altTipo]||altTipo}. Corrija o tipo do ponto ou a altura.`
+  }
+  return null
 }
 const SPEC_PADRAO = { caixa:'—', cabo:'—' }
+// O que é CAIXA DE VERDADE (coisa que se compra) × o que é só o LUGAR do ponto.
+// "forro", "quadro" e "passagem" dizem onde o ponto mora, não uma caixa a comprar — contá-los
+// no quantitativo gerava linhas absurdas tipo "Caixa de embutir forro — 23 un".
+function ehCaixaDeEmbutir(cx){ return /^4x2$|^4x4$|^octogonal$|caixa de piso/i.test(String(cx||'')) }
 function specDoPonto(m){
   if(!m) return SPEC_PADRAO
+  // QDL não tem tamanho nem especificação (Raphael): o quadro JÁ está na casa e é bem maior
+  // que qualquer caixa de embutir — o ponto dele na planta é só pra ilustrar ONDE ele fica.
+  // Por isso ignora até um caixaTipo gravado: "4x4 no QDL" é dado sem sentido, não escolha.
+  if((classifyEle(m)||{}).sym==='quadro') return SPEC_PADRAO
   if(m.caixaTipo || m.caboTipo){
     const base = _specAuto(m)
     return { caixa: m.caixaTipo || base.caixa, cabo: m.caboTipo || base.cabo }
@@ -454,13 +490,19 @@ function pinNovoSVG({ m, size=22, label='', sel=false }){
     tics += `<line x1="${(12+Math.cos(r)*9.5).toFixed(2)}" y1="${(12+Math.sin(r)*9.5).toFixed(2)}" x2="${(12+Math.cos(r)*13).toFixed(2)}" y2="${(12+Math.sin(r)*13).toFixed(2)}" stroke="${cor}" stroke-width="1.6" stroke-linecap="round"/>`
   }
   const letra = pinLetraDe(m)
-  // Número do ponto: contorno branco (paint-order) pra ficar legível sobre qualquer
-  // preenchimento — cheio, meio ou X.
+  // LETRA E NÚMERO CONVIVEM (Raphael). Antes a letra SUBSTITUÍA o número, e câmera, AP e
+  // keystone ficavam sem o nº que cruza com as tabelas — a dica da legenda ("pontos 5, 14")
+  // não achava correspondência no desenho. A meia lua ocupa só a METADE DIREITA do pino, então
+  // o número vai na metade esquerda, que está vazia: os dois cabem sem disputar espaço.
+  // O número obedece ao toggle "Nº dentro do pino"; a letra não — ela diz o que o ponto é.
+  const numX = letra ? 6 : 12
+  const numFs = letra ? 9 : 10
+  // Contorno branco (paint-order) pra ficar legível sobre qualquer preenchimento — cheio, meio ou X.
   const txt = label!=='' && label!=null
-    ? `<text x="12" y="15.8" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="10" fill="${cor}" stroke="#fff" stroke-width="2.6" paint-order="stroke" style="paint-order:stroke">${label}</text>`
+    ? `<text x="${numX}" y="15.8" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="${numFs}" fill="${cor}" stroke="#fff" stroke-width="2.6" paint-order="stroke" style="paint-order:stroke">${label}</text>`
     : ''
   const letraTxt = letra
-    ? `<text x="14.5" y="15.4" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="8" fill="#7C4A03" stroke="#fff" stroke-width="2" paint-order="stroke" style="paint-order:stroke">${letra}</text>`
+    ? `<text x="15.5" y="15.4" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="8" fill="#7C4A03" stroke="#fff" stroke-width="2" paint-order="stroke" style="paint-order:stroke">${letra}</text>`
     : ''
   const halo = sel ? `<g opacity="0.32">${corpo.replace('/>',` fill="${cor}"/>`)}</g>` : ''
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="display:block;overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.45))">`
@@ -469,7 +511,7 @@ function pinNovoSVG({ m, size=22, label='', sel=false }){
     + corpo.replace('/>',` fill="#fff" stroke="${cor}" stroke-width="1.8" stroke-linejoin="round"/>`)
     + preenchimento + tics
     + (tipo==='quadro' ? `<line x1="1.5" y1="9.5" x2="22.5" y2="9.5" stroke="#fff" stroke-width="1.1"/>` : '')
-    + (letra ? letraTxt : txt)
+    + letraTxt + txt
     + `</svg>`
 }
 
@@ -1979,10 +2021,25 @@ Responda APENAS JSON válido:
     // Tabela de Portas: SÓ cabos de rede (dados, AP, câmera, uplink). Som/elétrica/HDMI têm tabelas próprias.
     const CABO_REDE = new Set(['dados','ap','camera','uplink'])
     const CABO_COR = { uplink:'Cinza', ap:'Azul', camera:'Verde', dados:'Amarelo' }
+    // ORIGEM DE VERDADE: cabo não sai do "rack" — sai de uma PORTA de um equipamento que está
+    // dentro dele (Raphael). Antes o device era o NOME DO MARCADOR ("Rack CPD") e a porta um
+    // contador inventado. Agora olha o que EXISTE no rack (rackMarker.rackEquip) e escolhe o
+    // equipamento pelo tipo de cabo. A porta segue sequencial — é PROPOSTA de patch, não medida.
+    const _rackEq = (markers.find(m=>isRackItem(m.name||'', m.code||''))||{}).rackEquip || []
+    const _achaEq = re => _rackEq.find(e=>re.test((((e.name||'')+' '+(e.code||''))).toLowerCase()))
+    const _devPara = tipo => {
+      const sw=_achaEq(/switch/), gw=_achaEq(/dream machine|udm|gateway|roteador/),
+            pp=_achaEq(/patch panel/), ont=_achaEq(/\bont\b|modem|onu/)
+      if(tipo==='uplink') return (ont||gw||{}).name || 'ONT / Gateway'
+      if(tipo==='ap'||tipo==='camera') return (sw||gw||{}).name || 'Switch PoE+'
+      return (pp||sw||gw||{}).name || 'Patch Panel'
+    }
     const rack_cable_table = cablesUnificados().filter(c=>!c.free && CABO_REDE.has(c.type)).map((c,i)=>{
       const from=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid)
       const mt=cableMeters(c)
-      const dev = from?.name||'Rack'
+      // Se a ponta de origem é o rack, quem manda é o equipamento lá dentro; se o cabo sai de
+      // outro ponto (ex.: keystone → keystone), a origem é o próprio ponto.
+      const dev = (from && isRackItem(from.name||'', from.code||'')) ? _devPara(c.type) : (from?.name || _devPara(c.type))
       _portaSeq[dev] = (_portaSeq[dev]||0)+1
       return { porta_patch:`P${String(i+1).padStart(2,'0')}`, device_origem:dev, porta_origem:String(_portaSeq[dev]),
         destino:(to?.name||'—')+(c._via?` · ${c._via}`:''), tipo:(CABLE_SPEC[c.type]?.spec)||'CAT6',
@@ -2375,14 +2432,21 @@ Responda APENAS JSON válido:
       const cargaTbl = cargaRows ? `<table class="ex-tbl"><thead><tr><th>Cômodo</th><th style="text-align:center">Tomadas</th><th style="text-align:center">Interrup.</th><th style="text-align:center">Pts Luz</th><th style="text-align:right">Carga estimada</th></tr></thead><tbody>${cargaRows}<tr style="background:#0D1420;color:#fff"><td colspan="4"><b>Demanda total estimada</b></td><td style="text-align:right"><b>${totalVA} VA</b></td></tr></tbody></table>
         <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin-top:4px">Estimativa simplificada (TUG ${VA_TUG}VA · ponto de luz ${VA_LUZ}VA). Dimensionamento final por engenheiro eletricista (ART/NBR 5410).</p>` : ''
       // checklist elétrico
-      const checklistEle = `<ul class="ex-ul">
-        <li>Conferir NEUTRO chegando em 100% das caixas de interruptor/keypad.</li>
-        <li>Circuitos de tomada e iluminação SEPARADOS no quadro QDL.</li>
-        <li>Aterramento (fio terra verde) em todas as tomadas.</li>
-        <li>Eletroduto de dados e de elétrica em conduítes SEPARADOS (nunca no mesmo).</li>
-        <li>Identificar cada disjuntor no QDL conforme a lista geral acima.</li>
-        <li>Testar todos os pontos antes do fechamento das paredes.</li>
-      </ul>`
+      // Checklist com CAIXA pra marcar (Raphael) — era <ul> de bolinhas, que não se marca.
+      // Mesmo desenho do checklist do Plano de Obra, pra ser o mesmo gesto na obra inteira.
+      const _chk = (itens=[]) => `<div style="display:flex;flex-direction:column;gap:0">${itens.map(it=>`
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
+          <span style="flex-shrink:0;width:16px;height:16px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
+          <span style="font-size:11.5px;line-height:1.45;color:#1F2937">${it}</span>
+        </div>`).join('')}</div>`
+      const checklistEle = _chk([
+        'Conferir NEUTRO chegando em 100% das caixas de interruptor/keypad.',
+        'Circuitos de tomada e iluminação SEPARADOS no quadro QDL.',
+        'Aterramento (fio terra verde) em todas as tomadas.',
+        'Eletroduto de dados e de elétrica em conduítes SEPARADOS (nunca no mesmo).',
+        'Identificar cada disjuntor no QDL conforme a lista geral acima.',
+        'Testar todos os pontos antes do fechamento das paredes.',
+      ])
       const head = `<div style="background:#0D1420;color:#38BDF8;font-size:12px;font-weight:700;padding:9px 14px;letter-spacing:1px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
         <span>PLANTA ELÉTRICA — Símbolos ABNT NBR 5444</span><span style="color:rgba(255,255,255,0.5);font-size:10px;font-weight:400">${eleMarks.length} pontos${qdl?' · QDL':''}</span></div>`
       // imagem com proporção REAL (padding-bottom = ratio), símbolos como HTML que NÃO distorcem
@@ -2393,10 +2457,20 @@ Responda APENAS JSON válido:
           ${syms}
         </div></div>`
       const titulo = numFn ? `<h2><span class="ex-sec-num">${numFn()}</span>Planta Elétrica (ABNT NBR 5444)</h2>` : `<h2>Planta Elétrica (ABNT NBR 5444)</h2>`
-      // resumo de caixas de embutir (lista de compra do eletricista)
-      const cxCount={}; eleMarks.forEach(({m})=>{ const cx=specDoPonto(m).caixa; if(cx&&cx!=='—') cxCount[cx]=(cxCount[cx]||0)+1 })
+      // Resumo de caixas de embutir = lista de compra do eletricista. Varre TODOS os pontos
+      // (Raphael: "puxar todas as caixas de embutir"), não só os eleMarks: keystone e ponto de
+      // som também pedem 4x2, mas ficam fora do ELE_SYMS_SET, então a lista saía CURTA.
+      // Só entra o que é caixa de verdade — "forro" e "quadro" são lugar, não caixa.
+      const _ehCaixa = cx => /^4x2$|^4x4$|^octogonal$|caixa de piso/i.test(cx||'')
+      const cxCount={}
+      markers.filter(m=>!isRackItem(m.name,m.code) && !hideCats.has(equipType(m.name)) && m.name).forEach(m=>{
+        const cx=specDoPonto(m).caixa; if(_ehCaixa(cx)) cxCount[cx]=(cxCount[cx]||0)+1 })
+      const _usoCx = cx => cx==='4x4' ? 'Keypad 4+ teclas / 4+ módulos'
+        : cx==='4x2' ? 'Interruptor até 3 teclas · tomada · keystone · ponto de som'
+        : /piso/i.test(cx) ? 'Pontos de piso' : cx==='octogonal' ? 'Pontos de teto' : ''
       const cxResumo = Object.keys(cxCount).length ? `<h3 class="ex-amb" style="margin-top:16px">Caixas de Embutir — Resumo</h3>
-        ${T(Object.entries(cxCount).sort().map(([cx,n])=>`<tr><td style="font-weight:700;text-align:center">${esc(cx)}</td><td style="text-align:center">${n}</td><td style="font-size:10px;color:#64748B">${cx==='4x4'?'Keypad 6 teclas / 4+ módulos':cx==='4x2'?'Interruptores e tomadas (1–3 módulos)':cx==='octogonal'?'Pontos de teto':''}</td></tr>`).join(''),['Caixa','Qtd','Uso'])}` : ''
+        <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin:-2px 0 6px">Todos os pontos do projeto que pedem caixa — elétrica, rede e som.</p>
+        ${T(Object.entries(cxCount).sort().map(([cx,n])=>`<tr><td style="font-weight:700;text-align:center">${esc(cx)}</td><td style="text-align:center">${n}</td><td style="font-size:10px;color:#64748B">${_usoCx(cx)}</td></tr>`).join(''),['Caixa','Qtd','Uso'])}` : ''
       return `<div class="ex-sec ex-breakable">${titulo}
         <p class="ex-p" style="margin-bottom:10px">Pontos elétricos com símbolos normalizados (ABNT NBR 5444), em proporção real da planta. Mostra apenas os pontos elétricos (tomadas, interruptores, iluminação, quadro).</p>
         ${head}${fig}${legenda}${abntLegendaCompleta()}
@@ -3773,7 +3847,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           ${plantaEle}${tabelaCaixas}${tabelaAlim}</div>`
       })()
       const obraQuant = (()=>{
-        const caixas={}; markers.filter(isPontoEletrico).forEach(m=>{ const cx=specDoPonto(m).caixa; if(cx&&cx!=='—') caixas[cx]=(caixas[cx]||0)+1 })
+        // Varre TODOS os pontos (keystone e som pedem 4x2 e ficam fora do isPontoEletrico) e só
+        // conta o que é caixa de verdade — "forro"/"quadro" saíam como "Caixa de embutir forro".
+        const caixas={}
+        markers.filter(m=>!isRackItem(m.name,m.code) && !hideCats.has(equipType(m.name)) && m.name).forEach(m=>{
+          const cx=specDoPonto(m).caixa; if(ehCaixaDeEmbutir(cx)) caixas[cx]=(caixas[cx]||0)+1 })
         const fams={}; cablesUnificados(cables,markers).filter(c=>!c.free).forEach(c=>{ const f=cableFamily(c.type||'dados'); if(famOculta(f.k)) return; const mt=cableMeters(c)||0; fams[f.nome]=(fams[f.nome]||0)+mt })
         const conds=(cables||[]).filter(c=>c.free); const condM=conds.reduce((s,c)=>s+(cableMeters(c)||0),0)
         const rows=[
@@ -3797,9 +3875,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         <h3 class="ex-amb" style="margin-top:14px">Checklist de Obra — Arquiteto / Eletricista</h3>${checkList(d.checklist_obra)}
         <h3 class="ex-amb" style="margin-top:20px">Checklist de Instalação — Equipe RARO Home</h3>${checkList(d.checklist_raro)}</div>`
       const obraSections = [
-        `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Plano de Obra</h2>
-          <p class="ex-p" style="color:#6B7280">Para impressão em A3. Cada tópico tem: planta dos cabos + tabela, planta dos conduítes + tabela, e visão completa sobreposta.</p>
-          ${showLegenda?legendaMestreHtml:''}</div>`,
+        // A abertura do Plano de Obra saiu (Raphael): era o título + o aviso de A3 + a legenda
+        // repetida. A capa já diz o que é o documento, e a legenda aparece colada em cada
+        // planta — aqui ela era só uma cópia solta antes de qualquer desenho. Tudo é A4 agora.
         embedded?'':obraPlantaCompleta,   // no Completo, _full já tem a Planta de Pontos
         (embedded||secOff('pos_altura'))?'':obraPosAlt,            // no Completo, _full já tem a Posição e Altura
         secOff('t_obra_eletrica')?'':obraEletricaCompleta,
@@ -4015,8 +4093,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       // _ele (Planta Elétrica) NÃO entra: o corpo (_full) já traz a planta elétrica. Evita a 3ª cópia.
       body = (_full||'') + (_obra ? quebraPag+_obra : '') + buildWallPage()
     } else {
-      const _isA3=(execMode==='obra'||execMode==='eletrica'||execMode==='conduites')
-      pageCss = (_isA3 ? '@page{size:A3 landscape;margin:10mm} .ex-plant img{max-height:245mm!important}' : '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important}')+' @page wallpage{size:A4 landscape;margin:6mm}'+_plantSizeCss
+      // TUDO A4 (Raphael). Obra, elétrica e conduítes saíam em A3 PAISAGEM — só o Completo era
+      // A4. Era a origem do "Para impressão em A3" que abria o Plano de Obra, e da diferença de
+      // escala entre os documentos. A folha da parede segue A4 paisagem: ela é uma só, pra pregar.
+      pageCss = '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @page wallpage{size:A4 landscape;margin:6mm}'+_plantSizeCss
       body = (execMode==='obra'?_obra:execMode==='eletrica'?_ele:execMode==='conduites'?_cond:_full)||''
       // wall page só no Plano de Obra (e no executivo/completo acima), por último
       if(execMode==='obra') body += buildWallPage()
