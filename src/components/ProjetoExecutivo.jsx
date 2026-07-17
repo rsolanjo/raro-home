@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { TAXONOMY, inferCategory, genItemId } from '../taxonomy.js'
 import { LOGO_EXEC } from '../logos.js'
 import { demoWatermark, brandLogoExec, brandName, isDemo } from '../brand.js'
+import { openHtmlDoc, safeFileName } from './openDoc.js'
 import { supabase } from '../db/supabase.js'
 
 const EQUIP_STYLE = {
@@ -980,6 +981,20 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [calibPts, setCalibPts]     = useState([])       // [{x,y}] até 2 pontos
   const [calibSamples, setCalibSamples] = useState(()=> initPlanta?.calibSamples || []) // [{d, metros}] medições de parede (multi-amostra)
   const [folgaPct, setFolgaPct]     = useState(15)       // folga de instalação (%)
+  // ── CREDENCIAIS DO PROJETO ────────────────────────────────────────────────
+  // Guardadas no app e impressas MASCARADAS no documento; em claro só na "Folha de
+  // Credenciais", gerada sob demanda pra entrega em mão (decisão do Raphael).
+  // ATENÇÃO: ficam em TEXTO PURO no banco, junto do projeto. Quem tiver acesso ao Supabase
+  // ou a um backup lê tudo. Cifrar antes de gravar é o passo que falta — está registrado
+  // como pendência, não foi feito.
+  const [showCreds, setShowCreds] = useState(false)
+  const [creds, setCreds] = useState(()=>{
+    let pd = fromProposal?.planta_data
+    if(typeof pd==='string'){ try{ pd=JSON.parse(pd) }catch{ pd=null } }
+    const c = pd?.credenciais
+    return { wifi:(c?.wifi)||[], cams:{ user:c?.cams?.user||'', senha:c?.cams?.senha||'', obs:c?.cams?.obs||'' }, obs:c?.obs||'' }
+  })
+  const [showCredSheet, setShowCredSheet] = useState(false)
   const [cableDraft, setCableDraft] = useState(null)         // {fromUid, points:[]} enquanto desenha
   const [selCable, setSelCable]     = useState(null)
   const [dragPoint, setDragPoint]   = useState(null)         // {cableId, idx}
@@ -1037,6 +1052,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [execDocObra, setExecDocObra] = useState(()=> fromProposal?.exec_doc_obra || null) // versão Obra/Pedreiro (HTML)
   const [execDocEletrica, setExecDocEletrica] = useState(()=> fromProposal?.exec_doc_eletrica || null) // versão Elétrica (HTML)
   const [execDocConduites, setExecDocConduites] = useState(()=> fromProposal?.exec_doc_conduites || null) // relatório de conduítes (HTML)
+  const [execDocInstal, setExecDocInstal] = useState(()=> fromProposal?.exec_doc_instalacao || null)      // plano de instalação (HTML)
   const [execMode, setExecMode] = useState('completo') // 'completo' | 'obra' | 'eletrica'
   const [showHeatmap, setShowHeatmap] = useState(true)  // mostrar mapa de calor de Wi-Fi no executivo
   const [showIds, setShowIds] = useState(false)  // códigos nos pinos DO EDITOR (para trabalhar)
@@ -2091,12 +2107,33 @@ Responda APENAS JSON válido:
     const pecas = Object.entries(pecasMap).map(([item,qtd])=>({item,qtd}))
 
     return {
-      premissas:[
-        'Documento montado manualmente a partir dos pontos posicionados na planta.',
-        'Todo cabeamento estruturado CAT6 sai do rack/CPD até cada ponto.',
-        'Keypads SEMPRE com fase + neutro + terra do quadro (neutro obrigatório).',
-        precisaSwitch?`APs + Câmeras = ${totalPoe} → adicionar Switch PoE+ (Dream Machine SE tem 8 portas).`:`Dream Machine SE comporta os ${totalPoe} dispositivos PoE.`,
-      ],
+      // PREMISSAS E ESCOPO — elaborado (Raphael: "podia ser mais elaborado"). Antes eram 4
+      // linhas genéricas. Agora diz o ESCOPO REAL medido na planta, as CONVENÇÕES da RARO
+      // (com o porquê de cada uma) e, principalmente, o que NÃO está incluso — que é o que
+      // gera briga na obra. Os números saem dos marcadores, não são chute.
+      premissas:(()=>{
+        const vis = markers.filter(m=>!isRackItem(m.name,m.code) && m.name)
+        const comodos = new Set(vis.map(m=>(m.room||'').trim()).filter(Boolean)).size
+        const keypads = vis.filter(m=>/^interruptor/.test((classifyEle(m)||{}).sym||'')).length
+        const soms = vis.filter(m=>pinTipoDe(m)==='som').length
+        const redes = vis.filter(m=>pinTipoDe(m)==='rede').length
+        const mts = (cables||[]).filter(c=>!c.free).reduce((s,c)=>s+(cableMeters(c)||0),0)
+        const L = []
+        L.push(`<b>Escopo:</b> ${vis.length} pontos em ${comodos} cômodo${comodos>1?'s':''}${keypads?` · ${keypads} ponto${keypads>1?'s':''} de comando (keypad)`:''}${redes?` · ${redes} de rede`:''}${soms?` · ${soms} de som`:''}${(plantScale&&mts)?` · ~${Math.round(mts)}m de cabo`:''}.`)
+        L.push('<b>Este documento é a pré-instalação.</b> Ele define onde deixar cada ponta de cabo e em que caixa, antes de fechar parede e forro. Equipamento nenhum é instalado nesta fase.')
+        L.push('<b>Comando é Zigbee, não fiação.</b> Dois keypads acendendo a mesma luz é cena, configurada em software — não se puxa paralelo (three-way) nem intermediário. Por isso não há retorno: todo keypad recebe fase + neutro + terra 2,5mm² direto do quadro, e o neutro é obrigatório (o keypad é alimentado, não é interruptor burro).')
+        L.push('<b>Cabeamento estruturado:</b> CAT6 do rack/CPD até cada ponto, em lance único — sem emenda dentro da parede. Cada cabo é etiquetado nas duas pontas.')
+        L.push('<b>Dados e elétrica não dividem eletroduto.</b> Conduítes separados, sempre — indução da rede elétrica degrada o par trançado.')
+        L.push('<b>Caixa por ponto:</b> keypad até 3 teclas em 4x2; acima de 3 teclas, 4x4. Tomada, keystone e ponto de som em 4x2. Pontos de teto e forro não levam caixa de embutir.')
+        L.push(precisaSwitch
+          ? `<b>Rede:</b> ${totalPoe} dispositivos PoE (APs + câmeras) — acima das 8 portas do Dream Machine SE, então entra um Switch PoE+.`
+          : `<b>Rede:</b> ${totalPoe} dispositivo${totalPoe===1?'':'s'} PoE — cabem nas 8 portas do Dream Machine SE, sem switch adicional.`)
+        L.push('<b>Rede segmentada em VLANs:</b> Principal, IoT, Câmeras e Guest. A VLAN de câmeras não tem saída para a internet e a de visitantes não enxerga a casa. Detalhes no tópico de Wi-Fi.')
+        L.push('<b>Alturas de referência:</b> tomada 0,30m · keypad e keystone de bancada 1,10m · tomada alta 1,80m · cortina 2,55m · som e sensores no teto. Cada ponto tem a sua altura na tabela por cômodo — a tabela manda, não esta lista.')
+        L.push('<b>Não está incluso:</b> o projeto elétrico assinado (dimensionamento de circuitos e disjuntores é do engenheiro eletricista, com ART/NBR 5410), a alvenaria e o rasgo de parede, a infraestrutura de eletrodutos até o rack, e o quadro de distribuição — que já existe na casa.')
+        L.push('<b>Medidas de cabo são estimativas</b> tiradas da planta, com folga de instalação. Servem para compra; a metragem real depende do caminho executado na obra.')
+        return L
+      })(),
       rack_config:{ dream_machine_portas:8, aps, cameras:cams, precisa_switch:precisaSwitch, switch_portas:precisaSwitch?16:0 },
       rack_items,
       rack_detalhe: rackMarker ? ['Rack embutido em armário ventilado','Tomada 110V dedicada para a régua filtrada','Fibra do provedor direto na porta WAN do Dream Machine SE'] : [],
@@ -2163,12 +2200,13 @@ Responda APENAS JSON válido:
       const obra = buildExecHtml(data,'obra')
       const eletrica = buildExecHtml(data,'eletrica')
       const conduites = buildExecHtml(data,'conduites')
-      setExecDoc(full); setExecDocObra(obra); setExecDocEletrica(eletrica); setExecDocConduites(conduites)
+      const instal = buildExecHtml(data,'instalacao')
+      setExecDoc(full); setExecDocObra(obra); setExecDocEletrica(eletrica); setExecDocConduites(conduites); setExecDocInstal(instal)
       setExecMode('completo')
       setStep('exec')
       if(fromProposal?.id){
         import('../db/supabase.js').then(({saveProposal})=>{
-          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:data} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
+          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:data, credenciais:creds} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
         })
       }
     } catch(err){
@@ -2262,6 +2300,7 @@ Responda APENAS JSON válido:
       setExecDocObra(obra)
       setExecDocEletrica(eletrica)
       setExecDocConduites(conduites)
+      setExecDocInstal(buildExecHtml(data,'instalacao'))
       setStep('exec')
       setExecProgress('')
 
@@ -2269,7 +2308,7 @@ Responda APENAS JSON válido:
       if(fromProposal?.id){
         try{
           const { saveProposal } = await import('../db/supabase.js')
-          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:data} }
+          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:data, credenciais:creds} }
           await saveProposal(updated)
         }catch(e){ console.warn('Auto-save falhou:', e.message) }
       }
@@ -2487,7 +2526,53 @@ Responda APENAS JSON válido:
         ${(secOff('caixas_embutir')||secOff('t_eletrica_tab'))?'':cxResumo}
         ${(secOff('quadro_cargas')||secOff('t_eletrica_tab'))?'':`<h3 class="ex-amb" style="margin-top:16px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}`}
         <h3 class="ex-amb" style="margin-top:16px">Checklist Elétrico</h3>${checklistEle}
+        ${blocoCenasHtml()}
       </div>`
+    }
+
+    // ── CENAS E CONFIGURAÇÕES (Raphael) — o que vamos programar e documentar ──────────
+    // A obra entrega o cabo; a cena é o que o cliente sente. Aqui fica registrado o que
+    // será programado, com espaço pra preencher à mão o que for definido com o cliente.
+    // Sai junto da Planta Elétrica porque é o comando que aquela fiação vai servir.
+    function blocoCenasHtml(){
+      const keypads = markers.filter(m=>/^interruptor/.test((classifyEle(m)||{}).sym||''))
+      if(!keypads.length) return ''
+      const _ckc = (itens=[]) => `<div style="display:flex;flex-direction:column;gap:0">${itens.map(it=>`
+        <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
+          <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
+          <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
+        </div>`).join('')}</div>`
+      // Uma linha por TECLA de cada keypad: é isso que se programa, uma a uma.
+      const linhas = keypads.map(m=>{
+        const t = ((classifyEle(m)||{}).teclas)||1
+        return Array.from({length:t},(_,i)=>`<tr>
+          <td style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">${esc(m.id||m.code||('#'+m.n))}</td>
+          <td style="padding:4px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px">${esc(m.room||'—')}</td>
+          <td style="text-align:center;padding:4px 8px;border-bottom:.5px solid #E2E8F0;font-size:10.5px;font-weight:700">${i+1}</td>
+          <td style="padding:4px 8px;border-bottom:.5px solid #E2E8F0"></td>
+          <td style="padding:4px 8px;border-bottom:.5px solid #E2E8F0"></td>
+        </tr>`).join('')
+      }).join('')
+      const th='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700"'
+      return `<h3 class="ex-amb" style="margin-top:18px">Cenas e Configurações</h3>
+        <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">A obra entrega o cabo; a cena é o que o cliente sente. Cada tecla é programada individualmente — preencha com o cliente e guarde: é o que documenta o que foi entregue.</p>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr><th ${th} style="width:64px">Keypad</th><th ${th}>Cômodo</th><th ${th} style="width:44px;text-align:center">Tecla</th><th ${th}>O que faz (cena)</th><th ${th} style="width:120px">Testado / OK</th></tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+        <h3 class="ex-amb" style="margin-top:14px">Configurações a fazer</h3>
+        ${_ckc([
+          'Nomear cada dispositivo pelo cômodo no app — nome genérico vira suporte eterno.',
+          'Agrupar por ambiente (Estar, Suíte…) para comando por voz e por cômodo.',
+          'Cena de <b>saída</b>: apaga tudo, fecha cortinas, arma o que for combinado.',
+          'Cena de <b>chegada</b> e cena de <b>noite</b> (luz de circulação em brilho baixo).',
+          'Tecla longa / duplo toque, se o keypad suportar — combinar o comportamento com o cliente.',
+          'Rotina por horário (cortina de manhã, luz de fachada ao anoitecer).',
+          'Comportamento na <b>queda de energia e de internet</b>: o que continua funcionando no botão físico.',
+          'Assistente de voz vinculado (se contratado) e testado em cada ambiente.',
+          'Acesso do cliente criado, com senha própria — a conta da RARO não fica sendo a do cliente.',
+          'Treinamento de entrega feito com quem mora na casa, não só com quem contratou.',
+        ])}`
     }
 
     // ── MAPA DE CALOR Wi-Fi — propagação aproximada dos APs (paredes de concreto) ──
@@ -2558,9 +2643,42 @@ Responda APENAS JSON válido:
         </table>
         <p class="ex-p" style="font-size:9.5px;color:#94A3B8;margin-top:6px">Sensores e keypads Zigbee não ocupam o Wi-Fi: falam com o gateway numa rede própria (mesh), deixando o Wi-Fi livre para as pessoas.</p>`
 
+      // ── PADRÃO RARO DE REDE: SSIDs, VLANs, guest e segurança — em forma de check ──
+      // É o que a RARO faz em TODA casa. Vira checklist pra ninguém esquecer e pra o cliente
+      // ver o que está sendo entregue. As credenciais entram MASCARADAS (folha à parte).
+      const _ck = (itens=[]) => `<div style="display:flex;flex-direction:column;gap:0">${itens.map(it=>`
+        <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
+          <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
+          <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
+        </div>`).join('')}</div>`
+      const padraoSSID = `<h3 class="ex-amb" style="margin-top:16px">Padrão de rede RARO — SSIDs e VLANs</h3>
+        <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">Separar em VLANs impede que um dispositivo comprometido enxergue os outros. É o mesmo padrão em todas as casas.</p>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr><th ${thW}>SSID</th><th ${thW}>VLAN</th><th ${thW}>Quem entra</th><th ${thW}>Por quê</th></tr></thead>
+          <tbody>
+            <tr><td ${tdW}><b>Principal</b></td><td ${tdW}>Confiável</td><td ${tdW}>Celulares e computadores da família</td><td ${tdW}>Acesso pleno à casa</td></tr>
+            <tr><td ${tdW}><b>IoT</b></td><td ${tdW}>Automação</td><td ${tdW}>TVs, assistentes, eletros conectados</td><td ${tdW}>Isola quem tem firmware fraco</td></tr>
+            <tr><td ${tdW}><b>Câmeras</b></td><td ${tdW}>CFTV</td><td ${tdW}>Câmeras e NVR</td><td ${tdW}>Sem internet de saída: câmera não "liga pra casa"</td></tr>
+            <tr><td ${tdW}><b>Guest</b></td><td ${tdW}>Visitante</td><td ${tdW}>Visitas</td><td ${tdW}>Só internet — não enxerga nada da casa</td></tr>
+          </tbody>
+        </table>
+        <h3 class="ex-amb" style="margin-top:14px">Checklist de configuração — rede</h3>
+        ${_ck([
+          'Criar as 4 VLANs no gateway e amarrar cada SSID à sua VLAN.',
+          'Guest com <b>isolamento de cliente</b> ligado (visitante não vê visitante) e sem acesso às demais VLANs.',
+          'VLAN de câmeras <b>sem rota para a internet</b> — acesso remoto só pelo NVR/gateway.',
+          'Bloquear tráfego entre IoT e a VLAN principal, liberando só o necessário (cast, impressora).',
+          'Trocar a senha padrão do gateway e desligar administração pela WAN.',
+          'Firmware do gateway, switch e APs atualizado antes da entrega.',
+          'IP fixo (ou reserva DHCP) para gateway, switch, APs, NVR e câmeras.',
+          'Nomear cada AP pelo cômodo, para manutenção futura.',
+          'Wi-Fi 2,4 GHz habilitado onde houver automação — sensor não fala 5 GHz.',
+          'Senha do Wi-Fi principal e do guest anotadas na Folha de Credenciais e entregues ao cliente.',
+        ])}
+        ${blocoCredenciaisHtml(false)}`
       return `<div class="ex-sec ex-breakable">${titulo}
         <p class="ex-p" style="margin-bottom:10px">Estimativa visual do alcance dos Access Points considerando <b>paredes de concreto</b> (alta atenuação). A mancha verde indica sinal forte; amarelo, médio; vermelho, sinal fraco na borda. É uma aproximação — a cobertura real depende de mobiliário, espelhos e interferências.</p>
-        ${head}${fig}${legenda}${aviso}${tabelaBandas}</div>`
+        ${head}${fig}${legenda}${aviso}${tabelaBandas}${padraoSSID}</div>`
     }
 
     const cliente=projectInfo.client||fromProposal?.client_name||'Cliente'
@@ -2935,6 +3053,121 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const _eletr = mode==='eletrica'
     // Conduítes não tinha ramo de capa: caía no else e se apresentava como "Projeto Executivo".
     const _cond  = mode==='conduites'
+    // ── PLANO DE INSTALAÇÃO ────────────────────────────────────────────────────────
+    // Documento pra um TERCEIRO entrar na obra e instalar: keypad, crimpagem, item no teto,
+    // configuração (Raphael). Ele chega depois do pedreiro: a parede está fechada e o cabo
+    // já está lá. Por isso aqui NÃO é sobre caminho de cabo — é sobre O QUE vai em cada ponta.
+    // Reusa as peças que já existem (mestra por cômodo, rack, cenas, credenciais mascaradas);
+    // nada é recriado, senão vira mais uma fonte de verdade pra divergir.
+    if(mode==='instalacao'){
+      // NIVL e o pino são locais das outras seções — aqui declaro os meus, sem depender de
+      // escopo alheio (foi assim que o _pinLabel quebrou uma vez).
+      const NIVL={piso:'no chão',baixa:'0,30 m',media:'1,10 m',alta:'1,80 m',teto:'no teto'}
+      const _fo = fazFamOculta(hideFams)
+      const simbPin = m => { const fam=cableFamily(familiaDoPontoTipo(m))
+        const pino=pinShapeSVG({m, mount:mountOf(m), alt:alturaOf(m), color:corDoPino(m), label:String(m.n??''), size:20})
+        const selo=_fo(fam.k)?'':`<span style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${fam.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1px solid #fff;font-family:'DM Sans',sans-serif">${fam.L}</span>`
+        return `<span style="position:relative;display:inline-block;width:20px;height:20px;vertical-align:middle">${pino}${selo}</span>` }
+      const vis = markers.filter(m=>!isRackItem(m.name,m.code) && m.name)
+      const byRoom={}; vis.forEach(m=>{ const r=m.room||'Geral'; (byRoom[r]=byRoom[r]||[]).push(m) })
+      const rooms=Object.entries(byRoom)
+      const _cki = (itens=[]) => `<div style="display:flex;flex-direction:column;gap:0">${itens.map(it=>`
+        <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
+          <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
+          <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
+        </div>`).join('')}</div>`
+      const thI='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700"'
+      const tdI='style="font-size:10.5px;padding:5px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
+      // Por cômodo: O QUE instalar em cada ponta — o item, não o cabo.
+      const porComodo = rooms.map(([amb,ms])=>`
+        <h3 class="ex-amb">${esc(amb)} · ${ms.length} ${ms.length===1?'ponto':'pontos'}</h3>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr><th ${thI} style="width:44px;text-align:center">Ponto</th><th ${thI}>O que instalar</th><th ${thI} style="width:150px">Equipamento</th><th ${thI} style="width:70px">Altura</th><th ${thI} style="width:110px">Cabo que chega</th><th ${thI} style="width:70px;text-align:center">Instalado</th></tr></thead>
+          <tbody>${ms.map(m=>{ const sp=specDoPonto(m); const fn=funcaoDoPonto(m); const eq=(m.name||'').trim()
+            return `<tr>
+              <td ${tdI} style="text-align:center;padding:3px 8px;border-bottom:.5px solid #E2E8F0">${simbPin(m)}</td>
+              <td ${tdI} style="font-weight:600">${esc(fn)}</td>
+              <td ${tdI} style="font-size:10px;color:#64748B">${(eq&&eq!==fn)?esc(eq):'—'}</td>
+              <td ${tdI}>${NIVL[alturaOf(m)]||'—'}</td>
+              <td ${tdI} style="font-size:10px">${esc(sp.cabo||'—')}</td>
+              <td ${tdI} style="text-align:center"><span style="display:inline-block;width:14px;height:14px;border:2px solid #0D1420;border-radius:3px"></span></td>
+            </tr>` }).join('')}</tbody>
+        </table>`).join('')
+      const secs = [
+        `<div class="ex-sec" style="border:none"><h2 style="border:none;margin-bottom:4px">Plano de Instalação</h2>
+          <p class="ex-p" style="color:#6B7280">Para quem entra depois do pedreiro: a parede está fechada e o cabo já está na caixa. Aqui está <b>o que vai em cada ponta</b>, como configurar e como testar. O caminho dos cabos está no Plano de Obra.</p>
+          <h3 class="ex-amb" style="margin-top:14px">Antes de começar</h3>
+          ${_cki([
+            'Conferir se o cabo de cada ponto bate com a tabela — <b>se não bater, pare e avise</b>; não improvise.',
+            'Testar continuidade e certificar os cabos de rede antes de crimpar o keystone.',
+            'Keypad só energiza com <b>fase + neutro</b> na caixa. Se não houver neutro, o ponto não está pronto: registre e avise.',
+            'Conferir a tensão (110/220) antes de energizar qualquer módulo.',
+            'Rack montado, energizado e com internet antes de configurar os dispositivos.',
+          ])}</div>`,
+        bgImage ? (()=>{ const dots=vis.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{
+            const f=cableFamily(familiaDoPontoTipo(m))
+            const badge=(showCabo && !_fo(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
+            return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:${PIN_PX}px;height:${PIN_PX}px">${pinShapeSVG({m, mount:mountOf(m), alt:alturaOf(m), color:corDoPino(m), label:_pinLabel(m), size:PIN_PX})}${badge}</div>` }).join('')
+          return `<div class="ex-obra-page" style="page-break-before:always">
+            <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Onde está cada ponto</h2>
+            <div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>${dots}</div>
+            ${showLegenda?legendaMestreHtml:''}</div>` })() : '',
+        `<div class="ex-obra-page" style="page-break-before:always">
+          <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Itens por Cômodo</h2>
+          <p class="ex-p" style="color:#6B7280">Marque conforme for instalando.</p>${porComodo}</div>`,
+        (rackEquipTable||rackCableTableHtml) ? `<div class="ex-obra-page" style="page-break-before:always">
+          <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Rack / CPD</h2>
+          <p class="ex-p" style="color:#6B7280">Monte na ordem das U. A tabela de portas é a <b>proposta</b> de patch — se mudar, anote na coluna.</p>
+          ${rackEquipTable||''}${rackVisual||''}${rackCableTableHtml||''}
+          <h3 class="ex-amb" style="margin-top:16px">Crimpagem e organização</h3>
+          ${_cki([
+            'Padrão <b>T568A ou B — o mesmo nas duas pontas</b> e no projeto inteiro.',
+            'Destrançar o mínimo possível no conector; capa do cabo entrando dentro do plug.',
+            'Certificar cada lance depois de crimpar (par a par) e anotar o resultado.',
+            'Etiquetar as duas pontas de todo cabo, com o mesmo código da tabela.',
+            'Sobra organizada no rack — nem esticado, nem novelo. Raio de curva respeitado.',
+            'Régua e fonte por último; nada energizado durante a crimpagem.',
+          ])}</div>` : '',
+        `<div class="ex-obra-page" style="page-break-before:always">
+          <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Configuração</h2>
+          ${blocoCenasHtml()}
+          ${blocoCredenciaisHtml(false)}</div>`,
+        `<div class="ex-obra-page" style="page-break-before:always">
+          <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Entrega</h2>
+          <h3 class="ex-amb">Teste final — ponto a ponto</h3>
+          ${_cki([
+            'Cada tecla de cada keypad aciona o que está na tabela de cenas.',
+            'Todas as luzes acendem e apagam também <b>pelo botão físico</b>, com a internet fora.',
+            'Cortinas abrem e fecham por completo, sem travar no fim de curso.',
+            'Som toca em todas as zonas, no volume de cada uma.',
+            'Todas as câmeras com imagem, no ângulo aprovado, gravando no NVR.',
+            'Wi-Fi testado <b>no cômodo mais distante</b>, não só ao lado do AP.',
+            'Guest testado: conecta na internet e não enxerga a rede da casa.',
+          ])}
+          <h3 class="ex-amb" style="margin-top:16px">Fechamento com o cliente</h3>
+          ${_cki([
+            'Treinamento feito com quem <b>mora</b> na casa, não só com quem contratou.',
+            'Credenciais entregues em mão (Folha de Credenciais) e retiradas de qualquer grupo de mensagens.',
+            'Acesso do cliente criado com senha própria.',
+            'Pendências anotadas por escrito, com prazo.',
+          ])}
+          <div style="margin-top:26px;border-top:1px dashed #CBD5E1;padding-top:10px;font-size:10.5px;color:#64748B">
+            Instalador: ______________________________  Data: ____/____/______<br><br>
+            Recebi e testei: __________________________  Data: ____/____/______
+          </div></div>`,
+      ].filter(Boolean)
+      return `<style>${_ver==='opus'?EXEC_CSS_OPUS:_ver==='fable'?EXEC_CSS_FABLE:_ver==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
+        <div class="ex-doc"><div class="ex-cover ex-doc-cover">
+          <div class="ex-cover-top">DOCUMENTO DE OBRA · INSTALAÇÃO</div>
+          <img src="${brandLogoExec()}" alt="Logo" style="width:170px;max-width:50%;margin:0 auto 8px;display:block"/>
+          <div class="ex-cover-tag">CASA · TECNOLOGIA · LAZER</div>
+          <div class="ex-cover-title">Plano de Instalação</div>
+          <div class="ex-cover-sub">Itens por cômodo · Crimpagem · Configuração · Testes<br>Guia para quem instala e entrega</div>
+          <div class="ex-cover-client"><div class="ex-cc-name">${esc(cliente)}</div><div class="ex-cc-meta">${hoje} · ${brandName()}</div></div>
+          <div class="ex-cover-foot">${brandName()}</div>
+        </div>${secs.join('\n')}</div>`
+    }
+
     return `<style>${_ver==='opus'?EXEC_CSS_OPUS:_ver==='fable'?EXEC_CSS_FABLE:_ver==='nova'?EXEC_CSS_PREMIUM:EXEC_CSS}</style>
 <div class="ex-doc">
   <!-- CAPA -->
@@ -3144,6 +3377,34 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       ? T((d.tabela_seguranca||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor('Segurança'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}${idCell(r.id)}<td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.resolucao||'—')}</td><td style="font-size:10px">${esc(r.tipo)}</td><td style="font-size:10px">${esc(r.posicao)}</td><td style="font-size:10px">${esc(r.angulo||'—')}</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
         ['#',...idHdr,'Equipamento','Ambiente','Resolução','Tipo','Posição','Ângulo','Obs'])
       : ''
+
+    // ── CÂMERAS: como configuramos e por quê ──────────────────────────────────
+    // Padroniza a configuração em todas as casas e deixa registrado o que foi feito.
+    // As credenciais entram MASCARADAS; em claro só na Folha de Credenciais.
+    const temCam = markers.some(m=>/c[âa]mera|camera|dome|bullet|nvr/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
+    const blocoCamerasHtml = () => { if(!temCam) return ''
+      const _ckc = (itens=[]) => `<div style="display:flex;flex-direction:column;gap:0">${itens.map(it=>`
+        <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
+          <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
+          <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
+        </div>`).join('')}</div>`
+      return `<h3 class="ex-amb" style="margin-top:16px">Como as câmeras são configuradas</h3>
+        <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">Padrão RARO, igual em todas as casas. Câmera é o ponto mais sensível da instalação: ela vê dentro da casa do cliente.</p>
+        ${_ckc([
+          'Trocar a senha de fábrica de <b>todas</b> as câmeras e do NVR — senha padrão é a porta de entrada mais explorada.',
+          'Câmeras na <b>VLAN de CFTV, sem saída para a internet</b>: se o firmware tiver backdoor, ele não fala com fora.',
+          'Acesso remoto <b>só pelo app do fabricante/gateway</b> — nunca abrir porta no roteador (nada de DMZ ou port forwarding).',
+          'UPnP desligado no gateway.',
+          'Usuário administrador só para a RARO; criar usuário separado, sem poder de configuração, para o cliente.',
+          'Gravação contínua no NVR + retenção combinada com o cliente (conferir capacidade do HD).',
+          'Horário/NTP sincronizado — gravação com hora errada não serve como prova.',
+          'Conferir o ângulo de cada câmera com o cliente <b>antes</b> de fechar o forro.',
+          'Nenhuma câmera apontada para área do vizinho ou via pública além do necessário.',
+          'Firmware atualizado antes da entrega.',
+          'Credenciais entregues em mão ao cliente (Folha de Credenciais) e removidas de qualquer grupo de mensagens.',
+        ])}
+        ${blocoCredenciaisHtml(false)}`
+    }
 
     // ── Tabela Som Ambiente ────────────────────────────────────────────────────
     const tblSom = (d.tabela_som||[]).length
@@ -3915,6 +4176,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       return obraSections.join('\n') + '</div>'
     }
 
+
     // ── capítulos numerados (profissional, sem duplicação) ──
     let _cap = 0
     const cap = (t,brk=false) => `<div class="ex-sec ex-breakable" style="${brk?'page-break-before:always;':''}"><h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:12px">${_capNum(++_cap)}${t}</h2>`
@@ -3938,7 +4200,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // por cômodo e a "Posição e Altura" também, com as mesmas colunas — a mestra já dizia tudo
     // que ela dizia. A única coluna exclusiva dela (Equip., o produto do catálogo) migrou pra lá.
     (!secOff('tbl_som') && tblSom) ? cap('Som Ambiente — Zonas e Caixas') + tblSom + '</div>' : '',
-    (!secOff('tbl_seguranca') && tblSeguranca) ? cap('Segurança — Câmeras e Sensores') + tblSeguranca + '</div>' : '',
+    (!secOff('tbl_seguranca') && (tblSeguranca||temCam)) ? cap('Segurança — Câmeras e Sensores') + tblSeguranca + blocoCamerasHtml() + '</div>' : '',
 
     // 5. REDE / RACK
     !secOff('tbl_rack') && hasRack && (d.rack_detalhe||rackItems.length) ? cap('Rack / CPD — Equipamentos e Portas',true) + (list(d.rack_detalhe)+((rackEquipTable&&!secOff('tbl_rack_tab'))?`<h3 class="ex-amb">Equipamentos do Rack</h3>${rackEquipTable}`:'')+rackVisual+((rackCableTableHtml&&!secOff('tbl_rack_tab'))?`<h3 class="ex-amb" style="margin-top:20px">Tabela de Portas — Cabos de Rede</h3>${rackCableTableHtml}`:'')) + '</div>' : '',
@@ -3976,6 +4238,68 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   // Número dentro do pino, nas plantas do documento — obedece ao toggle "Nº dentro do pino".
   // Declarada como function pra ser içada (hoisted): as plantas são montadas acima daqui.
   function _pinLabel(m){ return showNumPin ? String((m&&m.n)??'') : '' }
+
+  // FOLHA DE CREDENCIAIS — única saída com as senhas em CLARO, e só sob demanda. Documento
+  // separado, pra entregar em mão; não é anexo do projeto executivo. Em useEffect porque abrir
+  // janela é efeito colateral: fazer isso no corpo do render não roda de forma confiável.
+  useEffect(()=>{
+    if(!showCredSheet) return
+    setShowCredSheet(false)
+    const cli = projectInfo.client || fromProposal?.client_name || 'Cliente'
+    const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Folha de Credenciais — ${cli}</title>`
+      + `<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">`
+      + `<style>@page{size:A4;margin:16mm} body{margin:0;font-family:'DM Sans',sans-serif;color:#0D1B2A}
+         h1{font-family:'DM Serif Display',serif;font-size:24px;margin:0 0 2px}
+         .ex-amb{font-size:12px;font-weight:700;color:#0369A1;margin:14px 0 5px}
+         .ex-p{font-size:11px;line-height:1.5;color:#334155;margin:6px 0}
+         table{width:100%;border-collapse:collapse}</style></head><body style="margin:0">`
+      + `${isDemo()?demoWatermark():''}`
+      + `<div style="border-bottom:3px solid #0D1B2A;padding-bottom:8px;margin-bottom:4px">
+           <h1>Folha de Credenciais</h1>
+           <div style="font-size:11px;color:#64748B">${cli} · ${new Date().toLocaleDateString('pt-BR')} · ${brandName()}</div>
+         </div>`
+      + blocoCredenciaisHtml(true)
+      + `<div style="margin-top:26px;border-top:1px dashed #CBD5E1;padding-top:10px;font-size:10.5px;color:#64748B">
+           Recebi as credenciais acima: ____________________________________  Data: ____/____/______
+         </div></body></html>`
+    try{ openHtmlDoc(html, `Folha-de-Credenciais-${safeFileName(cli)}.html`) }
+    catch(e){ alert('Erro ao abrir a folha: '+e.message) }
+  },[showCredSheet]) // eslint-disable-line
+
+  // ── CREDENCIAIS: no documento sai MASCARADO; em claro só na folha à parte ────────────
+  // A máscara é aplicada AQUI, ao montar o HTML — a senha nunca entra na string do documento
+  // normal. Não é CSS escondendo: se não está na string, não vaza por "inspecionar elemento"
+  // nem por PDF que preserva texto oculto.
+  const _mask = s => { const v=String(s||''); return v ? '•'.repeat(Math.min(Math.max(v.length,6),12)) : '—' }
+  const _ec = s => String(s==null?'':s).replace(/</g,'&lt;')
+  function credsVazias(){
+    return !(creds.wifi||[]).some(w=>w.ssid||w.senha) && !creds.cams.user && !creds.cams.senha
+  }
+  // claro=true só é chamado pela Folha de Credenciais.
+  function blocoCredenciaisHtml(claro=false){
+    if(credsVazias()) return ''
+    const val = v => claro ? (_ec(v)||'—') : _mask(v)
+    const th='style="text-align:left;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:5px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700"'
+    const td='style="font-size:11px;padding:6px 8px;border-bottom:.5px solid #E2E8F0;color:#1E293B"'
+    const tbl=(linhas,cols)=>`<table style="width:100%;border-collapse:collapse"><thead><tr>${cols.map(c=>`<th ${th}>${c}</th>`).join('')}</tr></thead><tbody>${linhas}</tbody></table>`
+    const wifi=(creds.wifi||[]).filter(w=>w.ssid||w.senha)
+    const linhasWifi=wifi.map(w=>`<tr>
+      <td ${td} style="font-weight:700;padding:6px 8px;border-bottom:.5px solid #E2E8F0">${_ec(w.ssid)||'—'}</td>
+      <td ${td} style="text-align:center;padding:6px 8px;border-bottom:.5px solid #E2E8F0">${_ec(w.vlan)||'—'}</td>
+      <td ${td} style="font-size:10px;color:#64748B;padding:6px 8px;border-bottom:.5px solid #E2E8F0">${_ec(w.uso)||'—'}</td>
+      <td ${td} style="font-family:monospace;font-weight:700;padding:6px 8px;border-bottom:.5px solid #E2E8F0;color:${claro?'#0D1B2A':'#94A3B8'}">${val(w.senha)}</td>
+    </tr>`).join('')
+    const camsTxt=(creds.cams.user||creds.cams.senha) ? `
+      <h3 class="ex-amb" style="margin-top:14px">Câmeras — acesso</h3>
+      ${tbl(`<tr><td ${td} style="font-weight:700;padding:6px 8px;border-bottom:.5px solid #E2E8F0">Usuário</td><td ${td} style="font-family:monospace;padding:6px 8px;border-bottom:.5px solid #E2E8F0">${_ec(creds.cams.user)||'—'}</td></tr>
+            <tr><td ${td} style="font-weight:700;padding:6px 8px;border-bottom:.5px solid #E2E8F0">Senha</td><td ${td} style="font-family:monospace;font-weight:700;padding:6px 8px;border-bottom:.5px solid #E2E8F0;color:${claro?'#0D1B2A':'#94A3B8'}">${val(creds.cams.senha)}</td></tr>
+            ${creds.cams.obs?`<tr><td ${td} style="font-weight:700;padding:6px 8px;border-bottom:.5px solid #E2E8F0">Observações</td><td ${td} style="padding:6px 8px;border-bottom:.5px solid #E2E8F0">${_ec(creds.cams.obs)}</td></tr>`:''}`,['Campo','Valor'])}` : ''
+    const aviso = claro
+      ? `<div style="margin-top:14px;padding:10px 12px;border:1.5px solid #DC2626;border-radius:8px;background:#FEF2F2;color:#991B1B;font-size:11px;line-height:1.5">
+          <b>Documento confidencial — contém senhas legíveis.</b> Entregue em mão ao responsável. Não anexe em grupo de mensagens e destrua a via impressa depois de configurar.</div>`
+      : `<p class="ex-p" style="font-size:10px;color:#94A3B8;margin-top:6px">As senhas não são impressas neste documento. Peça a <b>Folha de Credenciais</b> ao responsável do projeto.</p>`
+    return `${wifi.length?`<h3 class="ex-amb">Wi-Fi — redes do projeto</h3>${tbl(linhasWifi,['SSID','VLAN','Uso','Senha'])}`:''}${camsTxt}${creds.obs?`<p class="ex-p" style="margin-top:8px">${_ec(creds.obs)}</p>`:''}${aviso}`
+  }
 
   // Cor do pino — FONTE ÚNICA. A planta desenha com catColorOf(m) || EQUIP_STYLE; a legenda
   // caía num cinza fixo quando catColorOf devolvia null (itens sem categoria mapeada, tipo
@@ -4099,7 +4423,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const _fresh = (m,emb=false) => { if(!execData) return null; try{ return buildExecHtml(execData, m, undefined, emb) }catch(e){ console.warn('rebuild export falhou:',e.message); return null } }
     // No Completo, a obra entra como anexo ENXUTO (sem repetir planta/posição-altura que o corpo já tem)
     const _full=_fresh('completo')|| execDoc, _obra=_fresh('obra', execMode==='completo')||execDocObra,
-          _ele=_fresh('eletrica')||execDocEletrica, _cond=_fresh('conduites')||execDocConduites
+          _ele=_fresh('eletrica')||execDocEletrica, _cond=_fresh('conduites')||execDocConduites,
+          _inst=_fresh('instalacao')||execDocInstal
     const _plantSizeCss = plantPct!==100 ? ` .ex-plant{width:${plantPct}%!important;max-width:${plantPct}%!important} .ex-plant img{width:100%!important;max-width:100%!important}` : ''
     let body, pageCss
     if(execMode==='completo'){
@@ -4113,7 +4438,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       // A4. Era a origem do "Para impressão em A3" que abria o Plano de Obra, e da diferença de
       // escala entre os documentos. A folha da parede segue A4 paisagem: ela é uma só, pra pregar.
       pageCss = '@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @page wallpage{size:A4 landscape;margin:6mm}'+_plantSizeCss
-      body = (execMode==='obra'?_obra:execMode==='eletrica'?_ele:execMode==='conduites'?_cond:_full)||''
+      body = (execMode==='obra'?_obra:execMode==='eletrica'?_ele:execMode==='conduites'?_cond:execMode==='instalacao'?_inst:_full)||''
       // wall page só no Plano de Obra (e no executivo/completo acima), por último
       if(execMode==='obra') body += buildWallPage()
     }
@@ -4145,7 +4470,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   }
   // preview ao vivo: regenera o HTML quando qualquer opção muda (só enquanto o painel está aberto)
   const pdfPreviewHtml = useMemo(()=> showPdfOpts ? buildFullHtml(true) : '',
-    [showPdfOpts, showLegenda, showIdsPdf, showIdsTbl, showNumPin, pageOrient, plantPct, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables]) // eslint-disable-line
+    [showPdfOpts, showLegenda, showIdsPdf, showIdsTbl, showNumPin, pageOrient, plantPct, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables, creds]) // eslint-disable-line
 
   async function saveToProposal(docOverride){
     const docToSave = typeof docOverride==='string' ? docOverride : execDoc
@@ -4162,7 +4487,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(fromProposal?.id){
       try{
         const { saveProposal } = await import('../db/supabase.js')
-        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:execData}, exec_api_cost:apiCost }
+        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:execData, credenciais:creds}, exec_api_cost:apiCost }
         await saveProposal(updated)
         alert(`✅ Salvo no orçamento! A página vai atualizar.`)
         onClose && onClose()
@@ -4170,7 +4495,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         return
       }catch(e){ alert('Erro ao salvar: '+e.message); return }
     }
-    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:execData}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, exec_api_cost:apiCost })
+    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:execData, credenciais:creds}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, exec_api_cost:apiCost })
   }
 
   const catGroups={}
@@ -4813,6 +5138,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <button onClick={()=>setShowRackModal(true)} style={{height:32,borderRadius:6,border:'1px solid #7C3AED',background:'rgba(124,58,237,0.2)',color:'#C4B5FD',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}}>
                   <i className="ti ti-server" aria-hidden/>Rack CPD
                 </button>
+                <button onClick={()=>setShowCreds(true)} style={{height:32,borderRadius:6,border:'1px solid #F59E0B',background:'rgba(245,158,11,0.18)',color:'#FCD34D',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="SSIDs, VLANs e senhas do projeto. No documento saem mascaradas.">
+                  <i className="ti ti-key" aria-hidden/>Credenciais{(creds.wifi||[]).filter(w=>w.ssid||w.senha).length||creds.cams.user||creds.cams.senha?' ✓':''}
+                </button>
                 <button onClick={e=>{e.stopPropagation();bgOnlyRef.current?.click()}} style={{height:32,borderRadius:6,border:'none',background:'#0EA5E9',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}}><i className="ti ti-upload" aria-hidden/>{bgImage?'Trocar planta':'Carregar planta'}</button>
                 <input ref={bgOnlyRef} type="file" accept="image/*,application/pdf,.pdf" style={{display:'none'}} onChange={handleBgOnly}/>
                 <button onClick={()=>setZoom(z=>Math.max(0.5,z-0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>−</button>
@@ -5307,8 +5635,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
               {/* Ordem pedida pelo Raphael: é a ordem da OBRA acontecendo — primeiro o pedreiro
                   deixa a infra, depois o projeto, depois o instalador, e a elétrica/conduíte
                   como anexos técnicos. */}
-              {[['obra','Plano de Obra','ti-tools'],['completo','Projeto Executivo','ti-file-text'],['eletrica','Elétrica','ti-bolt'],['conduites','Conduítes','ti-route']].map(([m,label,icon])=>{
-                const _stored = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:m==='conduites'?execDocConduites:execDoc
+              {[['obra','Plano de Obra','ti-tools'],['completo','Projeto Executivo','ti-file-text'],['instalacao','Plano de Instalação','ti-plug'],['eletrica','Elétrica','ti-bolt'],['conduites','Conduítes','ti-route']].map(([m,label,icon])=>{
+                const _stored = m==='obra'?execDocObra:m==='eletrica'?execDocEletrica:m==='conduites'?execDocConduites:m==='instalacao'?execDocInstal:execDoc
                 let doc=_stored
                 if(execData){ try{ doc=buildExecHtml(execData, m) }catch(e){ console.warn('re-render preview falhou, usando salvo:',e.message); doc=_stored } }
                 if(doc && plantPct!==100) doc = `<style>.ex-plant{width:${plantPct}%!important;max-width:${plantPct}%!important}.ex-plant img{width:100%!important;max-width:100%!important}.ex-plant{margin-left:auto;margin-right:auto}</style>` + doc
@@ -5320,7 +5648,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     const d=buildExecDataFromMarkers()
                     const full=buildExecHtml(d,'completo'), obra=buildExecHtml(d,'obra')
                     const eletrica=buildExecHtml(d,'eletrica'), conduites=buildExecHtml(d,'conduites')
-                    setExecDoc(full); setExecDocObra(obra); setExecDocEletrica(eletrica); setExecDocConduites(conduites)
+                    setExecDoc(full); setExecDocObra(obra); setExecDocEletrica(eletrica); setExecDocConduites(conduites); setExecDocInstal(buildExecHtml(d,'instalacao'))
                   }catch(e){ console.warn('tab-regen:',e) }
                 }}
                   style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,fontSize:12.5,fontWeight:execMode===m?700:500,cursor:'pointer',opacity:doc?1:0.55,
@@ -5336,7 +5664,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   try{
                     const d = execData || buildExecDataFromMarkers()
                     setExecDoc(buildExecHtml(d,'completo',v)); setExecDocObra(buildExecHtml(d,'obra',v))
-                    setExecDocEletrica(buildExecHtml(d,'eletrica',v)); setExecDocConduites(buildExecHtml(d,'conduites',v))
+                    setExecDocEletrica(buildExecHtml(d,'eletrica',v)); setExecDocConduites(buildExecHtml(d,'conduites',v)); setExecDocInstal(buildExecHtml(d,'instalacao',v))
                   }catch(e){ console.warn('versao-regen:',e) }
                 }}
                   style={{padding:'7px 12px',borderRadius:8,fontSize:12.5,fontWeight:execVersao===v?700:500,cursor:'pointer',
@@ -5355,9 +5683,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 Mostrar mapa de calor Wi-Fi
               </label>}
             </div>
-            <div style={{maxWidth:(execMode==='obra'||execMode==='eletrica'||execMode==='conduites')?1180:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)',transition:'max-width 0.2s'}}>
-              {(()=>{ const cur = execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execMode==='conduites'?execDocConduites:execDoc
-                const nome = execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':'Completa'
+            <div style={{maxWidth:(execMode==='obra'||execMode==='eletrica'||execMode==='conduites'||execMode==='instalacao')?1180:820,margin:'0 auto',background:'#fff',boxShadow:'0 2px 16px rgba(0,0,0,0.12)',transition:'max-width 0.2s'}}>
+              {(()=>{ const cur = execMode==='obra'?execDocObra:execMode==='eletrica'?execDocEletrica:execMode==='conduites'?execDocConduites:execMode==='instalacao'?execDocInstal:execDoc
+                const nome = execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='instalacao'?'Instalacao':'Completa'
                 return cur
                 ? <div dangerouslySetInnerHTML={{__html:cur}}/>
                 : <div style={{padding:'48px 32px',textAlign:'center',color:'#64748B'}}>
@@ -5370,6 +5698,52 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           </div>
         )}
       </div>
+
+      {/* ── CREDENCIAIS ── SSIDs/VLANs e acesso das câmeras. Ficam no projeto e saem
+           MASCARADAS no documento; em claro só na Folha de Credenciais, sob demanda. ── */}
+      {showCreds && (()=>{
+        const inp={width:'100%',padding:'8px 10px',borderRadius:7,border:'1px solid rgba(255,255,255,0.14)',background:'#0A1120',color:'#E2E8F0',fontSize:12.5,fontFamily:'inherit'}
+        const lb={fontSize:10.5,color:'#94A3B8',display:'block',marginBottom:3,marginTop:8}
+        const setW=(i,k,v)=>setCreds(c=>({...c, wifi:c.wifi.map((w,j)=>j===i?{...w,[k]:v}:w)}))
+        return <div onClick={()=>setShowCreds(false)} style={{position:'fixed',inset:0,background:'rgba(3,10,20,0.82)',zIndex:3200,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#0F172A',border:'1px solid rgba(255,255,255,0.12)',borderRadius:14,width:'min(720px,96vw)',maxHeight:'90vh',overflow:'auto',color:'#E2E8F0',fontFamily:'inherit',padding:'18px 20px'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+              <div style={{fontSize:15,fontWeight:700}}>Credenciais do projeto</div>
+              <button onClick={()=>setShowCreds(false)} style={{background:'none',border:'none',color:'#94A3B8',cursor:'pointer',fontSize:18}}>✕</button>
+            </div>
+            <div style={{fontSize:11,color:'#94A3B8',marginBottom:12}}>Ficam salvas no projeto. No documento saem <b>mascaradas</b>; em claro só na Folha de Credenciais.</div>
+            <div style={{display:'flex',alignItems:'flex-start',gap:8,padding:'9px 11px',borderRadius:8,background:'rgba(220,38,38,0.12)',border:'1px solid rgba(248,113,113,0.4)',color:'#FCA5A5',fontSize:11,lineHeight:1.45,marginBottom:14}}>
+              <i className="ti ti-alert-triangle" aria-hidden style={{fontSize:14,flexShrink:0,marginTop:1}}/>
+              <span>Estas senhas ficam em <b>texto puro no banco</b>, junto do projeto. Quem tiver acesso ao Supabase ou a um backup consegue lê-las. Só coloque aqui o que você aceita que fique assim.</span>
+            </div>
+
+            <div style={{fontSize:12.5,fontWeight:700,marginBottom:2}}>Wi-Fi</div>
+            {(creds.wifi||[]).map((w,i)=>(
+              <div key={i} style={{display:'grid',gridTemplateColumns:'1.2fr .8fr 1.2fr 1.2fr 28px',gap:6,alignItems:'end',marginBottom:6}}>
+                <div><label style={lb}>SSID</label><input value={w.ssid||''} onChange={e=>setW(i,'ssid',e.target.value)} style={inp} placeholder="Casa-Principal"/></div>
+                <div><label style={lb}>VLAN</label><input value={w.vlan||''} onChange={e=>setW(i,'vlan',e.target.value)} style={inp} placeholder="Confiável"/></div>
+                <div><label style={lb}>Uso</label><input value={w.uso||''} onChange={e=>setW(i,'uso',e.target.value)} style={inp} placeholder="Família"/></div>
+                <div><label style={lb}>Senha</label><input value={w.senha||''} onChange={e=>setW(i,'senha',e.target.value)} style={inp}/></div>
+                <button onClick={()=>setCreds(c=>({...c,wifi:c.wifi.filter((_,j)=>j!==i)}))} style={{height:34,borderRadius:6,border:'1px solid rgba(248,113,113,0.4)',background:'rgba(220,38,38,0.14)',color:'#FCA5A5',cursor:'pointer'}} title="Remover"><i className="ti ti-trash" aria-hidden/></button>
+              </div>
+            ))}
+            <button onClick={()=>setCreds(c=>({...c,wifi:[...(c.wifi||[]),{ssid:'',vlan:'',uso:'',senha:''}]}))} style={{marginTop:6,height:30,borderRadius:6,border:'1px dashed rgba(255,255,255,0.25)',background:'none',color:'#CBD5E1',cursor:'pointer',fontSize:11.5,padding:'0 12px',fontFamily:'inherit'}}>+ Adicionar rede</button>
+
+            <div style={{fontSize:12.5,fontWeight:700,marginTop:18,marginBottom:2}}>Câmeras</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <div><label style={lb}>Usuário</label><input value={creds.cams.user} onChange={e=>setCreds(c=>({...c,cams:{...c.cams,user:e.target.value}}))} style={inp}/></div>
+              <div><label style={lb}>Senha</label><input value={creds.cams.senha} onChange={e=>setCreds(c=>({...c,cams:{...c.cams,senha:e.target.value}}))} style={inp}/></div>
+            </div>
+            <label style={lb}>Observações (NVR, app, retenção…)</label>
+            <input value={creds.cams.obs} onChange={e=>setCreds(c=>({...c,cams:{...c.cams,obs:e.target.value}}))} style={inp}/>
+
+            <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:18}}>
+              <button onClick={()=>{ setShowCreds(false); setShowCredSheet(true) }} style={{height:34,borderRadius:7,border:'1px solid #F59E0B',background:'rgba(245,158,11,0.18)',color:'#FCD34D',cursor:'pointer',fontSize:12,padding:'0 14px',fontFamily:'inherit',fontWeight:600,display:'flex',alignItems:'center',gap:6}}><i className="ti ti-printer" aria-hidden/>Folha de Credenciais</button>
+              <button onClick={()=>setShowCreds(false)} style={{height:34,borderRadius:7,border:'none',background:'#0EA5E9',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 18px',fontFamily:'inherit',fontWeight:700}}>Pronto</button>
+            </div>
+          </div>
+        </div>
+      })()}
 
       {/* ── RACK MODAL ── */}
       {showRackModal && <RackModal
@@ -5403,7 +5777,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             if(!fromProposal?.id){ alert('Abra o executivo a partir de um orçamento para poder salvar.'); return }
             try{
               const { saveProposal, addAuditLog } = await import('../db/supabase.js')
-              const updated = { ...fromProposal, planta_data:{image:bgImage, markers, cables, scale:plantScale, imgRatio, folgaPct, exec_data:execData} }
+              const updated = { ...fromProposal, planta_data:{image:bgImage, markers, cables, scale:plantScale, imgRatio, folgaPct, exec_data:execData, credenciais:creds} }
               await saveProposal(updated)
               await addAuditLog({ type:'exec_save_markers', user_name:currentUser?.name||'—',
                 after:JSON.stringify({markers:markers.length, rooms:rooms.length, proposal_id:fromProposal.id}) })
@@ -5431,13 +5805,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <i className="ti ti-refresh" aria-hidden/> Regerar sem IA
           </button>
           {(fromProposal?.id || onSaveToProposal) && <button onClick={saveToProposal} disabled={loading} style={{...btnGhost,borderColor:'rgba(56,189,248,0.4)',color:'#38BDF8',gap:6}} title="Grava o documento no orçamento. É uma ação separada do download, e só ela toca o banco."><i className="ti ti-device-floppy" aria-hidden/> Salvar no orçamento</button>}
-          <button onClick={()=>setShowPdfOpts(true)} style={btnPrimary} title="Abre as opções do documento antes de gerar."><i className="ti ti-file-download" aria-hidden/> Baixar PDF ({execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='conduites'?'Conduítes':'Completo'})</button>
+          <button onClick={()=>setShowPdfOpts(true)} style={btnPrimary} title="Abre as opções do documento antes de gerar."><i className="ti ti-file-download" aria-hidden/> Baixar PDF ({execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='conduites'?'Conduítes':execMode==='instalacao'?'Instalação':'Completo'})</button>
         </div>
       )}
       {showPdfOpts && (()=>{
         const famList=['dados','som','eletrica','hdmi','uplink','fibra']
         const catList=[...new Set(markers.map(m=>equipType(m.name)))].sort()
-        const modo = execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='conduites'?'Conduítes':'Completo'
+        const modo = execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='conduites'?'Conduítes':execMode==='instalacao'?'Instalação':'Completo'
         const rowSt={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'11px 0',borderBottom:'1px solid rgba(255,255,255,0.07)'}
         const tgl=(on,onClick,onLbl,offLbl)=><button onClick={onClick} style={{minWidth:76,height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11.5,fontWeight:600,border:`1px solid ${on?'#0EA5E9':'rgba(255,255,255,0.2)'}`,background:on?'rgba(14,165,233,0.2)':'rgba(255,255,255,0.06)',color:on?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{on?onLbl:offLbl}</button>
         const chip=(on,label,onClick)=><button key={label} onClick={onClick} style={{fontSize:10.5,padding:'4px 10px',borderRadius:14,border:`1px solid ${on?'#DC2626':'rgba(255,255,255,0.25)'}`,background:on?'rgba(220,38,38,0.25)':'rgba(255,255,255,0.06)',color:on?'#FCA5A5':'rgba(255,255,255,0.75)',cursor:'pointer',fontFamily:'inherit',textDecoration:on?'line-through':'none'}}>{label}</button>
