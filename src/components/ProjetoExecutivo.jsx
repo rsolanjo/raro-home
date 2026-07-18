@@ -1120,16 +1120,20 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [pageOrient, setPageOrient] = useState('original') // orientação da PLANTA no documento: 'original' | 'paisagem' | 'retrato' — o app gira a imagem e converte pins/cabos
   const [rotBg, setRotBg] = useState(null) // planta girada 90° (gerada em canvas quando necessário)
   const [plantPct, setPlantPct] = useState(100) // largura da planta nas páginas do documento (%) — ajustável na tela
-  // ── Editor do documento (WYSIWYG) — planta como objeto com trava de margem ──
-  // O palco (.ex-plant-stage) emula a caixa de margem da página: overflow:hidden RECORTA o que
-  // passar, então arrastar/zoom nunca vaza pra fora da margem nem quebra pra outra página.
-  // Deslocamentos em % (não px) pra prévia e PDF ficarem idênticos em qualquer escala.
-  const [plantX, setPlantX] = useState(0)          // deslocamento horizontal da planta no palco (% da largura)
-  const [plantY, setPlantY] = useState(0)          // deslocamento vertical (% da largura)
-  const [plantZoom, setPlantZoom] = useState(1)    // zoom da planta dentro do palco (1 = ajustada à margem)
-  const [plantAlign, setPlantAlign] = useState('center') // 'left' | 'center' | 'right'
+  // ── Editor do documento (WYSIWYG) — planta como objeto ──
+  // O palco (.ex-plant-stage) emula a caixa de margem da página. Horizontal: overflow:hidden
+  // RECORTA (margem). Vertical: o palco CRESCE com o zoom (aspect-ratio inclui o zoom), então
+  // aumentar a planta EMPURRA o conteúdo de baixo pra baixo (reflow) — pedido do Raphael.
+  // Cada planta tem seu próprio transform {x,y,zoom} (individual), guardado por chave execMode:índice.
+  const [plantTransforms, setPlantTransforms] = useState({}) // { 'completo:0': {x,y,zoom}, ... }
+  const [selPlant, setSelPlant] = useState(0)      // índice da planta selecionada no editor
+  const [plantAlign, setPlantAlign] = useState('center') // 'left' | 'center' | 'right' (largura/alinhamento da página)
+  const [showBreaks, setShowBreaks] = useState(true) // guias de onde a página quebra no PDF (só na prévia)
   const [hideAllPlants, setHideAllPlants] = useState(false) // ocultar TODAS as plantas do documento
   const [hideAllTables, setHideAllTables] = useState(false) // ocultar TODAS as tabelas do documento
+  const _plantKey = i => `${execMode}:${i}`
+  const _plantT = i => plantTransforms[_plantKey(i)] || {x:0,y:0,zoom:1}
+  const _setPlantT = (i,patch) => setPlantTransforms(p=>{ const k=_plantKey(i); return {...p,[k]:{...(p[k]||{x:0,y:0,zoom:1}),...patch}} })
   const [showDocEditor, setShowDocEditor] = useState(false) // novo editor do documento (substitui o painel de opções)
   // ── Edição inline (Fase 3): torna a prévia editável (contentEditable) e exporta o que foi editado ──
   const previewIframeRef = useRef(null)
@@ -4785,27 +4789,56 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   // (arrastar/zoom/alinhar) DENTRO do palco — nada vaza pra fora da margem nem quebra pra outra
   // página. Deslocamentos em % pra prévia e PDF baterem em qualquer escala. Também aplica os
   // mestres "ocultar todas as plantas / todas as tabelas". Se algo falhar, devolve o HTML cru.
-  function applyLayout(html){
+  function applyLayout(html, opts={}){
     if(typeof DOMParser==='undefined') return html
     try{
       const doc=new DOMParser().parseFromString(html,'text/html')
       const margem={ left:'0 auto 0 0', center:'0 auto', right:'0 0 0 auto' }
-      const asp=(1/(imgRatio||0.66)).toFixed(4) // largura/altura → aspect-ratio do palco
+      const ratio=imgRatio||0.66
+      let pi=0
       doc.querySelectorAll('.ex-plant').forEach(pl=>{
         if(pl.closest('.ex-wall-page')) return // a folha-parede tem palco próprio (A4 paisagem)
+        const t=_plantT(pi); pi++
+        const z=t.zoom||1
         const stage=doc.createElement('div')
         stage.className='ex-plant-stage'
-        stage.setAttribute('style',`position:relative;width:${plantPct}%;margin:${margem[plantAlign]||'0 auto'};overflow:hidden;aspect-ratio:${asp};background:#fff`)
+        // aspect-ratio INCLUI o zoom: com z>1 o palco fica mais ALTO, empurrando o conteúdo de
+        // baixo pra baixo (reflow). Horizontal segue recortado (overflow) = trava de margem.
+        stage.setAttribute('style',`position:relative;width:${plantPct}%;margin:${margem[plantAlign]||'0 auto'};overflow:hidden;aspect-ratio:${(1/(ratio*z)).toFixed(4)};background:#fff`)
         pl.parentNode.insertBefore(stage,pl)
         stage.appendChild(pl)
-        // .ex-plant vira a camada transformável, ancorada no centro do palco.
         pl.style.position='absolute'; pl.style.top='50%'; pl.style.left='50%'
         pl.style.width='100%'; pl.style.maxWidth='100%'; pl.style.margin='0'; pl.style.display='block'
         pl.style.transformOrigin='center center'
-        pl.style.transform=`translate(calc(-50% + ${plantX}%), calc(-50% + ${plantY}%)) scale(${plantZoom})`
+        pl.style.transform=`translate(calc(-50% + ${t.x||0}%), calc(-50% + ${t.y||0}%)) scale(${z})`
         if(hideAllPlants) stage.style.display='none'
       })
-      if(hideAllTables) doc.querySelectorAll('.ex-tbl').forEach(t=>{ t.style.display='none' })
+      if(hideAllTables){
+        // Esconde TODA tabela (não só as .ex-tbl) E os rótulos/cabeçalhos coladinhos nela (o título
+        // h3 e os cabeçalhos coloridos do makeBlock que vivem FORA da <table>), pra não sobrar
+        // resquício (Raphael: "ocultar tudo, não ficar resquício").
+        const escondeRotulosAntes=(el)=>{ let p=el.previousElementSibling
+          while(p){ const tag=p.tagName
+            if(!/^(H3|H4|DIV|P)$/.test(tag)) break
+            if(p.querySelector('table,img,.ex-plant,.ex-plant-stage')) break
+            if((p.textContent||'').trim().length>90) break
+            const ant=p.previousElementSibling; p.style.display='none'; p=ant } }
+        doc.querySelectorAll('table').forEach(t=>{ t.style.display='none'; escondeRotulosAntes(t) })
+        // Colapsa contêineres que ficaram SEM nada visível (ex.: os wrappers por cômodo das Cenas,
+        // que só tinham um rótulo + a tabela). Multi-passada pra propagar de baixo pra cima.
+        let mudou=true, guard=0
+        while(mudou && guard++<6){ mudou=false
+          doc.querySelectorAll('div,section').forEach(el=>{ if(el.style.display==='none') return
+            if(el.querySelector('img,svg,.ex-plant,.ex-plant-stage')) return
+            if(el.children.length===0) return // sem filhos = texto próprio (badge, nota) → mantém
+            if([...el.children].some(c=>c.style.display!=='none')) return // ainda tem filho visível
+            el.style.display='none'; mudou=true }) }
+        // Títulos órfãos que sobraram (a seção virou só o título): h3/h4 cujo próximo visível é
+        // outro título ou nada → some também.
+        ;[...doc.querySelectorAll('h3,h4')].forEach(h=>{ if(h.style.display==='none') return
+          let n=h.nextElementSibling; while(n && n.style.display==='none') n=n.nextElementSibling
+          if(!n || /^H[1-4]$/.test(n.tagName)) h.style.display='none' })
+      }
       // ── BLOCOS COMO OBJETOS (Fase 4): ocultar e reordenar blocos de topo ──
       const body=doc.body
       const blocos=[...body.children].filter(_ehBlocoDoc)
@@ -4817,9 +4850,29 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const resto=blocos.filter(el=>!blockOrder.includes(el.dataset.bkey))
         ;[...naOrdem,...resto].forEach(el=>body.appendChild(el)) // reanexa na nova ordem
       }
+      // ── GUIAS DE QUEBRA DE PÁGINA (só na prévia) ──────────────────────────────────
+      // Linhas vermelhas a cada altura de página A4, pra o Raphael saber onde o PDF vai quebrar.
+      // A largura do corpo da prévia representa a área útil A4 (186mm); altura útil = 273mm.
+      // pageH(px) = larguraCorpo(px) × 273/186. Desenhado com repeating-linear-gradient no corpo.
+      if(opts.preview && showBreaks){
+        const bodyW = _pgIsA3PreviewWidth() // largura em px que o corpo da prévia assume
+        const pageH = Math.round(bodyW * (273/186))
+        const st=doc.createElement('style')
+        st.textContent=`body{background-image:repeating-linear-gradient(to bottom, transparent 0, transparent ${pageH-2}px, rgba(220,38,38,.32) ${pageH-2}px, rgba(220,38,38,.32) ${pageH}px)!important;background-attachment:local}
+          .ex-pgbrk-badge{position:absolute;left:0;right:0;text-align:center;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;color:#DC2626;pointer-events:none}`
+        doc.head.appendChild(st)
+        // rótulos "quebra de página" nas linhas (algumas, pra não poluir)
+        const n=Math.min(20, Math.floor((doc.body.scrollHeight||pageH*6)/pageH))
+        let badges=''
+        for(let i=1;i<=n;i++){ badges+=`<div class="ex-pgbrk-badge" style="top:${i*pageH-14}px">— quebra de página ${i+1} —</div>` }
+        const wrap=doc.createElement('div'); wrap.style.cssText='position:absolute;top:0;left:0;width:100%;height:0'; wrap.innerHTML=badges
+        doc.body.style.position='relative'; doc.body.appendChild(wrap)
+      }
       return '<!doctype html>'+doc.documentElement.outerHTML
     }catch(e){ console.warn('applyLayout falhou:',e.message); return html }
   }
+  // Largura (px) que o CORPO da prévia assume — bate com o _previewCss (703 retrato / 1512 largo).
+  function _pgIsA3PreviewWidth(){ return (execMode==='obra'||execMode==='eletrica'||execMode==='conduites') ? 1512 : 703 }
   // É um bloco de conteúdo do documento? (exclui script/style, vazios e a marca d'água do demo)
   function _ehBlocoDoc(el){
     if(!el||el.nodeType!==1) return false
@@ -4834,10 +4887,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const t=(h?h.textContent:el.textContent).trim().replace(/\s+/g,' ').slice(0,48)
     return t ? t.toLowerCase() : ('bloco-'+i)
   }
-  // Rótulo amigável de um bloco (pro painel de Blocos).
+  // Rótulo amigável de um bloco (pro painel de Blocos). Separa o número da seção que vem colado
+  // no título ("7Cabeamento" → "7 · Cabeamento").
   function blocoLabelOf(el){
     const h=el.querySelector('h1,h2,h3')
-    if(h) return h.textContent.trim().replace(/\s+/g,' ').slice(0,42)
+    if(h) return h.textContent.trim().replace(/\s+/g,' ').replace(/^(\d+)(?=\S)/,'$1 · ').slice(0,42)
     if(el.querySelector('.ex-plant')) return 'Planta'
     if(el.querySelector('.ex-tbl,table')) return 'Tabela'
     return (el.textContent.trim().replace(/\s+/g,' ').slice(0,42))||'Bloco'
@@ -4849,6 +4903,17 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const doc=new DOMParser().parseFromString(buildFullHtml(false),'text/html')
       const blocos=[...doc.body.children].filter(_ehBlocoDoc)
       return blocos.map((el,i)=>({ key:blocoKeyOf(el,i), label:blocoLabelOf(el), plant:!!el.querySelector('.ex-plant'), table:!!el.querySelector('.ex-tbl,table') }))
+    }catch(e){ return [] }
+  }
+  // Lista as PLANTAS do documento atual (índice + rótulo), na mesma ordem que o applyLayout numera.
+  function enumPlants(){
+    if(typeof DOMParser==='undefined') return []
+    try{
+      const doc=new DOMParser().parseFromString(buildFullHtml(false),'text/html')
+      const plants=[...doc.querySelectorAll('.ex-plant')].filter(pl=>!pl.closest('.ex-wall-page'))
+      return plants.map((pl,i)=>{ const sec=pl.closest('.ex-sec,.ex-obra-page'); const h=sec&&sec.querySelector('h1,h2,h3')
+        const lbl=h?h.textContent.trim().replace(/\s+/g,' ').replace(/^(\d+)(?=\S)/,'$1 · ').slice(0,34):('Planta '+(i+1))
+        return { i, label:lbl } })
     }catch(e){ return [] }
   }
 
@@ -4914,8 +4979,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   }
   // preview ao vivo: regenera o HTML quando qualquer opção muda (só enquanto o editor está aberto).
   // Enquanto EDITANDO, a prévia fica congelada (editFrozenHtml) pra não apagar as edições do usuário.
-  const pdfPreviewHtml = useMemo(()=> (showPdfOpts||showDocEditor) ? applyLayout(buildFullHtml(true)) : '',
-    [showPdfOpts, showDocEditor, showLegenda, showIdsPdf, showIdsTbl, showNumPin, pageOrient, plantPct, plantX, plantY, plantZoom, plantAlign, hideAllPlants, hideAllTables, blockHidden, blockOrder, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables, creds]) // eslint-disable-line
+  const pdfPreviewHtml = useMemo(()=> (showPdfOpts||showDocEditor) ? applyLayout(buildFullHtml(true), {preview:true}) : '',
+    [showPdfOpts, showDocEditor, showLegenda, showIdsPdf, showIdsTbl, showNumPin, pageOrient, plantPct, plantTransforms, selPlant, showBreaks, plantAlign, hideAllPlants, hideAllTables, blockHidden, blockOrder, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables, creds]) // eslint-disable-line
   // Liga/desliga o contentEditable no corpo da prévia conforme o modo de edição.
   useEffect(()=>{
     const ifr=previewIframeRef.current; if(!ifr) return
@@ -6274,6 +6339,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const famList=['dados','som','eletrica','hdmi','uplink','fibra']
         const catList=[...new Set(markers.map(m=>equipType(m.name)))].sort()
         const modo = execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='conduites'?'Conduítes':execMode==='instalacao'?'Instalação':'Completo'
+        const plants=enumPlants()
+        const selP=Math.min(selPlant, Math.max(0,plants.length-1))
+        const curP=_plantT(selP)
         const rowSt={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'10px 0',borderBottom:'1px solid rgba(255,255,255,0.07)'}
         const secTit=t=><div style={{fontSize:10,fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',color:'#64748B',margin:'14px 0 4px'}}>{t}</div>
         const tgl=(on,onClick,onLbl,offLbl)=><button onClick={onClick} style={{minWidth:82,height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11.5,fontWeight:600,border:`1px solid ${on?'#0EA5E9':'rgba(255,255,255,0.2)'}`,background:on?'rgba(14,165,233,0.2)':'rgba(255,255,255,0.06)',color:on?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{on?onLbl:offLbl}</button>
@@ -6293,35 +6361,42 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             </div>
             <div style={{flex:1,display:'flex',minHeight:0}}>
               <div style={{width:360,flexShrink:0,overflowY:'auto',padding:'2px 18px 18px',borderRight:'1px solid rgba(255,255,255,0.1)'}}>
-                {secTit('Planta — objeto (arraste no quadro)')}
+                {secTit('Planta — objeto (cada uma individual)')}
                 {bgImage ? <>
-                  <div ref={el=>{}} onPointerDown={e=>{
-                        const r=e.currentTarget.getBoundingClientRect(); const sx=e.clientX, sy=e.clientY, x0=plantX, y0=plantY
+                  {plants.length>1 && <div style={{marginBottom:8}}>
+                    <div style={{fontSize:10.5,color:'#94A3B8',marginBottom:4}}>Qual planta editar ({plants.length} no documento)</div>
+                    <select value={selP} onChange={e=>setSelPlant(Number(e.target.value))} style={{width:'100%',height:32,borderRadius:7,background:'rgba(255,255,255,0.06)',color:'#E2E8F0',border:'1px solid rgba(255,255,255,0.2)',fontFamily:'inherit',fontSize:11.5,padding:'0 8px'}}>
+                      {plants.map(p=><option key={p.i} value={p.i} style={{background:'#0F172A'}}>{`Planta ${p.i+1} — ${p.label}`}</option>)}
+                    </select>
+                  </div>}
+                  <div onPointerDown={e=>{
+                        const r=e.currentTarget.getBoundingClientRect(); const sx=e.clientX, sy=e.clientY, x0=curP.x||0, y0=curP.y||0
                         try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){}
-                        const mv=ev=>{ setPlantX(x0+(ev.clientX-sx)/r.width*100); setPlantY(y0+(ev.clientY-sy)/r.height*100) }
+                        const mv=ev=>{ _setPlantT(selP,{x:x0+(ev.clientX-sx)/r.width*100, y:y0+(ev.clientY-sy)/r.height*100}) }
                         const up=()=>{ window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up) }
                         window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up)
                       }}
                       style={{position:'relative',width:miniW,height:miniH,margin:'0 auto',overflow:'hidden',background:'#fff',border:'1px solid rgba(255,255,255,0.25)',borderRadius:4,cursor:'grab',touchAction:'none'}}>
-                    <img src={bgImage} draggable={false} style={{position:'absolute',top:'50%',left:'50%',width:'100%',transformOrigin:'center center',transform:`translate(calc(-50% + ${plantX}%), calc(-50% + ${plantY}%)) scale(${plantZoom})`,pointerEvents:'none'}}/>
+                    <img src={bgImage} draggable={false} style={{position:'absolute',top:'50%',left:'50%',width:'100%',transformOrigin:'center center',transform:`translate(calc(-50% + ${curP.x||0}%), calc(-50% + ${curP.y||0}%)) scale(${curP.zoom||1})`,pointerEvents:'none'}}/>
                     <div style={{position:'absolute',inset:0,boxShadow:'inset 0 0 0 1px rgba(220,38,38,0.35)',pointerEvents:'none'}}/>
                   </div>
-                  <div style={{fontSize:9.5,color:'#64748B',textAlign:'center',margin:'4px 0 8px'}}>A borda vermelha é a margem da página. O que sair dela é recortado no PDF.</div>
+                  <div style={{fontSize:9.5,color:'#64748B',textAlign:'center',margin:'4px 0 8px'}}>Arraste pra posicionar. Aumentar o zoom <b>empurra as tabelas de baixo pra baixo</b>; o que passar da margem (borda vermelha) é recortado.</div>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
                     <span style={{fontSize:11,color:'#94A3B8',minWidth:38}}>Zoom</span>
-                    {stepBtn('−',()=>setPlantZoom(v=>Math.max(0.3,Math.round((v-0.1)*10)/10)))}
-                    <b style={{minWidth:44,textAlign:'center',fontSize:12}}>{Math.round(plantZoom*100)}%</b>
-                    {stepBtn('+',()=>setPlantZoom(v=>Math.min(4,Math.round((v+0.1)*10)/10)))}
+                    {stepBtn('−',()=>_setPlantT(selP,{zoom:Math.max(0.3,Math.round(((curP.zoom||1)-0.1)*10)/10)}))}
+                    <b style={{minWidth:44,textAlign:'center',fontSize:12}}>{Math.round((curP.zoom||1)*100)}%</b>
+                    {stepBtn('+',()=>_setPlantT(selP,{zoom:Math.min(4,Math.round(((curP.zoom||1)+0.1)*10)/10)}))}
+                  </div>
+                  <div style={{display:'flex',gap:8,marginBottom:8}}>
+                    {miniBtn('◎ Centralizar',()=>_setPlantT(selP,{x:0,y:0}))}
+                    {miniBtn('↺ Ajustar',()=>_setPlantT(selP,{x:0,y:0,zoom:1}))}
+                    {plants.length>1 && miniBtn('⇉ Todas iguais',()=>setPlantTransforms(p=>{const q={...p}; plants.forEach(pl=>{q[_plantKey(pl.i)]={...curP}}); return q}))}
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
                     <span style={{fontSize:11,color:'#94A3B8',minWidth:38}}>Alinhar</span>
                     {miniBtn('Esquerda',()=>setPlantAlign('left'),plantAlign==='left')}
                     {miniBtn('Centro',()=>setPlantAlign('center'),plantAlign==='center')}
                     {miniBtn('Direita',()=>setPlantAlign('right'),plantAlign==='right')}
-                  </div>
-                  <div style={{display:'flex',gap:8,marginBottom:8}}>
-                    {miniBtn('◎ Centralizar',()=>{setPlantX(0);setPlantY(0)})}
-                    {miniBtn('↺ Ajustar à margem',()=>{setPlantX(0);setPlantY(0);setPlantZoom(1);setPlantAlign('center')})}
                   </div>
                   <div style={rowSt}>
                     <div><div style={{fontSize:12.5,fontWeight:600}}>Largura na página</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Tamanho do quadro da planta</div></div>
@@ -6340,6 +6415,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   </div>
                 </> : <div style={{fontSize:12,color:'#94A3B8',padding:'8px 0 12px'}}>Sem planta de fundo neste projeto.</div>}
 
+                <div style={{...rowSt,marginTop:2}}>
+                  <div><div style={{fontSize:12.5,fontWeight:600}}>Guias de quebra de página</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Linhas vermelhas mostram onde o PDF quebra</div></div>
+                  {tgl(showBreaks,()=>setShowBreaks(v=>!v),'Mostrando','Ocultas')}
+                </div>
+
                 {secTit('Ocultar em bloco')}
                 <div style={rowSt}>
                   <div><div style={{fontSize:12.5,fontWeight:600}}>Todas as plantas</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Some com toda planta deste documento</div></div>
@@ -6350,8 +6430,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   {tgl(hideAllTables,()=>setHideAllTables(v=>!v),'Ocultas','Visíveis')}
                 </div>
 
-                {secTit('Blocos do documento (objetos)')}
-                <div style={{fontSize:10,color:'rgba(255,255,255,0.42)',marginBottom:6}}>Cada bloco é um objeto: <b>↑ ↓</b> reordena no PDF, o olho <b>oculta</b>. A ordem/oculto valem só neste documento.</div>
+                {secTit('Blocos do documento — ordem e visibilidade')}
+                <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:6,lineHeight:1.5}}>Esta é a lista, <b>na ordem do PDF</b>, de cada grande pedaço do documento — cada <b>seção</b> (¶), <b>planta</b> (🗺) e <b>tabela</b> (▦). Use <b>↑ ↓</b> para <b>mudar a ordem</b> em que saem no PDF e o <b>olho 👁</b> para <b>esconder</b> um pedaço inteiro. Vale só para este documento.</div>
                 {(()=>{
                   const base=enumDocBlocks()
                   const byKey={}; base.forEach(b=>{ byKey[b.key]=b })
@@ -6391,45 +6471,52 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 </div>
 
                 {secTit('Filtros — tirar do documento')}
-                <div style={{fontSize:10.5,color:'#94A3B8',marginBottom:8}}>Clique para <b style={{color:'#FCA5A5'}}>tirar do PDF</b> (riscado = fora). Não apaga nada do projeto.</div>
-                <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',marginBottom:7}}>
-                  <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Cabos</span>
-                  {famList.map(f=>chip(hideFams.has(f), CABLE_LABELS[f]||f, ()=>setHideFams(p=>{const x=new Set(p); x.has(f)?x.delete(f):x.add(f); return x})))}
-                  {chip(hidePdfConduites,'Conduítes',()=>setHidePdfConduites(v=>!v))}
-                </div>
-                <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',marginBottom:7}}>
-                  <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Grupos</span>
-                  {(()=>{ const presentes=GRUPO_ORDEM.filter(g=>catList.some(c=>equipGrupo(c)===g))
-                    return presentes.map(g=>{ const cats=catList.filter(c=>equipGrupo(c)===g); const n=markers.filter(m=>cats.includes(equipType(m.name))).length
+                <div style={{fontSize:10.5,color:'#94A3B8',marginBottom:10}}>Clique para <b style={{color:'#FCA5A5'}}>tirar do PDF</b> (riscado = fora). Não apaga nada do projeto.</div>
+                {(()=>{
+                  const filtroLinha=(label,chips)=><div style={{marginBottom:10}}>
+                    <div style={{fontSize:9,color:'rgba(255,255,255,0.38)',textTransform:'uppercase',letterSpacing:0.6,marginBottom:5}}>{label}</div>
+                    <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',paddingLeft:2}}>{chips}</div>
+                  </div>
+                  const presentes=GRUPO_ORDEM.filter(g=>catList.some(c=>equipGrupo(c)===g))
+                  return <>
+                    {filtroLinha('Cabos', <>{famList.map(f=>chip(hideFams.has(f), CABLE_LABELS[f]||f, ()=>setHideFams(p=>{const x=new Set(p); x.has(f)?x.delete(f):x.add(f); return x})))}{chip(hidePdfConduites,'Conduítes',()=>setHidePdfConduites(v=>!v))}</>)}
+                    {filtroLinha('Grupos', presentes.map(g=>{ const cats=catList.filter(c=>equipGrupo(c)===g); const n=markers.filter(m=>cats.includes(equipType(m.name))).length
                       const todosFora=cats.length>0 && cats.every(c=>hideCats.has(c))
-                      return chip(todosFora, `${g} · ${n}`, ()=>setHideCats(p=>{const x=new Set(p); if(todosFora){cats.forEach(c=>x.delete(c))}else{cats.forEach(c=>x.add(c))} return x})) }) })()}
-                </div>
-                <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
-                  <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5}}>Categorias</span>
-                  {catList.map(c=>{ const n=markers.filter(m=>equipType(m.name)===c).length; return chip(hideCats.has(c), `${c} · ${n}`, ()=>setHideCats(p=>{const x=new Set(p); x.has(c)?x.delete(c):x.add(c); return x})) })}
-                </div>
+                      return chip(todosFora, `${g} · ${n}`, ()=>setHideCats(p=>{const x=new Set(p); if(todosFora){cats.forEach(c=>x.delete(c))}else{cats.forEach(c=>x.add(c))} return x})) }))}
+                    {filtroLinha('Categorias', catList.map(c=>{ const n=markers.filter(m=>equipType(m.name)===c).length; return chip(hideCats.has(c), `${c} · ${n}`, ()=>setHideCats(p=>{const x=new Set(p); x.has(c)?x.delete(c):x.add(c); return x})) }))}
+                  </>
+                })()}
 
-                {secTit('Ocultar por tópico')}
-                <div style={{fontSize:10,color:'rgba(255,255,255,0.42)',marginBottom:7}}><b>Tópico</b> tira o título + planta + tabela. <b>Só tabela</b> mantém a planta. Riscado = fora.</div>
+                {secTit('Ocultar por tópico — '+modo)}
+                <div style={{fontSize:10,color:'rgba(255,255,255,0.42)',marginBottom:7}}><b>Tópico</b> tira o título + planta + tabela. <b>Só tabela</b> mantém a planta. Riscado = fora. Só aparecem os tópicos <b>deste documento</b>.</div>
                 {(()=>{
                   const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança (em Cabeamento)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto'],['t_conduites','Cabeamento e conduítes'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos']]
                   const OBRA=[['t_obra_eletrica','Elétrica (caixas + alimentação)'],['lista_geral','↳ Lista geral de pontos elétricos'],['pontos_tabela','↳ Pontos elétricos — caixas e alturas'],['alim_keypads','↳ Alimentação dos keypads'],['t_quant','Quantitativo de material'],['t_cabos','Cabeamento por família'],['t_checklists','Checklists de obra']]
-                  const allKeys=[...EXEC,...OBRA].map(t=>t[0])
+                  const ELE=[['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','Lista geral de pontos elétricos'],['caixas_embutir','Caixas de embutir — resumo'],['quadro_cargas','Quadro de cargas']]
+                  const COND=[['t_conduites','Cabeamento e conduítes'],['t_cabos','Cabeamento por família']]
+                  // Só os grupos de tópico FIÉIS ao documento na tela (Raphael).
+                  const grupos = execMode==='completo' ? [['Projeto Executivo',EXEC],['Plano de Obra (anexo)',OBRA]]
+                    : execMode==='obra' ? [['Plano de Obra',OBRA]]
+                    : execMode==='eletrica' ? [['Planta Elétrica',ELE]]
+                    : execMode==='conduites' ? [['Conduítes',COND]]
+                    : [] // instalação: sem tópicos configuráveis
+                  const allKeys=[...new Set(grupos.flatMap(g=>g[1]).map(t=>t[0]))]
                   const off=k=>hideSecs.has(k)
                   const tglSec=k=>()=>setHideSecs(p=>{const x=new Set(p); x.has(k)?x.delete(k):x.add(k); return x})
-                  const allOff=allKeys.every(k=>off(k))
+                  const allOff=allKeys.length>0 && allKeys.every(k=>off(k))
                   const row=([k,label,tab])=>(
-                    <div key={k} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'1.5px 0'}}>
+                    <div key={k} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'2px 0'}}>
                       <span style={{flex:1,fontSize:11,minWidth:0,color:off(k)?'rgba(255,255,255,0.32)':'rgba(255,255,255,0.82)',textDecoration:off(k)?'line-through':'none'}}>{label}</span>
                       {chip(off(k),'tópico',tglSec(k))}
                       {tab?chip(off(k)||off(tab),'só tabela',tglSec(tab)):<span style={{width:70,flexShrink:0}}/>}
                     </div>)
+                  if(!grupos.length) return <div style={{fontSize:11,color:'#94A3B8'}}>Este documento não tem tópicos configuráveis — use <b>Blocos do documento</b> acima para ocultar/reordenar.</div>
                   return <>
-                    <div style={{marginBottom:5}}>{chip(allOff,'✦ Ocultar tudo',()=>setHideSecs(p=>{const x=new Set(p); if(allOff){allKeys.forEach(k=>x.delete(k))}else{allKeys.forEach(k=>x.add(k))} return x}))}</div>
-                    <span style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5,display:'block',margin:'6px 0 2px'}}>Projeto Executivo</span>
-                    {EXEC.map(row)}
-                    <span style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5,display:'block',margin:'8px 0 2px'}}>Plano de Obra (anexo)</span>
-                    {OBRA.map(row)}
+                    <div style={{marginBottom:6}}>{chip(allOff,'✦ Ocultar tudo',()=>setHideSecs(p=>{const x=new Set(p); if(allOff){allKeys.forEach(k=>x.delete(k))}else{allKeys.forEach(k=>x.add(k))} return x}))}</div>
+                    {grupos.map(([titulo,lista])=><div key={titulo} style={{marginBottom:6}}>
+                      <span style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.5,display:'block',margin:'6px 0 3px'}}>{titulo}</span>
+                      {lista.map(row)}
+                    </div>)}
                   </>
                 })()}
               </div>
@@ -6741,3 +6828,4 @@ export default function ProjetoExecutivo(props){
     </ExecErrorBoundary>
   )
 }
+
