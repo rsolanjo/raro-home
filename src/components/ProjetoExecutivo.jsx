@@ -2669,10 +2669,11 @@ Responda APENAS JSON válido:
         'Identificar cada disjuntor no QDL conforme a lista geral acima.',
         'Testar todos os pontos antes do fechamento das paredes.',
       ])
-      const head = `<div style="background:#0D1420;color:#38BDF8;font-size:12px;font-weight:700;padding:9px 14px;letter-spacing:1px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
+      const head = `<div class="ex-plant-head" style="background:#0D1420;color:#38BDF8;font-size:12px;font-weight:700;padding:9px 14px;letter-spacing:1px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
         <span>PLANTA ELÉTRICA — Símbolos ABNT NBR 5444</span><span style="color:rgba(255,255,255,0.5);font-size:10px;font-weight:400">${eleMarks.length} pontos${qdl?' · QDL':''}</span></div>`
       // imagem com proporção REAL (padding-bottom = ratio), símbolos como HTML que NÃO distorcem
-      const fig = `<div style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
+      // ex-plant-fig = o editor trata isto como PLANTA (arrastar/zoom/girar/ocultar), igual às demais.
+      const fig = `<div class="ex-plant-fig" style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
         <div style="position:relative;width:100%;padding-bottom:${(ratio*100).toFixed(1)}%">
           <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.3) contrast(0.95) brightness(1.04)"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${dutos}</svg>
@@ -2909,9 +2910,9 @@ Responda APENAS JSON válido:
         ? `<div style="background:#FEE2E2;border:1px solid #DC2626;border-radius:8px;padding:10px 12px;font-size:11.5px;color:#991B1B;margin-top:10px"><b>⚠ Possíveis zonas sem cobertura adequada:</b> ${semCobertura.map(esc).join(', ')}. Considere reposicionar ou adicionar um AP.</div>`
         : `<div style="background:#DCFCE7;border:1px solid #16A34A;border-radius:8px;padding:10px 12px;font-size:11.5px;color:#065F46;margin-top:10px">✓ Todos os cômodos identificados estão dentro do alcance médio de pelo menos um AP.</div>`
 
-      const head = `<div style="background:#0D1420;color:#38BDF8;font-size:11px;font-weight:700;padding:8px 14px;letter-spacing:1px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
+      const head = `<div class="ex-plant-head" style="background:#0D1420;color:#38BDF8;font-size:11px;font-weight:700;padding:8px 14px;letter-spacing:1px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
         <span>COBERTURA Wi-Fi — Propagação aproximada</span><span style="color:rgba(255,255,255,0.5);font-size:9px;font-weight:400">${aps.length} AP${aps.length!==1?'s':''} · paredes de concreto</span></div>`
-      const fig = `<div style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
+      const fig = `<div class="ex-plant-fig" style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
         <div style="position:relative;width:100%">
           <img src="${bgImage}" style="width:100%;display:block;filter:grayscale(0.5) brightness(1.05)"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%"><defs>${grads}</defs>${manchas}${pinos}</svg>
@@ -4084,7 +4085,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           let mid=cand[0]||pts[Math.floor(pts.length/2)], bestD=-1
           cand.forEach(p=>{ let mn=Infinity; markers.forEach(m=>{ const d=d2(p,m); if(d<mn)mn=d }); if(mn>bestD){bestD=mn;mid=p} })
           return `<div style="position:absolute;left:${mid.x}%;top:${mid.y}%;transform:translate(-50%,-50%);z-index:6;background:${c.color||col};color:#fff;font-size:9px;font-weight:800;font-family:monospace;padding:1px 5px;border-radius:7px;border:1.5px solid #fff;white-space:nowrap;box-shadow:0 0 0 1.5px rgba(0,0,0,0.18)">${esc(idLabel)}</div>`}).join('')
-        return `<div style="position:relative;width:100%;padding-bottom:${(ratio*100).toFixed(1)}%;border:1px solid #CBD5E1;border-radius:8px;overflow:hidden;margin-top:8px">
+        return `<div class="ex-plant-fig" style="position:relative;width:100%;padding-bottom:${(ratio*100).toFixed(1)}%;border:1px solid #CBD5E1;border-radius:8px;overflow:hidden;margin-top:8px">
           <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.4)"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${lines}</svg>${itemDots}${caixaDots}${condLabels}
         </div>`
@@ -4864,34 +4865,71 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   // (arrastar/zoom/alinhar) DENTRO do palco — nada vaza pra fora da margem nem quebra pra outra
   // página. Deslocamentos em % pra prévia e PDF baterem em qualquer escala. Também aplica os
   // mestres "ocultar todas as plantas / todas as tabelas". Se algo falhar, devolve o HTML cru.
+  // Seletor ÚNICO de "isto é uma planta". .ex-plant é a planta clássica (imagem + pinos);
+  // .ex-plant-fig são as figuras de proporção fixa (Elétrica, Mapa de Calor, Conduítes) que
+  // antes ficavam INVISÍVEIS pro editor — não listavam, não arrastavam e não sumiam no
+  // "ocultar todas as plantas". Duas classes porque o CSS de .ex-plant img quebraria essas.
+  const PLANT_SEL='.ex-plant,.ex-plant-fig'
+
+  // ── DOIS MODOS DE QUEBRA DE TEXTO (como no Word) ─────────────────────────────────
+  // "Alinhado" (padrão): o palco ocupa espaço na página — aumentar a planta EMPURRA as
+  // tabelas pra baixo, e o overflow:hidden recorta na margem.
+  // "Em frente ao texto": o palco não ocupa espaço nenhum (height:0, overflow visível) e a
+  // planta flutua POR CIMA do conteúdo, posicionável livremente. Nada é empurrado.
+  const _MARGEM_PALCO={ left:'0 auto 0 0', center:'0 auto', right:'0 0 0 auto' }
+  function aplicaPalco(stage, pl, t, ratio){
+    const z=t.zoom||1, mg=_MARGEM_PALCO[plantAlign]||'0 auto'
+    if(t.front){
+      stage.dataset.front='1'
+      // z-index alto = fica na frente do texto; height:0 = não reserva espaço (não empurra nada)
+      stage.setAttribute('style',`position:relative;width:${plantPct}%;margin:${mg};overflow:visible;height:0;z-index:5`)
+    }else{
+      delete stage.dataset.front
+      // aspect-ratio INCLUI o zoom: com z>1 o palco fica mais ALTO, empurrando o conteúdo de
+      // baixo pra baixo (reflow). Horizontal segue recortado (overflow) = trava de margem.
+      stage.setAttribute('style',`position:relative;width:${plantPct}%;margin:${mg};overflow:hidden;aspect-ratio:${(1/(ratio*z)).toFixed(4)};background:#fff`)
+    }
+  }
+  function aplicaPlanta(pl, t){
+    if(!pl) return
+    const z=t.zoom||1
+    pl.style.position='absolute'; pl.style.left='50%'
+    pl.style.width='100%'; pl.style.maxWidth='100%'; pl.style.margin='0'; pl.style.display='block'
+    if(t.front){
+      // ancorada no topo: cresce pra baixo a partir do ponto do texto onde ela está
+      pl.style.top='0'; pl.style.transformOrigin='center top'
+      pl.style.transform=`translate(calc(-50% + ${t.x||0}%), calc(${t.y||0}%)) scale(${z}) rotate(${t.rot||0}deg)`
+    }else{
+      pl.style.top='50%'; pl.style.transformOrigin='center center'
+      pl.style.transform=`translate(calc(-50% + ${t.x||0}%), calc(-50% + ${t.y||0}%)) scale(${z}) rotate(${t.rot||0}deg)`
+    }
+  }
   function applyLayout(html, opts={}){
     if(typeof DOMParser==='undefined') return html
     try{
       const doc=new DOMParser().parseFromString(html,'text/html')
-      const margem={ left:'0 auto 0 0', center:'0 auto', right:'0 0 0 auto' }
       // Proporção EFETIVA: quando a planta é girada (Paisagem/Retrato) o _docView já entrega a
       // imagem girada e os pinos convertidos — o palco precisa usar 1/imgRatio, senão o quadro
       // fica com aspecto errado e os pinos saem do lugar (bug que o Raphael viu no Retrato).
       const _girou = (()=>{ try{ return _precisaGirar() && !!rotBg }catch(_){ return false } })()
       const ratio = _girou ? (1/(imgRatio||0.75)) : (imgRatio||0.66)
       let pi=0
-      doc.querySelectorAll('.ex-plant').forEach(pl=>{
+      doc.querySelectorAll(PLANT_SEL).forEach(pl=>{
         if(pl.closest('.ex-wall-page')) return // a folha-parede tem palco próprio (A4 paisagem)
+        if(pl.closest('.ex-plant-stage')) return // já dentro de um palco (aninhamento) — ignora
         const pkey=_plantKey(pi); const t=_plantT(pi); pi++
-        const z=t.zoom||1
         const stage=doc.createElement('div')
         stage.className='ex-plant-stage'
         stage.dataset.pkey=pkey  // cada planta endereçável (arrastar/zoom direto na prévia)
-        // aspect-ratio INCLUI o zoom: com z>1 o palco fica mais ALTO, empurrando o conteúdo de
-        // baixo pra baixo (reflow). Horizontal segue recortado (overflow) = trava de margem.
-        stage.setAttribute('style',`position:relative;width:${plantPct}%;margin:${margem[plantAlign]||'0 auto'};overflow:hidden;aspect-ratio:${(1/(ratio*z)).toFixed(4)};background:#fff`)
+        aplicaPalco(stage, pl, t, ratio)
         pl.parentNode.insertBefore(stage,pl)
         stage.appendChild(pl)
-        pl.style.position='absolute'; pl.style.top='50%'; pl.style.left='50%'
-        pl.style.width='100%'; pl.style.maxWidth='100%'; pl.style.margin='0'; pl.style.display='block'
-        pl.style.transformOrigin='center center'
-        pl.style.transform=`translate(calc(-50% + ${t.x||0}%), calc(-50% + ${t.y||0}%)) scale(${z}) rotate(${t.rot||0}deg)`
-        if(hideAllPlants) stage.style.display='none'
+        aplicaPlanta(pl, t)
+        if(hideAllPlants){ stage.style.display='none'
+          // a barra escura ("PLANTA ELÉTRICA…", "COBERTURA Wi-Fi…") é a tampa da figura:
+          // some junto, senão fica o resquício que o Raphael reclamou.
+          const cap=stage.previousElementSibling
+          if(cap && cap.classList.contains('ex-plant-head')) cap.style.display='none' }
       })
       if(hideAllTables){
         // Esconde TODA tabela (não só as .ex-tbl) E os rótulos/cabeçalhos coladinhos nela (o título
@@ -4900,7 +4938,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const escondeRotulosAntes=(el)=>{ let p=el.previousElementSibling
           while(p){ const tag=p.tagName
             if(!/^(H3|H4|DIV|P)$/.test(tag)) break
-            if(p.querySelector('table,img,.ex-plant,.ex-plant-stage')) break
+            if(p.querySelector('table,img,.ex-plant,.ex-plant-fig,.ex-plant-stage')) break
             if((p.textContent||'').trim().length>90) break
             const ant=p.previousElementSibling; p.style.display='none'; p=ant } }
         doc.querySelectorAll('table').forEach(t=>{ t.style.display='none'; escondeRotulosAntes(t) })
@@ -4909,7 +4947,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         let mudou=true, guard=0
         while(mudou && guard++<6){ mudou=false
           doc.querySelectorAll('div,section').forEach(el=>{ if(el.style.display==='none') return
-            if(el.querySelector('img,svg,.ex-plant,.ex-plant-stage')) return
+            if(el.querySelector('img,svg,.ex-plant,.ex-plant-fig,.ex-plant-stage')) return
             if(el.children.length===0) return // sem filhos = texto próprio (badge, nota) → mantém
             if([...el.children].some(c=>c.style.display!=='none')) return // ainda tem filho visível
             el.style.display='none'; mudou=true }) }
@@ -4972,7 +5010,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   function blocoLabelOf(el){
     const h=el.querySelector('h1,h2,h3')
     if(h) return h.textContent.trim().replace(/\s+/g,' ').replace(/^(\d+)(?=\S)/,'$1 · ').slice(0,42)
-    if(el.querySelector('.ex-plant')) return 'Planta'
+    if(el.querySelector(PLANT_SEL)) return 'Planta'
     if(el.querySelector('.ex-tbl,table')) return 'Tabela'
     return (el.textContent.trim().replace(/\s+/g,' ').slice(0,42))||'Bloco'
   }
@@ -4982,7 +5020,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     try{
       const doc=new DOMParser().parseFromString(buildFullHtml(false),'text/html')
       const blocos=[...doc.body.children].filter(_ehBlocoDoc)
-      return blocos.map((el,i)=>({ key:blocoKeyOf(el,i), label:blocoLabelOf(el), plant:!!el.querySelector('.ex-plant'), table:!!el.querySelector('.ex-tbl,table') }))
+      return blocos.map((el,i)=>({ key:blocoKeyOf(el,i), label:blocoLabelOf(el), plant:!!el.querySelector(PLANT_SEL), table:!!el.querySelector('.ex-tbl,table') }))
     }catch(e){ return [] }
   }
   // Lista as PLANTAS do documento atual (índice + rótulo), na mesma ordem que o applyLayout numera.
@@ -4990,11 +5028,68 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(typeof DOMParser==='undefined') return []
     try{
       const doc=new DOMParser().parseFromString(buildFullHtml(false),'text/html')
-      const plants=[...doc.querySelectorAll('.ex-plant')].filter(pl=>!pl.closest('.ex-wall-page'))
+      const plants=[...doc.querySelectorAll(PLANT_SEL)].filter(pl=>!pl.closest('.ex-wall-page'))
       return plants.map((pl,i)=>{ const sec=pl.closest('.ex-sec,.ex-obra-page'); const h=sec&&sec.querySelector('h1,h2,h3')
         const lbl=h?h.textContent.trim().replace(/\s+/g,' ').replace(/^(\d+)(?=\S)/,'$1 · ').slice(0,34):('Planta '+(i+1))
         return { i, label:lbl } })
     }catch(e){ return [] }
+  }
+
+  // ── MESCLA DE ANEXOS NO PROJETO EXECUTIVO ────────────────────────────────────────
+  // O Completo colava o Plano de Obra INTEIRO — com capa e tudo — no meio do documento
+  // (a "junção que não faz sentido"). Aqui o anexo entra como CONTINUAÇÃO: sem a capa,
+  // sem o <style> repetido, e SEM as seções cujo título o documento principal já tem —
+  // é essa a trava contra repetir informação.
+  const _tituloChave = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/^\s*\d+[\.\)]?\s*/,'').replace(/[^a-z0-9]+/gi,' ').trim().toLowerCase()
+
+  // Chaves de identidade de um pedaço: o h2 quando existe; senão os h3/.ex-amb (as páginas de
+  // planta do Plano de Obra não têm h2 — só "Planta e Cabos — Dados" em h3 — e era por aí que a
+  // repetição escapava). Prefixo separa os níveis pra um h3 não casar com um h2 homônimo.
+  function chavesDe(el){
+    const h2=[...el.querySelectorAll('h2')].map(h=>'h2:'+_tituloChave(h.textContent)).filter(k=>k!=='h2:')
+    if(h2.length) return h2
+    return [...el.querySelectorAll('h3,.ex-amb')].map(h=>'h3:'+_tituloChave(h.textContent)).filter(k=>k!=='h3:')
+  }
+
+  // Lê os títulos que um HTML já apresenta — alimenta o "já visto" do documento principal.
+  function titulosDe(html){
+    const out=new Set()
+    if(typeof DOMParser==='undefined'||!html) return out
+    try{ const d=new DOMParser().parseFromString(html,'text/html')
+      d.querySelectorAll('h2').forEach(h=>{ const k=_tituloChave(h.textContent); if(k) out.add('h2:'+k) })
+      d.querySelectorAll('h3,.ex-amb').forEach(h=>{ const k=_tituloChave(h.textContent); if(k) out.add('h3:'+k) })
+    }catch(_){}
+    return out
+  }
+
+  // Devolve o corpo do anexo pronto pra concatenar (string vazia se não sobrou nada útil).
+  function mesclaAnexo(html, rotulo, vistos, descartar=[]){
+    if(!html || typeof DOMParser==='undefined') return ''
+    try{
+      const fora=new Set(descartar.flatMap(t=>['h2:'+_tituloChave(t),'h3:'+_tituloChave(t)]))
+      const doc=new DOMParser().parseFromString(html,'text/html')
+      doc.querySelectorAll('style').forEach(s=>s.remove())      // CSS já veio do principal
+      doc.querySelectorAll('.ex-cover,.ex-doc-cover').forEach(c=>c.remove()) // adeus capa colada
+      const raiz=doc.querySelector('.ex-doc')||doc.body
+      let manteve=0
+      ;[...raiz.children].forEach(el=>{
+        const chaves=chavesDe(el)
+        if(!chaves.length) return // pedaço sem título nenhum (nota, rodapé) — mantém
+        // sai se TODO título dele já apareceu no documento, ou se está na lista de descarte
+        // (mesmo conteúdo com outro nome — ex.: "Planta — Itens no Teto" = tópico 6)
+        if(chaves.every(k=>vistos.has(k)||fora.has(k))){ el.remove(); return }
+        chaves.forEach(k=>vistos.add(k)); manteve++
+      })
+      // nada de próprio sobrou → nem divisor: anexo vazio é ruído, não informação
+      if(!manteve) return ''
+      const corpo=raiz.innerHTML.trim()
+      if(!corpo) return ''
+      const divisor=`<div class="ex-sec" style="border:none;page-break-before:always;break-before:page">
+        <div style="font-size:10px;letter-spacing:2px;color:#B0854C;font-weight:700;margin-bottom:2px">CONTINUAÇÃO DO PROJETO EXECUTIVO</div>
+        <h2 style="margin-top:0">${String(rotulo||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</h2></div>`
+      return divisor+corpo
+    }catch(e){ console.warn('mesclaAnexo falhou:',e.message); return '' }
   }
 
   function buildFullHtml(preview=false){
@@ -5015,10 +5110,20 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       // Mesmo @page dos outros documentos (Raphael: o PE tinha margem diferente). O bleed da capa
       // (.ex-doc-cover margin:-12mm) foi removido pra a margem bater com o resto.
       pageCss='@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @page wallpage{size:A4 landscape;margin:6mm}'+_plantSizeCss
-      const quebraPag='<div style="break-before:page;page-break-before:always;height:0;margin:0;border:0"></div>'
-      // wall page 1×, por último (depois de _full+_obra+_ele) — folha sozinha
-      // _ele (Planta Elétrica) NÃO entra: o corpo (_full) já traz a planta elétrica. Evita a 3ª cópia.
-      body = (_full||'') + (_obra ? quebraPag+_obra : '') + listaEquipamentosHtml() + buildWallPage()
+      // O Projeto Executivo é o documento COMPLETO: traz o que Obra, Instalação, Elétrica e
+      // Conduítes têm de próprio. Cada anexo entra sem capa e sem as seções que o corpo já
+      // apresentou — o mesclaAnexo mantém o registro do que já foi dito (Raphael: "precisa ter
+      // todas as informações de todos os documentos, mas sem repetir").
+      const vistos=titulosDe(_full||'')
+      // "Planta — Itens no Teto" (obra) e "Plano de Instalação" (título do próprio anexo) são o
+      // mesmo conteúdo com outro nome — o dedupe por título não pega, então vão na mão.
+      const anexos = mesclaAnexo(_obra,'Plano de Obra — cabos e infraestrutura',vistos,['Planta — Itens no Teto'])
+        + mesclaAnexo(_ele,'Planta Elétrica — NBR 5444 e quadro de cargas',vistos)
+        // Conduítes NÃO entra: o tópico 7 (Cabeamento e Conduítes) já cobre os caminhos por
+        // família — o relatório era o mesmo conteúdo em outro nível de detalhe (decisão do
+        // Raphael). Continua saindo inteiro no documento "Conduítes", à parte.
+        + mesclaAnexo(_inst,'Plano de Instalação — ponto a ponto, testes e entrega',vistos,['Plano de Instalação'])
+      body = (_full||'') + anexos + listaEquipamentosHtml() + buildWallPage()
     } else {
       // TUDO A4 (Raphael). Obra, elétrica e conduítes saíam em A3 PAISAGEM — só o Completo era
       // A4. Era a origem do "Para impressão em A3" que abria o Plano de Obra, e da diferença de
@@ -5034,7 +5139,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // planta/figura não parte no meio, linha de tabela não corta, cabeçalho de tabela repete.
     const quebras='<style>'
       +'h2,h3,h4,.ex-amb{break-after:avoid!important;page-break-after:avoid!important}'
-      +'.ex-plant,.ex-plant-wrap,.ex-plant-stage{break-inside:avoid!important;page-break-inside:avoid!important}'
+      +'.ex-plant,.ex-plant-fig,.ex-plant-wrap,.ex-plant-stage{break-inside:avoid!important;page-break-inside:avoid!important}'
       +'.ex-plant img,.ex-obra-page img{break-inside:avoid!important}'
       +'div[style*="padding-bottom:"][style*="position:relative"]{break-inside:avoid!important;page-break-inside:avoid!important}'
       +'.ex-p{orphans:3;widows:3}'
@@ -5073,21 +5178,23 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   // Aplica posição/zoom/rotação/largura das plantas AO VIVO no DOM da prévia — sem regerar o
   // documento e sem recarregar o iframe (é o que elimina o "blink"/reset ao mexer na planta).
   useEffect(()=>{ plantTransformsRef.current = plantTransforms },[plantTransforms])
+  // Só muda quando alguma planta entra/sai do modo "em frente ao texto" — serve pra re-anexar as
+  // alças (que trocam de canto) sem trazer plantTransforms inteiro pras deps do arraste.
+  const frontSig = Object.entries(plantTransforms||{}).filter(([,v])=>v&&v.front).map(([k])=>k).sort().join(',')
   useEffect(()=>{
     const ifr=previewIframeRef.current; if(!ifr || docEditMode) return
     const d=ifr.contentDocument; if(!d) return
-    const margem={ left:'0 auto 0 0', center:'0 auto', right:'0 0 0 auto' }
     const girou=(()=>{ try{ return _precisaGirar() && !!rotBg }catch(_){ return false } })()
     const ratio = girou ? (1/(imgRatio||0.75)) : (imgRatio||0.66)
     d.querySelectorAll('.ex-plant-stage').forEach(stage=>{
       const key=stage.dataset.pkey; if(!key) return
       const t=plantTransforms[key]||{x:0,y:0,zoom:1,rot:0}
-      const z=t.zoom||1
-      stage.style.width=plantPct+'%'
-      stage.style.margin=margem[plantAlign]||'0 auto'
-      stage.style.aspectRatio=(1/(ratio*z)).toFixed(4)
-      const pl=stage.querySelector('.ex-plant')
-      if(pl) pl.style.transform=`translate(calc(-50% + ${t.x||0}%), calc(-50% + ${t.y||0}%)) scale(${z}) rotate(${t.rot||0}deg)`
+      const pl=stage.querySelector(PLANT_SEL)
+      const escondido=stage.style.display==='none'
+      // MESMAS funções do applyLayout: prévia e PDF não podem divergir de jeito nenhum
+      aplicaPalco(stage, pl, t, ratio)
+      aplicaPlanta(pl, t)
+      if(escondido) stage.style.display='none' // aplicaPalco reescreve o style inteiro
     })
   },[plantTransforms, plantPct, plantAlign, pdfPreviewHtml, docEditMode, imgRatio, rotBg, pageOrient])
 
@@ -5122,32 +5229,44 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const d=ifr.contentDocument; if(!d) return
       limpar.forEach(fn=>{try{fn()}catch(_){}}); limpar=[]
       d.querySelectorAll('.ex-plant-stage').forEach(stage=>{
-        const key=stage.dataset.pkey; const pl=stage.querySelector('.ex-plant'); if(!key||!pl) return
+        const key=stage.dataset.pkey; const pl=stage.querySelector(PLANT_SEL); if(!key||!pl) return
         stage.style.cursor='move'; stage.style.outline='1px dashed rgba(14,165,233,0.55)'; stage.style.outlineOffset='-1px'
         const cur=()=> (plantTransformsRef.current[key]||{x:0,y:0,zoom:1,rot:0})
+        // Em "frente ao texto" o palco tem ALTURA ZERO: as alças não podem ancorar no rodapé dele
+        // (ficariam na linha do texto, longe da planta) — vão pro topo, sobre a imagem.
+        const flutua=stage.dataset.front==='1'
+        const posAlca=(dir)=> flutua ? `left:${dir}px;top:3px` : `right:${dir}px;bottom:3px`
+        // altura útil: com o palco em height:0, a régua do arraste é o tamanho da própria planta
+        const alturaUtil=()=>{ const h=stage.getBoundingClientRect().height; if(h>1) return h
+          const hp=pl.getBoundingClientRect().height; return hp>1?hp:1 }
         const handle=d.createElement('div')
         handle.textContent='⤢'
-        handle.setAttribute('style','position:absolute;right:3px;bottom:3px;width:20px;height:20px;background:#0EA5E9;color:#fff;font-size:12px;line-height:20px;text-align:center;border-radius:5px;cursor:nwse-resize;z-index:9;box-shadow:0 1px 4px rgba(0,0,0,.3)')
+        handle.setAttribute('style',`position:absolute;${posAlca(3)};width:20px;height:20px;background:#0EA5E9;color:#fff;font-size:12px;line-height:20px;text-align:center;border-radius:5px;cursor:nwse-resize;z-index:9;box-shadow:0 1px 4px rgba(0,0,0,.3)`)
         stage.appendChild(handle)
         // Botão GIRAR (90° por clique) na própria planta
         const rot=d.createElement('div')
         rot.textContent='↻'; rot.title='Girar 90°'
-        rot.setAttribute('style','position:absolute;right:27px;bottom:3px;width:20px;height:20px;background:#7C3AED;color:#fff;font-size:13px;line-height:20px;text-align:center;border-radius:5px;cursor:pointer;z-index:9;box-shadow:0 1px 4px rgba(0,0,0,.3)')
+        rot.setAttribute('style',`position:absolute;${posAlca(27)};width:20px;height:20px;background:#7C3AED;color:#fff;font-size:13px;line-height:20px;text-align:center;border-radius:5px;cursor:pointer;z-index:9;box-shadow:0 1px 4px rgba(0,0,0,.3)`)
         stage.appendChild(rot)
         const onRot=e=>{ e.preventDefault(); e.stopPropagation(); setT(key,{rot:(((cur().rot||0)+90)%360)}) }
         rot.addEventListener('pointerdown',onRot)
         const onDown=e=>{ if(e.target===handle||e.target===rot) return; e.preventDefault()
           const r=stage.getBoundingClientRect(), t0=cur(), sx=e.clientX, sy=e.clientY
-          const mv=ev=>{ const nx=(t0.x||0)+(ev.clientX-sx)/r.width*100, ny=(t0.y||0)+(ev.clientY-sy)/r.height*100
-            pl.style.transform=`translate(calc(-50% + ${nx}%), calc(-50% + ${ny}%)) scale(${t0.zoom||1})` }
+          const rh=alturaUtil()
+          const dxy=ev=>({ x:(t0.x||0)+(ev.clientX-sx)/r.width*100, y:(t0.y||0)+(ev.clientY-sy)/rh*100 })
+          const mv=ev=>{ const p=dxy(ev); aplicaPlanta(pl,{...t0,...p}) }
           const up=ev=>{ d.removeEventListener('pointermove',mv); d.removeEventListener('pointerup',up)
-            setT(key,{x:(t0.x||0)+(ev.clientX-sx)/r.width*100, y:(t0.y||0)+(ev.clientY-sy)/r.height*100}) }
+            setT(key,dxy(ev)) }
           d.addEventListener('pointermove',mv); d.addEventListener('pointerup',up) }
         const onH=e=>{ e.preventDefault(); e.stopPropagation()
-          const r=stage.getBoundingClientRect(), t0=cur(), sy=e.clientY
-          const calc=cy=>Math.max(0.3,Math.min(4, Math.round(((t0.zoom||1)+(cy-sy)/r.height*2)*100)/100))
-          const mv=ev=>{ const nz=calc(ev.clientY); stage.style.aspectRatio=`${(1/((imgRatio||0.66)*nz)).toFixed(4)}`
-            pl.style.transform=`translate(calc(-50% + ${t0.x||0}%), calc(-50% + ${t0.y||0}%)) scale(${nz})` }
+          const t0=cur(), sy=e.clientY, rh=alturaUtil()
+          const calc=cy=>Math.max(0.3,Math.min(4, Math.round(((t0.zoom||1)+(cy-sy)/rh*2)*100)/100))
+          // mesma proporção EFETIVA do applyLayout: se está girada, o palco usa 1/imgRatio —
+          // senão o quadro pula de aspecto no meio do redimensionamento.
+          const _g=(()=>{ try{ return _precisaGirar() && !!rotBg }catch(_){ return false } })()
+          const rEf=_g ? (1/(imgRatio||0.75)) : (imgRatio||0.66)
+          const mv=ev=>{ const nz=calc(ev.clientY); const t1={...t0,zoom:nz}
+            aplicaPalco(stage,pl,t1,rEf); aplicaPlanta(pl,t1) }
           const up=ev=>{ d.removeEventListener('pointermove',mv); d.removeEventListener('pointerup',up); setT(key,{zoom:calc(ev.clientY)}) }
           d.addEventListener('pointermove',mv); d.addEventListener('pointerup',up) }
         stage.addEventListener('pointerdown',onDown); handle.addEventListener('pointerdown',onH)
@@ -5157,8 +5276,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     wire(); ifr.addEventListener('load',wire)
     return ()=>{ limpar.forEach(fn=>{try{fn()}catch(_){}}); ifr.removeEventListener('load',wire) }
     // SEM plantTransforms nas deps: os handlers leem do ref, então não re-anexam (nem piscam os
-    // botões) a cada arraste. Só re-anexa quando a prévia é regerada de fato.
-  },[showDocEditor, docEditMode, pdfPreviewHtml]) // eslint-disable-line
+    // botões) a cada arraste. Só re-anexa quando a prévia é regerada de fato — ou quando alguma
+    // planta troca de modo (frontSig), porque aí as alças mudam de canto.
+  },[showDocEditor, docEditMode, pdfPreviewHtml, frontSig]) // eslint-disable-line
 
   // Alterna o modo de edição: ao ligar, congela um snapshot com CSS de impressão (não o de prévia,
   // senão o PDF sairia com o fundo cinza/estreito da tela).
@@ -6613,7 +6733,20 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <img src={bgImage} draggable={false} style={{position:'absolute',top:'50%',left:'50%',width:'100%',transformOrigin:'center center',transform:`translate(calc(-50% + ${curP.x||0}%), calc(-50% + ${curP.y||0}%)) scale(${curP.zoom||1})`,pointerEvents:'none'}}/>
                     <div style={{position:'absolute',inset:0,boxShadow:'inset 0 0 0 1px rgba(220,38,38,0.35)',pointerEvents:'none'}}/>
                   </div>
-                  <div style={{fontSize:9.5,color:'#64748B',textAlign:'center',margin:'4px 0 8px'}}>Arraste pra posicionar. Aumentar o zoom <b>empurra as tabelas de baixo pra baixo</b>; o que passar da margem (borda vermelha) é recortado.</div>
+                  <div style={{fontSize:9.5,color:'#64748B',textAlign:'center',margin:'4px 0 8px'}}>
+                    {curP.front
+                      ? <>Arraste pra posicionar. <b>Em frente ao texto</b>: a planta flutua por cima e <b>não empurra nada</b> — posicione livre.</>
+                      : <>Arraste pra posicionar. Aumentar o zoom <b>empurra as tabelas de baixo pra baixo</b>; o que passar da margem (borda vermelha) é recortado.</>}
+                  </div>
+                  {/* Quebra de texto, igual ao Word: alinhado (ocupa espaço) x em frente ao texto (flutua) */}
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                    <span style={{fontSize:11,color:'#94A3B8',minWidth:38}}>Texto</span>
+                    {miniBtn('▭ Alinhado',()=>_setPlantT(selP,{front:false}),!curP.front)}
+                    {miniBtn('⬒ Em frente ao texto',()=>_setPlantT(selP,{front:true}),!!curP.front)}
+                  </div>
+                  {curP.front && <div style={{fontSize:9.5,color:'#FCD34D',background:'rgba(245,158,11,0.12)',border:'1px solid rgba(245,158,11,0.35)',borderRadius:6,padding:'5px 8px',marginBottom:8}}>
+                    Flutuando, a planta pode cair em cima de uma quebra de página. Deixe as <b>guias vermelhas</b> ligadas e confira antes de gerar o PDF.
+                  </div>}
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
                     <span style={{fontSize:11,color:'#94A3B8',minWidth:38}}>Zoom</span>
                     {stepBtn('−',()=>_setPlantT(selP,{zoom:Math.max(0.3,Math.round(((curP.zoom||1)-0.1)*10)/10)}))}
