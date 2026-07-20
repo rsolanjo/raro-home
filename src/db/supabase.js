@@ -31,6 +31,33 @@ async function all(table, order = 'id') {
   if (error) { console.error(table, error); return [] }
   return data || []
 }
+
+// ── BACKUP COMPLETO (self-service, dentro do próprio app) ───────────────────
+// Lê TODAS as tabelas (a anon key já tem acesso) e monta um objeto único.
+// Reusa all(), então no /demo lê o estado demo. Sem terminal, sem login extra.
+const _TABELAS_BACKUP = ['clients','proposals','projects','catalog','catalog_categories','catalog_subcategories','suppliers','stock','stock_log','reservations','tools','admins','audit_log']
+export async function gerarBackupCompleto(onProgress){
+  const dump = { _meta:{ app:'RARO Home', formato:1, gerado_em:new Date().toISOString(), origem:_demo()?'demo':(URL||''), contagem:{} }, dados:{} }
+  for(let i=0;i<_TABELAS_BACKUP.length;i++){
+    const t=_TABELAS_BACKUP[i]
+    if(onProgress) onProgress(t, i+1, _TABELAS_BACKUP.length)
+    let rows=[]; try{ rows = await all(t) }catch(e){ console.warn('backup',t,e?.message) }
+    dump.dados[t]=rows||[]
+    dump._meta.contagem[t]=(rows||[]).length
+  }
+  return dump
+}
+// Baixa um texto como arquivo no navegador (usa window.URL — o const URL aqui é a env).
+export function baixarArquivo(texto, filename, tipo='application/json'){
+  try{
+    const blob = new Blob([texto], { type: tipo+';charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href=url; a.download=filename
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    setTimeout(()=>{ try{ window.URL.revokeObjectURL(url) }catch(_){} }, 60000)
+    return true
+  }catch(e){ alert('Erro ao baixar: '+e.message); return false }
+}
 // ── MODO DEMO ────────────────────────────────────────────────────────────────
 // Em /demo nenhuma gravação pode chegar ao Supabase real. App marca window.__RARO_DEMO__.
 function _demo() {

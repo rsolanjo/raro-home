@@ -1,6 +1,6 @@
 import PINModal from './PINModal.jsx'
 import { useState } from 'react'
-import { saveAdmin, deleteAdmin, checkPINSession, setPINSession, verifyPIN, dispararResetSenha } from '../db/supabase.js'
+import { saveAdmin, deleteAdmin, checkPINSession, setPINSession, verifyPIN, dispararResetSenha, gerarBackupCompleto, baixarArquivo } from '../db/supabase.js'
 
 const ROLE_LABEL = { admin:'Admin (tudo)', viewer:'Visualizador', mestre:'Mestre de obra' }
 
@@ -12,7 +12,22 @@ export default function Admins({ admins, clients=[], currentUser, onRefresh }) {
   const [form, setForm] = useState({name:'',gmail:'',role:'admin',obra_scope:'all',client_ids:[]})
   const [showPIN, setShowPIN] = useState(false)
   const [pinAction, setPinAction] = useState(null)
+  const [bkpBusy, setBkpBusy] = useState(false)
+  const [bkpMsg, setBkpMsg] = useState('')
   const f = (k,v) => setForm(p=>({...p,[k]:v}))
+
+  async function baixarBackup(){
+    if(bkpBusy) return
+    setBkpBusy(true); setBkpMsg('Lendo o banco…')
+    try{
+      const dump = await gerarBackupCompleto((t,i,n)=>setBkpMsg(`Lendo ${t} (${i}/${n})…`))
+      const total = Object.values(dump._meta.contagem||{}).reduce((s,n)=>s+n,0)
+      const dia = new Date().toISOString().slice(0,10)
+      baixarArquivo(JSON.stringify(dump,null,2), `raro-home-backup-${dia}.json`)
+      setBkpMsg(`✓ Backup baixado — ${total} registros. Veja na pasta Downloads.`)
+    }catch(e){ setBkpMsg('Erro: '+(e?.message||e)) }
+    finally{ setBkpBusy(false) }
+  }
 
   function openNew(){ setEditId(null); setForm({name:'',gmail:'',role:'admin',obra_scope:'all',client_ids:[]}); setShowModal(true) }
   function openEdit(a){
@@ -134,6 +149,22 @@ export default function Admins({ admins, clients=[], currentUser, onRefresh }) {
                 : 'Modelos antigos ocultos. Só o Opus fica disponível.')
             })}>
               <i className={legadosOn?'ti ti-eye-off':'ti ti-eye'} aria-hidden/>{legadosOn?'Ocultar antigos':'Reabilitar antigos'}
+            </button>
+          </div>
+        </div>
+
+        <div className="section" style={{marginTop:14}}>
+          <div className="sec-hdr"><div className="sec-title">Backup dos dados</div></div>
+          <div style={{padding:'12px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
+            <div style={{flex:1,minWidth:240}}>
+              <div style={{fontSize:13,fontWeight:600}}>Baixar uma cópia de tudo</div>
+              <div style={{fontSize:11.5,color:'var(--text3)',marginTop:3,lineHeight:1.5}}>
+                Gera <b>um arquivo</b> com todos os clientes, orçamentos, projetos, catálogo e estoque, e baixa na sua pasta <b>Downloads</b>. Guarde num pen drive ou nuvem. <b style={{color:'var(--warn,#B45309)'}}>Contém dados de cliente e senhas</b> — guarde em lugar privado.
+                {bkpMsg && <div style={{marginTop:6,fontWeight:600,color: bkpMsg.startsWith('Erro')?'#DC2626': bkpMsg.startsWith('✓')?'#059669':'var(--text2)'}}>{bkpMsg}</div>}
+              </div>
+            </div>
+            <button className="btn primary" style={{flexShrink:0}} disabled={bkpBusy} onClick={baixarBackup}>
+              <i className={bkpBusy?'ti ti-loader-2':'ti ti-download'} aria-hidden/>{bkpBusy?'Gerando…':'Baixar backup'}
             </button>
           </div>
         </div>

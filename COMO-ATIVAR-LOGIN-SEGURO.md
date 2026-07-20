@@ -10,7 +10,7 @@ pela sua conta Supabase e Google. Uma vez só.
 
 1. Entre no seu projeto em https://supabase.com
 2. Menu lateral: **SQL Editor** > **New query**.
-3. Abra o arquivo **SUPABASE_LOGIN_SEGURO.sql** (vem junto), copie tudo, cole.
+3. Abra **supabase/migrations/20260101000007_login_seguro_rls.sql**, copie tudo, cole.
 4. Clique em **Run**.
 
 Pronto. Agora o banco só entrega dados pra quem fez login de verdade.

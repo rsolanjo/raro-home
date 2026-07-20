@@ -1,0 +1,299 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- RARO Home — SCHEMA BASE (estrutura, SEM dados)
+--
+-- Extraído da produção (projeto vefbhuspedzcusorgbdh, sa-east-1) em 2026-07-18
+-- via consulta ao pg_catalog. Recria o banco do ZERO em qualquer projeto novo.
+-- NÃO contém nenhum dado de cliente/orçamento/credencial — pode ser versionado.
+--
+-- Roda ANTES das outras migrations (por isso o nome com zeros). É idempotente:
+-- IF NOT EXISTS em tudo, então rodar de novo não quebra.
+--
+-- Fonte da verdade: 13 tabelas, sem funções/triggers/enums/índices extras.
+-- RLS ligada em todas menos catalog_subcategories; políticas permissivas
+-- (anon/authenticated/public = acesso total) — é o padrão atual do app.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Sequência manual (as demais são 'generated as identity', criadas junto da tabela)
+create sequence if not exists public.catalog_subcategories_id_seq;
+
+-- ── TABELAS ────────────────────────────────────────────────────────────────
+
+create table if not exists public.suppliers (
+  id bigint generated always as identity not null,
+  name text not null,
+  contact text,
+  site text,
+  ml_link text,
+  avg_delivery_days integer,
+  categories text,
+  notes text,
+  created_at timestamp with time zone default now()
+);
+
+create table if not exists public.clients (
+  id bigint generated always as identity not null,
+  name1 text,
+  name2 text,
+  full_name1 text,
+  full_name2 text,
+  phone1 text,
+  phone2 text,
+  email text,
+  neighborhood text,
+  city text,
+  housing_type text,
+  total_rooms integer,
+  area_m2 numeric(8,1),
+  notes text,
+  wa_group_clients text,
+  wa_group_obra text,
+  plant_file text,
+  created_at date default CURRENT_DATE,
+  cep text,
+  street text,
+  number text,
+  complement text,
+  state text,
+  planta_medidas jsonb,
+  planta_eletrica jsonb,
+  diary_obra jsonb default '[]'::jsonb,
+  updated_at timestamp with time zone default now()
+);
+
+create table if not exists public.proposals (
+  id bigint generated always as identity not null,
+  client_id bigint,
+  client_name text,
+  neighborhood text,
+  code text,
+  description text,
+  status text default 'draft'::text,
+  labor numeric(10,2) default 0,
+  floors jsonb default '[]'::jsonb,
+  valid_days integer default 30,
+  created_at date default CURRENT_DATE,
+  updated_at timestamp with time zone default now(),
+  planta_data jsonb,
+  exec_doc text,
+  proposal_type text,
+  labor_by_cat jsonb default '{}'::jsonb,
+  planta_cliente jsonb,
+  approved_type text,
+  approved_value numeric,
+  approved_at timestamp with time zone,
+  exec_value numeric,
+  exec_api_cost jsonb,
+  versions jsonb,
+  exec_doc_obra text,
+  exec_doc_eletrica text,
+  exec_doc_conduites text,
+  visita jsonb
+);
+
+create table if not exists public.projects (
+  id bigint generated always as identity not null,
+  client_id bigint,
+  client_name text,
+  description text,
+  type text,
+  phase text default 'visit'::text,
+  in_obra boolean default false,
+  deadline date,
+  area_m2 numeric(8,1),
+  visit_date date,
+  visit_notes text,
+  measurement_date date,
+  cables jsonb default '{}'::jsonb,
+  cable_paths text,
+  plant_link text,
+  heatmap_link text,
+  heatmap_notes text,
+  ir_map text,
+  purchase_list jsonb default '[]'::jsonb,
+  rooms_config jsonb default '[]'::jsonb,
+  annotations jsonb default '[]'::jsonb,
+  notes text,
+  created_at date default CURRENT_DATE,
+  proposal_id bigint,
+  proposal_code text,
+  travel_origin text default 'Campo Grande, Rio de Janeiro'::text,
+  travel_km numeric(8,1) default 0,
+  travel_visits integer default 5,
+  fuel_price numeric(6,2) default 6.50,
+  fuel_consumption numeric(4,1) default 8.0,
+  labor_hours_estimated numeric(6,1) default 0,
+  labor_hours_actual numeric(6,1) default 0,
+  hourly_rate numeric(8,2) default 150.00,
+  third_party_costs jsonb default '[]'::jsonb,
+  diary jsonb,
+  diary_types jsonb,
+  updated_at timestamp with time zone default now()
+);
+
+create table if not exists public.catalog (
+  id bigint generated always as identity not null,
+  code text not null,
+  name text not null,
+  category text,
+  cost_price numeric(10,2) default 0,
+  sale_price numeric(10,2) default 0,
+  pitch text,
+  buy_link text,
+  supplier_id bigint,
+  created_at timestamp with time zone default now(),
+  subcategory text
+);
+
+create table if not exists public.catalog_categories (
+  id bigint generated always as identity not null,
+  name text not null
+);
+
+create table if not exists public.catalog_subcategories (
+  id integer not null default nextval('catalog_subcategories_id_seq'::regclass),
+  category text not null,
+  name text not null
+);
+
+create table if not exists public.stock (
+  id bigint generated always as identity not null,
+  code text not null,
+  name text not null,
+  category text,
+  qty integer default 0,
+  min_qty integer default 2,
+  cost_price numeric(10,2) default 0,
+  unit_price numeric(10,2) default 0,
+  buy_link text,
+  supplier_id bigint,
+  updated_at timestamp with time zone default now()
+);
+
+create table if not exists public.stock_log (
+  id bigint generated always as identity not null,
+  action text,
+  code text,
+  name text,
+  qty integer,
+  qty_before integer,
+  qty_after integer,
+  author text,
+  note text,
+  date timestamp with time zone default now(),
+  snapshot text
+);
+
+create table if not exists public.reservations (
+  id bigint generated always as identity not null,
+  proposal_id bigint,
+  proposal_code text,
+  client_name text,
+  code text,
+  qty integer,
+  reserved_at timestamp with time zone default now()
+);
+
+create table if not exists public.admins (
+  id bigint generated always as identity not null,
+  name text not null,
+  gmail text not null,
+  role text not null default 'admin'::text,
+  created_at timestamp with time zone default now(),
+  client_id text,
+  obra_scope text default 'all'::text,
+  client_ids jsonb default '[]'::jsonb,
+  updated_at timestamp with time zone default now()
+);
+
+create table if not exists public.audit_log (
+  id bigint generated always as identity not null,
+  date timestamp with time zone default now(),
+  module text,
+  action text,
+  entity_id bigint,
+  entity_name text,
+  user_name text,
+  before text,
+  after text
+);
+
+create table if not exists public.tools (
+  id bigint generated always as identity not null,
+  name text not null,
+  description text,
+  link text,
+  icon text,
+  created_at timestamp with time zone default now()
+);
+
+-- ── CHAVES PRIMÁRIAS E ÚNICAS ──────────────────────────────────────────────
+alter table public.suppliers            add constraint suppliers_pkey primary key (id);
+alter table public.clients              add constraint clients_pkey primary key (id);
+alter table public.proposals            add constraint proposals_pkey primary key (id);
+alter table public.proposals            add constraint proposals_code_key unique (code);
+alter table public.projects             add constraint projects_pkey primary key (id);
+alter table public.catalog              add constraint catalog_pkey primary key (id);
+alter table public.catalog              add constraint catalog_code_key unique (code);
+alter table public.catalog_categories   add constraint catalog_categories_pkey primary key (id);
+alter table public.catalog_categories   add constraint catalog_categories_name_key unique (name);
+alter table public.catalog_subcategories add constraint catalog_subcategories_pkey primary key (id);
+alter table public.catalog_subcategories add constraint catalog_subcategories_unique unique (category, name);
+alter table public.stock                add constraint stock_pkey primary key (id);
+alter table public.stock                add constraint stock_code_key unique (code);
+alter table public.stock_log            add constraint stock_log_pkey primary key (id);
+alter table public.reservations         add constraint reservations_pkey primary key (id);
+alter table public.admins               add constraint admins_pkey primary key (id);
+alter table public.admins               add constraint admins_gmail_key unique (gmail);
+alter table public.audit_log            add constraint audit_log_pkey primary key (id);
+alter table public.tools                add constraint tools_pkey primary key (id);
+
+-- ── CHAVES ESTRANGEIRAS (depois de todas as tabelas existirem) ─────────────
+alter table public.proposals    add constraint proposals_client_id_fkey    foreign key (client_id)   references public.clients(id)   on delete set null;
+alter table public.projects     add constraint projects_client_id_fkey     foreign key (client_id)   references public.clients(id)   on delete set null;
+alter table public.projects     add constraint projects_proposal_id_fkey   foreign key (proposal_id) references public.proposals(id) on delete set null;
+alter table public.catalog      add constraint catalog_supplier_id_fkey    foreign key (supplier_id) references public.suppliers(id) on delete set null;
+alter table public.stock        add constraint stock_supplier_id_fkey      foreign key (supplier_id) references public.suppliers(id) on delete set null;
+alter table public.reservations add constraint reservations_proposal_id_fkey foreign key (proposal_id) references public.proposals(id) on delete cascade;
+
+-- ── ROW LEVEL SECURITY ─────────────────────────────────────────────────────
+-- catalog_subcategories fica SEM RLS (igual à produção). As demais habilitam.
+alter table public.suppliers          enable row level security;
+alter table public.clients            enable row level security;
+alter table public.proposals          enable row level security;
+alter table public.projects           enable row level security;
+alter table public.catalog            enable row level security;
+alter table public.catalog_categories enable row level security;
+alter table public.stock              enable row level security;
+alter table public.stock_log          enable row level security;
+alter table public.reservations       enable row level security;
+alter table public.admins             enable row level security;
+alter table public.audit_log          enable row level security;
+alter table public.tools              enable row level security;
+
+-- ── POLÍTICAS (permissivas — mesmo padrão atual do app) ────────────────────
+-- Acesso via anon key (o app usa a anon) e authenticated (login seguro).
+create policy anon_full_admins              on public.admins             as permissive for all to anon using (true) with check (true);
+create policy raro_auth_all                 on public.admins             as permissive for all to authenticated using (true) with check (true);
+create policy anon_full_clients             on public.clients            as permissive for all to anon using (true) with check (true);
+create policy raro_auth_all                 on public.clients            as permissive for all to authenticated using (true) with check (true);
+create policy anon_full_proposals           on public.proposals          as permissive for all to anon using (true) with check (true);
+create policy raro_auth_all                 on public.proposals          as permissive for all to authenticated using (true) with check (true);
+create policy anon_full_projects            on public.projects           as permissive for all to anon using (true) with check (true);
+create policy raro_auth_all                 on public.projects           as permissive for all to authenticated using (true) with check (true);
+create policy anon_full_catalog             on public.catalog            as permissive for all to anon using (true) with check (true);
+create policy raro_auth_all                 on public.catalog            as permissive for all to authenticated using (true) with check (true);
+create policy anon_full_catalog_categories  on public.catalog_categories as permissive for all to anon using (true) with check (true);
+create policy allow_all_cat_cat             on public.catalog_categories as permissive for all to public using (true) with check (true);
+create policy anon_full_stock               on public.stock              as permissive for all to anon using (true) with check (true);
+create policy raro_auth_all                 on public.stock              as permissive for all to authenticated using (true) with check (true);
+create policy anon_full_stock_log           on public.stock_log          as permissive for all to anon using (true) with check (true);
+create policy raro_auth_all                 on public.stock_log          as permissive for all to authenticated using (true) with check (true);
+create policy anon_full_reservations        on public.reservations       as permissive for all to anon using (true) with check (true);
+create policy allow_all_reserv              on public.reservations       as permissive for all to public using (true) with check (true);
+create policy anon_full_suppliers           on public.suppliers          as permissive for all to anon using (true) with check (true);
+create policy raro_auth_all                 on public.suppliers          as permissive for all to authenticated using (true) with check (true);
+create policy anon_full_tools               on public.tools              as permissive for all to anon using (true) with check (true);
+create policy raro_auth_all                 on public.tools              as permissive for all to authenticated using (true) with check (true);
+create policy anon_full_audit_log           on public.audit_log          as permissive for all to anon using (true) with check (true);
+create policy allow_all_audit               on public.audit_log          as permissive for all to public using (true) with check (true);
+create policy raro_auth_all                 on public.audit_log          as permissive for all to authenticated using (true) with check (true);

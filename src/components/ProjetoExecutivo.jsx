@@ -999,16 +999,45 @@ function AddRoomInline({ onAdd }){
   )
 }
 
+// ── PLANTAS POR PAVIMENTO (modelo/armazenamento) ─────────────────────────────────
+// Prepara o dado pra receber UMA planta por pavimento (Raphael: a imagem única de todos os
+// andares fica com resolução ruim). RETROCOMPATÍVEL: projeto antigo (imagem única) vira
+// automaticamente "1 pavimento", sem quebrar nada. Cada pavimento: {id, nome, image, imgRatio}.
+// Cada marcador ganha floorId. O editor e a geração ainda NÃO usam multi-pavimento — por ora só
+// o formato de dados e a persistência estão prontos.
+function normalizePlantaFloors(planta){
+  if(!planta) return { floors:[], activeId:'pav-1' }
+  let floors = (Array.isArray(planta.floors) && planta.floors.length) ? planta.floors : null
+  if(!floors){ // legado: imagem única → 1 pavimento
+    floors = planta.image ? [{ id:'pav-1', nome:'Pavimento único', image:planta.image, imgRatio:planta.imgRatio||0.75 }] : []
+  }
+  return { floors, activeId: (floors[0] && floors[0].id) || 'pav-1' }
+}
+
 function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal, onSaveToProposal, onClose, currentUser }) {
   // planta_data pode vir como objeto OU string JSON (do Supabase) — normaliza
   const initPlanta = (()=>{ let pd=fromProposal?.planta_data; if(typeof pd==='string'){try{pd=JSON.parse(pd)}catch{pd=null}} return pd||null })()
   const initPlantaCliente = (()=>{ let pd=fromProposal?.planta_cliente; if(typeof pd==='string'){try{pd=JSON.parse(pd)}catch{pd=null}} return pd||null })()
   const [step, setStep] = useState(()=> (initPlanta?.markers?.length || initPlanta?.image) ? 'editor' : 'upload')
   const [bgImage, setBgImage] = useState(()=> initPlanta?.image || null)
+  // Pavimentos: migra o legado (imagem única → 1 pavimento). Por ora há sempre 1 pavimento ativo;
+  // o bgImage segue sendo a imagem do pavimento ativo, então o editor atual não muda de comportamento.
+  const [plantaFloors, setPlantaFloors] = useState(()=> normalizePlantaFloors(initPlanta).floors)
+  const [activeFloorId, setActiveFloorId] = useState(()=> normalizePlantaFloors(initPlanta).activeId)
   const [chat, setChat] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [markers, setMarkers] = useState(()=> initPlanta?.markers || [])
+  const [markers, setMarkers] = useState(()=>{ const fid=normalizePlantaFloors(initPlanta).activeId; return (initPlanta?.markers||[]).map(m=> m.floorId ? m : {...m, floorId:fid}) })
+  // Monta o array de pavimentos pra salvar, com a imagem/ratio do pavimento ATIVO sincronizados com
+  // o que está no editor agora. Com 1 pavimento é igual ao de sempre — só que já no formato novo.
+  const _floorsSave = () => {
+    const fid = activeFloorId || (plantaFloors[0] && plantaFloors[0].id) || 'pav-1'
+    const base = plantaFloors.length ? plantaFloors : [{ id:fid, nome:'Pavimento único', image:bgImage, imgRatio }]
+    return base.map(f=> f.id===fid ? { ...f, image:bgImage, imgRatio } : f)
+  }
+  const _mkSave = () => (markers||[]).map(m=> m.floorId ? m : { ...m, floorId: activeFloorId || 'pav-1' })
+  // Payload único de planta_data pra TODOS os saves — garante floors[] + floorId sempre.
+  const plantaDataSave = (exec_data) => ({ image:bgImage, floors:_floorsSave(), markers:_mkSave(), cables, scale:plantScale, calibSamples, imgRatio, folgaPct, exec_data, credenciais:creds })
   const [history, setHistory] = useState([])   // pilha de estados anteriores de markers (undo)
   // ── Roteamento de cabos (planta elétrica) ──
   const [cableMode, setCableMode]   = useState(false)        // ativa o modo de traçar cabos
@@ -1087,6 +1116,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [filterCateg, setFilterCateg] = useState(new Set())   // categorias selecionadas (vazio = todas)
   const [filterItem, setFilterItem] = useState('')            // filtra mapa por nome de item (resumo)
   const [showRackModal, setShowRackModal] = useState(false)
+  const [showFloorsModal, setShowFloorsModal] = useState(false)
   const [rackEquip, setRackEquip] = useState([])   // [{code,name,qty,u}]
   // gerador de ID único e monotônico (evita colisão de Date.now() em cliques rápidos)
   const _uidSeq = React.useRef(0)
@@ -1364,11 +1394,34 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
       let url=ev.target.result
       if(f.type==='application/pdf'){ try{ url=await pdfToImg(url.split(',')[1]) }catch(err){ alert('Erro PDF: '+err.message); return } }
       url=await downscale(url)
-      setBgImage(url)
-      // mantém o step atual (editor) e os markers — não reinicia
+      const ratio=await _imgRatioOf(url)
+      setBgImage(url); setImgRatio(ratio)
+      // Sincroniza a imagem do pavimento ATIVO (mantém markers; não reinicia).
+      setPlantaFloors(fs=>{ const fid=activeFloorId||'pav-1'
+        return fs.some(x=>x.id===fid) ? fs.map(x=>x.id===fid?{...x,image:url,imgRatio:ratio}:x)
+                                      : [{id:fid,nome:'Pavimento único',image:url,imgRatio:ratio}] })
     }
     reader.readAsDataURL(f)
   }
+  // ── PAVIMENTOS: upload de UMA imagem por andar (Raphael) ─────────────────────────
+  function _imgRatioOf(url){ return new Promise(res=>{ try{ const im=new Image(); im.onload=()=>res(im.naturalWidth?im.naturalHeight/im.naturalWidth:0.75); im.onerror=()=>res(0.75); im.src=url }catch(_){ res(0.75) } }) }
+  function newFloorId(){ const n=plantaFloors.reduce((m,f)=>Math.max(m, parseInt(String(f.id).replace(/\D/g,''),10)||0),0); return 'pav-'+(n+1) }
+  function setActiveFloor(id){ const f=plantaFloors.find(x=>x.id===id); setActiveFloorId(id); if(f){ setBgImage(f.image||null); if(f.imgRatio) setImgRatio(f.imgRatio) } }
+  function addFloor(){ const id=newFloorId(); const nome='Pavimento '+(plantaFloors.length+1); setPlantaFloors(fs=>[...fs,{id,nome,image:null,imgRatio:0.75}]) } // não troca o ativo — sobe a imagem e depois "Editar"
+  function renameFloor(id,nome){ setPlantaFloors(fs=>fs.map(f=>f.id===id?{...f,nome}:f)) }
+  function deleteFloor(id){ if(plantaFloors.length<=1){ alert('Precisa haver ao menos um pavimento.'); return }
+    if(!confirm('Remover este pavimento? Os pontos marcados nele continuam no projeto (ficam sem andar até você reatribuir).')) return
+    setPlantaFloors(fs=>{ const rest=fs.filter(f=>f.id!==id)
+      if(activeFloorId===id && rest[0]){ setActiveFloorId(rest[0].id); setBgImage(rest[0].image||null); if(rest[0].imgRatio) setImgRatio(rest[0].imgRatio) }
+      return rest }) }
+  async function handleFloorImage(id,e){ const f=e.target.files[0]; if(!f) return
+    const reader=new FileReader()
+    reader.onload=async ev=>{ let url=ev.target.result
+      if(f.type==='application/pdf'){ try{ url=await pdfToImg(url.split(',')[1]) }catch(err){ alert('Erro PDF: '+err.message); return } }
+      url=await downscale(url); const ratio=await _imgRatioOf(url)
+      setPlantaFloors(fs=>fs.map(x=>x.id===id?{...x,image:url,imgRatio:ratio}:x))
+      if(id===activeFloorId){ setBgImage(url); setImgRatio(ratio) } }
+    reader.readAsDataURL(f); e.target.value='' }
 
   // ETAPA 1: IA identifica cômodos com posições (x,y %) na imagem
   async function startRooms(imgUrl){
@@ -1600,7 +1653,7 @@ Responda APENAS JSON válido:
     const ehPrumada = addItem.eleType==='prumada'
     setMarkers(ms=>{
       const newId = genItemId('', sub, ms)
-      return [...ms,{uid:uniqId('mk'),n:ms.length+1,id:newId,code:addItem.code,name:addItem.name,
+      return [...ms,{uid:uniqId('mk'),n:ms.length+1,id:newId,code:addItem.code,name:addItem.name,floorId:activeFloorId,
         room:'',x,y,note:addItem.note||'',cost:addItem.cost_price||0,sale:addItem.sale_price||0,category:cat,subcategory:sub||'',
         ...(addItem.eleType?{eleType:addItem.eleType}:{}),
         ...(addItem.prumadaCode?{prumadaCode:addItem.prumadaCode}:{}),
@@ -2273,7 +2326,7 @@ Responda APENAS JSON válido:
       setStep('exec')
       if(fromProposal?.id){
         import('../db/supabase.js').then(({saveProposal})=>{
-          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:data, credenciais:creds} }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
+          saveProposal({ ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:plantaDataSave(data) }).catch(e=>console.warn('Auto-save manual falhou:',e.message))
         })
       }
     } catch(err){
@@ -2375,7 +2428,7 @@ Responda APENAS JSON válido:
       if(fromProposal?.id){
         try{
           const { saveProposal } = await import('../db/supabase.js')
-          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:data, credenciais:creds} }
+          const updated = { ...fromProposal, exec_doc:full, exec_doc_obra:obra, exec_doc_eletrica:eletrica, exec_doc_conduites:conduites, planta_data:plantaDataSave(data) }
           await saveProposal(updated)
         }catch(e){ console.warn('Auto-save falhou:', e.message) }
       }
@@ -2417,6 +2470,21 @@ Responda APENAS JSON válido:
         points: (c.points||[]).map(pt=>({ ...pt, ...T(pt.x,pt.y) })) })),
       ratio: 1/(imgRatio||0.75),
     }
+  }
+  // Views da planta POR PAVIMENTO — uma por andar que tenha imagem, já com os pontos e cabos
+  // daquele andar. Com 1 pavimento devolve exatamente a view de hoje (inclusive a rotação do
+  // _docView), então nada muda nos projetos de imagem única.
+  // NOTA: com vários pavimentos a rotação (Paisagem/Retrato) não é aplicada — cada andar entra
+  // na orientação natural da sua própria imagem.
+  function _docViewsPorPav(){
+    const comImagem=(plantaFloors||[]).filter(f=>f.image)
+    if(comImagem.length<=1) return [{ ..._docView(), nome:null }]
+    return comImagem.map(f=>{
+      const mks=(markers||[]).filter(m=>(m.floorId||activeFloorId)===f.id)
+      const uids=new Set(mks.map(m=>m.uid))
+      const cbs=(cables||[]).filter(c=> (!c.fromUid||uids.has(c.fromUid)) && (!c.toUid||uids.has(c.toUid)) )
+      return { bg:f.image, mks, cbs, ratio:f.imgRatio||imgRatio, nome:f.nome||'Pavimento' }
+    })
   }
   function buildExecHtml(d, mode='completo', versao, embedded=false){
     const { bg:bgImage, mks:markers, cbs:cables, ratio:imgRatio } = _docView()
@@ -2973,14 +3041,16 @@ Responda APENAS JSON válido:
     // célula <td> com o pino fiel à planta (forma + cor), ou — quando não casar
     const pinCell = (...keys)=>{ const m=_findMk(...keys); return `<td style="text-align:center">${m?pinMk(m):'<span style="color:#CBD5E1">—</span>'}</td>` }
 
-    // Planta com marcadores
+    // Planta com marcadores — UMA POR PAVIMENTO (com 1 andar sai igual a antes)
     let planta=''
-    if(bgImage){
-      const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
+    {
+      const _dotsDe = mks => mks.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         const f=cableFamily(familiaDoPontoTipo(m))
         const badge=(showCabo && !famOculta(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:_pinLabel(m),size:22})}${badge}</div>`}).join('')
-      planta=`<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
+      const blocos=_docViewsPorPav().filter(v=>v.bg).map(v=>
+        `${v.nome?`<h3 class="ex-amb">${esc(v.nome)} · ${v.mks.length} ponto${v.mks.length===1?'':'s'}</h3>`:''}<div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${v.bg}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${_dotsDe(v.mks)}</div>`).join('')
+      if(blocos) planta=`<div class="ex-sec"><h2>Planta de Pontos</h2>${blocos}${showLegenda?legendaMestreHtml:""}</div>`
     }
 
     const sec=(title,inner)=>inner?`<div class="ex-sec"><h2>${title}</h2>${inner}</div>`:''
@@ -3549,15 +3619,18 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   </div>
 
   ${(()=>{ if(isObra||_eletr||secOff('t_planta')) return ''
-    if(bgImage){
-      const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
+    {
+      // UMA planta por pavimento (com 1 andar sai igual a antes)
+      const _dotsDe = mks => mks.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
         const f=cableFamily(familiaDoPontoTipo(m))
         const badge=showCabo?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         // 18px = mesmo tamanho da "Planta Completa" do Plano de Obra, que o Raphael aprovou.
         // Estava 24px: 33% maior numa planta MAIS ESTREITA, então proporcionalmente o pino
         // dominava o desenho. O número acompanha (o SVG é viewBox 24 escalado por size).
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:${PIN_PX}px;height:${PIN_PX}px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:_pinLabel(m),size:PIN_PX})}${badge}</div>`}).join('')
-      return `<div class="ex-sec"><h2>Planta de Pontos</h2><div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${dots}</div>${showLegenda?legendaMestreHtml:""}</div>`
+      const blocos=_docViewsPorPav().filter(v=>v.bg).map(v=>
+        `${v.nome?`<h3 class="ex-amb">${esc(v.nome)} · ${v.mks.length} ponto${v.mks.length===1?'':'s'}</h3>`:''}<div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${v.bg}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${_dotsDe(v.mks)}</div>`).join('')
+      if(blocos) return `<div class="ex-sec"><h2>Planta de Pontos</h2>${blocos}${showLegenda?legendaMestreHtml:""}</div>`
     }
     return ''
   })()}
@@ -5009,7 +5082,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(fromProposal?.id){
       try{
         const { saveProposal } = await import('../db/supabase.js')
-        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:execData, credenciais:creds}, exec_api_cost:apiCost }
+        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, planta_data:plantaDataSave(execData), exec_api_cost:apiCost }
         await saveProposal(updated)
         alert(`✅ Salvo no orçamento! A página vai atualizar.`)
         onClose && onClose()
@@ -5017,7 +5090,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         return
       }catch(e){ alert('Erro ao salvar: '+e.message); return }
     }
-    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:{image:bgImage,markers,cables,scale:plantScale,calibSamples,imgRatio,folgaPct,exec_data:execData, credenciais:creds}, client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, exec_api_cost:apiCost })
+    if(onSaveToProposal) onSaveToProposal({ floors, planta_data:plantaDataSave(execData), client_name:projectInfo.client||selClient, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, exec_api_cost:apiCost })
   }
 
   const catGroups={}
@@ -5663,12 +5736,25 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <button onClick={()=>setShowCreds(true)} style={{height:32,borderRadius:6,border:'1px solid #F59E0B',background:'rgba(245,158,11,0.18)',color:'#FCD34D',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="SSIDs, VLANs e senhas do projeto. No documento saem mascaradas.">
                   <i className="ti ti-key" aria-hidden/>Credenciais{(creds.wifi||[]).filter(w=>w.ssid||w.senha).length||creds.cams.user||creds.cams.senha?' ✓':''}
                 </button>
-                <button onClick={e=>{e.stopPropagation();bgOnlyRef.current?.click()}} style={{height:32,borderRadius:6,border:'none',background:'#0EA5E9',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}}><i className="ti ti-upload" aria-hidden/>{bgImage?'Trocar planta':'Carregar planta'}</button>
+                <button onClick={()=>setShowFloorsModal(true)} style={{height:32,borderRadius:6,border:'1px solid #0EA5E9',background:'rgba(14,165,233,0.18)',color:'#7DD3FC',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Uma planta por pavimento — suba a imagem de cada andar em alta resolução."><i className="ti ti-stack-2" aria-hidden/>Pavimentos{plantaFloors.length>1?` (${plantaFloors.length})`:''}</button>
+                <button onClick={e=>{e.stopPropagation();bgOnlyRef.current?.click()}} style={{height:32,borderRadius:6,border:'none',background:'#0EA5E9',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 12px',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit',fontWeight:600}} title="Troca a imagem do pavimento ativo."><i className="ti ti-upload" aria-hidden/>{bgImage?'Trocar planta':'Carregar planta'}</button>
                 <input ref={bgOnlyRef} type="file" accept="image/*,application/pdf,.pdf" style={{display:'none'}} onChange={handleBgOnly}/>
                 <button onClick={()=>setZoom(z=>Math.max(0.5,z-0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>−</button>
                 <span style={{color:'#fff',fontSize:11,display:'flex',alignItems:'center',padding:'0 4px'}}>{Math.round(zoom*100)}%</span>
                 <button onClick={()=>setZoom(z=>Math.min(3,z+0.25))} style={{width:32,height:32,borderRadius:6,border:'none',background:'rgba(255,255,255,0.15)',color:'#fff',cursor:'pointer',fontSize:16}}>+</button>
               </div>
+              {plantaFloors.length>1 && <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',padding:'0 0 8px',justifyContent:'center'}}>
+                <span style={{fontSize:10,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.6,marginRight:2}}>Pavimento</span>
+                {plantaFloors.map((f,i)=>{ const ativo=f.id===activeFloorId; const n=markers.filter(m=>(m.floorId||activeFloorId)===f.id).length
+                  return <button key={f.id} onClick={()=>setActiveFloor(f.id)} title={f.image?'Editar este pavimento':'Este pavimento ainda não tem imagem'}
+                    style={{height:30,padding:'0 12px',borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontSize:11.5,fontWeight:ativo?700:500,display:'flex',alignItems:'center',gap:6,
+                      border:`1px solid ${ativo?'#0EA5E9':'rgba(255,255,255,0.18)'}`,background:ativo?'rgba(14,165,233,0.22)':'rgba(255,255,255,0.05)',color:ativo?'#7DD3FC':'rgba(255,255,255,0.7)'}}>
+                    {!f.image && <span title="sem imagem" style={{opacity:0.6}}>○</span>}
+                    {f.nome||`Pavimento ${i+1}`}
+                    <span style={{fontSize:9.5,opacity:0.7}}>{n}</span>
+                  </button> })}
+                <button onClick={()=>setShowFloorsModal(true)} title="Gerenciar pavimentos" style={{height:30,width:30,borderRadius:8,cursor:'pointer',border:'1px dashed rgba(255,255,255,0.25)',background:'transparent',color:'rgba(255,255,255,0.6)',fontSize:14,fontFamily:'inherit'}}>+</button>
+              </div>}
               <div ref={containerRef} style={{position:'relative',display:'block',margin:'0 auto',cursor:addMode?'crosshair':'default',width:bgImage?`${zoom*100}%`:`${Math.min(640*zoom,window.innerWidth*0.82)}px`,transformOrigin:'top center'}} onClick={onCanvasClick}>
                 {bgImage ? <img src={bgImage} style={{display:'block',width:'100%',pointerEvents:'none'}} draggable={false} onLoad={e=>{const im=e.target; if(im.naturalWidth)setImgRatio(im.naturalHeight/im.naturalWidth); computeContentBox(im)}}/>
                   : <div style={{width:'100%',aspectRatio:'4/3',background:'repeating-linear-gradient(0deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px),repeating-linear-gradient(90deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 40px)',backgroundColor:'rgba(255,255,255,0.02)',border:'2px dashed rgba(255,255,255,0.15)',borderRadius:10,position:'relative'}}>
@@ -5680,6 +5766,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     // conduítes livres: respeitam hideConduites; em modo edição, oculta TODOS exceto o selecionado
                     if(c.free && (hideConduites || (conduitEditMode && c.id!==selCable))) return null
                     if(!c.free && hideCables) return null
+                    // PAVIMENTO: cabo cujos pontos são de outro andar não aparece aqui.
+                    // (conduíte livre não tem ponta — segue visível em todos os andares por ora)
+                    { const _fa=(markers.find(x=>x.uid===c.fromUid)||{}).floorId
+                      const _fb=(markers.find(x=>x.uid===c.toUid)||{}).floorId
+                      if((_fa&&_fa!==activeFloorId)||(_fb&&_fb!==activeFloorId)) return null }
                     // oculta o cabo conforme a categoria FILTRADA. Usa o tipo do cabo (não os itens),
                     // assim cabos que tocam prumada/quadro/rack (estruturais) não somem indevidamente.
                     if(filterCateg.size>0 && !c.free){
@@ -5796,11 +5887,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   const matchC=filterCateg.size===0||filterCateg.has(inferCategory(m.name||'').cat||'Outros')
                   const matchI=!filterItem||m.name===filterItem
                   const matchL=filterLevels.size===0||filterLevels.has(alturaOf(m))
+                  // PAVIMENTO: só os pontos do andar ativo. Ponto sem floorId (legado em memória)
+                  // aparece no ativo pra não sumir do mapa.
+                  const matchF=(m.floorId||activeFloorId)===activeFloorId
                   const isRack = isRackItem(m.name||'', m.code||'')
                   const _ele = classifyEle(m)
                   const isCaixaCond = _ele?.sym==='caixa_conduite'
                   const isQuadro = _ele?.sym==='quadro' || _ele?.sym==='prumada' || isCaixaCond
-                  const visible = ((isRack||isQuadro) ? (matchS&&matchR&&matchI && !(isCaixaCond&&hideCaixas)) : (matchS&&matchR&&matchC&&matchI)) && matchL  // filtro de nível vale para todos
+                  const visible = ((isRack||isQuadro) ? (matchS&&matchR&&matchI && !(isCaixaCond&&hideCaixas)) : (matchS&&matchR&&matchC&&matchI)) && matchL && matchF  // nível e pavimento valem para todos
                   const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
                   const sel=selected===m.uid
                   const isCableOrigin = cableDraft?.fromUid===m.uid
@@ -6140,7 +6234,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   <div style={{fontSize:11,color:'#38BDF8',fontWeight:600,marginBottom:10,textTransform:'uppercase'}}>Resumo</div>
                   <div style={{fontSize:12,color:'rgba(255,255,255,0.7)',lineHeight:1.8}}>{markers.length} equipamentos posicionados</div>
                   {(filterRooms.size>0||filterCateg.size>0||editorSearch||filterItem)&&<div style={{marginTop:8,fontSize:11,color:'#38BDF8',background:'rgba(56,189,248,0.1)',padding:'6px 8px',borderRadius:5}}>
-                    Visíveis: {markers.filter(m=>{const s=editorSearch.toLowerCase();return(!editorSearch||m.name?.toLowerCase().includes(s)||m.code?.toLowerCase().includes(s)||m.room?.toLowerCase().includes(s))&&(filterRooms.size===0||filterRooms.has(m.room||'Sem cômodo'))&&(filterCateg.size===0||filterCateg.has(inferCategory(m.name||'').cat||'Outros'))&&(!filterItem||m.name===filterItem)}).length} / {markers.length}
+                    Visíveis: {markers.filter(m=>{const s=editorSearch.toLowerCase();return((m.floorId||activeFloorId)===activeFloorId)&&(!editorSearch||m.name?.toLowerCase().includes(s)||m.code?.toLowerCase().includes(s)||m.room?.toLowerCase().includes(s))&&(filterRooms.size===0||filterRooms.has(m.room||'Sem cômodo'))&&(filterCateg.size===0||filterCateg.has(inferCategory(m.name||'').cat||'Outros'))&&(!filterItem||m.name===filterItem)}).length} / {markers.length}
                   </div>}
                   <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginTop:10,lineHeight:1.6}}>
                     {conduitMode ? 'Clique na planta para traçar o conduíte.' : cableMode ? 'Clique na origem, depois no destino.' : 'Clique num marcador para editar.\nArraste para mover.\nUse o painel esquerdo para adicionar.'}
@@ -6294,6 +6388,44 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         }}
       />}
 
+      {showFloorsModal && (()=>{
+        const _btn=(bg,bd,col)=>({height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11.5,fontWeight:600,border:`1px solid ${bd}`,background:bg,color:col,padding:'0 12px',display:'inline-flex',alignItems:'center',gap:6})
+        return <div onClick={()=>setShowFloorsModal(false)} style={{position:'fixed',inset:0,background:'rgba(3,10,20,0.82)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#0F172A',border:'1px solid rgba(255,255,255,0.12)',borderRadius:14,width:'min(680px,96vw)',maxHeight:'90vh',display:'flex',flexDirection:'column',color:'#E2E8F0',fontFamily:'inherit',overflow:'hidden'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 18px',borderBottom:'1px solid rgba(255,255,255,0.1)',flexShrink:0}}>
+              <div><div style={{fontSize:15,fontWeight:700}}>Plantas por pavimento</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Uma imagem por andar, em alta resolução. O pavimento <b>ativo</b> é o que você edita na planta.</div></div>
+              <button onClick={()=>setShowFloorsModal(false)} style={{background:'none',border:'none',color:'#94A3B8',fontSize:24,cursor:'pointer',lineHeight:1}}>×</button>
+            </div>
+            <div style={{padding:'12px 18px',overflowY:'auto'}}>
+              {plantaFloors.length===0 && <div style={{fontSize:12,color:'#94A3B8',marginBottom:10}}>Nenhum pavimento ainda. Adicione o primeiro e suba a imagem dele.</div>}
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                {plantaFloors.map((f,i)=>{ const ativo=f.id===activeFloorId; const nPts=markers.filter(m=>m.floorId===f.id).length
+                  return <div key={f.id} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 10px',borderRadius:10,background:ativo?'rgba(14,165,233,0.1)':'rgba(255,255,255,0.04)',border:`1px solid ${ativo?'#0EA5E9':'rgba(255,255,255,0.08)'}`}}>
+                    <div onClick={()=>setActiveFloor(f.id)} title="Editar este pavimento na planta" style={{width:78,height:58,flexShrink:0,borderRadius:6,overflow:'hidden',background:'#0B1220',border:'1px solid rgba(255,255,255,0.12)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      {f.image ? <img src={f.image} style={{width:'100%',height:'100%',objectFit:'contain'}}/> : <span style={{fontSize:9,color:'#64748B'}}>sem imagem</span>}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <input value={f.nome||''} onChange={e=>renameFloor(f.id,e.target.value)} placeholder={`Pavimento ${i+1}`} style={{width:'100%',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:6,color:'#E2E8F0',fontSize:12.5,fontWeight:600,padding:'5px 8px',fontFamily:'inherit',outline:'none'}}/>
+                      <div style={{fontSize:10,color:'#94A3B8',marginTop:3}}>{nPts} ponto{nPts!==1?'s':''} neste andar {ativo?'· ✎ ativo':''}</div>
+                    </div>
+                    <label style={{..._btn(f.image?'rgba(255,255,255,0.06)':'#0EA5E9',f.image?'rgba(255,255,255,0.2)':'#0EA5E9',f.image?'rgba(255,255,255,0.8)':'#fff'),cursor:'pointer'}}>
+                      <i className="ti ti-upload" aria-hidden/>{f.image?'Trocar':'Subir imagem'}
+                      <input type="file" accept="image/*,application/pdf,.pdf" style={{display:'none'}} onChange={e=>handleFloorImage(f.id,e)}/>
+                    </label>
+                    {!ativo && <button onClick={()=>setActiveFloor(f.id)} style={_btn('rgba(255,255,255,0.06)','rgba(255,255,255,0.2)','rgba(255,255,255,0.75)')}>Editar</button>}
+                    <button onClick={()=>deleteFloor(f.id)} title="Remover pavimento" style={{width:30,height:30,flexShrink:0,borderRadius:7,border:'1px solid rgba(220,38,38,0.4)',background:'rgba(220,38,38,0.12)',color:'#FCA5A5',cursor:'pointer',fontSize:14}}>×</button>
+                  </div> })}
+              </div>
+              <button onClick={addFloor} style={{...( _btn('rgba(16,185,129,0.15)','#059669','#6EE7B7')),marginTop:12,height:34}}><i className="ti ti-plus" aria-hidden/> Adicionar pavimento</button>
+              <div style={{fontSize:10.5,color:'#64748B',marginTop:12,lineHeight:1.5}}>Dica: com vários pavimentos, o editor mostra a planta do pavimento <b>ativo</b>. A troca de andar dentro do editor e a geração dos documentos por pavimento vêm nas próximas etapas — por ora dá pra cadastrar as imagens de cada andar e elas já ficam salvas no projeto.</div>
+            </div>
+            <div style={{padding:'12px 18px',borderTop:'1px solid rgba(255,255,255,0.1)',display:'flex',justifyContent:'flex-end',flexShrink:0}}>
+              <button onClick={()=>setShowFloorsModal(false)} style={{...btnPrimary,padding:'9px 18px'}}>Pronto</button>
+            </div>
+          </div>
+        </div>
+      })()}
+
       {/* Footer actions */}
       {step==='editor' && (
         <div style={{background:'#060B1A',padding:'12px 16px',display:'flex',gap:10,justifyContent:'flex-end',flexShrink:0,alignItems:'center'}}>
@@ -6304,7 +6436,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             if(!fromProposal?.id){ alert('Abra o executivo a partir de um orçamento para poder salvar.'); return }
             try{
               const { saveProposal, addAuditLog } = await import('../db/supabase.js')
-              const updated = { ...fromProposal, planta_data:{image:bgImage, markers, cables, scale:plantScale, imgRatio, folgaPct, exec_data:execData, credenciais:creds} }
+              const updated = { ...fromProposal, planta_data:plantaDataSave(execData) }
               await saveProposal(updated)
               await addAuditLog({ type:'exec_save_markers', user_name:currentUser?.name||'—',
                 after:JSON.stringify({markers:markers.length, rooms:rooms.length, proposal_id:fromProposal.id}) })

@@ -16,6 +16,33 @@ function _demo() {
   } catch { return false }
 }
 
+// ── AMBIENTE (produção × homologação × local) ──────────────────────────────
+// Serve pra você NUNCA confundir a tela de homologação com a de produção.
+// Ordem: 1) VITE_APP_ENV (cadastrada na Vercel por ambiente); 2) fallback pelo
+// hostname — localhost = local, *.vercel.app que não seja o domínio de produção
+// = homologação (preview), qualquer outro (domínio próprio) = produção.
+const PROD_HOSTS = ['raro-home.vercel.app']
+export function appEnv() {
+  try {
+    const v = (import.meta.env?.VITE_APP_ENV || '').trim().toLowerCase()
+    if (v) return v === 'producao' || v === 'production' ? 'producao' : v
+    if (typeof window === 'undefined') return 'producao'
+    const h = (window.location?.hostname || '').toLowerCase()
+    if (h === 'localhost' || h === '127.0.0.1' || h.endsWith('.local')) return 'local'
+    if (PROD_HOSTS.includes(h)) return 'producao'
+    if (h.endsWith('.vercel.app')) return 'homologacao'   // qualquer preview da Vercel
+    return 'producao'                                      // domínio próprio
+  } catch { return 'producao' }
+}
+// Rótulo + cor pro rodapé. Em produção devolve null: rodapé fica limpo como hoje.
+export function appEnvBadge() {
+  const e = appEnv()
+  if (e === 'producao') return null
+  if (e === 'local') return { label: 'local', cor: '#38BDF8' }
+  if (e === 'homologacao') return { label: 'homologação', cor: '#F59E0B' }
+  return { label: e, cor: '#F59E0B' }
+}
+
 // Logo neutro (placeholder) para o white label do demo: quadrado com "SL" (Seu Logo).
 const NEUTRO = 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="#334155"/><rect x="10" y="10" width="100" height="100" rx="12" fill="none" stroke="#94A3B8" stroke-width="2" stroke-dasharray="6 5"/><text x="60" y="56" text-anchor="middle" font-family="DM Sans,Arial,sans-serif" font-size="30" font-weight="800" fill="#E2E8F0">SL</text><text x="60" y="82" text-anchor="middle" font-family="DM Sans,Arial,sans-serif" font-size="12" fill="#94A3B8">Seu Logo</text></svg>`)
 
