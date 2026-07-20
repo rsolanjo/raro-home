@@ -1157,6 +1157,8 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   // Cada planta tem seu próprio transform {x,y,zoom} (individual), guardado por chave execMode:índice.
   const [plantTransforms, setPlantTransforms] = useState({}) // { 'completo:0': {x,y,zoom}, ... }
   const [selPlant, setSelPlant] = useState(0)      // índice da planta selecionada no editor
+  const [plantList, setPlantList] = useState([])   // plantas lidas da própria prévia (todas as seções)
+  const plantTransformsRef = useRef({})            // espelho p/ os handlers do arraste lerem sem re-anexar
   const [plantAlign, setPlantAlign] = useState('center') // 'left' | 'center' | 'right' (largura/alinhamento da página)
   const [showBreaks, setShowBreaks] = useState(true) // guias de onde a página quebra no PDF (só na prévia)
   const [hideAllPlants, setHideAllPlants] = useState(false) // ocultar TODAS as plantas do documento
@@ -4867,7 +4869,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     try{
       const doc=new DOMParser().parseFromString(html,'text/html')
       const margem={ left:'0 auto 0 0', center:'0 auto', right:'0 0 0 auto' }
-      const ratio=imgRatio||0.66
+      // Proporção EFETIVA: quando a planta é girada (Paisagem/Retrato) o _docView já entrega a
+      // imagem girada e os pinos convertidos — o palco precisa usar 1/imgRatio, senão o quadro
+      // fica com aspecto errado e os pinos saem do lugar (bug que o Raphael viu no Retrato).
+      const _girou = (()=>{ try{ return _precisaGirar() && !!rotBg }catch(_){ return false } })()
+      const ratio = _girou ? (1/(imgRatio||0.75)) : (imgRatio||0.66)
       let pi=0
       doc.querySelectorAll('.ex-plant').forEach(pl=>{
         if(pl.closest('.ex-wall-page')) return // a folha-parede tem palco próprio (A4 paisagem)
@@ -4884,7 +4890,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         pl.style.position='absolute'; pl.style.top='50%'; pl.style.left='50%'
         pl.style.width='100%'; pl.style.maxWidth='100%'; pl.style.margin='0'; pl.style.display='block'
         pl.style.transformOrigin='center center'
-        pl.style.transform=`translate(calc(-50% + ${t.x||0}%), calc(-50% + ${t.y||0}%)) scale(${z})`
+        pl.style.transform=`translate(calc(-50% + ${t.x||0}%), calc(-50% + ${t.y||0}%)) scale(${z}) rotate(${t.rot||0}deg)`
         if(hideAllPlants) stage.style.display='none'
       })
       if(hideAllTables){
@@ -5054,13 +5060,54 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   // preview ao vivo: regenera o HTML quando qualquer opção muda (só enquanto o editor está aberto).
   // Enquanto EDITANDO, a prévia fica congelada (editFrozenHtml) pra não apagar as edições do usuário.
   const pdfPreviewHtml = useMemo(()=> (showPdfOpts||showDocEditor) ? applyLayout(buildFullHtml(true), {preview:true}) : '',
-    [showPdfOpts, showDocEditor, showLegenda, showIdsPdf, showIdsTbl, showNumPin, pageOrient, plantPct, plantTransforms, selPlant, showBreaks, plantAlign, hideAllPlants, hideAllTables, blockHidden, blockOrder, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables, creds]) // eslint-disable-line
+    // NÃO inclui plantTransforms/plantPct/plantAlign: mexer na planta NÃO pode regerar o documento
+    // inteiro (era isso que fazia o iframe recarregar e dar aquele "blink"/reset de rolagem).
+    // Essas mudanças são aplicadas ao vivo no DOM da prévia pelo efeito _patchPlantasNaPrevia.
+    [showPdfOpts, showDocEditor, showLegenda, showIdsPdf, showIdsTbl, showNumPin, pageOrient, showBreaks, hideAllPlants, hideAllTables, blockHidden, blockOrder, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables, creds]) // eslint-disable-line
   // Liga/desliga o contentEditable no corpo da prévia conforme o modo de edição.
   useEffect(()=>{
     const ifr=previewIframeRef.current; if(!ifr) return
     const aplica=()=>{ try{ const b=ifr.contentDocument&&ifr.contentDocument.body; if(b){ b.contentEditable=docEditMode?'true':'false'; b.style.outline='none'; b.style.cursor=docEditMode?'text':'' } }catch(_){} }
     aplica(); ifr.addEventListener('load',aplica); return ()=>ifr.removeEventListener('load',aplica)
   },[docEditMode, editFrozenHtml, pdfPreviewHtml, showDocEditor])
+  // Aplica posição/zoom/rotação/largura das plantas AO VIVO no DOM da prévia — sem regerar o
+  // documento e sem recarregar o iframe (é o que elimina o "blink"/reset ao mexer na planta).
+  useEffect(()=>{ plantTransformsRef.current = plantTransforms },[plantTransforms])
+  useEffect(()=>{
+    const ifr=previewIframeRef.current; if(!ifr || docEditMode) return
+    const d=ifr.contentDocument; if(!d) return
+    const margem={ left:'0 auto 0 0', center:'0 auto', right:'0 0 0 auto' }
+    const girou=(()=>{ try{ return _precisaGirar() && !!rotBg }catch(_){ return false } })()
+    const ratio = girou ? (1/(imgRatio||0.75)) : (imgRatio||0.66)
+    d.querySelectorAll('.ex-plant-stage').forEach(stage=>{
+      const key=stage.dataset.pkey; if(!key) return
+      const t=plantTransforms[key]||{x:0,y:0,zoom:1,rot:0}
+      const z=t.zoom||1
+      stage.style.width=plantPct+'%'
+      stage.style.margin=margem[plantAlign]||'0 auto'
+      stage.style.aspectRatio=(1/(ratio*z)).toFixed(4)
+      const pl=stage.querySelector('.ex-plant')
+      if(pl) pl.style.transform=`translate(calc(-50% + ${t.x||0}%), calc(-50% + ${t.y||0}%)) scale(${z}) rotate(${t.rot||0}deg)`
+    })
+  },[plantTransforms, plantPct, plantAlign, pdfPreviewHtml, docEditMode, imgRatio, rotBg, pageOrient])
+
+  // Lista as plantas a partir da PRÓPRIA prévia (garante que apareçam TODAS as de todos os
+  // tópicos — antes eu reparsava o HTML e podia divergir do que está na tela).
+  useEffect(()=>{
+    if(!showDocEditor) return
+    const ifr=previewIframeRef.current; if(!ifr) return
+    const ler=()=>{ const d=ifr.contentDocument; if(!d) return
+      const lista=[...d.querySelectorAll('.ex-plant-stage')].map((s,i)=>{
+        const sec=s.closest('.ex-sec,.ex-obra-page')
+        const h=sec&&sec.querySelector('h1,h2,h3')
+        const perto=s.previousElementSibling&&/^H[1-4]$/.test(s.previousElementSibling.tagName)?s.previousElementSibling.textContent:''
+        const lbl=(perto||(h?h.textContent:'')||'').trim().replace(/\s+/g,' ').replace(/^(\d+)(?=\S)/,'$1 · ').slice(0,44)
+        return { key:s.dataset.pkey||String(i), i, label: lbl || `Planta ${i+1}` }
+      })
+      setPlantList(lista) }
+    ler(); ifr.addEventListener('load',ler); return ()=>ifr.removeEventListener('load',ler)
+  },[showDocEditor, pdfPreviewHtml])
+
   // ── ARRASTAR / REDIMENSIONAR a planta DIRETO na prévia (à direita), estilo Word ──
   // Enquanto NÃO está editando texto: cada planta da prévia vira arrastável (mover) e ganha uma
   // alça no canto pra redimensionar (zoom). O gesto atualiza a planta ao vivo e só grava no estado
@@ -5077,12 +5124,19 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       d.querySelectorAll('.ex-plant-stage').forEach(stage=>{
         const key=stage.dataset.pkey; const pl=stage.querySelector('.ex-plant'); if(!key||!pl) return
         stage.style.cursor='move'; stage.style.outline='1px dashed rgba(14,165,233,0.55)'; stage.style.outlineOffset='-1px'
-        const cur=()=> (plantTransforms[key]||{x:0,y:0,zoom:1})
+        const cur=()=> (plantTransformsRef.current[key]||{x:0,y:0,zoom:1,rot:0})
         const handle=d.createElement('div')
         handle.textContent='⤢'
         handle.setAttribute('style','position:absolute;right:3px;bottom:3px;width:20px;height:20px;background:#0EA5E9;color:#fff;font-size:12px;line-height:20px;text-align:center;border-radius:5px;cursor:nwse-resize;z-index:9;box-shadow:0 1px 4px rgba(0,0,0,.3)')
         stage.appendChild(handle)
-        const onDown=e=>{ if(e.target===handle) return; e.preventDefault()
+        // Botão GIRAR (90° por clique) na própria planta
+        const rot=d.createElement('div')
+        rot.textContent='↻'; rot.title='Girar 90°'
+        rot.setAttribute('style','position:absolute;right:27px;bottom:3px;width:20px;height:20px;background:#7C3AED;color:#fff;font-size:13px;line-height:20px;text-align:center;border-radius:5px;cursor:pointer;z-index:9;box-shadow:0 1px 4px rgba(0,0,0,.3)')
+        stage.appendChild(rot)
+        const onRot=e=>{ e.preventDefault(); e.stopPropagation(); setT(key,{rot:(((cur().rot||0)+90)%360)}) }
+        rot.addEventListener('pointerdown',onRot)
+        const onDown=e=>{ if(e.target===handle||e.target===rot) return; e.preventDefault()
           const r=stage.getBoundingClientRect(), t0=cur(), sx=e.clientX, sy=e.clientY
           const mv=ev=>{ const nx=(t0.x||0)+(ev.clientX-sx)/r.width*100, ny=(t0.y||0)+(ev.clientY-sy)/r.height*100
             pl.style.transform=`translate(calc(-50% + ${nx}%), calc(-50% + ${ny}%)) scale(${t0.zoom||1})` }
@@ -5097,12 +5151,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const up=ev=>{ d.removeEventListener('pointermove',mv); d.removeEventListener('pointerup',up); setT(key,{zoom:calc(ev.clientY)}) }
           d.addEventListener('pointermove',mv); d.addEventListener('pointerup',up) }
         stage.addEventListener('pointerdown',onDown); handle.addEventListener('pointerdown',onH)
-        limpar.push(()=>{ try{stage.removeEventListener('pointerdown',onDown); handle.remove(); stage.style.cursor=''; stage.style.outline=''}catch(_){} })
+        limpar.push(()=>{ try{stage.removeEventListener('pointerdown',onDown); rot.removeEventListener('pointerdown',onRot); handle.remove(); rot.remove(); stage.style.cursor=''; stage.style.outline=''}catch(_){} })
       })
     }
     wire(); ifr.addEventListener('load',wire)
     return ()=>{ limpar.forEach(fn=>{try{fn()}catch(_){}}); ifr.removeEventListener('load',wire) }
-  },[showDocEditor, docEditMode, pdfPreviewHtml, plantTransforms, plantPct, plantAlign, imgRatio]) // eslint-disable-line
+    // SEM plantTransforms nas deps: os handlers leem do ref, então não re-anexam (nem piscam os
+    // botões) a cada arraste. Só re-anexa quando a prévia é regerada de fato.
+  },[showDocEditor, docEditMode, pdfPreviewHtml]) // eslint-disable-line
 
   // Alterna o modo de edição: ao ligar, congela um snapshot com CSS de impressão (não o de prévia,
   // senão o PDF sairia com o fundo cinza/estreito da tela).
@@ -6515,7 +6571,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const famList=['dados','som','eletrica','hdmi','uplink','fibra']
         const catList=[...new Set(markers.map(m=>equipType(m.name)))].sort()
         const modo = execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='conduites'?'Conduítes':execMode==='instalacao'?'Instalação':'Completo'
-        const plants=enumPlants()
+        // Lista vinda da PRÓPRIA prévia (todas as seções). Fallback pro enumPlants se ainda não leu.
+        const plants=(plantList.length?plantList:enumPlants())
         const selP=Math.min(selPlant, Math.max(0,plants.length-1))
         const curP=_plantT(selP)
         const rowSt={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'10px 0',borderBottom:'1px solid rgba(255,255,255,0.07)'}
