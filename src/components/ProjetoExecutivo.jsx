@@ -233,10 +233,21 @@ function _eleInfo(sym, extra){
   const t = TECLAS_POR_SYM[sym]
   return { sym, ...(ELE_TYPE_INFO[sym]||{}), ...(t?{teclas:t}:{}), ...(extra||{}) }
 }
+// ── ALTURA DENTRO DO TIPO DO PONTO ───────────────────────────────────────────────
+// Raphael: "todos desse menu precisam ter as 5 posições (piso, baixa, média, alta, teto)".
+// Em vez de inventar ~30 símbolos novos (interruptor_simples_piso, _baixa, _media…), a altura
+// vira um SUFIXO do tipo: "interruptor_simples@baixa". O símbolo continua sendo o mesmo — quem
+// mostra a altura no desenho é o preenchimento do pino, que já faz isso. Tipo sem sufixo
+// (tudo que já estava salvo) segue funcionando igual: baseEleType devolve ele mesmo.
+const ALTURAS_PONTO = ['piso','baixa','media','alta','teto']
+function baseEleType(v){ const s=String(v||''); const i=s.indexOf('@'); return i<0 ? s : s.slice(0,i) }
+function altEleType(v){ const s=String(v||''); const i=s.indexOf('@'); if(i<0) return null
+  const a=s.slice(i+1); return ALTURAS_PONTO.includes(a) ? a : null }
 function classifyEle(m){
   // 1) tipo elétrico definido manualmente (dropdown no marcador) tem prioridade.
   // Passa pelo _eleInfo igual ao caminho inferido — senão volta a sair sem `teclas`.
-  if(m.eleType && ELE_TYPE_INFO[m.eleType]) return _eleInfo(m.eleType)
+  const _b = baseEleType(m && m.eleType)
+  if(_b && ELE_TYPE_INFO[_b]) return _eleInfo(_b)
   if(m.eleType==='nenhum') return null  // marcado explicitamente como "não é elétrico"
   // 2) senão, infere pelo nome/nota
   const n=((m.name||'')+' '+(m.note||'')).toLowerCase()
@@ -358,6 +369,9 @@ function familiaExigidaPeloTipo(m){
 function alturaAfirmadaPeloTipo(m){
   const c = classifyEle(m)
   if(!c) return null
+  // sufixo "@altura" no tipo manda em tudo (é escolha explícita no dropdown)
+  const suf = altEleType(m && m.eleType)
+  if(suf) return suf
   const A = {
     keystone_piso:'piso', keystone_baixo:'baixa', keystone_media:'media', keystone_alto:'alta', keystone_teto:'teto',
     tomada_baixa:'baixa', tomada_media:'media', tomada_alta:'alta', tomada_piso:'piso', tomada_teto:'teto',
@@ -415,7 +429,10 @@ function _specAuto(m){
   const n = (((m && m.name) || '') + ' ' + ((m && m.note) || '')).toLowerCase()
   if(/interruptor/.test(sym)){
     const t = (c && c.teclas) || 1
-    return { caixa: t<=3 ? '4x2' : '4x4', cabo:'3×2,5mm² (F+N+T)' }
+    // Alimentação do keypad é 2,5mm² (convenção RARO: fase+neutro direto do quadro); o que sai
+    // dele pra luz é RETORNO, que na NBR 5410 é circuito de iluminação = 1,5mm². São bitolas
+    // diferentes no mesmo ponto e o eletricista precisa ver as duas (Raphael).
+    return { caixa: t<=3 ? '4x2' : '4x4', cabo:`3×2,5mm² (F+N+T) + ${t} retorno${t>1?'s':''} 1,5mm²` }
   }
   if(sym==='modulo_cabeceira')            return { caixa:'4x2', cabo:'3×2,5mm² (F+N+T)' }
   if(/^tomada/.test(sym))                 return { caixa: sym==='tomada_piso' ? 'caixa de piso' : sym==='tomada_teto' ? 'forro' : '4x2', cabo:'3×2,5mm²' }
@@ -429,7 +446,10 @@ function _specAuto(m){
   // Não-elétricos: câmera, AP, sensor, cortina/módulo — caem pelo nome.
   if(/cortina|persiana/.test(n))          return { caixa:'forro', cabo:'2×2,5mm² (F+N)' }
   if(/m[óo]dulo|qarz/.test(n))            return { caixa:'forro', cabo:'2×2,5mm² (F+N)' }
-  if(/c[âa]mera|camera|dome|access point|\bap\b|wi-?fi/.test(n)) return { caixa:'forro', cabo:'CAT6 PoE' }
+  // Sem PoE = DOIS cabos no mesmo ponto: dados + alimentação. Vai escrito na tabela e vira
+  // dois selos no pino (ver cableFamiliesOf).
+  if(/c[âa]mera|camera|dome|access point|\bap\b|wi-?fi/.test(n))
+    return { caixa:'forro', cabo: semPoe(m) ? 'CAT6 + 2×2,5mm² (F+N) — sem PoE' : 'CAT6 PoE' }
   // Sensor mmW é ELÉTRICA (Raphael) — eu tinha escrito CAT6 aqui, chutando. É dispositivo
   // Zigbee alimentado, igual ao módulo: fase+neutro no forro, não puxa rede.
   if(/sensor|presen[çc]a|mmwave/.test(n)) return { caixa:'forro', cabo:'2×2,5mm² (F+N)' }
@@ -474,8 +494,13 @@ function pinTipoDe(m){
 // Letra dentro da meia lua: diz QUAL ponto de rede é. Substitui o selo "R", que só repetia
 // o que a cor amarela já diz.
 function pinLetraDe(m){
-  if(pinTipoDe(m)!=='rede') return ''
   const n = (((m && m.name) || '') + ' ' + ((m && m.code) || '')).toLowerCase()
+  // Sensor de presença (mmWave) e cortina não são ponto de rede — caem no losango preto e
+  // ficavam sem marca nenhuma, indistinguíveis de qualquer outro ponto de elétrica (Raphael).
+  // '~' é tratado como DESENHO de onda no pinNovoSVG, não como texto.
+  if(/sensor|presen[çc]a|mm-?wave|mv-?wave|\bmmw\b/.test(n)) return '~'
+  if(/cortina|persiana/.test(n)) return 'c'
+  if(pinTipoDe(m)!=='rede') return ''
   if(/c[âa]mera|camera|dome|bullet/.test(n)) return 'C'
   if(/access point|\bap\b|wi-?fi|u6|u7|uap/.test(n)) return 'A'
   return 'K'
@@ -549,9 +574,14 @@ function pinNovoSVG({ m, size=22, label='', sel=false }){
   const txt = (label!=='' && label!=null)
     ? `<circle cx="4.5" cy="4.5" r="5" fill="#fff" stroke="${cor}" stroke-width="1.2"/><text x="4.5" y="6.9" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="6.5" fill="${cor}">${label}</text>`
     : ''
-  const letraTxt = letra
-    ? `<text x="15.5" y="15.4" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="8" fill="#7C4A03" stroke="#fff" stroke-width="2" paint-order="stroke" style="paint-order:stroke">${letra}</text>`
-    : ''
+  // Onda do sensor de presença: 3 arcos, desenhados (uma letra "~" some no papel).
+  const ondaSVG = `<g stroke="#fff" stroke-width="3.2" fill="none" stroke-linecap="round" paint-order="stroke" style="paint-order:stroke">
+      <path d="M9.5 16.5 A4 4 0 0 1 14.5 16.5"/><path d="M7.6 13.6 A7 7 0 0 1 16.4 13.6"/><path d="M5.7 10.7 A10 10 0 0 1 18.3 10.7"/></g>
+    <g stroke="#FDE68A" stroke-width="1.5" fill="none" stroke-linecap="round">
+      <path d="M9.5 16.5 A4 4 0 0 1 14.5 16.5"/><path d="M7.6 13.6 A7 7 0 0 1 16.4 13.6"/><path d="M5.7 10.7 A10 10 0 0 1 18.3 10.7"/></g>`
+  const letraTxt = !letra ? ''
+    : letra==='~' ? ondaSVG
+    : `<text x="15.5" y="15.4" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="8" fill="#7C4A03" stroke="#fff" stroke-width="2" paint-order="stroke" style="paint-order:stroke">${letra}</text>`
   const halo = sel ? `<g opacity="0.32">${corpo.replace('/>',` fill="${cor}"/>`)}</g>` : ''
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="display:block;overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.45))">`
     + `<defs><clipPath id="${id}">${corpo}</clipPath></defs>`
@@ -573,6 +603,15 @@ const SHAPE_BY_MOUNT = { parede:'circulo', teto:'triangulo', chao:'quadrado' }
 const SHAPE_BY_ALT = { piso:'quadrado', baixa:'circulo', media:'circulo', alta:'circulo', teto:'triangulo' }
 const ALT_H = { piso:'0,00', baixa:'0,30', media:'1,10', alta:'1,80', teto:'teto' }
 const ALT_LABEL = { piso:'Piso', baixa:'Baixa (0,30)', media:'Média (1,10)', alta:'Alta (1,80)', teto:'Teto' }
+// Um grupo do dropdown "Tipo do ponto" com as 5 alturas. `especiais` mapeia a altura pra uma
+// chave própria quando ela já existe (ex.: piso e teto do som têm símbolo próprio); as demais
+// viram "base@altura". Assim o menu ganha as 5 posições sem inventar símbolo novo.
+function alturasDoTipo(grupo, nome, base, especiais={}){
+  return <optgroup key={grupo} label={grupo}>
+    {ALTURAS_PONTO.map(a=>{ const v=especiais[a]||`${base}@${a}`
+      return <option key={v} value={v}>{nome} · {ALT_LABEL[a]}</option> })}
+  </optgroup>
+}
 // Cor = categoria (6 cores). Selo do cabo (R/S/E) vem de cableFamily.
 const CAT_COLOR = { keypad:'#16A34A', ap:'#F59E0B', camera:'#DC2626', som:'#7C3AED', energia:'#111827', sensor:'#EA580C' }
 function catColorOf(m){
@@ -603,6 +642,9 @@ function isPontoEletrico(m){ const c=classifyEle(m); return !!(c && ELE_SYMS_SET
 function mountOf(m){
   const a=((m&&m.altura)||'').toLowerCase()
   if(a){ if(a==='teto'||a==='forro') return 'teto'; if(a==='piso'||a==='chao'||a==='chão') return 'chao'; return 'parede' }
+  // altura escolhida no próprio tipo ("interruptor_simples@teto") define o plano
+  const suf=altEleType(m&&m.eleType)
+  if(suf) return suf==='teto' ? 'teto' : suf==='piso' ? 'chao' : 'parede'
   if(m && (m.mount==='teto'||m.mount==='parede'||m.mount==='chao')) return m.mount
   const n=(((m&&m.name)||'')+' '+((m&&m.note)||'')).toLowerCase()
   const sym=classifyEle(m)?.sym||''
@@ -613,12 +655,22 @@ function mountOf(m){
 }
 // Altura fina (5 níveis). Manual (m.altura) tem prioridade; senão infere a partir do plano + tipo.
 function alturaOf(m){
-  const man=((m&&(m.altura||m.mount))||'').toLowerCase()
+  // 1º) altura escolhida à mão no ponto — o mais explícito que existe.
+  const man=((m&&m.altura)||'').toLowerCase()
   if(man==='piso'||man==='chao'||man==='chão') return 'piso'
   if(man==='baixa') return 'baixa'
   if(man==='media'||man==='média') return 'media'
   if(man==='alta') return 'alta'
   if(man==='teto'||man==='forro') return 'teto'
+  // 2º) altura escolhida DENTRO do tipo ("interruptor_intermediario@baixa"). Vem antes do
+  // m.mount porque mount costuma ser derivado (o app deduz o plano), não escolha de ninguém —
+  // sem isto, escolher "Interruptor 3 · Baixa" num ponto que o app achou que era de teto não
+  // mudava nada e ainda acusava divergência.
+  const suf=altEleType(m&&m.eleType)
+  if(suf) return suf
+  const mnt=((m&&m.mount)||'').toLowerCase()
+  if(mnt==='chao') return 'piso'
+  if(mnt==='teto') return 'teto'
   const mo=mountOf(m)
   if(mo==='teto') return 'teto'
   if(mo==='chao') return 'piso'
@@ -637,8 +689,14 @@ function cableFamily(type){
 }
 // Subwoofer é caso especial: cabo RCA de sinal (som) + alimentação elétrica → dois selos S e E.
 function isSubwoofer(m){ const n=((m?.name||'')+' '+(m?.code||'')).toLowerCase(); return /subwoofer|\bsub\b/.test(n) }
+// Aparelho de rede que NÃO é alimentado pelo cabo de rede (AP/câmera com fonte externa).
+// Marcado à mão no ponto (semPoe): não dá pra adivinhar pelo nome — é decisão de projeto.
+// Raphael: "tem AP que não vai ser PoE e você precisa representar isso nas plantas".
+function semPoe(m){ return !!(m && m.semPoe) }
 function cableFamiliesOf(m, type){
   if(isSubwoofer(m)) return [ { k:'som', L:'S', nome:'Som (RCA de sinal)', cor:'#BE185D' }, { k:'ele', L:'E', nome:'Elétrico', cor:'#16A34A' } ]
+  // dois cabos chegam no ponto: dados + energia → dois selos no pino, igual ao subwoofer
+  if(semPoe(m)) return [ cableFamily(type), { k:'ele', L:'E', nome:'Elétrico (fonte externa — sem PoE)', cor:'#16A34A' } ]
   return [ cableFamily(type) ]
 }
 // Normaliza o TYPE do cabo (dados, som, eletrica, hdmi, uplink, fibra) para a chave da família (ele/som/rede).
@@ -710,6 +768,12 @@ function pontosLegenda(){
   const cat=(cor,nome)=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;color:#334155"><span style="width:13px;height:13px;border-radius:50%;background:${cor};border:1.5px solid #fff;box-shadow:0 0 0 1px #cbd5e1"></span>${nome}</span>`
   const cab=(cor,L,nome)=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;color:#334155"><span style="width:14px;height:14px;border-radius:7px;background:${cor};color:#fff;font-size:8.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid #fff">${L}</span>${nome}</span>`
   const frm=(alt,nome)=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;color:#334155">${pinShapeSVG({alt,color:'#64748B',label:'',size:18})}${nome}</span>`
+  // A marca que vai DENTRO do pino. A onda é desenhada (um "~" de texto some no papel), igual
+  // ao pino — legenda e desenho têm que ser a mesma coisa.
+  const mrc=(L,nome)=>{ const glifo = L==='~'
+      ? `<svg viewBox="0 0 24 24" width="15" height="15" style="display:block"><g stroke="#B45309" stroke-width="2" fill="none" stroke-linecap="round"><path d="M9.5 16.5 A4 4 0 0 1 14.5 16.5"/><path d="M7.6 13.6 A7 7 0 0 1 16.4 13.6"/><path d="M5.7 10.7 A10 10 0 0 1 18.3 10.7"/></g></svg>`
+      : `<span style="font-size:10px;font-weight:800;color:#7C4A03;font-family:'DM Sans',sans-serif">${L}</span>`
+    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;color:#334155"><span style="width:17px;height:17px;border-radius:9px;background:#F1F5F9;border:1px solid #CBD5E1;display:inline-flex;align-items:center;justify-content:center">${glifo}</span>${nome}</span>` }
   return `<div style="display:flex;flex-wrap:wrap;gap:14px 16px;align-items:center;margin-top:10px;padding:11px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px">
     <span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:#94A3B8;text-transform:uppercase;width:100%">Cor · categoria</span>
     ${cat(CAT_COLOR.keypad,'Keypad')} ${cat(CAT_COLOR.ap,'Access Point')} ${cat(CAT_COLOR.camera,'Câmera')} ${cat(CAT_COLOR.som,'Som')} ${cat(CAT_COLOR.energia,'Ponto de energia')} ${cat(CAT_COLOR.sensor,'Sensor mmW')}
@@ -717,9 +781,12 @@ function pontosLegenda(){
     <span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:#94A3B8;text-transform:uppercase;width:100%">Forma · local e altura</span>
     ${frm('piso','Chão')} ${frm('baixa','Parede 0,30')} ${frm('media','Parede 1,10')} ${frm('alta','Parede 1,80')} ${frm('teto','Teto')}
     <span style="width:100%;height:1px;background:#E2E8F0"></span>
+    <span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:#94A3B8;text-transform:uppercase;width:100%">Marca dentro do pino</span>
+    ${mrc('C','Câmera')} ${mrc('A','Access Point')} ${mrc('K','Keystone / rede')} ${mrc('~','Sensor de presença (mmWave)')} ${mrc('c','Cortina / persiana')}
+    <span style="width:100%;height:1px;background:#E2E8F0"></span>
     <span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:#94A3B8;text-transform:uppercase;width:100%">Selo · cabo</span>
     ${cab('#16A34A','E','Elétrica')} ${cab('#BE185D','S','Som')} ${cab('#2563EB','R','Rede/Dados')}
-    <span style="font-size:9px;color:#94A3B8;width:100%;line-height:1.5">Três leituras num pin: a <b>cor</b> diz o que é, a <b>forma</b> diz onde instalar (triângulo teto, círculo parede com o tracinho na altura, quadrado chão), o <b>selo</b> diz o cabo. O número ao lado é a altura em metros. <b>Subwoofer</b> leva dois selos (S+E): cabo RCA de sinal mais alimentação elétrica.</span>
+    <span style="font-size:9px;color:#94A3B8;width:100%;line-height:1.5">Três leituras num pin: a <b>cor</b> diz o que é, a <b>forma</b> diz onde instalar (triângulo teto, círculo parede com o tracinho na altura, quadrado chão), o <b>selo</b> diz o cabo. O número ao lado é a altura em metros. <b>Dois selos = dois cabos no mesmo ponto</b>: subwoofer (S+E, RCA de sinal mais alimentação) e <b>AP ou câmera sem PoE</b> (R+E, CAT6 de dados mais 2×2,5mm² de energia).</span>
   </div>`
 }
 
@@ -737,8 +804,46 @@ function abntLegendaCompleta(usados){
     ['Rede / Dados', ['keystone_piso','keystone_baixo','keystone_media','keystone_alto','keystone_teto']],
     ['Infraestrutura', ['quadro','caixa_conduite','prumada','modulo_cabeceira']],
   ]
+  // ── CONDUTORES: F, N, T e os RETORNOS (Raphael) ────────────────────────────────
+  // Cada tecla do interruptor tem o SEU retorno: 1 tecla → R1; 3 teclas → R1, R2, R3. É o que
+  // o eletricista precisa saber pra dimensionar o eletroduto e não errar a caixa.
+  const TECLAS_LEGENDA = { interruptor_simples:1, interruptor_paralelo:2, interruptor_intermediario:3, interruptor_4:4, interruptor_6:6 }
+  const fio = (L,cor,nome,desc)=>`<div style="display:flex;align-items:center;gap:8px;font-size:10px;color:#334155;padding:4px 7px;border:1px solid #E2E8F0;border-radius:6px;background:#fff">
+      <span style="flex-shrink:0;width:17px;height:17px;border-radius:9px;background:${cor};color:#fff;font-size:9px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid #fff;box-shadow:0 0 0 1px #CBD5E1">${L}</span>
+      <span><b>${nome}</b>${desc?` — ${desc}`:''}</span></div>`
+  const condutoresHtml = (usadosSet)=>{
+    const temInterruptor = !usadosSet || !usadosSet.size || [...Object.keys(TECLAS_LEGENDA)].some(s=>usadosSet.has(s))
+    const retornos = !usadosSet || !usadosSet.size
+      ? Object.entries(TECLAS_LEGENDA)
+      : Object.entries(TECLAS_LEGENDA).filter(([s])=>usadosSet.has(s))
+    const linhaRet = retornos.map(([s,t])=>{
+      const info=ELE_TYPE_INFO[s]||{label:s}
+      const rs=Array.from({length:t},(_,i)=>`R${i+1}`).join(' · ')
+      return `<div style="display:flex;align-items:center;gap:8px;font-size:10px;color:#334155;padding:4px 7px;border:1px solid #E2E8F0;border-radius:6px;background:#fff">
+        <svg viewBox="-12 -14 24 32" width="20" height="26" style="flex-shrink:0">${ELE_SYMBOLS[s]||ELE_SYMBOLS.generico}</svg>
+        <span><b>${info.tipo||info.label}</b> → <b style="color:#B45309">${rs}</b></span></div>` }).join('')
+    return `<div style="margin-bottom:9px">
+      <div style="font-size:8.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94A3B8;margin-bottom:5px">Condutores</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${fio('F','#111827','Fase','preto ou vermelho · <b>2,5mm²</b>')}
+        ${fio('N','#38BDF8','Neutro','azul-claro · <b>2,5mm²</b>')}
+        ${fio('T','#16A34A','Terra','verde ou verde-amarelo · proteção · <b>2,5mm²</b>')}
+        ${fio('R','#F59E0B','Retorno','do interruptor até a luz · <b>1,5mm²</b>')}
+      </div>
+      <div style="font-size:9px;color:#94A3B8;margin-top:5px;line-height:1.5">
+        Bitolas mínimas da <b>NBR 5410</b>: circuito de <b>iluminação 1,5mm²</b> · <b>tomadas e força 2,5mm²</b>.
+        Convenção RARO: o keypad é alimentado com <b>2,5mm² (F+N) direto do quadro</b> e o que sai dele
+        pra luz é <b>retorno 1,5mm²</b> — duas bitolas no mesmo ponto. Som: <b>2×1,5mm²</b>.
+        Cortina, módulo e sensor: <b>2×2,5mm² (F+N)</b>. A bitola de cada ponto está na tabela por cômodo.
+      </div>
+      ${temInterruptor&&linhaRet?`<div style="font-size:8.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94A3B8;margin:8px 0 5px">Retorno por interruptor</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${linhaRet}</div>
+      <div style="font-size:9px;color:#94A3B8;margin-top:5px;line-height:1.5">Cada tecla comanda um circuito e leva o <b>seu</b> retorno. Na caixa do interruptor chega <b>F</b> (e <b>N</b> quando é keypad) e saem <b>R1…Rn</b> — uma por tecla. O <b>T</b> acompanha o circuito.</div>`:''}
+    </div>`
+  }
   const usa = (usados && usados.size) ? (s=>usados.has(s)) : (()=>true)
   const gruposFiltrados = grupos.map(([t,syms])=>[t, syms.filter(usa)]).filter(([,syms])=>syms.length)
+  // Os condutores valem mesmo quando nenhum símbolo passou no filtro: F/N/T é referência do doc.
   if(!gruposFiltrados.length) return ''
   const item = sym => { const info=ELE_TYPE_INFO[sym]||{label:'',tipo:sym}
     return `<div style="display:flex;align-items:center;gap:8px;font-size:10px;color:#334155;padding:4px 7px;border:1px solid #E2E8F0;border-radius:6px;background:#fff">
@@ -748,6 +853,7 @@ function abntLegendaCompleta(usados){
     <div style="font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#0D1420;margin-bottom:2px">Legenda de Símbolos — Elétrica (ABNT NBR 5444)</div>
     <div style="font-size:9.5px;color:#94A3B8;margin-bottom:9px">Só os símbolos que aparecem nesta planta.</div>
     ${gruposFiltrados.map(([titulo,syms])=>`<div style="margin-bottom:9px"><div style="font-size:8.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94A3B8;margin-bottom:5px">${titulo}</div><div style="display:flex;flex-wrap:wrap;gap:6px">${syms.map(item).join('')}</div></div>`).join('')}
+    ${condutoresHtml(usados)}
   </div>`
 }
 
@@ -4769,8 +4875,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // assunto é o símbolo — agrupar por m.name gerava linhas gêmeas ("Interruptor 3 teclas ×3"
     // e "×4" logo abaixo), que é ruído, não informação.
     vis.forEach(m=>{ const fam=cableFamily(familiaDoPontoTipo(m))
-      const chave=[funcaoDoPonto(m),pinTipoDe(m),pinFillDe(m),((classifyEle(m)||{}).teclas)||0,pinLetraDe(m),fam.k].join('|')
-      if(!grupos.has(chave)) grupos.set(chave,{m,fam,qtd:0})
+      const fams=cableFamiliesOf(m,familiaDoPontoTipo(m))
+      // semPoe entra na chave: AP com PoE e AP com fonte externa são linhas DIFERENTES —
+      // desenham igual mas recebem cabos diferentes, que é justamente o que a legenda informa.
+      const chave=[funcaoDoPonto(m),pinTipoDe(m),pinFillDe(m),((classifyEle(m)||{}).teclas)||0,pinLetraDe(m),fams.map(f=>f.k).join('+')].join('|')
+      if(!grupos.has(chave)) grupos.set(chave,{m,fam,fams,qtd:0})
       grupos.get(chave).qtd++ })
     const linhas=[...grupos.values()].sort((a,b)=>funcaoDoPonto(a.m).localeCompare(funcaoDoPonto(b.m)))
     // Quando dois itens desenham IGUAL, a linha diz em quais pontos aquele item está. Só nesses
@@ -4790,19 +4899,25 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // A coluna ABNT saiu: os símbolos da elétrica e os pinos passaram a falar a MESMA língua
     // (v301), então ela virava um espelho do desenho ao lado — o interruptor aparecia como
     // círculo vermelho com traços nas duas colunas.
-    const simb=(m,fam)=>{ const pino=pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:corDoPino(m),label:'',size:22})
-      const selo=_fo(fam.k)?'':`<span style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${fam.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${fam.L}</span>`
-      return `<span style="position:relative;display:inline-block;width:22px;height:22px;vertical-align:middle">${pino}${selo}</span>` }
+    // Desenha TODOS os selos do ponto (2 quando chegam dois cabos: subwoofer S+E, AP sem PoE R+E),
+    // no mesmo escalonamento do pino da planta — legenda e desenho têm que bater.
+    const simb=(m,fams)=>{ const pino=pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:corDoPino(m),label:'',size:22})
+      const selos=(Array.isArray(fams)?fams:[fams]).filter(f=>!_fo(f.k))
+        .map((f,i)=>`<span style="position:absolute;top:-3px;right:${-3 - i*11}px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</span>`).join('')
+      return `<span style="position:relative;display:inline-block;width:22px;height:22px;vertical-align:middle">${pino}${selos}</span>` }
     const corpo=linhas.map(g=>{
       const {m,fam,qtd}=g
+      const fams=g.fams||[fam]
       const ambiguo=(porDesenho.get(desenho(g))||0)>1
       const ns=ambiguo?numerosDe(g):[]
       const dica=ns.length?`<div style="font-size:9px;color:#B45309;font-weight:600;margin-top:1px">mesmo desenho de outro item — ${ns.length===1?'ponto':'pontos'} ${ns.join(', ')}</div>`:''
       return `<tr>
-        <td ${td} style="text-align:center;padding:3px 8px;border-bottom:.5px solid #E2E8F0">${simb(m,fam)}</td>
+        <td ${td} style="text-align:center;padding:3px 8px;border-bottom:.5px solid #E2E8F0">${simb(m,fams)}</td>
         <td ${td} style="font-weight:600">${_e(funcaoDoPonto(m))}${dica}</td>
         <td ${td}>${NIVL[alturaOf(m)]||'—'}</td>
-        <td ${td} style="font-weight:600;color:${_fo(fam.k)?'#94A3B8':fam.cor}">${_fo(fam.k)?'—':_e(fam.nome)}</td>
+        <td ${td} style="font-weight:600;color:${_fo(fam.k)?'#94A3B8':fam.cor}">${
+          fams.filter(f=>!_fo(f.k)).length ? fams.filter(f=>!_fo(f.k)).map(f=>_e(f.nome)).join(' + ') : '—'
+        }<div style="font-size:9px;font-weight:500;color:#64748B">${_e(specDoPonto(m).cabo||'')}</div></td>
         <td ${td} style="text-align:right;font-weight:800">×${qtd}</td>
       </tr>` }).join('')
 
@@ -4812,7 +4927,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         <thead><tr>
           <th ${th} style="width:44px;text-align:center;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Pino</th>
           <th ${th}>O que é</th><th ${th} style="width:62px;text-align:left;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Altura</th>
-          <th ${th} style="width:78px;text-align:left;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Cabo</th>
+          <th ${th} style="width:132px;text-align:left;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Cabo</th>
           <th ${th} style="width:38px;text-align:right;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:#64748B;padding:4px 8px;border-bottom:1.5px solid #CBD5E1;font-weight:700">Qtd.</th>
         </tr></thead>
         <tbody>${corpo}</tbody>
@@ -6141,10 +6256,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     {conduitMode && isCaixaCond && <div style={{position:'absolute',inset:-8,background:'rgba(34,211,238,0.2)',border:'2.5px solid #22D3EE',borderRadius:4,pointerEvents:'none',animation:'pulse 1.5s infinite'}}/>}
                     {isRack
                       ? <div style={{width:sel?30:24,height:sel?30:24,borderRadius:5,background:'#4C1D95',color:'#C4B5FD',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #7C3AED',boxShadow:sel?`0 0 0 3px #7C3AED`:'0 2px 6px rgba(0,0,0,0.6)'}}><i className="ti ti-server" aria-hidden style={{fontSize:13}}/></div>
-                      : (()=>{ const mount=mountOf(m); const fam=cableFamily(familiaDoPontoTipo(m))
+                      : (()=>{ const mount=mountOf(m)
+                          // TODOS os selos (subwoofer S+E, AP/câmera sem PoE R+E) — a tela precisa
+                          // mostrar o mesmo que o documento, senão o dois-cabos só aparece no PDF.
+                          const fams=cableFamiliesOf(m,familiaDoPontoTipo(m))
                           return <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
                             <div dangerouslySetInnerHTML={{__html: pinShapeSVG({m, mount, alt:alturaOf(m), color:catColorOf(m)||st.c, label:_pinLabel(m), size:sel?26:22, sel})}}/>
-                            {showCabo && <div title={`Cabo: ${fam.nome}`} style={{position:'absolute',top:-3,right:-3,minWidth:9,height:9,padding:0,borderRadius:5,background:fam.cor,color:'#fff',fontSize:6,fontWeight:800,lineHeight:'9px',textAlign:'center',border:'1px solid #fff',pointerEvents:'none',fontFamily:"'DM Sans',sans-serif"}}>{fam.L}</div>}
+                            {showCabo && fams.map((f,i)=><div key={f.k} title={`Cabo: ${f.nome}`} style={{position:'absolute',top:-3,right:-3-i*11,minWidth:9,height:9,padding:0,borderRadius:5,background:f.cor,color:'#fff',fontSize:6,fontWeight:800,lineHeight:'9px',textAlign:'center',border:'1px solid #fff',pointerEvents:'none',fontFamily:"'DM Sans',sans-serif"}}>{f.L}</div>)}
                           </div> })()}
                     {/* rótulo de código só quando selecionado ou no modo "ver IDs" — planta mais limpa */}
                     {(sel||showIds) && <div style={{position:'absolute',left:'50%',top:sel?28:24,transform:'translateX(-50%)',background:'rgba(0,0,0,0.75)',color:isRack?'#C4B5FD':'#fff',borderRadius:3,padding:'1px 4px',fontSize:7.5,whiteSpace:'nowrap',fontFamily:'monospace',fontWeight:600,pointerEvents:'none'}}>{isRack?'RACK CPD':m.code}</div>}
@@ -6345,19 +6463,16 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       <option value="tomada_alta">Tomada Alta (1,80m)</option>
                       <option value="tomada_teto">Tomada Teto</option>
                     </optgroup>
-                    <optgroup label="⚡ ELÉTRICA · Ponto de energia">
-                      <option value="ponto_energia_teto">Ponto Elétrica Teto</option>
-                      <option value="ponto_energia_piso">Ponto Elétrica Piso</option>
-                      <option value="ponto_energia_parede">Ponto Elétrica Parede</option>
-                    </optgroup>
-                    <optgroup label="⚡ ELÉTRICA · Interruptores">
-                      <option value="interruptor_simples">Interruptor 1</option>
-                      <option value="interruptor_paralelo">Interruptor 2</option>
-                      <option value="interruptor_intermediario">Interruptor 3</option>
-                      <option value="interruptor_4">Interruptor 4</option>
-                      <option value="interruptor_6">Interruptor / Keypad 6</option>
-                      <option value="modulo_cabeceira">Módulo Cabeceira</option>
-                    </optgroup>
+                    {/* As 5 alturas em TODOS os tipos (Raphael). Onde o símbolo já é específico
+                        de altura (piso/teto), usa a chave própria; nas demais o tipo leva o
+                        sufixo "@altura" — mesmo símbolo, altura explícita. */}
+                    {alturasDoTipo('⚡ ELÉTRICA · Ponto de energia','Ponto Elétrica','ponto_energia_parede',{piso:'ponto_energia_piso',teto:'ponto_energia_teto'})}
+                    {alturasDoTipo('⚡ Interruptor 1 tecla','Interruptor 1','interruptor_simples')}
+                    {alturasDoTipo('⚡ Interruptor 2 teclas','Interruptor 2','interruptor_paralelo')}
+                    {alturasDoTipo('⚡ Interruptor 3 teclas','Interruptor 3','interruptor_intermediario')}
+                    {alturasDoTipo('⚡ Interruptor 4 teclas','Interruptor 4','interruptor_4')}
+                    {alturasDoTipo('⚡ Interruptor / Keypad 6','Keypad 6','interruptor_6')}
+                    {alturasDoTipo('⚡ Módulo Cabeceira','Módulo Cabeceira','modulo_cabeceira')}
                     <optgroup label="🔵 DADOS · selo R">
                       <option value="keystone_piso">Keystone Piso</option>
                       <option value="keystone_baixo">Keystone Baixa (0,30m)</option>
@@ -6365,11 +6480,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       <option value="keystone_alto">Keystone Alta (1,80m)</option>
                       <option value="keystone_teto">Keystone Teto</option>
                     </optgroup>
-                    <optgroup label="🔊 SOM · selo S">
-                      <option value="ponto_som_teto">Ponto de Som Teto</option>
-                      <option value="ponto_som_parede">Ponto de Som Parede Alta</option>
-                      <option value="ponto_som_piso">Ponto de Som Piso</option>
-                    </optgroup>
+                    {alturasDoTipo('🔊 SOM · selo S','Ponto de Som','ponto_som_parede',{piso:'ponto_som_piso',teto:'ponto_som_teto'})}
                     <optgroup label="Infraestrutura">
                       <option value="quadro">Quadro de luz (QDL)</option>
                       <option value="prumada">Prumada (entre andares)</option>
@@ -6387,6 +6498,23 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       <option value="4x4">Caixa 4×4 (4+ módulos / 6 teclas)</option>
                       <option value="octogonal">Octogonal (teto)</option>
                     </select></>
+                  })()}
+                  {/* Alimentação de AP/câmera: PoE (1 cabo) ou fonte externa (CAT6 + elétrica).
+                      Não dá pra adivinhar pelo modelo — é decisão de projeto, então pergunta. */}
+                  {(()=>{ const n=((m.name||'')+' '+(m.code||'')).toLowerCase()
+                    if(!/c[âa]mera|camera|dome|bullet|access point|\bap\b|wi-?fi|u6|u7|uap/.test(n)) return null
+                    const bAlim=(txt,on,onClick)=><button onClick={onClick} style={{flex:1,height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11,fontWeight:on?700:500,
+                      border:`1px solid ${on?'#38BDF8':'rgba(255,255,255,0.2)'}`,background:on?'rgba(56,189,248,0.18)':'rgba(255,255,255,0.06)',color:on?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{txt}</button>
+                    return <><label style={lbl}>Alimentação</label>
+                    <div style={{display:'flex',gap:8,marginBottom:8}}>
+                      {bAlim('PoE · 1 cabo',!m.semPoe,()=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,semPoe:false}:x)))}
+                      {bAlim('Fonte externa · 2 cabos',!!m.semPoe,()=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,semPoe:true}:x)))}
+                    </div>
+                    <div style={{fontSize:9.5,color:m.semPoe?'#6EE7B7':'rgba(255,255,255,0.4)',marginBottom:8,lineHeight:1.5}}>
+                      {m.semPoe
+                        ? <>Chegam <b>dois cabos</b>: CAT6 (dados) + 2×2,5mm² (F+N). Na planta o pino ganha <b>dois selos</b> — R e E.</>
+                        : <>Um cabo só: CAT6 com PoE leva dados e energia juntos.</>}
+                    </div></>
                   })()}
                   <label style={lbl}>Cabo que chega neste ponto</label>
                   {(()=>{ const det=familiaDoPontoTipo(m); const detL=CABLE_LABELS[det]||det
