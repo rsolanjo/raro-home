@@ -4871,10 +4871,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       let pi=0
       doc.querySelectorAll('.ex-plant').forEach(pl=>{
         if(pl.closest('.ex-wall-page')) return // a folha-parede tem palco próprio (A4 paisagem)
-        const t=_plantT(pi); pi++
+        const pkey=_plantKey(pi); const t=_plantT(pi); pi++
         const z=t.zoom||1
         const stage=doc.createElement('div')
         stage.className='ex-plant-stage'
+        stage.dataset.pkey=pkey  // cada planta endereçável (arrastar/zoom direto na prévia)
         // aspect-ratio INCLUI o zoom: com z>1 o palco fica mais ALTO, empurrando o conteúdo de
         // baixo pra baixo (reflow). Horizontal segue recortado (overflow) = trava de margem.
         stage.setAttribute('style',`position:relative;width:${plantPct}%;margin:${margem[plantAlign]||'0 auto'};overflow:hidden;aspect-ratio:${(1/(ratio*z)).toFixed(4)};background:#fff`)
@@ -5060,6 +5061,49 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const aplica=()=>{ try{ const b=ifr.contentDocument&&ifr.contentDocument.body; if(b){ b.contentEditable=docEditMode?'true':'false'; b.style.outline='none'; b.style.cursor=docEditMode?'text':'' } }catch(_){} }
     aplica(); ifr.addEventListener('load',aplica); return ()=>ifr.removeEventListener('load',aplica)
   },[docEditMode, editFrozenHtml, pdfPreviewHtml, showDocEditor])
+  // ── ARRASTAR / REDIMENSIONAR a planta DIRETO na prévia (à direita), estilo Word ──
+  // Enquanto NÃO está editando texto: cada planta da prévia vira arrastável (mover) e ganha uma
+  // alça no canto pra redimensionar (zoom). O gesto atualiza a planta ao vivo e só grava no estado
+  // (plantTransforms) ao soltar — aí a prévia se regenera com a posição nova. Cada planta é
+  // endereçada pelo data-pkey (então mexe em QUALQUER planta, não só na primeira).
+  useEffect(()=>{
+    if(!showDocEditor || docEditMode) return
+    const ifr=previewIframeRef.current; if(!ifr) return
+    let limpar=[]
+    const setT=(key,patch)=>setPlantTransforms(p=>({...p,[key]:{...(p[key]||{x:0,y:0,zoom:1}),...patch}}))
+    const wire=()=>{
+      const d=ifr.contentDocument; if(!d) return
+      limpar.forEach(fn=>{try{fn()}catch(_){}}); limpar=[]
+      d.querySelectorAll('.ex-plant-stage').forEach(stage=>{
+        const key=stage.dataset.pkey; const pl=stage.querySelector('.ex-plant'); if(!key||!pl) return
+        stage.style.cursor='move'; stage.style.outline='1px dashed rgba(14,165,233,0.55)'; stage.style.outlineOffset='-1px'
+        const cur=()=> (plantTransforms[key]||{x:0,y:0,zoom:1})
+        const handle=d.createElement('div')
+        handle.textContent='⤢'
+        handle.setAttribute('style','position:absolute;right:3px;bottom:3px;width:20px;height:20px;background:#0EA5E9;color:#fff;font-size:12px;line-height:20px;text-align:center;border-radius:5px;cursor:nwse-resize;z-index:9;box-shadow:0 1px 4px rgba(0,0,0,.3)')
+        stage.appendChild(handle)
+        const onDown=e=>{ if(e.target===handle) return; e.preventDefault()
+          const r=stage.getBoundingClientRect(), t0=cur(), sx=e.clientX, sy=e.clientY
+          const mv=ev=>{ const nx=(t0.x||0)+(ev.clientX-sx)/r.width*100, ny=(t0.y||0)+(ev.clientY-sy)/r.height*100
+            pl.style.transform=`translate(calc(-50% + ${nx}%), calc(-50% + ${ny}%)) scale(${t0.zoom||1})` }
+          const up=ev=>{ d.removeEventListener('pointermove',mv); d.removeEventListener('pointerup',up)
+            setT(key,{x:(t0.x||0)+(ev.clientX-sx)/r.width*100, y:(t0.y||0)+(ev.clientY-sy)/r.height*100}) }
+          d.addEventListener('pointermove',mv); d.addEventListener('pointerup',up) }
+        const onH=e=>{ e.preventDefault(); e.stopPropagation()
+          const r=stage.getBoundingClientRect(), t0=cur(), sy=e.clientY
+          const calc=cy=>Math.max(0.3,Math.min(4, Math.round(((t0.zoom||1)+(cy-sy)/r.height*2)*100)/100))
+          const mv=ev=>{ const nz=calc(ev.clientY); stage.style.aspectRatio=`${(1/((imgRatio||0.66)*nz)).toFixed(4)}`
+            pl.style.transform=`translate(calc(-50% + ${t0.x||0}%), calc(-50% + ${t0.y||0}%)) scale(${nz})` }
+          const up=ev=>{ d.removeEventListener('pointermove',mv); d.removeEventListener('pointerup',up); setT(key,{zoom:calc(ev.clientY)}) }
+          d.addEventListener('pointermove',mv); d.addEventListener('pointerup',up) }
+        stage.addEventListener('pointerdown',onDown); handle.addEventListener('pointerdown',onH)
+        limpar.push(()=>{ try{stage.removeEventListener('pointerdown',onDown); handle.remove(); stage.style.cursor=''; stage.style.outline=''}catch(_){} })
+      })
+    }
+    wire(); ifr.addEventListener('load',wire)
+    return ()=>{ limpar.forEach(fn=>{try{fn()}catch(_){}}); ifr.removeEventListener('load',wire) }
+  },[showDocEditor, docEditMode, pdfPreviewHtml, plantTransforms, plantPct, plantAlign, imgRatio]) // eslint-disable-line
+
   // Alterna o modo de edição: ao ligar, congela um snapshot com CSS de impressão (não o de prévia,
   // senão o PDF sairia com o fundo cinza/estreito da tela).
   const toggleDocEdit=()=>{
@@ -6484,7 +6528,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         return <div onClick={()=>setShowDocEditor(false)} style={{position:'fixed',inset:0,background:'rgba(3,10,20,0.82)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
           <div onClick={e=>e.stopPropagation()} style={{background:'#0F172A',border:'1px solid rgba(255,255,255,0.12)',borderRadius:14,width:'97vw',height:'93vh',display:'flex',flexDirection:'column',color:'#E2E8F0',fontFamily:'inherit',overflow:'hidden'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 18px',borderBottom:'1px solid rgba(255,255,255,0.1)',flexShrink:0}}>
-              <div><div style={{fontSize:15,fontWeight:700}}>Editor do documento <span style={{fontSize:11,fontWeight:500,color:'#94A3B8'}}>· {modo}</span></div><div style={{fontSize:10.5,color:'#94A3B8'}}>A planta é um objeto: arraste dentro do quadro (a margem recorta o que passar). A prévia à direita = o PDF.</div></div>
+              <div><div style={{fontSize:15,fontWeight:700}}>Editor do documento <span style={{fontSize:11,fontWeight:500,color:'#94A3B8'}}>· {modo}</span></div><div style={{fontSize:10.5,color:'#94A3B8'}}>Arraste a planta <b>direto na prévia</b> (à direita) pra mover; use a alça azul no canto pra aumentar/diminuir. Cada planta é independente.</div></div>
               <div style={{display:'flex',gap:10,alignItems:'center'}}>
                 <button onClick={toggleDocEdit} title="Liga a edição de textos e tabelas direto na prévia. Enquanto edita, os filtros/planta ficam congelados." style={{height:38,padding:'0 14px',borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,border:`1px solid ${docEditMode?'#0EA5E9':'rgba(255,255,255,0.25)'}`,background:docEditMode?'rgba(14,165,233,0.22)':'rgba(255,255,255,0.06)',color:docEditMode?'#7DD3FC':'rgba(255,255,255,0.8)',display:'flex',alignItems:'center',gap:6}}><i className="ti ti-pencil" aria-hidden/> {docEditMode?'Editando textos ✓':'Editar textos'}</button>
                 <button onClick={exportPdf} style={{...btnPrimary,padding:'9px 16px'}}><i className="ti ti-file-download" aria-hidden/> Baixar PDF ({modo})</button>

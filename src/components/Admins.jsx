@@ -1,6 +1,6 @@
 import PINModal from './PINModal.jsx'
 import { useState } from 'react'
-import { saveAdmin, deleteAdmin, checkPINSession, setPINSession, verifyPIN, dispararResetSenha, gerarBackupCompleto, baixarArquivo } from '../db/supabase.js'
+import { saveAdmin, deleteAdmin, checkPINSession, setPINSession, verifyPIN, dispararResetSenha, gerarBackupCompleto, baixarArquivo, restaurarBackup } from '../db/supabase.js'
 
 const ROLE_LABEL = { admin:'Admin (tudo)', viewer:'Visualizador', mestre:'Mestre de obra' }
 
@@ -13,6 +13,7 @@ export default function Admins({ admins, clients=[], currentUser, onRefresh }) {
   const [showPIN, setShowPIN] = useState(false)
   const [pinAction, setPinAction] = useState(null)
   const [bkpBusy, setBkpBusy] = useState(false)
+  const [rstBusy, setRstBusy] = useState(false)
   const [bkpMsg, setBkpMsg] = useState('')
   const f = (k,v) => setForm(p=>({...p,[k]:v}))
 
@@ -27,6 +28,27 @@ export default function Admins({ admins, clients=[], currentUser, onRefresh }) {
       setBkpMsg(`✓ Backup baixado — ${total} registros. Veja na pasta Downloads.`)
     }catch(e){ setBkpMsg('Erro: '+(e?.message||e)) }
     finally{ setBkpBusy(false) }
+  }
+
+  async function restaurarDeArquivo(e){
+    const file=e.target.files?.[0]; e.target.value=''
+    if(!file) return
+    let dump; try{ dump=JSON.parse(await file.text()) }catch{ setBkpMsg('Erro: arquivo inválido (não é JSON).'); return }
+    if(dump?._meta?.app!=='RARO Home'){ setBkpMsg('Erro: não parece um backup do RARO Home.'); return }
+    const cont=dump._meta.contagem||{}
+    const total=Object.values(cont).reduce((s,n)=>s+n,0)
+    if(!confirm(`RESTAURAR este backup (${total} registros)?\n\nIsto GRAVA os dados no banco atual, sobrescrevendo registros de mesmo id. Use só num ambiente NOVO/vazio — nunca no banco de produção em uso.\n\nContinuar?`)) return
+    requirePIN(async()=>{
+      if(rstBusy) return
+      setRstBusy(true); setBkpMsg('Restaurando…')
+      try{
+        const res=await restaurarBackup(dump,(t,n)=>setBkpMsg(`Restaurando ${t} (${n})…`))
+        const tot=Object.values(res).reduce((s,n)=>s+n,0)
+        setBkpMsg(`✓ Restaurado — ${tot} registros gravados. Recarregue a página.`)
+        onRefresh && onRefresh()
+      }catch(err){ setBkpMsg('Erro no restore: '+(err?.message||err)) }
+      finally{ setRstBusy(false) }
+    })
   }
 
   function openNew(){ setEditId(null); setForm({name:'',gmail:'',role:'admin',obra_scope:'all',client_ids:[]}); setShowModal(true) }
@@ -163,9 +185,18 @@ export default function Admins({ admins, clients=[], currentUser, onRefresh }) {
                 {bkpMsg && <div style={{marginTop:6,fontWeight:600,color: bkpMsg.startsWith('Erro')?'#DC2626': bkpMsg.startsWith('✓')?'#059669':'var(--text2)'}}>{bkpMsg}</div>}
               </div>
             </div>
-            <button className="btn primary" style={{flexShrink:0}} disabled={bkpBusy} onClick={baixarBackup}>
-              <i className={bkpBusy?'ti ti-loader-2':'ti ti-download'} aria-hidden/>{bkpBusy?'Gerando…':'Baixar backup'}
-            </button>
+            <div style={{display:'flex',gap:8,flexShrink:0,flexWrap:'wrap'}}>
+              <button className="btn primary" disabled={bkpBusy||rstBusy} onClick={baixarBackup}>
+                <i className={bkpBusy?'ti ti-loader-2':'ti ti-download'} aria-hidden/>{bkpBusy?'Gerando…':'Baixar backup'}
+              </button>
+              <label className="btn" style={{cursor: (bkpBusy||rstBusy)?'default':'pointer', opacity:(bkpBusy||rstBusy)?0.5:1}} title="Restaurar de um arquivo de backup. Use só num ambiente novo/vazio.">
+                <i className={rstBusy?'ti ti-loader-2':'ti ti-upload'} aria-hidden/>{rstBusy?'Restaurando…':'Restaurar backup'}
+                <input type="file" accept="application/json,.json" style={{display:'none'}} disabled={bkpBusy||rstBusy} onChange={restaurarDeArquivo}/>
+              </label>
+            </div>
+          </div>
+          <div style={{padding:'0 14px 12px',fontSize:11,color:'var(--text3)'}}>
+            <b>Restaurar</b> é para montar um ambiente <b>novo/vazio</b> a partir de um backup — grava os dados no banco em que o app está ligado agora. <b style={{color:'#DC2626'}}>Não use no banco de produção em uso</b> (sobrescreve). Pede PIN.
           </div>
         </div>
       </div>

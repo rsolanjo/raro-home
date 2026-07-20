@@ -47,6 +47,23 @@ export async function gerarBackupCompleto(onProgress){
   }
   return dump
 }
+// RESTAURA um backup (JSON gerado por gerarBackupCompleto) — upsert por id, na ordem de FK.
+// Feito para montar um ambiente NOVO/vazio a partir de um backup. Bloqueado no demo.
+const _ORDEM_RESTORE = ['suppliers','clients','proposals','projects','catalog','catalog_categories','catalog_subcategories','stock','stock_log','reservations','tools','admins','audit_log']
+export async function restaurarBackup(dump, onProgress){
+  if(_demo()) throw new Error('No modo demonstração o restore fica desativado (não grava no banco real).')
+  if(!dump || !dump.dados || dump._meta?.app!=='RARO Home') throw new Error('Arquivo não é um backup do RARO Home.')
+  const res={}
+  for(const t of _ORDEM_RESTORE){
+    const rows = dump.dados[t]||[]
+    if(onProgress) onProgress(t, rows.length)
+    if(!rows.length){ res[t]=0; continue }
+    const { error } = await supabase.from(t).upsert(rows, { onConflict:'id' })
+    if(error) throw new Error(`Tabela "${t}": ${error.message}`)
+    res[t]=rows.length
+  }
+  return res
+}
 // Baixa um texto como arquivo no navegador (usa window.URL — o const URL aqui é a env).
 export function baixarArquivo(texto, filename, tipo='application/json'){
   try{
