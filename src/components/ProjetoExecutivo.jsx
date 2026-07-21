@@ -813,6 +813,21 @@ function pontosLegenda(){
   </div>`
 }
 
+// Versão COMPACTA da legenda (Raphael: "dá ênfase à planta"). Uma faixa fina, só o essencial
+// pra decodificar o pino — cor, forma/altura e selo do cabo — sem a grade NBR nem o texto longo.
+function pontosLegendaCompacta(){
+  const cat=(cor,nome)=>`<span style="display:inline-flex;align-items:center;gap:4px;font-size:9px;color:#334155"><span style="width:10px;height:10px;border-radius:50%;background:${cor};border:1px solid #fff;box-shadow:0 0 0 1px #cbd5e1"></span>${nome}</span>`
+  const frm=(alt,nome)=>`<span style="display:inline-flex;align-items:center;gap:4px;font-size:9px;color:#334155">${pinShapeSVG({alt,color:'#64748B',label:'',size:14})}${nome}</span>`
+  const cab=(cor,L)=>`<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;color:#334155"><span style="width:12px;height:12px;border-radius:6px;background:${cor};color:#fff;font-size:7.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center">${L}</span></span>`
+  const sep=`<span style="width:1px;height:14px;background:#E2E8F0;margin:0 2px"></span>`
+  return `<div style="display:flex;flex-wrap:wrap;gap:9px 12px;align-items:center;margin-top:6px;padding:6px 10px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;font-size:9px">
+    <b style="color:#94A3B8;text-transform:uppercase;letter-spacing:.4px;font-size:8px">Legenda</b>
+    ${cat(CAT_COLOR.keypad,'Keypad')} ${cat(CAT_COLOR.ap,'AP')} ${cat(CAT_COLOR.camera,'Câmera')} ${cat(CAT_COLOR.som,'Som')} ${cat(CAT_COLOR.energia,'Energia')} ${cat(CAT_COLOR.sensor,'Sensor')}
+    ${sep}${frm('piso','chão')} ${frm('baixa','0,30')} ${frm('media','1,10')} ${frm('alta','1,80')} ${frm('teto','teto')}
+    ${sep}<span style="color:#64748B">cabo:</span> ${cab('#16A34A','E')}elétr. ${cab('#BE185D','S')}som ${cab('#2563EB','R')}rede
+  </div>`
+}
+
 // Legenda COMPLETA de símbolos elétricos (ABNT NBR 5444) — referência fixa da RARO.
 // Mostra todos os símbolos agrupados, cada um com significado. Vai na planta elétrica.
 // usados = Set de syms presentes na planta. Só mostra esses (Raphael: "só os símbolos das
@@ -1276,6 +1291,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [hideCats, setHideCats] = useState(new Set())      // categorias de equipamento fora das plantas do PDF
   const [hidePdfConduites, setHidePdfConduites] = useState(false) // tirar todos os conduítes do PDF
   const [hideCondIds, setHideCondIds] = useState(false) // esconder os RÓTULOS (id/nome) dos conduítes, mantendo o traçado
+  const [legendaCompacta, setLegendaCompacta] = useState(false) // legenda em faixa fina (dá ênfase à planta)
   // t_pecas ("Equipamentos por Cômodo e Lista de Peças") vem OCULTO por padrão (Raphael);
   // religa no seletor de tópicos do painel de PDF.
   const [hideSecs, setHideSecs] = useState(()=>new Set(['t_pecas']))  // seções fora do PDF
@@ -2691,6 +2707,9 @@ Responda APENAS JSON válido:
     // ── LEGENDA MESTRE (decisão 3): símbolo técnico NBR + pino da planta lado a lado,
     // só dos tipos presentes no projeto. Mesma legenda em todos os documentos.
     const legendaMestreHtml = (()=>{
+      // Compacta (Raphael): uma faixa fina em vez da grade NBR/tabela inteira — a planta ganha
+      // a página. Vale para todos os modelos, inclusive opus.
+      if(legendaCompacta) return pontosLegendaCompacta()
       // OPUS: a legenda vira a lista dos tipos desta planta (legendaOpusHtml). Os outros
       // modelos seguem com a legenda abstrata cor/forma/selo + grade NBR, intactos.
       if((versao||execVersao)==='opus') return legendaOpusHtml()
@@ -5438,7 +5457,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // NÃO inclui plantTransforms/plantPct/plantAlign: mexer na planta NÃO pode regerar o documento
     // inteiro (era isso que fazia o iframe recarregar e dar aquele "blink"/reset de rolagem).
     // Essas mudanças são aplicadas ao vivo no DOM da prévia pelo efeito _patchPlantasNaPrevia.
-    [showPdfOpts, showDocEditor, showLegenda, showIdsPdf, showIdsTbl, showNumPin, pageOrient, showBreaks, hideAllPlants, hideAllTables, blockHidden, blockOrder, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, hideCondIds, execMode, execData, execVersao, rotBg, bgImage, markers, cables, creds]) // eslint-disable-line
+    [showPdfOpts, showDocEditor, showLegenda, legendaCompacta, showIdsPdf, showIdsTbl, showNumPin, pageOrient, showBreaks, hideAllPlants, hideAllTables, blockHidden, blockOrder, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, hideCondIds, execMode, execData, execVersao, rotBg, bgImage, markers, cables, creds]) // eslint-disable-line
   // Liga/desliga o contentEditable no corpo da prévia conforme o modo de edição.
   useEffect(()=>{
     const ifr=previewIframeRef.current; if(!ifr) return
@@ -7184,6 +7203,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   <div><div style={{fontSize:12.5,fontWeight:600}}>Legenda no documento</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Quadro de formas e cabos</div></div>
                   {tgl(showLegenda,()=>setShowLegenda(v=>!v),'Incluída','Sem')}
                 </div>
+                {showLegenda && <div style={rowSt}>
+                  <div><div style={{fontSize:12.5,fontWeight:600}}>Tamanho da legenda</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Compacta = uma faixa fina, dá ênfase à planta</div></div>
+                  {tgl(legendaCompacta,()=>setLegendaCompacta(v=>!v),'Compacta','Completa')}
+                </div>}
                 <div style={rowSt}>
                   <div><div style={{fontSize:12.5,fontWeight:600}}>IDs nas plantas</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Códigos dos pontos sobre a planta</div></div>
                   {tgl(showIdsPdf,()=>setShowIdsPdf(v=>!v),'Com IDs','Limpo')}
