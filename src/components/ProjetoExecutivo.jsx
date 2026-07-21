@@ -423,6 +423,7 @@ const SPEC_PADRAO = { caixa:'—', cabo:'—' }
 function ehCaixaDeEmbutir(cx){ return /^4x2$|^4x4$|^octogonal$|caixa de piso/i.test(String(cx||'')) }
 function specDoPonto(m){
   if(!m) return SPEC_PADRAO
+  if(m.pilha) return { caixa:'—', cabo:'pilha (sem cabo)' } // sensor a pilha não puxa cabo
   // QDL não tem tamanho nem especificação (Raphael): o quadro JÁ está na casa e é bem maior
   // que qualquer caixa de embutir — o ponto dele na planta é só pra ilustrar ONDE ele fica.
   // Por isso ignora até um caixaTipo gravado: "4x4 no QDL" é dado sem sentido, não escolha.
@@ -480,6 +481,15 @@ function _specAuto(m){
 // tracinho de 2px pra altura — ilegível impresso. Agora a altura é o preenchimento,
 // que se lê de longe e sobrevive ao P&B.
 // ─────────────────────────────────────────────────────────────────────────
+const CABLE_PALETTE_CAMERA = '#92400E' // cor do cabo de câmera (bate com CABLE_PALETTE.camera do componente)
+// Cabo de REDE (CAT6) — 90m é o limite do padrão; a partir de 80m sobe um alerta (Raphael),
+// porque com folga de instalação e patch cords o lance real pode estourar os 90/100m.
+function _ehCaboRede(t){ return /^(dados|ap|camera|uplink|hdmi)$/.test(String(t||'')) }
+function mtCel(mt, tipoCabo){
+  if(mt==null) return '—'
+  const alerta = mt>=80 && _ehCaboRede(tipoCabo)
+  return `${mt}m${alerta?` <span style="color:#DC2626;font-weight:800" title="CAT6 acima de 80m — perto do limite de 90m. Prever fibra ou switch intermediário.">⚠</span>`:''}`
+}
 const PIN_TIPOS = {
   interruptor: { forma:'circulo',  cor:'#DC2626', nome:'Interruptor' },
   tomada:      { forma:'seta',     cor:'#2563EB', nome:'Tomada' },
@@ -492,6 +502,10 @@ function pinTipoDe(m){
   const c = classifyEle(m)
   const sym = (c && c.sym) || ''
   const n = (((m && m.name) || '') + ' ' + ((m && m.code) || '')).toLowerCase()
+  // Câmera e AP são SEMPRE ponto de rede — decidido pelo NOME, antes de qualquer sym elétrico.
+  // Sem isto, uma câmera com eleType elétrico gravado (clique antigo no "Tipo do ponto", hoje
+  // sem como desfazer) saía como losango PRETO em vez de rede (bug que o Raphael viu na Suíte 02).
+  if(/c[âa]mera|camera|dome|bullet|access point|\bap\b|wi-?fi/.test(n)) return 'rede'
   if(sym==='quadro' || /quadro|qdl/.test(n)) return 'quadro'
   if(/^interruptor/.test(sym)) return 'interruptor'
   if(/^tomada/.test(sym)) return 'tomada'
@@ -499,7 +513,7 @@ function pinTipoDe(m){
   if(/^ponto_som/.test(sym)) return 'som'
   if(/^ponto_energia/.test(sym) || sym==='ponto_luz' || /^arandela/.test(sym) || sym==='modulo_cabeceira') return 'eletrica'
   // Fora do classifyEle: o que importa é o PONTO que fica na parede, não o aparelho.
-  if(/c[âa]mera|camera|dome|bullet|access point|\bap\b|wi-?fi|keystone|\bks\b/.test(n)) return 'rede'
+  if(/keystone|\bks\b/.test(n)) return 'rede'
   if(/som|caixa ac|caixa de som|alto-?falante|speaker|subwoofer/.test(n)) return 'som'
   if(/sensor|presen[çc]a|mmwave|cortina|persiana|m[óo]dulo|qarz/.test(n)) return 'eletrica'
   return 'eletrica'
@@ -540,7 +554,10 @@ let _pinSeq = 0
 function pinNovoSVG({ m, size=22, label='', sel=false }){
   const tipo = pinTipoDe(m)
   const T = PIN_TIPOS[tipo] || PIN_TIPOS.eletrica
-  const cor = T.cor
+  // Câmera usa a MESMA cor do cabo de câmera (Raphael) — se destaca dos outros pontos de rede
+  // (AP/keystone amarelos). A letra C dentro do pino continua distinguindo.
+  const _n=(((m&&m.name)||'')+' '+((m&&m.code)||'')).toLowerCase()
+  const cor = (tipo==='rede' && /c[âa]mera|camera|dome|bullet/.test(_n)) ? (CABLE_PALETTE_CAMERA) : T.cor
   const fill = tipo==='quadro' ? 'cheio' : pinFillDe(m)
   const id = 'pc'+(++_pinSeq)
   const corpo = {
@@ -724,6 +741,8 @@ function isSubwoofer(m){ const n=((m?.name||'')+' '+(m?.code||'')).toLowerCase()
 // Raphael: "tem AP que não vai ser PoE e você precisa representar isso nas plantas".
 function semPoe(m){ return !!(m && m.semPoe) }
 function cableFamiliesOf(m, type){
+  // Sensor a PILHA não puxa cabo nenhum (Raphael): sem selo — o ponto só marca a posição.
+  if(m && m.pilha) return []
   // Subwoofer ATIVO tem amplificador embutido → precisa de tomada (S+E). PASSIVO é só falante,
   // vai no cabo de som do rack/receiver e NÃO puxa elétrica (Raphael). Marcado à mão (subPassivo)
   // porque não dá pra saber pelo nome — modelos ativos e passivos se chamam igual "Subwoofer".
@@ -4612,7 +4631,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <td style="font-size:11px">${f?`<b>#${f.n}</b> ${esc(f.name)}`:'—'} <span style="color:#94A3B8">→</span> ${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td>
             <td style="font-size:11px">${esc(to?.room||'—')}</td>
             <td style="font-size:10px;color:#475569">${esc(sp.spec)}</td>
-            <td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td>
+            <td style="text-align:right;font-weight:700">${mtCel(mt,t)}</td>
             <td style="font-size:9.5px;color:#0369A1;font-family:monospace">${esc(c.conduite||'—')}</td>
           </tr>` }).join('')
         const totM=arr.reduce((s,c)=>s+(cableMeters(c)||0),0)
@@ -4811,7 +4830,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <td style="font-size:11px">${f?`<b>#${f.n}</b> ${esc(f.name)}`:'Rack'} <span style="color:#94A3B8">→</span> ${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td>
             <td style="font-size:11px">${esc(to?.room||'—')}</td>
             <td style="font-size:10px;color:#475569">${esc(sp.spec)}</td>
-            <td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td>
+            <td style="text-align:right;font-weight:700">${mtCel(mt,c.type)}</td>
             <td style="font-size:9.5px;color:#0369A1;font-family:monospace">${esc(c.conduite||'—')}</td>
           </tr>` }).join('')
         const totRede=cabosRede.reduce((s,c)=>s+(cableMeters(c)||0),0)
@@ -4833,7 +4852,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             ${legRede}</div>
           ${plantaRede?`<div class="ex-opus-fig">${plantaRede}</div>`:''}
           ${T(rowsRede,['Nº','Tipo','Origem → Destino','Cômodo','Cabo','Metros','Conduíte'])}
-          ${rowsCondRede?`<h3 class="ex-amb" style="color:#1E3A8A;margin-top:16px;margin-bottom:4px;break-after:avoid;page-break-after:avoid">Conduítes de rede</h3>${T(rowsCondRede,['ID','Nº cabos','Eletroduto','Metros','Trechos'])}`:''}
+          ${condRede.length?`<h3 class="ex-amb" style="color:#1E3A8A;margin-top:16px;margin-bottom:4px;break-after:avoid;page-break-after:avoid">Conduítes de rede — planta</h3>
+            <div class="ex-opus-fig">${pagePlantaConduites(condRede, '#1E3A8A')}</div>`:''}
+          ${rowsCondRede?`<h3 class="ex-amb" style="color:#1E3A8A;margin-top:14px;margin-bottom:4px;break-after:avoid;page-break-after:avoid">Conduítes de rede — tabela</h3>${T(rowsCondRede,['ID','Nº cabos','Eletroduto','Metros','Trechos'])}`:''}
           </div>`
       })()
 
@@ -5048,7 +5069,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(/receptor ir|emissor ir|hub ir|infraverm|\bir\b/.test(_n)) return 'Sensor de presença IR'
     if(/sensor|presen[çc]a|mm-?wave|mv-?wave|\bmmw\b/.test(_n)) return 'Sensor de presença (mmWave)'
     const cls = classifyEle(m)
-    return (cls && cls.tipo) ? cls.tipo : ((m && m.name) || '—')
+    let tipo = (cls && cls.tipo) ? cls.tipo : ((m && m.name) || '—')
+    // Ocultar IDs (tabela) também esconde o "N teclas" do interruptor (Raphael): fica só
+    // "Interruptor". A contagem de teclas é dado de detalhe, no mesmo nível do ID.
+    if(!showIdsTbl) tipo = tipo.replace(/\s*\d+\s*teclas?/i,'').trim()
+    return tipo
   }
 
   // Legenda OPUS: a legenda É a lista do que existe NESTA planta, uma linha por FUNÇÃO
@@ -6486,7 +6511,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                         onDoubleClick={e=>{e.stopPropagation(); removeCablePoint(c.id,idx)}}
                         title="Arraste para curvar · duplo-clique remove ponto"
                         style={{position:'absolute',left:`${p.x}%`,top:`${p.y}%`,transform:'translate(-50%,-50%)',zIndex:15,touchAction:'none',
-                          width:c.free?16:18,height:c.free?16:18,borderRadius:c.free?3:'50%',background:'#fff',border:`3px solid ${c.color}`,cursor:'move',boxShadow:'0 1px 4px rgba(0,0,0,0.6)'}}/>
+                          /* conduíte agora com a MESMA alça do cabo (círculo 18px): pega melhor (Raphael) */
+                          width:18,height:18,borderRadius:'50%',background:'#fff',border:`3px solid ${c.color}`,cursor:'move',boxShadow:'0 1px 4px rgba(0,0,0,0.6)'}}/>
                     ))}
                     {pts.slice(0,-1).map((p,i)=>{ const n=pts[i+1]; const mx=(p.x+n.x)/2, my=(p.y+n.y)/2
                       return <div key={'mid'+i} className="cable-handle"
@@ -6790,6 +6816,22 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       {m.subPassivo
                         ? <>Passivo: só o <b>cabo de som</b> (do receiver/amplificador). <b>Não precisa de tomada</b> — o pino fica só com o selo <b>S</b>.</>
                         : <>Ativo (amplificador embutido): <b>dois cabos</b> — RCA de sinal + tomada. O pino ganha <b>S e E</b>.</>}
+                    </div></>
+                  })()}
+                  {/* Sensor: elétrica (cabo) ou pilha (sem cabo nenhum) — Raphael. */}
+                  {(()=>{ const n=((m.name||'')+' '+(m.code||'')).toLowerCase()
+                    if(!/sensor|presen[çc]a|mm-?wave|mv-?wave|\bmmw\b|receptor ir|emissor ir|hub ir|infraverm/.test(n)) return null
+                    const bSen=(txt,on,onClick)=><button onClick={onClick} style={{flex:1,height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11,fontWeight:on?700:500,
+                      border:`1px solid ${on?'#38BDF8':'rgba(255,255,255,0.2)'}`,background:on?'rgba(56,189,248,0.18)':'rgba(255,255,255,0.06)',color:on?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{txt}</button>
+                    return <><label style={lbl}>Alimentação do sensor</label>
+                    <div style={{display:'flex',gap:8,marginBottom:8}}>
+                      {bSen('Elétrica · cabo',!m.pilha,()=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,pilha:false}:x)))}
+                      {bSen('Pilha · sem cabo',!!m.pilha,()=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,pilha:true}:x)))}
+                    </div>
+                    <div style={{fontSize:9.5,color:m.pilha?'#6EE7B7':'rgba(255,255,255,0.4)',marginBottom:8,lineHeight:1.5}}>
+                      {m.pilha
+                        ? <>A pilha alimenta o sensor: <b>não passa cabo</b>. O ponto fica só marcando a posição — sem selo de cabo.</>
+                        : <>Alimentado por <b>2×2,5mm² (F+N)</b> do quadro. Selo <b>E</b> no pino.</>}
                     </div></>
                   })()}
                   <label style={lbl}>Cabo que chega neste ponto</label>
