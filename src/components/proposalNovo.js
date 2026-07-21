@@ -12,18 +12,27 @@ const CAT_COLORS={'Segurança':'#DC2626','Sonorização':'#BE185D','Som':'#BE185
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-@page{size:A4;margin:16mm}
+/* Topo/base pela @page; as LATERAIS ficam na .doc (padding). Motivo: o "Margens" do diálogo de
+   impressão zera a margem lateral da @page e o conteúdo COLAVA no edge (Raphael). O padding da
+   .doc vale em TODAS as páginas e NÃO depende desse ajuste — margem lateral garantida. */
+@page{size:A4;margin:16mm 0}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 /* A barra "Salvar como PDF" (no-print) é sticky na tela; SEM esta regra ela imprimia no meio
    das páginas do PDF (Raphael). Mesma regra dos outros documentos (executivo). */
 @media print{.no-print{display:none!important}}
+.doc{padding:0 16mm}
+/* Na tela: vira uma folha A4 centrada (não cola nas bordas da janela, e já mostra a margem real). */
+@media screen{
+  body{background:#EEF2F7}
+  .doc{max-width:210mm;margin:16px auto;padding:16mm;background:#fff;box-shadow:0 2px 18px rgba(11,24,48,.14)}
+}
 body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1.5}
 .serif{font-family:'DM Serif Display',serif}
 .mono{font-family:'DM Mono','SFMono-Regular',Menlo,monospace}
 
 /* ── CAPA (sem depoimento) ── */
-.cover{page-break-after:always;min-height:calc(297mm - 26mm);display:flex;flex-direction:column}
+.cover{page-break-after:always;min-height:calc(297mm - 32mm);display:flex;flex-direction:column}
 .cover-mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding:6px 2px}
 .cover-top{background:#0B1830;color:#fff;border-radius:10px;padding:26px 30px;display:flex;justify-content:space-between;align-items:flex-start}
 .cover-ey{font-size:8px;letter-spacing:3px;color:#38BDF8;text-transform:uppercase;font-weight:600}
@@ -101,7 +110,7 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 /* ── RESUMO ── */
 .summary{break-before:always;padding-top:2px}
 .sum-ey{font-size:9px;letter-spacing:4px;color:#0369A1;text-transform:uppercase;font-weight:600;margin-bottom:12px}
-.sum-cat{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
+.sum-cat{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-bottom:14px}
 .sum-cat .cc{background:#fff;border:1px solid #D1E6F8;border-radius:7px;padding:8px 11px;display:flex;justify-content:space-between;align-items:center}
 .sum-cat .cc .k{font-size:7px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600}
 .sum-cat .cc .val{font-family:'DM Serif Display',serif;font-size:13px;color:#0B1830}
@@ -258,8 +267,10 @@ export function buildProposalNovo(data, adminMode=false){
   <span><strong>${brandName()}</strong>${admBadge} — ${client_name} · ${proposal_code}</span>
   <button onclick="window.print()" style="background:#0EA5E9;color:#fff;border:none;padding:7px 18px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">⬇ Salvar como PDF</button>
 </div>
+<div class="doc">
 ${cover}
 <div>${head()}${floorPages}</div>
 ${summary}
+</div>
 </body></html>`
 }

@@ -5649,6 +5649,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           // acontecer quando os títulos não batem), NÃO devolve página em branco: cai no doc
           // normal (não-compacto). É melhor mostrar o documento inteiro do que uma folha vazia.
           if(_pareceVazioDoc(doc)) throw new Error('compacta esvaziou o documento')
+          // A Compacta é TODA paisagem. A 1ª prancha NÃO força nova página (pra não abrir uma
+          // folha em branco antes dela), então ela caía na página 1 — que usava o @page RETRATO
+          // padrão — e "não virava" pra paisagem (Raphael). Como aqui o documento inteiro é
+          // prancha, o @page PADRÃO vira paisagem: a 1ª página já sai deitada, igual às demais.
+          // Só depois do sucesso (senão o fallback retrato herdaria a paisagem).
+          const _stLand=doc.createElement('style'); _stLand.textContent='@page{size:A4 landscape;margin:6mm}'; doc.head.appendChild(_stLand)
         }catch(e){ console.warn('compacta:',e.message); doc.body.innerHTML=_snap }
         return '<!doctype html>'+doc.documentElement.outerHTML }
       if(hideAllTables){
