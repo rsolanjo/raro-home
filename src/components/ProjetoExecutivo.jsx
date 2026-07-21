@@ -2991,7 +2991,7 @@ Responda APENAS JSON válido:
       const fig = plantasPorPav(v=>{
         const em = v.mks.map(m=>({m, cls:classifyEle(m)})).filter(x=>x.cls && ELE_ONLY.has(x.cls.sym))
         if(!em.length) return ''
-        return `<div class="ex-plant-fig" style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden;margin-bottom:10px">
+        return `<div class="ex-plant-fig" data-mkuids="${em.map(x=>x.m.uid).join(',')}" style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden;margin-bottom:10px">
           <div style="position:relative;width:100%;padding-bottom:${(((v.ratio||ratio))*100).toFixed(1)}%">
             <img src="${v.bg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.3) contrast(0.95) brightness(1.04)"/>
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${dutos}</svg>
@@ -5493,6 +5493,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   function montaCompacta(doc){
     const KEEP=[
       {re:/planta de pontos|planta completa|planta de itens|planta com todos/i, tabela:false, leg:true},
+      {re:/el[ée]trica|nbr ?5444/i, tabela:false, leg:true}, // (Raphael) planta elétrica na Compacta, por pavimento + legenda ao lado
       {re:/redes|cabeamento estruturado/i, tabela:false, leg:true}, // (Raphael #3) legenda compacta ao lado
       {re:/(cabos|planta).*som|som.*(cabos|planta)|— som\b/i, tabela:false, leg:true}, // (Raphael #3) idem
       {re:/teto|forro/i, tabela:true, leg:false},
