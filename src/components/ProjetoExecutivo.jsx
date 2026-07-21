@@ -3382,7 +3382,7 @@ Responda APENAS JSON válido:
         const badge=(showCabo && !famOculta(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:_pinLabel(m),size:22})}${badge}</div>`}).join('')
       const blocos=_docViewsPorPav().filter(v=>v.bg).map(v=>
-        `${v.nome?`<h3 class="ex-amb">${esc(v.nome)} · ${v.mks.length} ponto${v.mks.length===1?'':'s'}</h3>`:''}<div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${v.bg}" style="max-width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${_dotsDe(v.mks)}</div>`).join('')
+        `${v.nome?`<h3 class="ex-amb">${esc(v.nome)} · ${v.mks.length} ponto${v.mks.length===1?'':'s'}</h3>`:''}<div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${v.bg}" style="width:100%;display:block;border:1px solid #ddd;border-radius:6px"/>${_dotsDe(v.mks)}</div>`).join('')
       if(blocos) planta=`<div class="ex-sec"><h2>Planta de Pontos</h2>${blocos}${showLegenda?legendaMestreHtml:""}</div>`
     }
 
@@ -3737,7 +3737,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
               const f=cableFamily(familiaDoPontoTipo(m))
               const badge=(showCabo && !_fo(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
               return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:${PIN_PX}px;height:${PIN_PX}px">${pinShapeSVG({m, mount:mountOf(m), alt:alturaOf(m), color:corDoPino(m), label:_pinLabel(m), size:PIN_PX})}${badge}</div>` }).join('')
-            return `<div class="ex-plant" style="position:relative;display:inline-block;max-width:100%;margin-bottom:10px"><img src="${v.bg}" style="max-width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>${dots}</div>`
+            return `<div class="ex-plant" style="position:relative;display:inline-block;max-width:100%;margin-bottom:10px"><img src="${v.bg}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>${dots}</div>`
           })
           return `<div class="ex-obra-page" style="page-break-before:always">
             <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Onde está cada ponto</h2>
@@ -3967,7 +3967,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         // dominava o desenho. O número acompanha (o SVG é viewBox 24 escalado por size).
         return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:${PIN_PX}px;height:${PIN_PX}px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:_pinLabel(m),size:PIN_PX})}${badge}</div>`}).join('')
       const blocos=_docViewsPorPav().filter(v=>v.bg).map(v=>
-        `${v.nome?`<h3 class="ex-amb">${esc(v.nome)} · ${v.mks.length} ponto${v.mks.length===1?'':'s'}</h3>`:''}<div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${v.bg}" style="max-width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${_dotsDe(v.mks)}</div>`).join('')
+        `${v.nome?`<h3 class="ex-amb">${esc(v.nome)} · ${v.mks.length} ponto${v.mks.length===1?'':'s'}</h3>`:''}<div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${v.bg}" style="width:100%;display:block;border:1px solid #D1E6F8;border-radius:6px"/>${_dotsDe(v.mks)}</div>`).join('')
       if(blocos) return `<div class="ex-sec"><h2>Planta de Pontos</h2>${blocos}${showLegenda?legendaMestreHtml:""}</div>`
     }
     return ''
@@ -7896,7 +7896,7 @@ const EXEC_CSS=`
 .ex-plant-wrap{position:relative;width:100%;margin:8px 0}
 .ex-plant-wrap img{width:100%;display:block}
 .ex-plant{position:relative;display:block;width:fit-content;max-width:100%;margin:8px auto;break-inside:avoid;page-break-inside:avoid;break-before:avoid;page-break-before:avoid}
-.ex-plant img{width:auto!important;height:auto;max-width:100%;max-height:190mm;display:block;border:1px solid #CDD2DA;border-radius:6px}
+.ex-plant img{width:100%!important;height:auto;max-width:100%;display:block;border:1px solid #CDD2DA;border-radius:6px}
 
 /* ── Print ───────────────────────────────────────────────────────────────── */
 @media print{
@@ -7950,7 +7950,7 @@ const EXEC_CSS_PREMIUM=`
 .ex-plant-wrap{position:relative;width:100%;margin:8px 0}
 .ex-plant-wrap img{width:100%;display:block}
 .ex-plant{position:relative;display:block;width:fit-content;max-width:100%;margin:8px auto;break-inside:avoid;page-break-inside:avoid;break-before:avoid;page-break-before:avoid}
-.ex-plant img{width:auto!important;height:auto;max-width:100%;max-height:190mm;display:block;border:1px solid #CDD2DA;border-radius:6px}
+.ex-plant img{width:100%!important;height:auto;max-width:100%;display:block;border:1px solid #CDD2DA;border-radius:6px}
 @media print{
   .no-print{display:none!important}
   h2,h3{page-break-after:avoid;break-after:avoid}
