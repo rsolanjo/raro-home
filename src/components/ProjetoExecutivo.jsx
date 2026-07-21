@@ -5421,6 +5421,21 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       pl.style.transform=`translate(calc(-50% + ${t.x||0}%), calc(-50% + ${t.y||0}%)) scale(${z}) rotate(${t.rot||0}deg)`
     }
   }
+  // Nas PRANCHAS (Compacta/impressão) a planta de IMAGEM SIMPLES (.ex-plant) vira uma UNIDADE limpa:
+  // bloco relativo (inline-block), a imagem cabe na caixa mantendo o aspecto (max-width/height), e os
+  // pinos (position:absolute em %) são % da PRÓPRIA planta. Isso cola os pinos na imagem em QUALQUER
+  // mídia — no PDF/impressão a montagem antiga (palco com aspect-ratio + planta absoluta) recalculava
+  // diferente e os pinos de baixo (a câmera do muro) se soltavam pra fora (Elton/Raphael). O
+  // .ex-plant-fig (elétrica: padding-box + object-fit) já é auto-colado, então fica como está.
+  function _colaPlanta(stage, maxH){
+    try{
+      const pl=stage.querySelector('.ex-plant'); if(!pl) return
+      pl.style.cssText='position:relative;display:inline-block;max-width:100%;max-height:'+maxH+';margin:0;vertical-align:top;overflow:hidden'
+      const im=pl.querySelector('img')
+      if(im){ im.style.setProperty('width','auto','important'); im.style.setProperty('height','auto','important'); im.style.setProperty('max-width','100%','important'); im.style.setProperty('max-height',maxH,'important') }
+      stage.style.height='auto'; stage.style.aspectRatio='auto'
+    }catch(_){}
+  }
   // Converte as seções COM planta em pranchas paisagem (planta grande à esquerda, legenda na
   // coluna direita, título no topo) e ESCONDE as seções sem planta. Roda só no modo "ocultar
   // tabelas". Um <div.ex-plant-stage> = uma planta = uma folha (então cada pavimento sai numa
@@ -5458,6 +5473,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         // = pinos (em %) continuam colados na planta.
         stage.style.height='100%'; stage.style.width='auto'; stage.style.maxWidth='100%'
         stage.style.margin='0'; stage.style.breakInside='avoid'
+        _colaPlanta(stage, '176mm')  // planta = imagem + pinos colados (não solta no PDF)
         const page=doc.createElement('div')
         page.className='ex-prancha ex-obra-page'
         page.setAttribute('style',`page:wallpage;${primeira?'':'page-break-before:always;'}break-inside:avoid;page-break-inside:avoid`)
@@ -5529,6 +5545,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const legendaLateral = keep.leg ? legendaLateralHtml(_uids.size?_sub:undefined) : ''
         stage.style.height='100%'; stage.style.width='auto'; stage.style.maxWidth='100%'
         stage.style.margin='0'; stage.style.breakInside='avoid'
+        // PLANTA COMO UNIDADE LIMPA (imagem + pinos colados). O palco (aspect-ratio) + planta
+        // absoluta recalculava diferente NO PRINT e DESGRUDAVA os pinos (a câmera de baixo descia
+        // pra fora). A .ex-plant vira um bloco RELATIVO: a imagem cabe na caixa (aspecto natural,
+        // max-width/height) e os pinos são % da PRÓPRIA planta — colam igual em tela e PDF. O
+        // .ex-plant-fig (elétrica) já é auto-colado (padding-box+object-fit), segue no palco.
+        _colaPlanta(stage, maxH)
         const page=doc.createElement('div')
         page.className='ex-prancha ex-obra-page'
         page.setAttribute('style',`page:wallpage;${primeira?'':'page-break-before:always;'}break-inside:avoid;page-break-inside:avoid`)
