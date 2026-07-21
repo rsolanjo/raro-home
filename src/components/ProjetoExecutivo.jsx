@@ -499,6 +499,7 @@ const PIN_TIPOS = {
   som:         { forma:'quadrado', cor:'#BE185D', nome:'Ponto de som' },  // rosa = mesma cor do cabo/conduíte de som (Raphael)
   eletrica:    { forma:'losango',  cor:'#111827', nome:'Ponto de elétrica' },
   quadro:      { forma:'quadro',   cor:'#111827', nome:'Quadro QDL' },
+  prumada:     { forma:'hexagono', cor:'#06B6D4', nome:'Prumada' },  // hexágono CIANO + ↕: forma e cor únicas (Raphael)
 }
 function pinTipoDe(m){
   const c = classifyEle(m)
@@ -509,6 +510,7 @@ function pinTipoDe(m){
   // sem como desfazer) saía como losango PRETO em vez de rede (bug que o Raphael viu na Suíte 02).
   if(/c[âa]mera|camera|dome|bullet|access point|\bap\b|wi-?fi/.test(n)) return 'rede'
   if(sym==='quadro' || /quadro|qdl/.test(n)) return 'quadro'
+  if(sym==='prumada' || /prumada/.test(n)) return 'prumada'
   if(/^interruptor/.test(sym)) return 'interruptor'
   if(/^tomada/.test(sym)) return 'tomada'
   if(/^keystone/.test(sym)) return 'rede'
@@ -519,6 +521,15 @@ function pinTipoDe(m){
   if(/som|caixa ac|caixa de som|alto-?falante|speaker|subwoofer/.test(n)) return 'som'
   if(/sensor|presen[çc]a|mmwave|cortina|persiana|m[óo]dulo|qarz/.test(n)) return 'eletrica'
   return 'eletrica'
+}
+// Um ponto TEM tipo se o app sabe desenhá-lo (elétrico OU rede/câmera/AP/sensor/som/cortina).
+// O validador antigo usava só classifyEle (que só conhece ponto ELÉTRICO), então câmera, AP e
+// sensor caíam como "SEM TIPO" mesmo sendo detectados pelo nome — o falso alarme do Raphael.
+function pontoTemTipo(m){
+  if(classifyEle(m)) return true
+  if(isRackItem(m&&m.name, m&&m.code)) return true
+  const n=(((m&&m.name)||'')+' '+((m&&m.code)||'')).toLowerCase()
+  return /c[âa]mera|dome|bullet|access point|\bap\b|wi-?fi|u6|u7|uap|unifi|keystone|\bks\b|sensor|presen[çc]a|mm-?wave|mmwave|receptor ir|emissor ir|hub ir|infraverm|\bir\b|cortina|persiana|som|caixa ac|alto-?falante|speaker|subwoofer|m[óo]dulo/.test(n)
 }
 // Letra dentro da meia lua: diz QUAL ponto de rede é. Substitui o selo "R", que só repetia
 // o que a cor amarela já diz.
@@ -537,6 +548,7 @@ function pinLetraDe(m){
   // Módulo de cabeceira: marca própria "MC" no pino (Raphael) — é um ponto especial (USB+tomada+
   // som na cabeceira), não um ponto de elétrica qualquer.
   if((classifyEle(m)||{}).sym==='modulo_cabeceira' || /cabeceira/.test(n)) return 'MC'
+  if((classifyEle(m)||{}).sym==='prumada' || /prumada/.test(n)) return '↕'
   const _t=pinTipoDe(m)
   if(_t==='tomada') return 'T'
   if(_t==='interruptor') return 'i'
@@ -563,7 +575,7 @@ function pinNovoSVG({ m, size=22, label='', sel=false }){
   // (AP/keystone amarelos). A letra C dentro do pino continua distinguindo.
   const _n=(((m&&m.name)||'')+' '+((m&&m.code)||'')).toLowerCase()
   const cor = (tipo==='rede' && /c[âa]mera|camera|dome|bullet/.test(_n)) ? (CABLE_PALETTE_CAMERA) : T.cor
-  const fill = tipo==='quadro' ? 'cheio' : pinFillDe(m)
+  const fill = tipo==='quadro' ? 'cheio' : tipo==='prumada' ? 'vazio' : pinFillDe(m)
   const id = 'pc'+(++_pinSeq)
   const corpo = {
     circulo:  `<circle cx="12" cy="12" r="9.5"/>`,
@@ -572,6 +584,7 @@ function pinNovoSVG({ m, size=22, label='', sel=false }){
     quadrado: `<rect x="3" y="3" width="18" height="18" rx="1.5"/>`,
     losango:  `<polygon points="12,2 22,12 12,22 2,12"/>`,
     quadro:   `<rect x="1.5" y="5.5" width="21" height="13" rx="1.5"/>`,
+    hexagono: `<polygon points="12,1.5 21,6.5 21,17.5 12,22.5 3,17.5 3,6.5"/>`,
   }[T.forma]
   // A área preenchida é sempre recortada pela própria forma — nunca vaza.
   const recorte = {
@@ -689,7 +702,13 @@ function _textOn(hex){
 const ELE_SYMS_SET = new Set(['tomada_baixa','tomada_media','tomada_alta','tomada_piso','tomada_teto','modulo_cabeceira',
   'interruptor_simples','interruptor_paralelo','interruptor_intermediario','interruptor_4','interruptor_6',
   'ponto_luz','ponto_energia_teto','ponto_energia_piso','ponto_energia_parede','arandela','arandela_teto','quadro','prumada'])
-function isPontoEletrico(m){ const c=classifyEle(m); return !!(c && ELE_SYMS_SET.has(c.sym)) }
+function isPontoEletrico(m){
+  const n=(((m&&m.name)||'')+' '+((m&&m.code)||'')).toLowerCase()
+  // Câmera / AP / keystone NUNCA são ponto elétrico — mesmo com um eleType elétrico gravado por
+  // engano (clique antigo no "Tipo do ponto"). Era o "ponto fantasma" na planta elétrica (Raphael).
+  if(/c[âa]mera|dome|bullet|access point|\bap\b|wi-?fi|u6|u7|uap|unifi|keystone|\bks\b/.test(n)) return false
+  const c=classifyEle(m); return !!(c && ELE_SYMS_SET.has(c.sym))
+}
 
 function mountOf(m){
   const a=((m&&m.altura)||'').toLowerCase()
@@ -1219,7 +1238,11 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const _mkSave = () => (markers||[]).map(m=> m.floorId ? m : { ...m, floorId: activeFloorId || 'pav-1' })
   // Payload único de planta_data pra TODOS os saves — garante floors[] + floorId sempre.
   const plantaDataSave = (exec_data) => ({ image:bgImage, floors:_floorsSave(), markers:_mkSave(), cables, scale:plantScale, calibSamples, imgRatio, folgaPct, exec_data, credenciais:creds })
-  const [history, setHistory] = useState([])   // pilha de estados anteriores de markers (undo)
+  const [history, setHistory] = useState([])   // (legado — pushHistory virou no-op; histórico agora é automático)
+  // ── DESFAZER / REFAZER automático (Raphael): grava markers+cables a cada mudança e permite
+  // andar pra trás E pra frente, como no Word. ~30 passos (bem mais que os 5 pedidos). ──
+  const histRef = useRef({ stack:[], idx:-1, applying:false })
+  const [histInfo, setHistInfo] = useState({ canUndo:false, canRedo:false })
   // ── Roteamento de cabos (planta elétrica) ──
   const [cableMode, setCableMode]   = useState(false)        // ativa o modo de traçar cabos
   const [hideCables, setHideCables] = useState(false)        // oculta os cabos (mostra só itens)
@@ -1277,8 +1300,19 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   }, [fromProposal?.id])
   const [conduitType, setConduitType] = useState('conduite_dados')  // tipo do conduíte sendo desenhado
   const [conduitDraft, setConduitDraft] = useState([])       // [{x,y}] pontos clicados enquanto desenha
-  // snapshot para undo (chamar ANTES de alterar markers)
-  const pushHistory = () => setHistory(h=>[...h.slice(-29), markers])
+  // snapshot para undo — agora NO-OP: o histórico é automático (useEffect abaixo). Mantido
+  // como stub pra não quebrar as chamadas antigas.
+  const pushHistory = () => {}
+  // Grava cada estado de markers+cables. Se a mudança veio do undo/redo, não regrava.
+  useEffect(()=>{
+    const h=histRef.current
+    if(h.applying){ h.applying=false; setHistInfo({canUndo:h.idx>0, canRedo:h.idx<h.stack.length-1}); return }
+    h.stack=h.stack.slice(0,h.idx+1)
+    h.stack.push({markers, cables})
+    if(h.stack.length>30) h.stack.shift()
+    h.idx=h.stack.length-1
+    setHistInfo({canUndo:h.idx>0, canRedo:false})
+  },[markers, cables])
   // acumulador de custo da API Anthropic durante a geração do executivo
   const apiCostRef = useRef({ inTokens:0, outTokens:0, usd:0, brl:0, calls:0 })
   const accumulateCost = (c)=>{ const a=apiCostRef.current; a.inTokens+=c.inTokens; a.outTokens+=c.outTokens; a.usd+=c.usd; a.brl+=c.brl; a.calls++ }
@@ -1921,10 +1955,9 @@ Responda APENAS JSON válido:
     setAddMode(false); setAddItem(null)
   }
 
-  // ── Undo / Limpar / Recomeçar ──
-  function undo(){
-    setHistory(h=>{ if(!h.length) return h; const prev=h[h.length-1]; setMarkers(prev); return h.slice(0,-1) })
-  }
+  // ── Desfazer / Refazer (automático, markers+cables) ──
+  function undo(){ const h=histRef.current; if(h.idx<=0) return; h.idx--; const s=h.stack[h.idx]; h.applying=true; setMarkers(s.markers); setCables(s.cables) }
+  function redo(){ const h=histRef.current; if(h.idx>=h.stack.length-1) return; h.idx++; const s=h.stack[h.idx]; h.applying=true; setMarkers(s.markers); setCables(s.cables) }
   // pede senha 123 + confirmação para ações destrutivas / que regeram o documento
   const SENHA_ACAO = '123'
   function confirmarComSenha(mensagem){
@@ -2023,7 +2056,8 @@ Responda APENAS JSON válido:
   }
   useEffect(()=>{
     function onKey(e){
-      if((e.ctrlKey||e.metaKey)&&e.key==='z'&&step==='editor'){ e.preventDefault(); undo() }
+      if((e.ctrlKey||e.metaKey)&&(e.key==='z'||e.key==='Z')&&step==='editor'){ e.preventDefault(); e.shiftKey?redo():undo() }
+      if((e.ctrlKey||e.metaKey)&&(e.key==='y'||e.key==='Y')&&step==='editor'){ e.preventDefault(); redo() }
       if(e.key==='Escape'&&step==='editor'){
         // cancela tudo: desenho de conduíte, seleção, modo edição
         if(conduitMode){ setConduitMode(false); setConduitDraft([]) }
@@ -2545,7 +2579,7 @@ Responda APENAS JSON válido:
     if(semRoom.length) issues.push(`${semRoom.length} ponto(s) SEM CÔMODO (viram "Geral" nas tabelas):\n   ${lista(semRoom)}`)
     const semId=markers.filter(m=>!(m.id||m.code||'').trim())
     if(semId.length) issues.push(`${semId.length} ponto(s) SEM ID (coluna ID vazia, etiqueta do cabo genérica):\n   ${lista(semId)}`)
-    const semTipo=markers.filter(m=>!classifyEle(m) && !isRackItem(m.name,m.code))
+    const semTipo=markers.filter(m=>!pontoTemTipo(m))
     if(semTipo.length) issues.push(`${semTipo.length} ponto(s) SEM TIPO definido nem detectado (saem com símbolo genérico na planta):\n   ${lista(semTipo)}`)
     const cabosSemMetro=(cables||[]).filter(c=>{ const mt=cableMeters(c); return mt==null })
     if(cabosSemMetro.length) issues.push(`${cabosSemMetro.length} cabo(s) SEM METRAGEM (sem escala e sem valor manual).`)
@@ -2730,7 +2764,12 @@ Responda APENAS JSON válido:
     return comImagem.map(f=>{
       const mks=(markers||[]).filter(m=>(m.floorId||activeFloorId)===f.id)
       const uids=new Set(mks.map(m=>m.uid))
-      const cbs=(cables||[]).filter(c=> (!c.fromUid||uids.has(c.fromUid)) && (!c.toUid||uids.has(c.toUid)) )
+      const cbs=(cables||[]).filter(c=>{
+        // Cabo livre (conduíte): não tem ponta — segue o floorId próprio; sem marca, cai no andar ativo.
+        if(c.free) return (c.floorId||activeFloorId)===f.id
+        // Cabo entre pontos: fica no andar quando as duas pontas estão nele.
+        return (!c.fromUid||uids.has(c.fromUid)) && (!c.toUid||uids.has(c.toUid))
+      })
       return { bg:f.image, mks, cbs, ratio:f.imgRatio||imgRatio, nome:f.nome||'Pavimento' }
     })
   }
@@ -2743,6 +2782,26 @@ Responda APENAS JSON válido:
       const f=markers.find(m=>m.uid===c.fromUid), t=markers.find(m=>m.uid===c.toUid)
       return (f&&t) ? [{x:f.x,y:f.y}, ...(c.points||[]), {x:t.x,y:t.y}] : []
     }
+    // Igual ao cablePolyPoints, mas as pontas vêm de UM conjunto de markers (o do pavimento).
+    // Usado quando desenhamos uma planta por andar — cada andar tem seus próprios pontos.
+    const cablePolyPointsIn = (c, mks) => {
+      if(c.free) return c.points||[]
+      const src = mks||markers
+      const f=src.find(m=>m.uid===c.fromUid), t=src.find(m=>m.uid===c.toUid)
+      return (f&&t) ? [{x:f.x,y:f.y}, ...(c.points||[]), {x:t.x,y:t.y}] : []
+    }
+    // Repete um render de planta POR PAVIMENTO. renderInner(view) recebe {bg,mks,cbs,ratio,nome}
+    // e devolve o HTML da planta daquele andar (desenhado a partir de v.mks/v.bg/v.cbs). Com 1
+    // pavimento sai EXATAMENTE como antes (uma planta, sem cabeçalho de andar, na visão _docView
+    // — inclusive a rotação); com 2+ andares entra um <h3> com o nome do andar e cada planta
+    // mostra só os pontos daquele andar. Rotação não é aplicada com vários andares (decisão do
+    // Raphael: cada planta na orientação natural da sua imagem).
+    const plantasPorPav = (renderInner) => _docViewsPorPav().filter(v=>v.bg).map((v,idx)=>{
+      const inner = renderInner(v, idx)   // idx = índice do pavimento (útil pra ids únicos entre andares)
+      if(!inner) return ''   // andar sem conteúdo pra este render → nem entra (sem cabeçalho órfão)
+      const head = v.nome ? `<h3 class="ex-amb">${esc(v.nome)}${(v.mks?` · ${v.mks.length} ponto${v.mks.length===1?'':'s'}`:'')}</h3>` : ''
+      return head + inner
+    }).filter(Boolean).join('')
     // ── LEGENDA MESTRE (decisão 3): símbolo técnico NBR + pino da planta lado a lado,
     // só dos tipos presentes no projeto. Mesma legenda em todos os documentos.
     const legendaMestreHtml = (()=>{
@@ -2842,7 +2901,8 @@ Responda APENAS JSON válido:
       // ── símbolos como SVG individuais (cada um num quadradinho que NÃO distorce) ──
       // tomadas ficam menores (costumam ser muitas); demais maiores
       const symPxDe = sym => /tomada/.test(sym) ? 21 : 30
-      const syms = eleMarks.map(({m,cls})=>{
+      // Overlay de símbolos elétricos para UM conjunto de pontos (o do pavimento).
+      const symsDe = marks => marks.map(({m,cls})=>{
         const SYM_PX = symPxDe(cls.sym)
         // tensão: 110/220 a partir da nota do ponto
         const volt = /tomada/.test(cls.sym) ? ((/220/.test(m.note||'')?'220V':/110|127/.test(m.note||'')?'110V':'')) : ''
@@ -2922,12 +2982,18 @@ Responda APENAS JSON válido:
         <span>PLANTA ELÉTRICA — Símbolos ABNT NBR 5444</span><span style="color:rgba(255,255,255,0.5);font-size:10px;font-weight:400">${eleMarks.length} pontos${qdl?' · QDL':''}</span></div>`
       // imagem com proporção REAL (padding-bottom = ratio), símbolos como HTML que NÃO distorcem
       // ex-plant-fig = o editor trata isto como PLANTA (arrastar/zoom/girar/ocultar), igual às demais.
-      const fig = `<div class="ex-plant-fig" style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
-        <div style="position:relative;width:100%;padding-bottom:${(ratio*100).toFixed(1)}%">
-          <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.3) contrast(0.95) brightness(1.04)"/>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${dutos}</svg>
-          ${syms}
-        </div></div>`
+      // UMA planta elétrica por PAVIMENTO (com 1 andar sai igual a antes). Cada andar mostra só os
+      // seus pontos elétricos; andar sem ponto elétrico é pulado.
+      const fig = plantasPorPav(v=>{
+        const em = v.mks.map(m=>({m, cls:classifyEle(m)})).filter(x=>x.cls && ELE_ONLY.has(x.cls.sym))
+        if(!em.length) return ''
+        return `<div class="ex-plant-fig" style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden;margin-bottom:10px">
+          <div style="position:relative;width:100%;padding-bottom:${(((v.ratio||ratio))*100).toFixed(1)}%">
+            <img src="${v.bg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.3) contrast(0.95) brightness(1.04)"/>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${dutos}</svg>
+            ${symsDe(em)}
+          </div></div>`
+      })
       const titulo = numFn ? `<h2><span class="ex-sec-num">${numFn()}</span>Planta Elétrica (ABNT NBR 5444)</h2>` : `<h2>Planta Elétrica (ABNT NBR 5444)</h2>`
       // Resumo de caixas de embutir = lista de compra do eletricista. Varre TODOS os pontos
       // (Raphael: "puxar todas as caixas de embutir"), não só os eleMarks: keystone e ponto de
@@ -3135,17 +3201,23 @@ Responda APENAS JSON válido:
       // raios em % da largura da planta (aprox.). Concreto: cobertura útil menor.
       // forte ~ até 14%, médio ~ 22%, fraco ~ 30% do lado da imagem.
       const R_FORTE=14, R_MEDIO=22, R_FRACO=30
-      const grads = aps.map((m,i)=>`
-        <radialgradient id="ap${i}" cx="${m.x}%" cy="${m.y}%" r="${R_FRACO}%" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stop-color="#16A34A" stop-opacity="0.55"/>
-          <stop offset="${(R_FORTE/R_FRACO*100).toFixed(0)}%" stop-color="#84CC16" stop-opacity="0.40"/>
-          <stop offset="${(R_MEDIO/R_FRACO*100).toFixed(0)}%" stop-color="#FACC15" stop-opacity="0.30"/>
-          <stop offset="100%" stop-color="#DC2626" stop-opacity="0.16"/>
-        </radialgradient>`).join('')
-      const manchas = aps.map((m,i)=>`<circle cx="${m.x}" cy="${m.y}" r="${R_FRACO}" fill="url(#ap${i})"/>`).join('')
-      const pinos = aps.map((m,i)=>`<g transform="translate(${m.x},${m.y})">
-        <circle r="2.2" fill="#0E7490" stroke="#fff" stroke-width="0.7"/>
-        <text x="0" y="-3.2" font-size="3" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="700" fill="#0E7490">AP${i+1}</text></g>`).join('')
+      // Overlay do mapa de calor para UM conjunto de APs (o do pavimento). O sufixo `key` deixa
+      // os ids de gradiente únicos entre andares — senão o 2º pavimento referenciaria o gradiente
+      // do 1º (posicionado nas coordenadas do 1º) e o mapa sairia errado.
+      const heatSVGDe = (apsF, key) => {
+        const grads = apsF.map((m,i)=>`
+          <radialgradient id="ap${key}_${i}" cx="${m.x}%" cy="${m.y}%" r="${R_FRACO}%" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#16A34A" stop-opacity="0.55"/>
+            <stop offset="${(R_FORTE/R_FRACO*100).toFixed(0)}%" stop-color="#84CC16" stop-opacity="0.40"/>
+            <stop offset="${(R_MEDIO/R_FRACO*100).toFixed(0)}%" stop-color="#FACC15" stop-opacity="0.30"/>
+            <stop offset="100%" stop-color="#DC2626" stop-opacity="0.16"/>
+          </radialgradient>`).join('')
+        const manchas = apsF.map((m,i)=>`<circle cx="${m.x}" cy="${m.y}" r="${R_FRACO}" fill="url(#ap${key}_${i})"/>`).join('')
+        const pinos = apsF.map((m,i)=>`<g transform="translate(${m.x},${m.y})">
+          <circle r="2.2" fill="#0E7490" stroke="#fff" stroke-width="0.7"/>
+          <text x="0" y="-3.2" font-size="3" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="700" fill="#0E7490">AP${i+1}</text></g>`).join('')
+        return `<defs>${grads}</defs>${manchas}${pinos}`
+      }
 
       // detecção simples de "zona morta": cômodos cujo centro está fora do raio médio de todo AP
       const semCobertura = (rooms||[]).filter(r=>{
@@ -3161,11 +3233,16 @@ Responda APENAS JSON válido:
 
       const head = `<div class="ex-plant-head" style="background:#0D1420;color:#38BDF8;font-size:11px;font-weight:700;padding:8px 14px;letter-spacing:1px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
         <span>COBERTURA Wi-Fi — Propagação aproximada</span><span style="color:rgba(255,255,255,0.5);font-size:9px;font-weight:400">${aps.length} AP${aps.length!==1?'s':''} · paredes de concreto</span></div>`
-      const fig = `<div class="ex-plant-fig" style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
-        <div style="position:relative;width:100%">
-          <img src="${bgImage}" style="width:100%;display:block;filter:grayscale(0.5) brightness(1.05)"/>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%"><defs>${grads}</defs>${manchas}${pinos}</svg>
-        </div></div>`
+      // UMA cobertura por PAVIMENTO (com 1 andar sai igual a antes). Cada andar usa só os seus APs.
+      const fig = plantasPorPav((v, idx)=>{
+        const apsF = v.mks.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
+        if(!apsF.length) return ''
+        return `<div class="ex-plant-fig" style="border:1px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden;margin-bottom:10px">
+          <div style="position:relative;width:100%">
+            <img src="${v.bg}" style="width:100%;display:block;filter:grayscale(0.5) brightness(1.05)"/>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${heatSVGDe(apsF, idx)}</svg>
+          </div></div>`
+      })
       const legenda = `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:10.5px;color:#334155">
         <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:#16A34A;opacity:.7"></span>Sinal forte</span>
         <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:#FACC15;opacity:.7"></span>Sinal médio</span>
@@ -3649,13 +3726,18 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             'Conferir a tensão (110/220) antes de energizar qualquer módulo.',
             'Rack montado, energizado e com internet antes de configurar os dispositivos.',
           ])}</div>`,
-        bgImage ? (()=>{ const dots=vis.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{
-            const f=cableFamily(familiaDoPontoTipo(m))
-            const badge=(showCabo && !_fo(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
-            return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:${PIN_PX}px;height:${PIN_PX}px">${pinShapeSVG({m, mount:mountOf(m), alt:alturaOf(m), color:corDoPino(m), label:_pinLabel(m), size:PIN_PX})}${badge}</div>` }).join('')
+        bgImage ? (()=>{
+          // UMA planta por PAVIMENTO (com 1 andar sai igual a antes) — cada andar com seus pontos.
+          const plantas = plantasPorPav(v=>{
+            const dots=v.mks.filter(m=>!isRackItem(m.name,m.code) && m.name && !hideCats.has(equipType(m.name))).map(m=>{
+              const f=cableFamily(familiaDoPontoTipo(m))
+              const badge=(showCabo && !_fo(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
+              return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:${PIN_PX}px;height:${PIN_PX}px">${pinShapeSVG({m, mount:mountOf(m), alt:alturaOf(m), color:corDoPino(m), label:_pinLabel(m), size:PIN_PX})}${badge}</div>` }).join('')
+            return `<div class="ex-plant" style="position:relative;display:inline-block;max-width:100%;margin-bottom:10px"><img src="${v.bg}" style="max-width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>${dots}</div>`
+          })
           return `<div class="ex-obra-page" style="page-break-before:always">
             <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Onde está cada ponto</h2>
-            <div class="ex-plant" style="position:relative;display:inline-block;max-width:100%"><img src="${bgImage}" style="max-width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>${dots}</div>
+            ${plantas}
             ${showLegenda?legendaMestreHtml:''}</div>` })() : '',
         `<div class="ex-obra-page" style="page-break-before:always">
           <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Itens por Cômodo</h2>
@@ -4098,19 +4180,25 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         ['Nº','ID','Item','Cômodo','Tipo','Cabo','Obs'])}
     ` : ''
     const plantaTeto = (bgImage && tetoMarkers.length) ? (() => {
-      const ratio=imgRatio||0.66
-      const dots=tetoMarkers.map(m=>{
-        const color=(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
-        const badgeFam=showCabo?cableFamiliesOf(m,familiaDoPontoTipo(m)):null
-        return drawPin({label:_pinLabel(m),...m,mount:'teto'},{size:20,color,idLabel:showIdsPdf?esc(m.id||m.code||''):'',badgeFam})
-      }).join('')
-      const cabosLinha=(cables||[]).filter(c=>!c.free&&tetoMarkers.some(m=>m.uid===c.fromUid||m.uid===c.toUid)).map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''; return `<path d="${pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')}" fill="none" stroke="${c.color||'#0891B2'}" stroke-dasharray="4,2.5" vector-effect="non-scaling-stroke" style="stroke-width:2px"/>`}).join('')
+      // UMA planta de teto por PAVIMENTO (com 1 andar sai igual a antes). Cada andar mostra só os
+      // itens de teto e os cabos de teto daquele andar; andar sem item de teto é pulado.
+      const plantas = plantasPorPav(v=>{
+        const tm = v.mks.filter(m=>isTeto(m) && !hideCats.has(equipType(m.name)))
+        if(!tm.length) return ''
+        const dots=tm.map(m=>{
+          const color=(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c
+          const badgeFam=showCabo?cableFamiliesOf(m,familiaDoPontoTipo(m)):null
+          return drawPin({label:_pinLabel(m),...m,mount:'teto'},{size:20,color,idLabel:showIdsPdf?esc(m.id||m.code||''):'',badgeFam})
+        }).join('')
+        const cabosLinha=(v.cbs||[]).filter(c=>!c.free&&tm.some(m=>m.uid===c.fromUid||m.uid===c.toUid)).map(c=>{ const pts=cablePolyPointsIn(c, v.mks); if(pts.length<2)return''; return `<path d="${pts.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')}" fill="none" stroke="${c.color||'#0891B2'}" stroke-dasharray="4,2.5" vector-effect="non-scaling-stroke" style="stroke-width:2px"/>`}).join('')
+        return `<div class="ex-plant" style="border:1px solid #CBD5E1;border-radius:8px;overflow:hidden;margin-bottom:10px">
+          <img src="${v.bg}" style="filter:grayscale(0.4)"/>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${cabosLinha}</svg>${dots}
+        </div>`
+      })
       return `<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>
         <p class="ex-p" style="margin-bottom:8px">Pontos aéreos (teto/forro): câmeras, access points, sensores, luzes, som embutido e pontos elétricos de teto. Cabos em tracejado passam pelo forro.</p>
-        <div class="ex-plant" style="border:1px solid #CBD5E1;border-radius:8px;overflow:hidden">
-          <img src="${bgImage}" style="filter:grayscale(0.4)"/>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${cabosLinha}</svg>${dots}
-        </div>${tblTetoSec}</div>`
+        ${plantas}${tblTetoSec}</div>`
     })() : ''
     const mComObs = markers.filter(m=>m.note&&m.note.trim())
     const tblObservacoes = mComObs.length ? T(mComObs.map(m=>`<tr>
@@ -4299,46 +4387,52 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
       // ── PLANTA: só conduítes livres + caixas + itens que têm cabos em conduítes ──
       const desenhaPlanta = (conduites, corLinha)=>{
-        // só marca os itens que têm cabos dentro dos conduítes desta família
-        const chavesNestaFam = new Set(conduites.map(c=>chaveConduite(c)))
-        // usa match amplo (todas as variantes de chave)
-        const cabosNaFam = cabosNoConduite.filter(c=>conduites.some(cond=>
-          c.conduite===chaveConduite(cond)||c.conduite===cond.id||c.conduite===(cond.label||'').trim()||(cond._chave&&c.conduite===cond._chave)
-        ))
-        const uidsNaFam = new Set(); cabosNaFam.forEach(c=>{uidsNaFam.add(c.fromUid);uidsNaFam.add(c.toUid)})
-        // pins de itens: só quem tem cabo nesta família de conduítes
-        const itemDots = markers.filter(m=>uidsNaFam.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
-          const isR=isRackItem(m.name||'',m.code||'')
-          if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:16px;height:16px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
+        const condIds = new Set(conduites.map(c=>c.id).filter(Boolean))
+        // UMA planta por PAVIMENTO (com 1 andar sai igual a antes) — cada andar mostra só os
+        // conduítes desta família que estão nele (floorId do conduíte, via v.cbs).
+        return plantasPorPav(v=>{
+          const conds = v.cbs.filter(c=> c.free && (conduites.includes(c) || (c.id && condIds.has(c.id))) )
+          if(!conds.length) return ''
+          // cabos (não-livres) que estão dentro destes conduítes, restritos ao andar
+          const cabosNoCondV = (v.cbs||[]).filter(c=>!c.free && c.conduite)
+          const cabosNaFam = cabosNoCondV.filter(c=>conds.some(cond=>
+            c.conduite===chaveConduite(cond)||c.conduite===cond.id||c.conduite===(cond.label||'').trim()||(cond._chave&&c.conduite===cond._chave)
+          ))
+          const uidsNaFam = new Set(); cabosNaFam.forEach(c=>{uidsNaFam.add(c.fromUid);uidsNaFam.add(c.toUid)})
+          // pins de itens: só quem tem cabo nesta família de conduítes
+          const itemDots = v.mks.filter(m=>uidsNaFam.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
+            const isR=isRackItem(m.name||'',m.code||'')
+            if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
+              <div style="width:16px;height:16px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
+            </div>`
+            return drawPin(m,{label:_pinLabel(m),size:16,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c})
+          }).join('')
+          // caixas (do andar)
+          const caixaDots = v.mks.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
+            <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
+              <div style="width:16px;height:16px;background:#fff;border:2px solid #1E3A8A;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;color:#1E3A8A">CX</div>
+              ${m.n?`<div style="position:absolute;left:50%;top:18px;transform:translateX(-50%);font-size:6.5px;color:#1E3A8A;white-space:nowrap">#${m.n}</div>`:''}
+            </div>`).join('')
+          // só linhas dos conduítes livres (sem os cabos normais)
+          const lines = conds.map(c=>{ const pts=cablePolyPointsIn(c, v.mks); if(pts.length<2)return''
+            const col = c.color||CABLE_PALETTE[c.type]||corLinha
+            const dashP=({teto:'',piso:'4,2',parede:'2,2'})[c.passagem||'parede']
+            return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" ${dashP?`stroke-dasharray="${dashP}"`:''} style="stroke-width:5px" vector-effect="non-scaling-stroke"/>`}).join('')
+          const condLabels = hideCondIds ? '' : conds.map(c=>{ const pts=cablePolyPointsIn(c, v.mks); if(pts.length<2)return''
+            const idLabel=c.conduiteId||(c.label?c.label.slice(0,8):''); if(!idLabel)return''
+            // rótulo no ponto do conduíte mais longe de qualquer pino (não cobre item)
+            const cand=[]
+            for(let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1]
+              cand.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2},{x:a.x*0.75+b.x*0.25,y:a.y*0.75+b.y*0.25},{x:a.x*0.25+b.x*0.75,y:a.y*0.25+b.y*0.75}) }
+            const d2=(p,m)=>{const dx=p.x-m.x,dy=p.y-m.y;return dx*dx+dy*dy}
+            let mid=cand[0]||pts[Math.floor(pts.length/2)], bestD=-1
+            cand.forEach(p=>{ let mn=Infinity; v.mks.forEach(m=>{ const d=d2(p,m); if(d<mn)mn=d }); if(mn>bestD){bestD=mn;mid=p} })
+            return `<div style="position:absolute;left:${mid.x}%;top:${mid.y}%;transform:translate(-50%,-50%);z-index:6;background:${c.color||col};color:#fff;font-size:9px;font-weight:800;font-family:monospace;padding:1px 5px;border-radius:7px;border:1.5px solid #fff;white-space:nowrap;box-shadow:0 0 0 1.5px rgba(0,0,0,0.18)">${esc(idLabel)}</div>`}).join('')
+          return `<div class="ex-plant-fig" style="position:relative;width:100%;padding-bottom:${(((v.ratio||ratio))*100).toFixed(1)}%;border:1px solid #CBD5E1;border-radius:8px;overflow:hidden;margin-top:8px">
+            <img src="${v.bg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.4)"/>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${lines}</svg>${itemDots}${caixaDots}${condLabels}
           </div>`
-          return drawPin(m,{label:_pinLabel(m),size:16,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c})
-        }).join('')
-        // caixas
-        const caixaDots = caixasConduite.map(m=>`
-          <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
-            <div style="width:16px;height:16px;background:#fff;border:2px solid #1E3A8A;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;color:#1E3A8A">CX</div>
-            ${m.n?`<div style="position:absolute;left:50%;top:18px;transform:translateX(-50%);font-size:6.5px;color:#1E3A8A;white-space:nowrap">#${m.n}</div>`:''}
-          </div>`).join('')
-        // só linhas dos conduítes livres (sem os cabos normais)
-        const lines = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
-          const col = c.color||CABLE_PALETTE[c.type]||corLinha
-          const dashP=({teto:'',piso:'4,2',parede:'2,2'})[c.passagem||'parede']
-          return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" ${dashP?`stroke-dasharray="${dashP}"`:''} style="stroke-width:5px" vector-effect="non-scaling-stroke"/>`}).join('')
-        const condLabels = hideCondIds ? '' : conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
-          const idLabel=c.conduiteId||(c.label?c.label.slice(0,8):''); if(!idLabel)return''
-          // rótulo no ponto do conduíte mais longe de qualquer pino (não cobre item)
-          const cand=[]
-          for(let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1]
-            cand.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2},{x:a.x*0.75+b.x*0.25,y:a.y*0.75+b.y*0.25},{x:a.x*0.25+b.x*0.75,y:a.y*0.25+b.y*0.75}) }
-          const d2=(p,m)=>{const dx=p.x-m.x,dy=p.y-m.y;return dx*dx+dy*dy}
-          let mid=cand[0]||pts[Math.floor(pts.length/2)], bestD=-1
-          cand.forEach(p=>{ let mn=Infinity; markers.forEach(m=>{ const d=d2(p,m); if(d<mn)mn=d }); if(mn>bestD){bestD=mn;mid=p} })
-          return `<div style="position:absolute;left:${mid.x}%;top:${mid.y}%;transform:translate(-50%,-50%);z-index:6;background:${c.color||col};color:#fff;font-size:9px;font-weight:800;font-family:monospace;padding:1px 5px;border-radius:7px;border:1.5px solid #fff;white-space:nowrap;box-shadow:0 0 0 1.5px rgba(0,0,0,0.18)">${esc(idLabel)}</div>`}).join('')
-        return `<div class="ex-plant-fig" style="position:relative;width:100%;padding-bottom:${(ratio*100).toFixed(1)}%;border:1px solid #CBD5E1;border-radius:8px;overflow:hidden;margin-top:8px">
-          <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(0.4)"/>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">${lines}</svg>${itemDots}${caixaDots}${condLabels}
-        </div>`
+        })
       }
       // ── TABELA por conduíte: lista os cabos dentro ──
       const tabela = conduites => {
@@ -4496,7 +4590,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       // ── planta de TODOS os itens (sem cabos/conduítes) ── igual ao relatório de conduítes
       const plantaGeralItens = bgImage ? (()=>{
         // todos os itens do projeto/proposta posicionados na planta, sem nenhum filtro
-        const allDots = markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{
+        const _dotsDe = mks => mks.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{
           const isR=isRackItem(m.name||'',m.code||'')
           const isCx=classifyEle(m)?.sym==='caixa_conduite'
           const isPrum=classifyEle(m)?.sym==='prumada'
@@ -4513,106 +4607,130 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const badgeFam=showCabo?cableFamiliesOf(m,familiaDoPontoTipo(m)):null
           return drawPin(m,{label:_pinLabel(m),size:18,color,idLabel,badgeFam})
         }).join('')
-        return `<div class="ex-plant">
-          <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></svg>${allDots}
-        </div>${showLegenda?legendaMestreHtml:''}`
+        // UMA planta por PAVIMENTO (com 1 andar sai igual a antes) — cada andar com seus itens.
+        const plantas = plantasPorPav(v=>`<div class="ex-plant" style="margin-bottom:10px">
+          <img src="${v.bg}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></svg>${_dotsDe(v.mks)}
+        </div>`)
+        return `${plantas}${showLegenda?legendaMestreHtml:''}`
       })() : ''
 
       // ── planta de CABOS de uma família (só itens dessa família + rack) ──
       const pagePlantaCabos = (t, arr, col)=>{
         if(!bgImage) return ''
         const condW = 2.4
-        const uids = new Set(); arr.forEach(c=>{ uids.add(c.fromUid); uids.add(c.toUid) })
-        // só itens da família + rack (não todos os itens da planta)
-        const dots = markers.filter(m=> uids.has(m.uid) && (isRackItem(m.name,m.code) || isItemDaFamilia(m,t) || uids.has(m.uid))).map(m=>{
-          const isR=isRackItem(m.name||'',m.code||'')
-          if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
-            ${showIdsPdf?`<div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>`:''}
+        const ids = new Set(arr.map(c=>c.id).filter(Boolean))
+        // UMA planta por PAVIMENTO (com 1 andar sai igual a antes). Cada andar mostra só os cabos
+        // desta família QUE ESTÃO nele (via v.cbs — pontas no andar) + os itens ligados.
+        return plantasPorPav(v=>{
+          const arrF = v.cbs.filter(c=> !c.free && (arr.includes(c) || (c.id && ids.has(c.id))) )
+          if(!arrF.length) return ''   // andar sem cabo desta família → pula
+          const uids = new Set(); arrF.forEach(c=>{ uids.add(c.fromUid); uids.add(c.toUid) })
+          // só itens da família + rack (não todos os itens da planta)
+          const dots = v.mks.filter(m=> uids.has(m.uid)).map(m=>{
+            const isR=isRackItem(m.name||'',m.code||'')
+            if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
+              <div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
+              ${showIdsPdf?`<div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>`:''}
+            </div>`
+            return drawPin(m,{label:_pinLabel(m),size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):''})
+          }).join('')
+          const lines = arrF.map(c=>{ const pts=cablePolyPointsIn(c, v.mks); if(pts.length<2)return''
+            return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:${condW}px" vector-effect="non-scaling-stroke"/>` }).join('')
+          return `<div class="ex-plant" style="margin-bottom:10px">
+            <img src="${v.bg}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}
           </div>`
-          return drawPin(m,{label:_pinLabel(m),size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):''})
-        }).join('')
-        const lines = arr.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
-          return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:${condW}px" vector-effect="non-scaling-stroke"/>` }).join('')
-        return `<div class="ex-plant">
-          <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}
-        </div>`
+        })
       }
 
       // ── planta de CONDUÍTES de uma família ──
       const pagePlantaConduites = (conduites, col)=>{
         if(!bgImage || !conduites.length) return ''
-        const cabosNaoCond = (cables||[]).filter(c=>!c.free && c.conduite && conduites.some(cond=>
-          c.conduite===(cond.conduiteId||(cond.label||'').trim()||cond.id)||c.conduite===cond.id||(cond._chave&&c.conduite===cond._chave)
-        ))
-        const uidsNaFam = new Set(); cabosNaoCond.forEach(c=>{uidsNaFam.add(c.fromUid);uidsNaFam.add(c.toUid)})
-        const dots = markers.filter(m=>uidsNaFam.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
-          const isR=isRackItem(m.name||'',m.code||'')
-          if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:18px;height:18px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
+        const condIds = new Set(conduites.map(c=>c.id).filter(Boolean))
+        // UMA planta por PAVIMENTO (com 1 andar sai igual a antes). Cada andar mostra só os
+        // conduítes desta família que estão nele (via floorId do conduíte, em v.cbs).
+        return plantasPorPav(v=>{
+          const conds = v.cbs.filter(c=> c.free && (conduites.includes(c) || (c.id && condIds.has(c.id))) )
+          if(!conds.length) return ''
+          const cabosNaoCond = (v.cbs||[]).filter(c=>!c.free && c.conduite && conds.some(cond=>
+            c.conduite===(cond.conduiteId||(cond.label||'').trim()||cond.id)||c.conduite===cond.id||(cond._chave&&c.conduite===cond._chave)
+          ))
+          const uidsNaFam = new Set(); cabosNaoCond.forEach(c=>{uidsNaFam.add(c.fromUid);uidsNaFam.add(c.toUid)})
+          const dots = v.mks.filter(m=>uidsNaFam.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
+            const isR=isRackItem(m.name||'',m.code||'')
+            if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
+              <div style="width:18px;height:18px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
+            </div>`
+            return drawPin(m,{label:_pinLabel(m),size:18,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c})
+          }).join('')
+          const caixaDots = v.mks.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
+            <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
+              <div style="width:16px;height:16px;background:#fff;border:2px solid #1E3A8A;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;color:#1E3A8A">CX</div>
+            </div>`).join('')
+          const lines = conds.map(c=>{ const pts=cablePolyPointsIn(c, v.mks); if(pts.length<2)return''
+            const dashP=({teto:'',piso:'4,2',parede:'2,2'})[c.passagem||'parede']
+            return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" ${dashP?`stroke-dasharray="${dashP}"`:''} style="stroke-width:5px" vector-effect="non-scaling-stroke"/>`}).join('')
+          const condLabels = hideCondIds ? '' : conds.map(c=>{ const pts=cablePolyPointsIn(c, v.mks); if(pts.length<2)return''
+            const idLabel=c.conduiteId||(c.label||'').slice(0,6)||''; if(!idLabel)return''
+            const cand=[]
+            for(let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1]
+              cand.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2},{x:a.x*0.75+b.x*0.25,y:a.y*0.75+b.y*0.25},{x:a.x*0.25+b.x*0.75,y:a.y*0.25+b.y*0.75}) }
+            const d2=(p,m)=>{const dx=p.x-m.x,dy=p.y-m.y;return dx*dx+dy*dy}
+            let mid=cand[0]||pts[Math.floor(pts.length/2)], bestD=-1
+            cand.forEach(p=>{ let mn=Infinity; v.mks.forEach(m=>{ const d=d2(p,m); if(d<mn)mn=d }); if(mn>bestD){bestD=mn;mid=p} })
+            return `<div style="position:absolute;left:${mid.x}%;top:${mid.y}%;transform:translate(-50%,-50%);z-index:6;background:${c.color||col};color:#fff;font-size:9px;font-weight:800;font-family:monospace;padding:1px 5px;border-radius:7px;border:1.5px solid #fff;white-space:nowrap;box-shadow:0 0 0 1.5px rgba(0,0,0,0.18)">${esc(idLabel)}</div>`}).join('')
+          return `<div class="ex-plant" style="margin-bottom:10px">
+            <img src="${v.bg}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px;filter:grayscale(0.3)"/>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}${caixaDots}${condLabels}
           </div>`
-          return drawPin(m,{label:_pinLabel(m),size:18,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c})
-        }).join('')
-        const caixaDots = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
-          <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
-            <div style="width:16px;height:16px;background:#fff;border:2px solid #1E3A8A;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;color:#1E3A8A">CX</div>
-          </div>`).join('')
-        const lines = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
-          const dashP=({teto:'',piso:'4,2',parede:'2,2'})[c.passagem||'parede']
-          return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" ${dashP?`stroke-dasharray="${dashP}"`:''} style="stroke-width:5px" vector-effect="non-scaling-stroke"/>`}).join('')
-        const condLabels = hideCondIds ? '' : conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
-          const idLabel=c.conduiteId||(c.label||'').slice(0,6)||''; if(!idLabel)return''
-          const cand=[]
-          for(let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1]
-            cand.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2},{x:a.x*0.75+b.x*0.25,y:a.y*0.75+b.y*0.25},{x:a.x*0.25+b.x*0.75,y:a.y*0.25+b.y*0.75}) }
-          const d2=(p,m)=>{const dx=p.x-m.x,dy=p.y-m.y;return dx*dx+dy*dy}
-          let mid=cand[0]||pts[Math.floor(pts.length/2)], bestD=-1
-          cand.forEach(p=>{ let mn=Infinity; markers.forEach(m=>{ const d=d2(p,m); if(d<mn)mn=d }); if(mn>bestD){bestD=mn;mid=p} })
-          return `<div style="position:absolute;left:${mid.x}%;top:${mid.y}%;transform:translate(-50%,-50%);z-index:6;background:${c.color||col};color:#fff;font-size:9px;font-weight:800;font-family:monospace;padding:1px 5px;border-radius:7px;border:1.5px solid #fff;white-space:nowrap;box-shadow:0 0 0 1.5px rgba(0,0,0,0.18)">${esc(idLabel)}</div>`}).join('')
-        return `<div class="ex-plant">
-          <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px;filter:grayscale(0.3)"/>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}${caixaDots}${condLabels}
-        </div>`
+        })
       }
 
       // ── planta COMPLETA (cabos + conduítes sobrepostos) ──
       const pagePlantaCompleta = (cabos, conduites, col, catFiltro)=>{
         if(!bgImage) return ''
-        const uids = new Set(); cabos.forEach(c=>{uids.add(c.fromUid);uids.add(c.toUid)})
-        const dots = markers.filter(m=>isRackItem(m.name,m.code)||(uids.has(m.uid)&&(!catFiltro||equipType(m.name)===catFiltro))).map(m=>{
-          const isR=isRackItem(m.name||'',m.code||'')
-          if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
-            <div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
-            ${showIdsPdf?`<div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>`:''}
+        const cabosIds = new Set(cabos.map(c=>c.id).filter(Boolean))
+        const condIds = new Set(conduites.map(c=>c.id).filter(Boolean))
+        // UMA planta por PAVIMENTO (com 1 andar sai igual a antes) — cabos + conduítes do andar.
+        return plantasPorPav(v=>{
+          const cabosF = v.cbs.filter(c=> !c.free && (cabos.includes(c) || (c.id && cabosIds.has(c.id))) )
+          const condsF = v.cbs.filter(c=> c.free && (conduites.includes(c) || (c.id && condIds.has(c.id))) )
+          if(!cabosF.length && !condsF.length) return ''
+          const uids = new Set(); cabosF.forEach(c=>{uids.add(c.fromUid);uids.add(c.toUid)})
+          const dots = v.mks.filter(m=>isRackItem(m.name,m.code)||(uids.has(m.uid)&&(!catFiltro||equipType(m.name)===catFiltro))).map(m=>{
+            const isR=isRackItem(m.name||'',m.code||'')
+            if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3">
+              <div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div>
+              ${showIdsPdf?`<div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;white-space:nowrap;font-family:monospace;font-weight:600">${esc(m.id||m.code||m.name||'')}</div>`:''}
+            </div>`
+            const badgeFam=showCabo?cableFamiliesOf(m,familiaDoPontoTipo(m)):null
+            return drawPin(m,{label:_pinLabel(m),size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):'',badgeFam})
+          }).join('')
+          const caixaDots = v.mks.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
+            <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
+              <div style="width:16px;height:16px;background:#fff;border:2px solid #1E3A8A;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;color:#1E3A8A">CX</div>
+            </div>`).join('')
+          const linesCabos = cabosF.map(c=>{ const pts=cablePolyPointsIn(c, v.mks); if(pts.length<2)return''
+            return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:2px;opacity:0.8" vector-effect="non-scaling-stroke"/>`}).join('')
+          const linesCond = condsF.map(c=>{ const pts=cablePolyPointsIn(c, v.mks); if(pts.length<2)return''
+            return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:5px;opacity:0.5" vector-effect="non-scaling-stroke"/>`}).join('')
+          const condLabelsC = hideCondIds ? '' : condsF.map(c=>{ const pts=cablePolyPointsIn(c, v.mks); if(pts.length<2)return''
+            const idLabel=c.conduiteId||(c.label||'').slice(0,6)||''; if(!idLabel)return''
+            // Posição do rótulo: ponto ao longo do conduíte MAIS LONGE de qualquer pino,
+            // pra não carimbar em cima de um item (some na impressão). Rótulo 100% opaco.
+            const cand=[]
+            for(let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1]
+              cand.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2},{x:a.x*0.75+b.x*0.25,y:a.y*0.75+b.y*0.25},{x:a.x*0.25+b.x*0.75,y:a.y*0.25+b.y*0.75}) }
+            const d2=(p,m)=>{const dx=p.x-m.x,dy=p.y-m.y;return dx*dx+dy*dy}
+            let pos=cand[0]||pts[Math.floor(pts.length/2)], bestD=-1
+            cand.forEach(p=>{ let mn=Infinity; v.mks.forEach(m=>{ const d=d2(p,m); if(d<mn)mn=d }); if(mn>bestD){bestD=mn;pos=p} })
+            return `<div style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-50%);z-index:6;background:${c.color||col};color:#fff;font-size:8.5px;font-weight:800;font-family:monospace;padding:1px 4px;border-radius:6px;border:1.5px solid #fff;white-space:nowrap;box-shadow:0 0 0 1.5px rgba(0,0,0,0.18)">${esc(idLabel)}</div>`}).join('')
+          return `<div class="ex-plant" style="margin-bottom:10px">
+            <img src="${v.bg}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${linesCabos}${linesCond}</svg>${dots}${caixaDots}${condLabelsC}
           </div>`
-          const badgeFam=showCabo?cableFamiliesOf(m,familiaDoPontoTipo(m)):null
-          return drawPin(m,{label:_pinLabel(m),size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):'',badgeFam})
-        }).join('')
-        const caixaDots = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite').map(m=>`
-          <div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:4">
-            <div style="width:16px;height:16px;background:#fff;border:2px solid #1E3A8A;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;color:#1E3A8A">CX</div>
-          </div>`).join('')
-        const linesCabos = cabos.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
-          return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:2px;opacity:0.8" vector-effect="non-scaling-stroke"/>`}).join('')
-        const linesCond = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
-          return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:5px;opacity:0.5" vector-effect="non-scaling-stroke"/>`}).join('')
-        const condLabelsC = hideCondIds ? '' : conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
-          const idLabel=c.conduiteId||(c.label||'').slice(0,6)||''; if(!idLabel)return''
-          // Posição do rótulo: ponto ao longo do conduíte MAIS LONGE de qualquer pino,
-          // pra não carimbar em cima de um item (some na impressão). Rótulo 100% opaco.
-          const cand=[]
-          for(let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1]
-            cand.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2},{x:a.x*0.75+b.x*0.25,y:a.y*0.75+b.y*0.25},{x:a.x*0.25+b.x*0.75,y:a.y*0.25+b.y*0.75}) }
-          const d2=(p,m)=>{const dx=p.x-m.x,dy=p.y-m.y;return dx*dx+dy*dy}
-          let pos=cand[0]||pts[Math.floor(pts.length/2)], bestD=-1
-          cand.forEach(p=>{ let mn=Infinity; markers.forEach(m=>{ const d=d2(p,m); if(d<mn)mn=d }); if(mn>bestD){bestD=mn;pos=p} })
-          return `<div style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-50%);z-index:6;background:${c.color||col};color:#fff;font-size:8.5px;font-weight:800;font-family:monospace;padding:1px 4px;border-radius:6px;border:1.5px solid #fff;white-space:nowrap;box-shadow:0 0 0 1.5px rgba(0,0,0,0.18)">${esc(idLabel)}</div>`}).join('')
-        return `<div class="ex-plant">
-          <img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${linesCabos}${linesCond}</svg>${dots}${caixaDots}${condLabelsC}
-        </div>`
+        })
       }
 
       // ── uma página por família ──
@@ -4817,16 +4935,21 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         if(!cabosRede.length) return ''
         // planta: todos os cabos de rede juntos, cada tipo na sua cor; pinos das pontas + rack
         const plantaRede = bgImage ? (()=>{
-          const lines=cabosRede.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
-            const col=CABLE_PALETTE[c.type||'dados']||'#2563EB'
-            return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:2.4px" vector-effect="non-scaling-stroke"/>` }).join('')
-          const uids=new Set(); cabosRede.forEach(c=>{uids.add(c.fromUid);uids.add(c.toUid)})
-          const dots=markers.filter(m=>uids.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
-            const isR=isRackItem(m.name||'',m.code||'')
-            if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3"><div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div></div>`
-            return drawPin(m,{label:_pinLabel(m),size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):''}) }).join('')
-          return `<div class="ex-plant"><img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}</div>` })() : ''
+          const redeIds = new Set(cabosRede.map(c=>c.id).filter(Boolean))
+          // UMA planta de rede por PAVIMENTO (com 1 andar sai igual a antes).
+          return plantasPorPav(v=>{
+            const cabosF = v.cbs.filter(c=> !c.free && REDE_TIPOS.has(c.type||'dados') && (cabosRede.includes(c) || (c.id && redeIds.has(c.id))) )
+            if(!cabosF.length) return ''
+            const lines=cabosF.map(c=>{ const pts=cablePolyPointsIn(c, v.mks); if(pts.length<2)return''
+              const col=CABLE_PALETTE[c.type||'dados']||'#2563EB'
+              return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:2.4px" vector-effect="non-scaling-stroke"/>` }).join('')
+            const uids=new Set(); cabosF.forEach(c=>{uids.add(c.fromUid);uids.add(c.toUid)})
+            const dots=v.mks.filter(m=>uids.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
+              const isR=isRackItem(m.name||'',m.code||'')
+              if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3"><div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div></div>`
+              return drawPin(m,{label:_pinLabel(m),size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):''}) }).join('')
+            return `<div class="ex-plant" style="margin-bottom:10px"><img src="${v.bg}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}</div>` }) })() : ''
         // legenda de cores dos tipos presentes
         const tiposPresentes=[...new Set(cabosRede.map(c=>c.type||'dados'))]
         const legRede=`<div style="display:flex;flex-wrap:wrap;gap:12px;margin:8px 0 10px">${tiposPresentes.map(t=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:#334155"><span style="width:16px;height:4px;border-radius:2px;background:${CABLE_PALETTE[t]||'#2563EB'}"></span>${esc(CABLE_LABELS[t]||t)}</span>`).join('')}</div>`
@@ -5191,18 +5314,24 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   function buildWallPage(){
     if(!bgImage) return ''
     const _fo=fazFamOculta(hideFams)
-    const dots=markers.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
+    const _e=s=>String(s==null?'':s).replace(/</g,'&lt;')
+    const dotsDe = mks => mks.filter(m=>!hideCats.has(equipType(m.name))).map(m=>{const st=EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro
       const f=cableFamily(familiaDoPontoTipo(m))
       const badge=(showCabo && !_fo(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
       return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:_pinLabel(m),size:22})}${badge}</div>`}).join('')
-    const _wr=imgRatio||0.66
-    return `<div class="ex-wall-page" style="page:wallpage;page-break-before:always;text-align:center">
-      <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:#0D1420;letter-spacing:.5px;margin-bottom:6px">PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA</div>
-      <div style="position:relative;margin:0 auto;max-width:100%;max-height:172mm;aspect-ratio:${(1/_wr).toFixed(4)};border:1px solid #bbb">
-        <img src="${bgImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill"/>${dots}
-      </div>
-      <div style="margin-top:8px;text-align:left">${execVersao==='opus'?legendaOpusHtml():pontosLegenda()}</div>
-    </div>`
+    // UMA página-parede por PAVIMENTO (com 1 andar sai igual a antes). Cada andar na sua orientação
+    // natural (aspect-ratio do próprio andar). Fora do .ex-plant → não passa pelo montaPranchas.
+    return _docViewsPorPav().filter(v=>v.bg).map(v=>{
+      const _wr=v.ratio||imgRatio||0.66
+      const tit = v.nome ? `PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA · ${_e(v.nome)}` : 'PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA'
+      return `<div class="ex-wall-page" style="page:wallpage;page-break-before:always;text-align:center">
+        <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:#0D1420;letter-spacing:.5px;margin-bottom:6px">${tit}</div>
+        <div style="position:relative;margin:0 auto;max-width:100%;max-height:172mm;aspect-ratio:${(1/_wr).toFixed(4)};border:1px solid #bbb">
+          <img src="${v.bg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill"/>${dotsDe(v.mks)}
+        </div>
+        <div style="margin-top:8px;text-align:left">${execVersao==='opus'?legendaOpusHtml():pontosLegenda()}</div>
+      </div>`
+    }).join('')
   }
   // LISTA DE EQUIPAMENTOS — montada aqui (escopo do componente) e anexada UMA vez pelo
   // buildFullHtml, no fim do documento final. Antes eu anexava dentro do buildExecHtml, mas os
@@ -5300,19 +5429,25 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         // barra escura das figuras (Elétrica/Wi-Fi): usa como subtítulo e remove do fluxo
         const cap=stage.previousElementSibling
         if(cap && cap.classList && cap.classList.contains('ex-plant-head')) cap.style.display='none'
-        // a planta ocupa a folha inteira: tira a trava de largura/margem e cresce
-        stage.style.width='100%'; stage.style.margin='0'; stage.style.maxWidth='100%'
+        // CABE NA FOLHA mantendo o aspecto: o container tem ALTURA fixa (altura útil da folha), o
+        // palco herda essa altura (height:100%) e a largura sai do aspect-ratio, limitada a 100%.
+        // Assim uma planta girada pra retrato encolhe pra caber numa página só — não QUEBRA em duas
+        // (era o bug: a parte de baixo ia pra outra página levando os pinos junto). Aspecto mantido
+        // = pinos (em %) continuam colados na planta.
+        stage.style.height='100%'; stage.style.width='auto'; stage.style.maxWidth='100%'
+        stage.style.margin='0'; stage.style.breakInside='avoid'
         const page=doc.createElement('div')
         page.className='ex-prancha ex-obra-page'
-        page.setAttribute('style',`page:wallpage;${primeira?'':'page-break-before:always;'}break-inside:avoid`)
+        page.setAttribute('style',`page:wallpage;${primeira?'':'page-break-before:always;'}break-inside:avoid;page-break-inside:avoid`)
         primeira=false
         const tTop=[tituloTxt, pav.replace(/·.*$/,'').trim()].filter(Boolean).join(' — ')
         page.innerHTML=`<h2 style="margin:0 0 8px;border-bottom:2px solid #0D1420;padding-bottom:6px;font-size:18px">${tTop.replace(/</g,'&lt;')||'Planta'}</h2>
           <div class="ex-prancha-row" style="display:flex;gap:12px;align-items:flex-start">
-            <div class="ex-prancha-plant" style="flex:1;min-width:0"></div>
+            <div class="ex-prancha-plant" style="flex:1;min-width:0;display:flex;justify-content:center">
+              <div class="ex-prancha-inner" style="height:176mm;max-width:100%;display:flex;justify-content:center;align-items:flex-start"></div></div>
             <div style="width:236px;flex-shrink:0">${legendaLateral}</div>
           </div>`
-        page.querySelector('.ex-prancha-plant').appendChild(stage)
+        page.querySelector('.ex-prancha-inner').appendChild(stage)
         frag.appendChild(page)
       })
       sec.replaceWith(frag)
@@ -5355,21 +5490,25 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         if(p && /^H3$/.test(p.tagName)){ pav=p.textContent.trim() }
         const cap=stage.previousElementSibling
         if(cap && cap.classList && cap.classList.contains('ex-plant-head')) cap.style.display='none'
-        stage.style.width='100%'; stage.style.margin='0'; stage.style.maxWidth='100%'
+        // Cabe na folha mantendo o aspecto (não quebra em duas). Com tabela (Teto) a planta é
+        // menor (deixa espaço pra tabela); sem tabela ocupa mais.
+        const maxH = keep.tabela ? '120mm' : '176mm'
+        stage.style.height='100%'; stage.style.width='auto'; stage.style.maxWidth='100%'
+        stage.style.margin='0'; stage.style.breakInside='avoid'
         const page=doc.createElement('div')
         page.className='ex-prancha ex-obra-page'
-        page.setAttribute('style',`page:wallpage;${primeira?'':'page-break-before:always;'}break-inside:avoid`)
+        page.setAttribute('style',`page:wallpage;${primeira?'':'page-break-before:always;'}break-inside:avoid;page-break-inside:avoid`)
         primeira=false
         const tTop=[titulo, pav.replace(/·.*$/,'').trim()].filter(Boolean).join(' — ')
         // Com legenda (só na Planta Completa) → planta à esquerda + legenda à direita.
         // Sem legenda → planta ocupa a folha toda. Teto: a tabela entra abaixo da planta.
         page.innerHTML=`<h2 style="margin:0 0 8px;border-bottom:2px solid #0D1420;padding-bottom:6px;font-size:18px">${tTop.replace(/</g,'&lt;')||'Planta'}</h2>
           <div class="ex-prancha-row" style="display:flex;gap:12px;align-items:flex-start">
-            <div class="ex-prancha-plant" style="flex:1;min-width:0"></div>
+            <div class="ex-prancha-plant" style="flex:1;min-width:0;display:flex;justify-content:center"><div class="ex-prancha-inner" style="height:${maxH};max-width:100%;display:flex;justify-content:center;align-items:flex-start"></div></div>
             ${keep.leg?`<div style="width:236px;flex-shrink:0">${legendaLateral}</div>`:''}
           </div>
           ${tabelasHtml?`<div style="margin-top:10px">${tabelasHtml}</div>`:''}`
-        page.querySelector('.ex-prancha-plant').appendChild(stage)
+        page.querySelector('.ex-prancha-inner').appendChild(stage)
         frag.appendChild(page)
       })
       sec.replaceWith(frag)
@@ -5403,7 +5542,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           if(cap && cap.classList.contains('ex-plant-head')) cap.style.display='none' }
       })
       // COMPACTA (Plano de Obra): cura as seções e devolve já pronto — pula o resto do pipeline.
-      if(compactaObra){ try{ montaCompacta(doc) }catch(e){ console.warn('compacta:',e.message) }
+      if(compactaObra){
+        // montaCompacta MUTA o doc (esconde seções, move plantas). Se estourar no meio, o doc fica
+        // meio-esvaziado e a prévia sai EM BRANCO. Snapshot antes → restaura se falhar, caindo no
+        // layout normal em vez de página vazia (era a causa do "às vezes vem em branco", Raphael).
+        const _snap=doc.body.innerHTML
+        try{ montaCompacta(doc) }catch(e){ console.warn('compacta:',e.message); doc.body.innerHTML=_snap }
         return '<!doctype html>'+doc.documentElement.outerHTML }
       if(hideAllTables){
         // Esconde TODA tabela (não só as .ex-tbl) E os rótulos/cabeçalhos coladinhos nela (o título
@@ -5433,7 +5577,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         // ── PRANCHA: com as tabelas fora, cada planta vira uma folha paisagem — título + planta
         // GRANDE + legenda na lateral, um pavimento por página (Raphael). Some tudo que não é
         // planta; a planta ganha a página.
-        try{ montaPranchas(doc) }catch(e){ console.warn('pranchas:',e.message) }
+        // Mesma proteção da Compacta: se montaPranchas estourar no meio, restaura o doc pré-prancha
+        // (com tabelas ocultas) em vez de devolver uma página meio-montada/em branco.
+        const _snapPr=doc.body.innerHTML
+        try{ montaPranchas(doc) }catch(e){ console.warn('pranchas:',e.message); doc.body.innerHTML=_snapPr }
       }
       // ── BLOCOS COMO OBJETOS (Fase 4): ocultar e reordenar blocos de topo ──
       const body=doc.body
@@ -5642,7 +5789,18 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   }
   // preview ao vivo: regenera o HTML quando qualquer opção muda (só enquanto o editor está aberto).
   // Enquanto EDITANDO, a prévia fica congelada (editFrozenHtml) pra não apagar as edições do usuário.
-  const pdfPreviewHtml = useMemo(()=> (showPdfOpts||showDocEditor) ? applyLayout(buildFullHtml(true), {preview:true}) : '',
+  const pdfPreviewHtml = useMemo(()=>{
+    if(!(showPdfOpts||showDocEditor)) return ''
+    // Guarda: se a geração/layout estourar, mostra um aviso DENTRO da prévia em vez de derrubar
+    // o editor inteiro no error boundary (ou sair em branco). O console.error dá o erro real.
+    try{ return applyLayout(buildFullHtml(true), {preview:true}) }
+    catch(e){ console.error('[prévia] falha ao gerar o documento:', e)
+      return `<!doctype html><html><body style="font-family:sans-serif;padding:40px;color:#334155;line-height:1.5">
+        <h2 style="color:#B45309;margin:0 0 8px">Não consegui montar a prévia deste documento</h2>
+        <p style="margin:0 0 8px">Erro: <code style="background:#F1F5F9;padding:2px 5px;border-radius:4px">${String((e&&e.message)||e).replace(/</g,'&lt;').slice(0,300)}</code></p>
+        <p style="margin:0;color:#64748B">Tente <b>Regerar</b> o documento ou trocar de modo (Completo/Obra/Elétrica/Conduítes). Se persistir, me manda esse texto do erro.</p>
+      </body></html>` }
+  },
     // NÃO inclui plantTransforms/plantPct/plantAlign: mexer na planta NÃO pode regerar o documento
     // inteiro (era isso que fazia o iframe recarregar e dar aquele "blink"/reset de rolagem).
     // Essas mudanças são aplicadas ao vivo no DOM da prévia pelo efeito _patchPlantasNaPrevia.
@@ -5772,7 +5930,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   // senão o PDF sairia com o fundo cinza/estreito da tela).
   const toggleDocEdit=()=>{
     if(docEditMode){ setDocEditMode(false); setEditFrozenHtml('') }
-    else { setEditFrozenHtml(applyLayout(buildFullHtml(false))); setDocEditMode(true) }
+    else {
+      // Se a geração estourar, não entra em modo edição com HTML vazio (ficaria em branco):
+      // avisa e mantém o modo prévia normal.
+      let html=''
+      try{ html=applyLayout(buildFullHtml(false)) }catch(e){ console.error('[editar] falha ao gerar:', e) }
+      if(!html || !html.trim()){ alert('Não consegui gerar o documento para edição agora. Tente Regerar o documento primeiro.'); return }
+      setEditFrozenHtml(html); setDocEditMode(true)
+    }
   }
 
   async function saveToProposal(docOverride){
@@ -6175,45 +6340,59 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 {/* Atalhos elétricos — some quando a busca está ativa (Raphael: a lista de resultados
                     cresce e fica fácil de pesquisar). Voltam ao limpar/desfocar a busca. */}
                 {!(catSearch.trim()||catFocus) && <div style={{padding:'8px 10px',background:'#0a1020',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
-                  <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:.5,fontWeight:700,marginBottom:6}}>⚡ Atalhos: um clique posiciona com a altura padrão (ajustável depois)</div>
-                  {[
-                    {cat:'Tomadas', cor:'#F59E0B', itens:[
-                      {label:'Baixa',sub:'0,30m',eleType:'tomada_baixa',name:'Tomada baixa',note:'H=0,30m'},
-                      {label:'Média',sub:'1,30m',eleType:'tomada_alta',name:'Tomada média',note:'H=1,30m (bancada)'},
-                      {label:'Alta',sub:'2,00m',eleType:'tomada_alta',name:'Tomada alta',note:'H=2,00m'},
-                      {label:'Piso',sub:'caixa de piso',eleType:'tomada_piso',name:'Tomada de piso',note:'caixa de piso'},
-                      {label:'Teto',sub:'projetor/AP',eleType:'tomada_teto',name:'Tomada de teto',note:'teto (projetor/AP)'},
-                      {label:'Módulo cabeceira',sub:'tom+int+2 USB',eleType:'modulo_cabeceira',name:'Módulo de cabeceira (tomada + interruptor + 2 USB)',note:'cabeceira da cama'},
-                    ]},
-                    {cat:'Rede / Dados', cor:'#0EA5E9', itens:[
-                      {label:'Keystone teto',sub:'CAT6',eleType:'keystone_teto',name:'Keystone de teto',note:'teto'},
-                    ]},
-                    {cat:'Interruptores', cor:'#16A34A', itens:[
-                      {label:'Simples',sub:'1,10m',eleType:'interruptor_simples',name:'Interruptor simples',note:'H=1,10m'},
-                      {label:'Paralelo',sub:'1,10m',eleType:'interruptor_paralelo',name:'Interruptor paralelo',note:'H=1,10m'},
-                    ]},
-                    {cat:'Iluminação', cor:'#CA8A04', itens:[
-                      {label:'Ponto de luz',sub:'teto',eleType:'ponto_luz',name:'Ponto de luz (teto)',note:'teto'},
-                      {label:'Arandela parede',sub:'2,20m',eleType:'arandela',name:'Arandela de parede',note:'H=2,20m'},
-                      {label:'Arandela teto',sub:'teto',eleType:'arandela_teto',name:'Arandela de teto',note:'teto'},
-                    ]},
-                    {cat:'Som', cor:'#7C3AED', itens:[
-                      {label:'Som teto',sub:'cabo 2×1,5',eleType:'ponto_som_teto',name:'Ponto de som (teto)',note:'teto (caixa embutida)'},
-                    ]},
-                    {cat:'Infraestrutura', cor:'#6B7280', itens:[
-                      {label:'Quadro QDL',sub:'1,50m',eleType:'quadro',name:'Quadro de luz QDL',note:'H=1,50m'},
-                      {label:'Prumada ↕',sub:'entre andares',eleType:'prumada',name:'Prumada (subida/descida entre andares)',note:'shaft/laje'},
-                      {label:'Caixa conduíte',sub:'passagem',eleType:'caixa_conduite',name:'Caixa de conduíte',note:'caixa 4×4 passagem'},
-                    ]},
-                  ].map(g=>(
+                  <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:.5,fontWeight:700,marginBottom:6}}>⚡ Atalhos: um clique posiciona · altura ajustável no menu da direita</div>
+                  {(()=>{
+                    // Itens mais usados (Raphael). Os que existem no CATÁLOGO (sensor/câmera/AP/som/
+                    // cortina/keystone) vêm do catálogo real (com código); os elétricos são atalhos.
+                    const achaCat=(re)=>(catalog||[]).find(c=>re.test((((c.name||'')+' '+(c.code||''))).toLowerCase()))
+                    const camCat=achaCat(/c[âa]mera|dome|bullet/)
+                    const apCat=achaCat(/access point|\bap\b|wi-?fi|u6|u7|unifi/)
+                    const somCat=achaCat(/caixa.*som|som.*embutid|alto-?falante|speaker|arandela.*som/)
+                    const presCat=achaCat(/sensor.*(presen|mmwave|micro-?ond|24 ?ghz|zigbee)|presen[çc]a/)
+                    const irCat=achaCat(/sensor.*ir|receptor ir|infraverm|\bir\b/)
+                    const cortinaCat=achaCat(/cortina|persiana/)
+                    const keyCat=achaCat(/keystone/)
+                    const grupos=[
+                      {cat:'Elétrica', cor:'#F59E0B', itens:[
+                        {label:'Tomada',sub:'padrão',eleType:'tomada_media',name:'Tomada'},
+                        {label:'Ponto de energia',sub:'só força, sem tomada',eleType:'ponto_energia_parede',name:'Ponto de energia'},
+                        {label:'Módulo cabeceira',sub:'tom+int+USB',eleType:'modulo_cabeceira',name:'Módulo de cabeceira'},
+                      ]},
+                      {cat:'Interruptores', cor:'#16A34A', itens:[
+                        {label:'Interruptor 1',sub:'1 tecla',eleType:'interruptor_simples',name:'Interruptor 1 tecla'},
+                        {label:'Interruptor 2',sub:'2 teclas',eleType:'interruptor_paralelo',name:'Interruptor 2 teclas'},
+                        {label:'Interruptor 3',sub:'3 teclas',eleType:'interruptor_intermediario',name:'Interruptor 3 teclas'},
+                        {label:'Keypad 6',sub:'6 teclas',eleType:'interruptor_6',name:'Keypad 6 teclas'},
+                      ]},
+                      {cat:'Rede / Segurança', cor:'#0EA5E9', itens:[
+                        keyCat?{label:'Keystone',sub:keyCat.code||'CAT6',catItem:keyCat}:{label:'Keystone',sub:'CAT6',eleType:'keystone_media',name:'Keystone'},
+                        camCat&&{label:'Câmera',sub:(camCat.name||'').slice(0,20),catItem:camCat},
+                        apCat&&{label:'AP',sub:(apCat.name||'').slice(0,20),catItem:apCat},
+                      ].filter(Boolean)},
+                      {cat:'Sensores', cor:'#EA580C', itens:[
+                        presCat&&{label:'Sensor presença',sub:(presCat.name||'').slice(0,16),catItem:presCat},
+                        irCat&&{label:'Sensor IR',sub:(irCat.name||'').slice(0,16),catItem:irCat},
+                        cortinaCat&&{label:'Cortina',sub:(cortinaCat.name||'').slice(0,16),catItem:cortinaCat},
+                      ].filter(Boolean)},
+                      {cat:'Som', cor:'#7C3AED', itens:[
+                        somCat?{label:'Caixa de som',sub:(somCat.name||'').slice(0,16),catItem:somCat}:{label:'Som teto',sub:'cabo 2×1,5',eleType:'ponto_som_teto',name:'Ponto de som (teto)'},
+                      ]},
+                      {cat:'Infraestrutura', cor:'#6B7280', itens:[
+                        {label:'Quadro QDL',sub:'1,50m',eleType:'quadro',name:'Quadro de luz QDL'},
+                        {label:'Prumada ↕',sub:'entre andares',eleType:'prumada',name:'Prumada'},
+                        {label:'Caixa conduíte',sub:'passagem',eleType:'caixa_conduite',name:'Caixa de conduíte'},
+                      ]},
+                    ].filter(g=>g.itens.length)
+                    return grupos.map(g=>(
                     <div key={g.cat} style={{marginBottom:7}}>
                       <div style={{fontSize:8,fontWeight:700,letterSpacing:.5,textTransform:'uppercase',color:g.cor,marginBottom:3,display:'flex',alignItems:'center',gap:4}}>
                         <span style={{width:6,height:6,borderRadius:'50%',background:g.cor,display:'inline-block'}}/>{g.cat}
                       </div>
                       <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
                         {g.itens.map(b=>{
-                          const active = addMode && addItem?.eleType===b.eleType && addItem?.name===b.name
-                          return <button key={b.label} onClick={()=>{ setAddItem({code:'',name:b.name,note:b.note,eleType:b.eleType,category:'Automação'}); setAddMode(true) }}
+                          const it = b.catItem ? {...b.catItem} : {code:'',name:b.name,note:b.note||'',eleType:b.eleType,category:'Automação'}
+                          const active = addMode && addItem?.name===it.name && (b.catItem? addItem?.code===it.code : addItem?.eleType===b.eleType)
+                          return <button key={b.label} onClick={()=>{ setAddItem(it); setAddMode(true) }}
                             style={{fontSize:10,padding:'4px 8px',borderRadius:8,cursor:'pointer',
                               border:`1px solid ${active?g.cor:'rgba(255,255,255,0.15)'}`,
                               background:active?`${g.cor}33`:'rgba(255,255,255,0.05)',color:active?'#fff':'rgba(255,255,255,0.8)',
@@ -6224,7 +6403,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                         })}
                       </div>
                     </div>
-                  ))}
+                  )) })()}
                 </div>}
                 {/* Busca + filtros de categoria — sticky */}
                 <div style={{padding:'8px 10px',background:'#0a1020',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
@@ -6415,8 +6594,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 {markers.some(m=>classifyEle(m)?.sym==='caixa_conduite') && <button onClick={()=>setHideCaixas(h=>!h)} style={{height:32,borderRadius:6,border:`1px solid ${hideCaixas?'#1E3A8A88':'rgba(255,255,255,0.2)'}`,background:hideCaixas?'rgba(30,58,138,0.25)':'rgba(255,255,255,0.08)',color:'#fff',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}}>
                   <i className="ti ti-box" aria-hidden/>{hideCaixas?'Caixas ocultas':'Ocultar caixas'}
                 </button>}
-                <button onClick={undo} disabled={!history.length} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:history.length?'#fff':'rgba(255,255,255,0.3)',cursor:history.length?'pointer':'default',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Desfazer (Ctrl+Z)">
+                <button onClick={undo} disabled={!histInfo.canUndo} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:histInfo.canUndo?'#fff':'rgba(255,255,255,0.3)',cursor:histInfo.canUndo?'pointer':'default',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Desfazer (Ctrl+Z)">
                   <i className="ti ti-arrow-back-up" aria-hidden/>Desfazer
+                </button>
+                <button onClick={redo} disabled={!histInfo.canRedo} style={{height:32,borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.08)',color:histInfo.canRedo?'#fff':'rgba(255,255,255,0.3)',cursor:histInfo.canRedo?'pointer':'default',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Refazer (Ctrl+Shift+Z)">
+                  <i className="ti ti-arrow-forward-up" aria-hidden/>Refazer
                 </button>
                 <button onClick={limparItens} style={{height:32,borderRadius:6,border:'1px solid #DC262688',background:'rgba(220,38,38,0.12)',color:'#FCA5A5',cursor:'pointer',fontSize:12,padding:'0 10px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}} title="Remover todos os itens">
                   <i className="ti ti-eraser" aria-hidden/>Limpar
@@ -6961,7 +7143,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   </div> })()}
                   <label style={lbl}>Nota (posição/altura)</label>
                   <textarea value={m.note} onChange={e=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,note:e.target.value}:x))} rows={3} style={{...inputDark,resize:'vertical'}}/>
-                  <button onClick={()=>{setMarkers(ms=>ms.filter(x=>x.uid!==m.uid).map((x,i)=>({...x,n:i+1})));setSelected(null)}} style={{...btnGhost,width:'100%',marginTop:10,color:'#FCA5A5',borderColor:'rgba(220,38,38,0.4)'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
+                  <button onClick={()=>{
+                      // Prumada é estrutural e vem em par entre pavimentos: apagar por engano
+                      // desmancha a ligação. Pede o código 123 antes (Raphael).
+                      if(classifyEle(m)?.sym==='prumada'){ const cod=window.prompt('Prumada é estrutural (par entre andares). Digite 1 2 3 para confirmar a remoção:'); if((cod||'').replace(/\s/g,'')!=='123'){ return } }
+                      setMarkers(ms=>ms.filter(x=>x.uid!==m.uid).map((x,i)=>({...x,n:i+1})));setSelected(null)
+                    }} style={{...btnGhost,width:'100%',marginTop:10,color:'#FCA5A5',borderColor:'rgba(220,38,38,0.4)'}}><i className="ti ti-trash" aria-hidden/> Remover</button>
                 </div>})() : (
                 <div style={{padding:14}}>
                   <div style={{fontSize:11,color:'#38BDF8',fontWeight:600,marginBottom:10,textTransform:'uppercase'}}>Resumo</div>
