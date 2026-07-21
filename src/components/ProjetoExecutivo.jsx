@@ -501,6 +501,9 @@ function pinLetraDe(m){
   // Sensor de presença (mmWave) e cortina não são ponto de rede — caem no losango preto e
   // ficavam sem marca nenhuma, indistinguíveis de qualquer outro ponto de elétrica (Raphael).
   // '~' é tratado como DESENHO de onda no pinNovoSVG, não como texto.
+  // IR vem ANTES do sensor: "sensor IR"/"receptor IR" tem 'sensor' no nome e cairia na onda,
+  // mas IR é infravermelho (emissor/receptor de controle), não presença mmWave (Raphael).
+  if(/receptor ir|emissor ir|hub ir|infraverm|\bir\b/.test(n)) return 'IR'
   if(/sensor|presen[çc]a|mm-?wave|mv-?wave|\bmmw\b/.test(n)) return '~'
   if(/cortina|persiana/.test(n)) return 'c'
   // Tomada → T · Interruptor → i (Raphael). Dão nome ao símbolo dentro do próprio pino, como as
@@ -589,7 +592,7 @@ function pinNovoSVG({ m, size=22, label='', sel=false }){
       <path d="M9.5 16.5 A4 4 0 0 1 14.5 16.5"/><path d="M7.6 13.6 A7 7 0 0 1 16.4 13.6"/><path d="M5.7 10.7 A10 10 0 0 1 18.3 10.7"/></g>`
   const letraTxt = !letra ? ''
     : letra==='~' ? ondaSVG
-    : `<text x="15.5" y="15.4" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="8" fill="#7C4A03" stroke="#fff" stroke-width="2" paint-order="stroke" style="paint-order:stroke">${letra}</text>`
+    : `<text x="15.5" y="15.4" text-anchor="middle" font-family="'DM Sans',sans-serif" font-weight="800" font-size="${letra.length>1?6:8}" fill="#7C4A03" stroke="#fff" stroke-width="2" paint-order="stroke" style="paint-order:stroke">${letra}</text>`
   const halo = sel ? `<g opacity="0.32">${corpo.replace('/>',` fill="${cor}"/>`)}</g>` : ''
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="display:block;overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.45))">`
     + `<defs><clipPath id="${id}">${corpo}</clipPath></defs>`
@@ -805,7 +808,7 @@ function pontosLegenda(){
     ${frm('piso','Chão')} ${frm('baixa','Parede 0,30')} ${frm('media','Parede 1,10')} ${frm('alta','Parede 1,80')} ${frm('teto','Teto')}
     <span style="width:100%;height:1px;background:#E2E8F0"></span>
     <span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:#94A3B8;text-transform:uppercase;width:100%">Marca dentro do pino</span>
-    ${mrc('T','Tomada')} ${mrc('i','Interruptor')} ${mrc('C','Câmera')} ${mrc('A','Access Point')} ${mrc('K','Keystone / rede')} ${mrc('~','Sensor de presença (mmWave)')} ${mrc('c','Cortina / persiana')}
+    ${mrc('T','Tomada')} ${mrc('i','Interruptor')} ${mrc('C','Câmera')} ${mrc('A','Access Point')} ${mrc('K','Keystone / rede')} ${mrc('~','Sensor de presença (mmWave)')} ${mrc('IR','Sensor / receptor IR')} ${mrc('c','Cortina / persiana')}
     <span style="width:100%;height:1px;background:#E2E8F0"></span>
     <span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:#94A3B8;text-transform:uppercase;width:100%">Selo · cabo</span>
     ${cab('#16A34A','E','Elétrica')} ${cab('#BE185D','S','Som')} ${cab('#2563EB','R','Rede/Dados')}
@@ -2059,8 +2062,8 @@ Responda APENAS JSON válido:
     eletrica: { spec:'3×2,5mm² (F+N+T)', uso:'Energia / 110-220V', conector:'Direto / caixa 4×4' },
     // Duas opções pro INTERRUPTOR: a alimentação muda de bitola conforme o circuito, o retorno
     // é sempre 1,5mm². São da MESMA família elétrica (ver cableFamily/prefixo 'eletrica').
-    eletrica_int25: { spec:'3×2,5mm² (F+N+T) + retorno 1,5mm²', uso:'Interruptor / keypad', conector:'Caixa 4×2 / 4×4' },
-    eletrica_int15: { spec:'3×1,5mm² (F+N+T) + retorno 1,5mm²', uso:'Interruptor / keypad', conector:'Caixa 4×2 / 4×4' },
+    eletrica_int25: { spec:'3×2,5mm² (F+N+T) + respectivos retornos 1,5mm²', uso:'Interruptor / keypad', conector:'Caixa 4×2 / 4×4' },
+    eletrica_int15: { spec:'3×1,5mm² (F+N+T) + respectivos retornos 1,5mm²', uso:'Interruptor / keypad', conector:'Caixa 4×2 / 4×4' },
     fibra:    { spec:'Fibra óptica (drop/ONT)', uso:'Internet operadora → ONT/Modem', conector:'SC/APC' },
     conduite_dados:    { spec:'Eletroduto 3/4" (dados)', uso:'Conduíte compartilhado de DADOS', conector:'Caixa 4×4 / 4×2' },
     conduite_eletrica: { spec:'Eletroduto 3/4"–1" (elétrica)', uso:'Conduíte compartilhado de ELÉTRICA', conector:'Caixa 4×4' },
@@ -4308,7 +4311,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const cabos = cabosDoConduite(cond)
           const mt = cableMeters(cond); const mtTxt = mt?Math.round(mt)+'m':'—'
           const n = cabos.length
-          const bitola = n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
+          const bitola = cond.diametro || (n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"')
           const cabosHtml = cabos.map(c=>{ const a=markers.find(m=>m.uid===c.fromUid), b=markers.find(m=>m.uid===c.toUid)
             return `<div style="display:flex;align-items:center;gap:4px;margin-top:3px">
               <span style="width:6px;height:6px;border-radius:50%;background:${c.color||'#888'};flex-shrink:0"></span>
@@ -4321,7 +4324,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
               ${cond.label?`<span style="font-size:10px;color:#64748B;margin-left:6px">${esc(cond.label)}</span>`:''}
               ${cabosHtml||'<div style="font-size:9px;color:#94A3B8;margin-top:2px">Nenhum cabo atribuído</div>'}
             </td>
-            <td style="text-align:center;vertical-align:top;font-weight:700">${n>0?bitola:'—'}</td>
+            <td style="text-align:center;vertical-align:top;font-weight:700">${cond.diametro || (n>0?bitola:'—')}</td>
             <td style="text-align:right;vertical-align:top">${mtTxt}</td>
             <td style="font-size:9.5px;color:#D97706;vertical-align:top">${esc(cond.obs||'')}</td>
           </tr>`
@@ -4612,7 +4615,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           conduitesMostrados.add(cond.id)
           const chv = cond.conduiteId||(cond.label||'').trim()||cond._chave||cond.id
           const cabosD = arr.filter(c=>c.conduite===chv||c.conduite===cond.id||c.conduite===(cond.label||'').trim()||(cond._chave&&c.conduite===cond._chave))
-          const n=cabosD.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
+          const n=cabosD.length, bitola=cond.diametro || (n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"')
           const mt=cableMeters(cond); const mtTxt=mt?Math.round(mt)+'m':'—'
           const fDe=cond.fromSnapName||(cond.fromCaixaUid?`CX#${markers.find(m=>m.uid===cond.fromCaixaUid)?.n||'?'}`:'de')
           const fPara=cond.toSnapName||(cond.toCaixaUid?`CX#${markers.find(m=>m.uid===cond.toCaixaUid)?.n||'?'}`:'até')
@@ -4678,7 +4681,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const rowsR = conduitesRestantes.map(cond=>{
           const chv = cond.conduiteId||(cond.label||'').trim()||cond._chave||cond.id
           const cabosD = (cables||[]).filter(c=>!c.free && (c.conduite===chv||c.conduite===cond.id||c.conduite===(cond.label||'').trim()||(cond._chave&&c.conduite===cond._chave)))
-          const n=cabosD.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'
+          const n=cabosD.length, bitola=cond.diametro || (n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"')
           const mt=cableMeters(cond); const mtTxt=mt?Math.round(mt)+'m':'—'
           const fDe=cond.fromSnapName||(cond.fromCaixaUid?`CX#${markers.find(m=>m.uid===cond.fromCaixaUid)?.n||'?'}`:'de')
           const fPara=cond.toSnapName||(cond.toCaixaUid?`CX#${markers.find(m=>m.uid===cond.toCaixaUid)?.n||'?'}`:'até')
@@ -4807,7 +4810,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const chv=chaveDe(cond); return cabosRede.some(cabo=>cabo.conduite && (cabo.conduite===chv||cabo.conduite===cond.id||cabo.conduite===(cond.label||'').trim()||(cond._chave&&cabo.conduite===cond._chave))) })
         const rowsCondRede=condRede.map(cond=>{ const chv=chaveDe(cond)
           const dentro=cabosRede.filter(c=>c.conduite===chv||c.conduite===cond.id||c.conduite===(cond.label||'').trim()||(cond._chave&&c.conduite===cond._chave))
-          const n=dentro.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'; const mt=cableMeters(cond)
+          const n=dentro.length, bitola=cond.diametro || (n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'); const mt=cableMeters(cond)
           return `<tr><td style="font-family:monospace;font-weight:800;color:#0369A1;font-size:12px">${esc(cond.conduiteId||cond.label||'—')}</td>
             <td style="text-align:center;font-weight:700">${n}×</td><td style="text-align:center;font-weight:700">${bitola}</td>
             <td style="text-align:right">${mt?Math.round(mt)+'m':'—'}</td>
@@ -6574,6 +6577,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     {[['teto','▱ Teto'],['piso','┄ Piso'],['parede','╌ Parede']].map(([p,lb])=>(
                       <button key={p} onClick={()=>setCables(cs=>cs.map(x=>x.id===c.id?{...x,passagem:p}:x))} style={{flex:1,fontSize:9,padding:'4px 0',borderRadius:6,border:`1px solid ${(c.passagem||'parede')===p?'#22D3EE':'rgba(255,255,255,0.12)'}`,background:(c.passagem||'parede')===p?'rgba(34,211,238,0.18)':'transparent',color:(c.passagem||'parede')===p?'#22D3EE':'rgba(255,255,255,0.5)',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>{lb}</button>
                     ))}
+                  </div>
+                  {/* Diâmetro do eletroduto (Raphael): 1/2", 3/4" ou 1". Auto = pelo nº de cabos. */}
+                  <div style={{fontSize:8.5,color:'rgba(255,255,255,0.4)',marginBottom:3}}>Diâmetro do eletroduto</div>
+                  <div style={{display:'flex',gap:4,marginBottom:8}}>
+                    {[['','Auto'],['1/2"','1/2"'],['3/4"','3/4"'],['1"','1"']].map(([v,lb])=>{ const on=(c.diametro||'')===v
+                      return <button key={lb} onClick={()=>setCables(cs=>cs.map(x=>x.id===c.id?{...x,diametro:v||undefined}:x))} style={{flex:1,fontSize:9.5,padding:'4px 0',borderRadius:6,border:`1px solid ${on?'#22D3EE':'rgba(255,255,255,0.12)'}`,background:on?'rgba(34,211,238,0.18)':'transparent',color:on?'#22D3EE':'rgba(255,255,255,0.5)',cursor:'pointer',fontFamily:'inherit',fontWeight:on?800:600}}>{lb}</button> })}
                   </div>
                   <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.5px'}}>Cabos dentro ({cabosNaoCond.length})</div>
                   {cabosNaoCond.length>0 && <div style={{marginBottom:8}}>
