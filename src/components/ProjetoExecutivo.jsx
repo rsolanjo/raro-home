@@ -2797,8 +2797,12 @@ Responda APENAS JSON válido:
     // mostra só os pontos daquele andar. Rotação não é aplicada com vários andares (decisão do
     // Raphael: cada planta na orientação natural da sua imagem).
     const plantasPorPav = (renderInner) => _docViewsPorPav().filter(v=>v.bg).map((v,idx)=>{
-      const inner = renderInner(v, idx)   // idx = índice do pavimento (útil pra ids únicos entre andares)
+      let inner = renderInner(v, idx)   // idx = índice do pavimento (útil pra ids únicos entre andares)
       if(!inner) return ''   // andar sem conteúdo pra este render → nem entra (sem cabeçalho órfão)
+      // Grava a PROPORÇÃO deste andar na 1ª planta (data-mkratio). O palco do editor (aplicaPalco)
+      // usa a proporção da PRÓPRIA planta em vez da do andar ativo — senão a planta do 2º andar
+      // pega o aspecto do 1º, fica cortada/deslocada e os pinos parecem "andar" (Elton/Raphael).
+      if(v.ratio) inner = inner.replace(/(<div class="ex-plant(?:-fig)?[^"]*")/, `$1 data-mkratio="${(+v.ratio).toFixed(4)}"`)
       const head = v.nome ? `<h3 class="ex-amb">${esc(v.nome)}${(v.mks?` · ${v.mks.length} ponto${v.mks.length===1?'':'s'}`:'')}</h3>` : ''
       return head + inner
     }).filter(Boolean).join('')
@@ -5389,6 +5393,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   const _MARGEM_PALCO={ left:'0 auto 0 0', center:'0 auto', right:'0 0 0 auto' }
   function aplicaPalco(stage, pl, t, ratio){
     const z=t.zoom||1, mg=_MARGEM_PALCO[plantAlign]||'0 auto'
+    // Proporção da PRÓPRIA planta (por pavimento, gravada em data-mkratio); sem ela, usa a global.
+    const _mkr = pl && pl.getAttribute && parseFloat(pl.getAttribute('data-mkratio'))
+    if(_mkr && _mkr>0) ratio = _mkr
     if(t.front){
       stage.dataset.front='1'
       // z-index alto = fica na frente do texto; height:0 = não reserva espaço (não empurra nada)
@@ -5514,7 +5521,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         // Assim Redes mostra só rede, Som só som, e cada pavimento só os seus (Raphael).
         const _plantEl=stage.querySelector('.ex-plant,.ex-plant-fig')
         const _uids=new Set((((_plantEl&&_plantEl.getAttribute('data-mkuids'))||'').split(',')).filter(Boolean))
-        const legendaLateral = keep.leg ? legendaLateralHtml(_uids.size?markers.filter(m=>_uids.has(m.uid)):undefined) : ''
+        const _sub = _uids.size ? markers.filter(m=>_uids.has(m.uid)) : null
+        // DIAGNÓSTICO (Raphael/Elton): se a legenda vier errada, o console mostra quantos pontos a
+        // planta declarou (data-mkuids), quantos casaram com os markers, e os tipos que entraram.
+        try{ if(keep.leg) console.log('[legenda-prancha]', { titulo, pav, uidsNaPlanta:_uids.size, markersCasados:(_sub?_sub.length:markers.length), tipos:[...new Set((_sub||markers).map(m=>funcaoDoPonto(m)))] }) }catch(_){}
+        const legendaLateral = keep.leg ? legendaLateralHtml(_uids.size?_sub:undefined) : ''
         stage.style.height='100%'; stage.style.width='auto'; stage.style.maxWidth='100%'
         stage.style.margin='0'; stage.style.breakInside='avoid'
         const page=doc.createElement('div')
