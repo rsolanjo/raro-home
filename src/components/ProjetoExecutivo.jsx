@@ -1351,20 +1351,20 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [showIdsPdf, setShowIdsPdf] = useState(false)  // códigos nas plantas DO RELATÓRIO/PDF (default: limpo)
   // Número do ponto DENTRO do pino, nas plantas do PDF. Desligado, o pino vira só o símbolo —
   // a planta fica limpa, e quem precisa cruzar com as tabelas religa.
-  const [showNumPin, setShowNumPin] = useState(true)
+  const [showNumPin, setShowNumPin] = useState(false)  // (Raphael) padrão: pino só com o símbolo, sem nº
   const [filterLevels, setFilterLevels] = useState(()=>new Set())   // filtro por nível: piso/baixa/media/alta/teto (vazio = todos)
   const [showCabo, setShowCabo] = useState(true)   // mostrar a legenda de cabo (E/S/R) ao lado do pin
   const [showLegenda, setShowLegenda] = useState(true) // incluir o bloco de legenda (formas + cabos) nas plantas geradas
-  const [showIdsTbl, setShowIdsTbl] = useState(true)   // coluna de ID/código dentro das TABELAS do documento (não a planta)
+  const [showIdsTbl, setShowIdsTbl] = useState(false)  // (Raphael) padrão: sem coluna de ID nas tabelas
   // ── Filtros do relatório (ocultar coisas na GERAÇÃO, sem apagar nada do projeto) ──
   const [pdfFiltersOpen, setPdfFiltersOpen] = useState(false)
   const [showPdfOpts, setShowPdfOpts] = useState(false)  // painel de opções na hora de gerar o PDF
   const [hideFams, setHideFams] = useState(new Set())      // famílias de cabo fora do PDF (dados, som, camera...)
   const [hideCats, setHideCats] = useState(new Set())      // categorias de equipamento fora das plantas do PDF
   const [hidePdfConduites, setHidePdfConduites] = useState(false) // tirar todos os conduítes do PDF
-  const [hideCondIds, setHideCondIds] = useState(false) // esconder os RÓTULOS (id/nome) dos conduítes, mantendo o traçado
+  const [hideCondIds, setHideCondIds] = useState(true) // (Raphael) padrão: sem rótulo de conduíte na planta (só o traçado)
   const [legendaCompacta, setLegendaCompacta] = useState(false) // legenda em faixa fina (dá ênfase à planta)
-  const [compactaObra, setCompactaObra] = useState(false) // Plano de Obra "Compacta": só as plantas-chave, 1 por página
+  const [compactaObra, setCompactaObra] = useState(true) // (Raphael) Plano de Obra "Compacta" LIGADA por padrão (só afeta o modo Obra)
   // t_pecas ("Equipamentos por Cômodo e Lista de Peças") vem OCULTO por padrão (Raphael);
   // religa no seletor de tópicos do painel de PDF.
   const [hideSecs, setHideSecs] = useState(()=>new Set(['t_pecas']))  // seções fora do PDF
@@ -5319,19 +5319,27 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const f=cableFamily(familiaDoPontoTipo(m))
       const badge=(showCabo && !_fo(f.k))?`<div style="position:absolute;top:-3px;right:-3px;min-width:9px;height:9px;padding:0;border-radius:5px;background:${f.cor};color:#fff;font-size:6px;font-weight:800;line-height:9px;text-align:center;border:1.5px solid #fff;font-family:'DM Sans',sans-serif">${f.L}</div>`:''
       return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);width:22px;height:22px">${pinShapeSVG({m:m, mount:mountOf(m),alt:alturaOf(m),color:catColorOf(m)||st.c,label:_pinLabel(m),size:22})}${badge}</div>`}).join('')
-    // UMA página-parede por PAVIMENTO (com 1 andar sai igual a antes). Cada andar na sua orientação
-    // natural (aspect-ratio do próprio andar). Fora do .ex-plant → não passa pelo montaPranchas.
-    return _docViewsPorPav().filter(v=>v.bg).map(v=>{
+    // UMA página-parede por PAVIMENTO — SÓ a planta (sem legenda embaixo). Cada andar na sua
+    // orientação natural. A legenda vem UMA vez só, numa folha final (Raphael): as duas plantas
+    // primeiro, depois a legenda completa. Fora do .ex-plant → não passa pelo montaPranchas.
+    const views=_docViewsPorPav().filter(v=>v.bg)
+    const plantas=views.map(v=>{
       const _wr=v.ratio||imgRatio||0.66
       const tit = v.nome ? `PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA · ${_e(v.nome)}` : 'PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA'
       return `<div class="ex-wall-page" style="page:wallpage;page-break-before:always;text-align:center">
         <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:#0D1420;letter-spacing:.5px;margin-bottom:6px">${tit}</div>
-        <div style="position:relative;margin:0 auto;max-width:100%;max-height:172mm;aspect-ratio:${(1/_wr).toFixed(4)};border:1px solid #bbb">
+        <div style="position:relative;margin:0 auto;max-width:100%;max-height:186mm;aspect-ratio:${(1/_wr).toFixed(4)};border:1px solid #bbb">
           <img src="${v.bg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill"/>${dotsDe(v.mks)}
         </div>
-        <div style="margin-top:8px;text-align:left">${execVersao==='opus'?legendaOpusHtml():pontosLegenda()}</div>
       </div>`
     }).join('')
+    if(!plantas) return ''
+    // Legenda completa numa folha só, no fim (uma vez para todos os pavimentos).
+    const legenda=`<div class="ex-wall-page" style="page:wallpage;page-break-before:always;text-align:left">
+      <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:#0D1420;letter-spacing:.5px;margin-bottom:8px">LEGENDA — MAPA DE PONTOS</div>
+      ${execVersao==='opus'?legendaOpusHtml():pontosLegenda()}
+    </div>`
+    return plantas + legenda
   }
   // LISTA DE EQUIPAMENTOS — montada aqui (escopo do componente) e anexada UMA vez pelo
   // buildFullHtml, no fim do documento final. Antes eu anexava dentro do buildExecHtml, mas os
@@ -5456,8 +5464,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   }
   // Título de uma seção com planta (h2 numerado > h3 > cabeçalho grande da família).
   function _tituloSecao(sec){
+    // h3 de PAVIMENTO ("Térreo · 8 pontos") não é título de seção — foi adicionado pelo multi-andar
+    // (plantasPorPav). Se ele fosse tratado como título, a Compacta não casava a KEEP e esvaziava.
+    const _ehCabecalhoPav = h => /·\s*\d+\s*pontos?\b/i.test(h.textContent||'')
     let t=(sec.querySelector('h2')?.textContent||'').replace(/^\s*\d+\s*/,'').trim()
-    if(!t){ const h3=[...sec.querySelectorAll('h3')].find(h=>h.style.display!=='none'&&h.textContent.trim()); t=(h3?.textContent||'').trim() }
+    if(!t){ const h3=[...sec.querySelectorAll('h3')].find(h=>h.style.display!=='none'&&h.textContent.trim()&&!_ehCabecalhoPav(h)); t=(h3?.textContent||'').trim() }
     if(!t){ const big=[...sec.querySelectorAll('div')].find(x=>/font-size:20px/.test(x.getAttribute('style')||'')&&x.textContent.trim().length>2&&x.textContent.trim().length<40); if(big) t='Planta e Cabos — '+big.textContent.trim() }
     return t
   }
@@ -5469,8 +5480,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const legendaLateral=legendaLateralHtml()
     const KEEP=[
       {re:/planta de pontos|planta completa|planta de itens|planta com todos/i, tabela:false, leg:true},
-      {re:/redes|cabeamento estruturado/i, tabela:false, leg:false},
-      {re:/(cabos|planta).*som|som.*(cabos|planta)|— som\b/i, tabela:false, leg:false},
+      {re:/redes|cabeamento estruturado/i, tabela:false, leg:true}, // (Raphael #3) legenda compacta ao lado
+      {re:/(cabos|planta).*som|som.*(cabos|planta)|— som\b/i, tabela:false, leg:true}, // (Raphael #3) idem
       {re:/teto|forro/i, tabela:true, leg:false},
     ]
     const secoes=[...doc.querySelectorAll('.ex-sec, .ex-obra-page')]
@@ -5490,9 +5501,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         if(p && /^H3$/.test(p.tagName)){ pav=p.textContent.trim() }
         const cap=stage.previousElementSibling
         if(cap && cap.classList && cap.classList.contains('ex-plant-head')) cap.style.display='none'
-        // Cabe na folha mantendo o aspecto (não quebra em duas). Com tabela (Teto) a planta é
-        // menor (deixa espaço pra tabela); sem tabela ocupa mais.
-        const maxH = keep.tabela ? '120mm' : '176mm'
+        // Planta ocupa a folha inteira. A tabela do Teto NÃO fica mais embaixo da planta — vai
+        // numa PÁGINA SÓ depois das plantas dos pavimentos (Raphael #2).
+        const maxH = '176mm'
         stage.style.height='100%'; stage.style.width='auto'; stage.style.maxWidth='100%'
         stage.style.margin='0'; stage.style.breakInside='avoid'
         const page=doc.createElement('div')
@@ -5506,13 +5517,27 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           <div class="ex-prancha-row" style="display:flex;gap:12px;align-items:flex-start">
             <div class="ex-prancha-plant" style="flex:1;min-width:0;display:flex;justify-content:center"><div class="ex-prancha-inner" style="height:${maxH};max-width:100%;display:flex;justify-content:center;align-items:flex-start"></div></div>
             ${keep.leg?`<div style="width:236px;flex-shrink:0">${legendaLateral}</div>`:''}
-          </div>
-          ${tabelasHtml?`<div style="margin-top:10px">${tabelasHtml}</div>`:''}`
+          </div>`
         page.querySelector('.ex-prancha-inner').appendChild(stage)
         frag.appendChild(page)
       })
+      // Tabela (só o Teto tem, keep.tabela): numa PÁGINA SÓ, DEPOIS das plantas de todos os
+      // pavimentos, com os itens dos dois andares juntos (Raphael #2).
+      if(tabelasHtml){
+        const tPage=doc.createElement('div')
+        tPage.className='ex-obra-page'
+        tPage.setAttribute('style','page-break-before:always;break-inside:avoid')
+        tPage.innerHTML=`<h2 style="margin:0 0 10px;border-bottom:2px solid #0D1420;padding-bottom:6px;font-size:18px">${(titulo||'Itens no Teto').replace(/</g,'&lt;')} — Tabela</h2>${tabelasHtml}`
+        frag.appendChild(tPage)
+      }
       sec.replaceWith(frag)
     })
+  }
+  // "Documento ficou em branco?" — sem texto visível E sem nenhuma figura/tabela. Usado pra
+  // desfazer a Compacta/Prancha quando elas esvaziam tudo (títulos que não bateram etc.).
+  function _pareceVazioDoc(d){
+    try{ return !((d.body.textContent||'').trim()) && !d.body.querySelector('img,svg,table') }
+    catch(_){ return false }
   }
   function applyLayout(html, opts={}){
     if(typeof DOMParser==='undefined') return html
@@ -5542,12 +5567,19 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           if(cap && cap.classList.contains('ex-plant-head')) cap.style.display='none' }
       })
       // COMPACTA (Plano de Obra): cura as seções e devolve já pronto — pula o resto do pipeline.
-      if(compactaObra){
+      // Só no PLANO DE OBRA (a lista KEEP é de plantas de obra); no Completo/Elétrica/Conduítes ela
+      // destruiria o documento. Assim dá pra deixar a Compacta LIGADA por padrão sem estragar os outros.
+      if(compactaObra && execMode==='obra'){
         // montaCompacta MUTA o doc (esconde seções, move plantas). Se estourar no meio, o doc fica
         // meio-esvaziado e a prévia sai EM BRANCO. Snapshot antes → restaura se falhar, caindo no
         // layout normal em vez de página vazia (era a causa do "às vezes vem em branco", Raphael).
         const _snap=doc.body.innerHTML
-        try{ montaCompacta(doc) }catch(e){ console.warn('compacta:',e.message); doc.body.innerHTML=_snap }
+        try{ montaCompacta(doc)
+          // Se a Compacta ESVAZIOU o documento (nenhuma seção casou com a lista KEEP — pode
+          // acontecer quando os títulos não batem), NÃO devolve página em branco: cai no doc
+          // normal (não-compacto). É melhor mostrar o documento inteiro do que uma folha vazia.
+          if(_pareceVazioDoc(doc)) throw new Error('compacta esvaziou o documento')
+        }catch(e){ console.warn('compacta:',e.message); doc.body.innerHTML=_snap }
         return '<!doctype html>'+doc.documentElement.outerHTML }
       if(hideAllTables){
         // Esconde TODA tabela (não só as .ex-tbl) E os rótulos/cabeçalhos coladinhos nela (o título
@@ -5580,7 +5612,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         // Mesma proteção da Compacta: se montaPranchas estourar no meio, restaura o doc pré-prancha
         // (com tabelas ocultas) em vez de devolver uma página meio-montada/em branco.
         const _snapPr=doc.body.innerHTML
-        try{ montaPranchas(doc) }catch(e){ console.warn('pranchas:',e.message); doc.body.innerHTML=_snapPr }
+        try{ montaPranchas(doc)
+          if(_pareceVazioDoc(doc)) throw new Error('pranchas esvaziou o documento')
+        }catch(e){ console.warn('pranchas:',e.message); doc.body.innerHTML=_snapPr }
       }
       // ── BLOCOS COMO OBJETOS (Fase 4): ocultar e reordenar blocos de topo ──
       const body=doc.body
@@ -5656,7 +5690,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const plants=[...doc.querySelectorAll(PLANT_SEL)].filter(pl=>!pl.closest('.ex-wall-page'))
       return plants.map((pl,i)=>{ const sec=pl.closest('.ex-sec,.ex-obra-page'); const h=sec&&sec.querySelector('h1,h2,h3')
         const lbl=h?h.textContent.trim().replace(/\s+/g,' ').replace(/^(\d+)(?=\S)/,'$1 · ').slice(0,34):('Planta '+(i+1))
-        return { i, label:lbl } })
+        const img=(pl.querySelector('img')?.getAttribute('src'))||null
+        return { i, label:lbl, img } })
     }catch(e){ return [] }
   }
 
@@ -5855,7 +5890,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const h=sec&&sec.querySelector('h1,h2,h3')
         const perto=s.previousElementSibling&&/^H[1-4]$/.test(s.previousElementSibling.tagName)?s.previousElementSibling.textContent:''
         const lbl=(perto||(h?h.textContent:'')||'').trim().replace(/\s+/g,' ').replace(/^(\d+)(?=\S)/,'$1 · ').slice(0,44)
-        return { key:s.dataset.pkey||String(i), i, label: lbl || `Planta ${i+1}` }
+        // Imagem DESTA planta (o andar dela) — multi-pavimento: cada planta pode ter uma imagem
+        // diferente, então o mini-preview precisa mostrar a do andar selecionado, não sempre a 1ª.
+        const img=(s.querySelector('img')?.getAttribute('src'))||null
+        return { key:s.dataset.pkey||String(i), i, label: lbl || `Planta ${i+1}`, img }
       })
       setPlantList(lista) }
     ler(); ifr.addEventListener('load',ler); return ()=>ifr.removeEventListener('load',ler)
@@ -6345,9 +6383,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     // Itens mais usados (Raphael). Os que existem no CATÁLOGO (sensor/câmera/AP/som/
                     // cortina/keystone) vêm do catálogo real (com código); os elétricos são atalhos.
                     const achaCat=(re)=>(catalog||[]).find(c=>re.test((((c.name||'')+' '+(c.code||''))).toLowerCase()))
-                    const camCat=achaCat(/c[âa]mera|dome|bullet/)
+                    // MODELO EXATO primeiro, genérico como reserva (Raphael #4): puxa o item real do
+                    // catálogo (JBL Stage 260CSA, G5 Bullet MIC, Keypad Premium Zigbee) em vez do genérico.
+                    const achaCatPref=(...res)=>{ for(const re of res){ const c=achaCat(re); if(c) return c } return null }
+                    const camCat=achaCatPref(/g5.*bullet.*mic|bullet.*externa.*mic/, /g5.*bullet|bullet.*mic/, /c[âa]mera|dome|bullet/)
                     const apCat=achaCat(/access point|\bap\b|wi-?fi|u6|u7|unifi/)
-                    const somCat=achaCat(/caixa.*som|som.*embutid|alto-?falante|speaker|arandela.*som/)
+                    const somCat=achaCatPref(/jbl.*stage.*260|stage ?260 ?csa|260csa/, /jbl.*stage/, /caixa.*som|som.*embutid|alto-?falante|speaker|arandela.*som/)
+                    const keypadCat=achaCatPref(/keypad.*premium.*zigbee/, /keypad.*premium/, /keypad/)
                     const presCat=achaCat(/sensor.*(presen|mmwave|micro-?ond|24 ?ghz|zigbee)|presen[çc]a/)
                     const irCat=achaCat(/sensor.*ir|receptor ir|infraverm|\bir\b/)
                     const cortinaCat=achaCat(/cortina|persiana/)
@@ -6359,10 +6401,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                         {label:'Módulo cabeceira',sub:'tom+int+USB',eleType:'modulo_cabeceira',name:'Módulo de cabeceira'},
                       ]},
                       {cat:'Interruptores', cor:'#16A34A', itens:[
-                        {label:'Interruptor 1',sub:'1 tecla',eleType:'interruptor_simples',name:'Interruptor 1 tecla'},
-                        {label:'Interruptor 2',sub:'2 teclas',eleType:'interruptor_paralelo',name:'Interruptor 2 teclas'},
-                        {label:'Interruptor 3',sub:'3 teclas',eleType:'interruptor_intermediario',name:'Interruptor 3 teclas'},
-                        {label:'Keypad 6',sub:'6 teclas',eleType:'interruptor_6',name:'Keypad 6 teclas'},
+                        // (Raphael #4) Keypad Premium Zigbee do catálogo, com as respectivas teclas.
+                        // O nº de teclas vem do eleType; o modelo/código vem do item do catálogo.
+                        // Sem o item no catálogo, cai no interruptor genérico de sempre.
+                        ...[{n:1,ele:'interruptor_simples'},{n:2,ele:'interruptor_paralelo'},{n:3,ele:'interruptor_intermediario'},{n:6,ele:'interruptor_6'}].map(({n,ele})=>
+                          keypadCat
+                            ? {label:`Keypad ${n}`,sub:`${(keypadCat.name||'Keypad').slice(0,16)} · ${n}T`,catItem:{...keypadCat, eleType:ele, teclas:n}}
+                            : {label:`${n===6?'Keypad 6':'Interruptor '+n}`,sub:`${n} tecla${n>1?'s':''}`,eleType:ele,name:`${n===6?'Keypad 6':'Interruptor '+n} teclas`}
+                        ),
                       ]},
                       {cat:'Rede / Segurança', cor:'#0EA5E9', itens:[
                         keyCat?{label:'Keystone',sub:keyCat.code||'CAT6',catItem:keyCat}:{label:'Keystone',sub:'CAT6',eleType:'keystone_media',name:'Keystone'},
@@ -6391,7 +6437,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
                         {g.itens.map(b=>{
                           const it = b.catItem ? {...b.catItem} : {code:'',name:b.name,note:b.note||'',eleType:b.eleType,category:'Automação'}
-                          const active = addMode && addItem?.name===it.name && (b.catItem? addItem?.code===it.code : addItem?.eleType===b.eleType)
+                          const active = addMode && addItem?.name===it.name && (b.catItem? (addItem?.code===it.code && (!it.eleType || addItem?.eleType===it.eleType)) : addItem?.eleType===b.eleType)
                           return <button key={b.label} onClick={()=>{ setAddItem(it); setAddMode(true) }}
                             style={{fontSize:10,padding:'4px 8px',borderRadius:8,cursor:'pointer',
                               border:`1px solid ${active?g.cor:'rgba(255,255,255,0.15)'}`,
@@ -7441,6 +7487,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const plants=(plantList.length?plantList:enumPlants())
         const selP=Math.min(selPlant, Math.max(0,plants.length-1))
         const curP=_plantT(selP)
+        // Imagem do mini-preview = a da planta SELECIONADA (o andar dela). Sem multi-andar, é a
+        // mesma bgImage de sempre. Corrige o "só pega a primeira planta": ao escolher uma planta de
+        // outro pavimento, o mini agora mostra a imagem daquele andar, não sempre a do 1º.
+        const _selPlantObj=plants.find(p=>p.i===selP)
+        const miniImg=(_selPlantObj&&_selPlantObj.img)||bgImage
         const rowSt={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'10px 0',borderBottom:'1px solid rgba(255,255,255,0.07)'}
         const secTit=t=><div style={{fontSize:10,fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',color:'#64748B',margin:'14px 0 4px'}}>{t}</div>
         const tgl=(on,onClick,onLbl,offLbl)=><button onClick={onClick} style={{minWidth:82,height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11.5,fontWeight:600,border:`1px solid ${on?'#0EA5E9':'rgba(255,255,255,0.2)'}`,background:on?'rgba(14,165,233,0.2)':'rgba(255,255,255,0.06)',color:on?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{on?onLbl:offLbl}</button>
@@ -7476,7 +7527,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                         window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up)
                       }}
                       style={{position:'relative',width:miniW,height:miniH,margin:'0 auto',overflow:'hidden',background:'#fff',border:'1px solid rgba(255,255,255,0.25)',borderRadius:4,cursor:'grab',touchAction:'none'}}>
-                    <img src={bgImage} draggable={false} style={{position:'absolute',top:'50%',left:'50%',width:'100%',transformOrigin:'center center',transform:`translate(calc(-50% + ${curP.x||0}%), calc(-50% + ${curP.y||0}%)) scale(${curP.zoom||1})`,pointerEvents:'none'}}/>
+                    <img src={miniImg} draggable={false} style={{position:'absolute',top:'50%',left:'50%',width:'100%',transformOrigin:'center center',transform:`translate(calc(-50% + ${curP.x||0}%), calc(-50% + ${curP.y||0}%)) scale(${curP.zoom||1})`,pointerEvents:'none'}}/>
                     <div style={{position:'absolute',inset:0,boxShadow:'inset 0 0 0 1px rgba(220,38,38,0.35)',pointerEvents:'none'}}/>
                   </div>
                   <div style={{fontSize:9.5,color:'#64748B',textAlign:'center',margin:'4px 0 8px'}}>
@@ -7542,28 +7593,6 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   {tgl(hideAllTables,()=>setHideAllTables(v=>!v),'Ocultas','Visíveis')}
                 </div>
 
-                {secTit('Blocos do documento — ordem e visibilidade')}
-                <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:6,lineHeight:1.5}}>Esta é a lista, <b>na ordem do PDF</b>, de cada grande pedaço do documento — cada <b>seção</b> (¶), <b>planta</b> (🗺) e <b>tabela</b> (▦). Use <b>↑ ↓</b> para <b>mudar a ordem</b> em que saem no PDF e o <b>olho 👁</b> para <b>esconder</b> um pedaço inteiro. Vale só para este documento.</div>
-                {(()=>{
-                  const base=enumDocBlocks()
-                  const byKey={}; base.forEach(b=>{ byKey[b.key]=b })
-                  const ordered=[...blockOrder.map(k=>byKey[k]).filter(Boolean), ...base.filter(b=>!blockOrder.includes(b.key))]
-                  const keys=ordered.map(b=>b.key)
-                  const move=(i,dir)=>{ const j=i+dir; if(j<0||j>=keys.length)return; const a=[...keys]; const t=a[i]; a[i]=a[j]; a[j]=t; setBlockOrder(a) }
-                  const iconBtn=(txt,onClick,dim)=><button onClick={onClick} style={{width:24,height:24,flexShrink:0,borderRadius:5,border:'1px solid rgba(255,255,255,0.18)',background:'rgba(255,255,255,0.05)',color:dim?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>{txt}</button>
-                  if(!ordered.length) return <div style={{fontSize:11,color:'#94A3B8'}}>Gere o documento para listar os blocos.</div>
-                  return <div style={{display:'flex',flexDirection:'column',gap:3,maxHeight:260,overflowY:'auto',paddingRight:2}}>
-                    {ordered.map((b,i)=>{ const off=blockHidden.has(b.key)
-                      return <div key={b.key+i} style={{display:'flex',alignItems:'center',gap:5,padding:'3px 5px',borderRadius:6,background:'rgba(255,255,255,0.04)'}}>
-                        <span style={{fontSize:11,flex:1,minWidth:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',color:off?'rgba(255,255,255,0.32)':'rgba(255,255,255,0.85)',textDecoration:off?'line-through':'none'}} title={b.label}>{b.plant?'🗺 ':b.table?'▦ ':'¶ '}{b.label}</span>
-                        {iconBtn('↑',()=>move(i,-1),i===0)}
-                        {iconBtn('↓',()=>move(i,1),i===ordered.length-1)}
-                        <button onClick={()=>setBlockHidden(p=>{const x=new Set(p); x.has(b.key)?x.delete(b.key):x.add(b.key); return x})} title={off?'Mostrar':'Ocultar'} style={{width:24,height:24,flexShrink:0,borderRadius:5,border:`1px solid ${off?'#DC2626':'rgba(255,255,255,0.18)'}`,background:off?'rgba(220,38,38,0.2)':'rgba(255,255,255,0.05)',color:off?'#FCA5A5':'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>{off?'🚫':'👁'}</button>
-                      </div> })}
-                    {(blockOrder.length>0||blockHidden.size>0) && <button onClick={()=>{setBlockOrder([]);setBlockHidden(new Set())}} style={{marginTop:4,fontSize:10.5,padding:'4px 10px',borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.7)',cursor:'pointer'}}>↺ Restaurar ordem e ocultos</button>}
-                  </div>
-                })()}
-
                 {secTit('Pinos, IDs e legenda')}
                 <div style={rowSt}>
                   <div><div style={{fontSize:12.5,fontWeight:600}}>Legenda no documento</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Quadro de formas e cabos</div></div>
@@ -7615,7 +7644,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <div style={{fontSize:10,color:'rgba(255,255,255,0.42)',marginBottom:7}}><b>Tópico</b> tira o título + planta + tabela. <b>Só tabela</b> mantém a planta. Riscado = fora. Só aparecem os tópicos <b>deste documento</b>.</div>
                 {(()=>{
                   const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança (em Cabeamento)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto'],['t_conduites','Cabeamento e conduítes'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos']]
-                  const OBRA=[['t_obra_eletrica','Elétrica (caixas + alimentação)'],['lista_geral','↳ Lista geral de pontos elétricos'],['pontos_tabela','↳ Pontos elétricos — caixas e alturas'],['alim_keypads','↳ Alimentação dos keypads'],['t_quant','Quantitativo de material'],['t_cabos','Cabeamento por família'],['t_checklists','Checklists de obra']]
+                  const OBRA=[['t_obra_eletrica','1. Elétrica (caixas + alimentação)'],['lista_geral','↳ Lista geral de pontos elétricos'],['pontos_tabela','↳ Pontos elétricos — caixas e alturas'],['alim_keypads','↳ Alimentação dos keypads'],['t_quant','2. Quantitativo de material'],['t_cabos','3. Cabeamento por família'],['t_checklists','4. Checklists de obra']]
                   const ELE=[['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','Lista geral de pontos elétricos'],['caixas_embutir','Caixas de embutir — resumo'],['quadro_cargas','Quadro de cargas']]
                   const COND=[['t_conduites','Cabeamento e conduítes'],['t_cabos','Cabeamento por família']]
                   // Só os grupos de tópico FIÉIS ao documento na tela (Raphael).
@@ -7634,7 +7663,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       {chip(off(k),'tópico',tglSec(k))}
                       {tab?chip(off(k)||off(tab),'só tabela',tglSec(tab)):<span style={{width:70,flexShrink:0}}/>}
                     </div>)
-                  if(!grupos.length) return <div style={{fontSize:11,color:'#94A3B8'}}>Este documento não tem tópicos configuráveis — use <b>Blocos do documento</b> acima para ocultar/reordenar.</div>
+                  if(!grupos.length) return <div style={{fontSize:11,color:'#94A3B8'}}>Este documento não tem tópicos configuráveis — use <b>Blocos do documento</b> abaixo para ocultar/reordenar.</div>
                   return <>
                     <div style={{marginBottom:6}}>{chip(allOff,'✦ Ocultar tudo',()=>setHideSecs(p=>{const x=new Set(p); if(allOff){allKeys.forEach(k=>x.delete(k))}else{allKeys.forEach(k=>x.add(k))} return x}))}</div>
                     {grupos.map(([titulo,lista])=><div key={titulo} style={{marginBottom:6}}>
@@ -7642,6 +7671,30 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       {lista.map(row)}
                     </div>)}
                   </>
+                })()}
+
+                {/* Blocos do documento — vem DEPOIS do "Ocultar por tópico" (Raphael): a lista só traz o
+                    que NÃO foi ocultado por tópico, porque enumDocBlocks lê o HTML já filtrado (hideSecs). */}
+                {secTit('Blocos do documento — ordem e visibilidade')}
+                <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:6,lineHeight:1.5}}>Esta é a lista, <b>na ordem do PDF</b>, de cada grande pedaço do documento — cada <b>seção</b> (¶), <b>planta</b> (🗺) e <b>tabela</b> (▦). Já <b>não mostra</b> o que você tirou em <b>Ocultar por tópico</b>. Use <b>↑ ↓</b> para <b>mudar a ordem</b> e o <b>olho 👁</b> para <b>esconder</b> um pedaço. Vale só para este documento.</div>
+                {(()=>{
+                  const base=enumDocBlocks()
+                  const byKey={}; base.forEach(b=>{ byKey[b.key]=b })
+                  const ordered=[...blockOrder.map(k=>byKey[k]).filter(Boolean), ...base.filter(b=>!blockOrder.includes(b.key))]
+                  const keys=ordered.map(b=>b.key)
+                  const move=(i,dir)=>{ const j=i+dir; if(j<0||j>=keys.length)return; const a=[...keys]; const t=a[i]; a[i]=a[j]; a[j]=t; setBlockOrder(a) }
+                  const iconBtn=(txt,onClick,dim)=><button onClick={onClick} style={{width:24,height:24,flexShrink:0,borderRadius:5,border:'1px solid rgba(255,255,255,0.18)',background:'rgba(255,255,255,0.05)',color:dim?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>{txt}</button>
+                  if(!ordered.length) return <div style={{fontSize:11,color:'#94A3B8'}}>Gere o documento para listar os blocos.</div>
+                  return <div style={{display:'flex',flexDirection:'column',gap:3,maxHeight:260,overflowY:'auto',paddingRight:2}}>
+                    {ordered.map((b,i)=>{ const off=blockHidden.has(b.key)
+                      return <div key={b.key+i} style={{display:'flex',alignItems:'center',gap:5,padding:'3px 5px',borderRadius:6,background:'rgba(255,255,255,0.04)'}}>
+                        <span style={{fontSize:11,flex:1,minWidth:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',color:off?'rgba(255,255,255,0.32)':'rgba(255,255,255,0.85)',textDecoration:off?'line-through':'none'}} title={b.label}>{b.plant?'🗺 ':b.table?'▦ ':'¶ '}{b.label}</span>
+                        {iconBtn('↑',()=>move(i,-1),i===0)}
+                        {iconBtn('↓',()=>move(i,1),i===ordered.length-1)}
+                        <button onClick={()=>setBlockHidden(p=>{const x=new Set(p); x.has(b.key)?x.delete(b.key):x.add(b.key); return x})} title={off?'Mostrar':'Ocultar'} style={{width:24,height:24,flexShrink:0,borderRadius:5,border:`1px solid ${off?'#DC2626':'rgba(255,255,255,0.18)'}`,background:off?'rgba(220,38,38,0.2)':'rgba(255,255,255,0.05)',color:off?'#FCA5A5':'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>{off?'🚫':'👁'}</button>
+                      </div> })}
+                    {(blockOrder.length>0||blockHidden.size>0) && <button onClick={()=>{setBlockOrder([]);setBlockHidden(new Set())}} style={{marginTop:4,fontSize:10.5,padding:'4px 10px',borderRadius:6,border:'1px solid rgba(255,255,255,0.2)',background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.7)',cursor:'pointer'}}>↺ Restaurar ordem e ocultos</button>}
+                  </div>
                 })()}
               </div>
               <div style={{flex:1,background:'#525659',padding:12,minWidth:0,position:'relative'}}>
@@ -7725,7 +7778,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <span style={{fontSize:10,color:'rgba(255,255,255,0.42)',display:'block',margin:'2px 0 7px'}}><b>Tópico</b> tira o título + planta + tabela. <b>Só tabela</b> mantém a planta. Riscado = fora.</span>
                     {(()=>{
                       const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança (em Cabeamento)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto'],['t_conduites','Cabeamento e conduítes'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos']]
-                      const OBRA=[['t_obra_eletrica','Elétrica (caixas + alimentação)'],['lista_geral','↳ Lista geral de pontos elétricos'],['pontos_tabela','↳ Pontos elétricos — caixas e alturas'],['alim_keypads','↳ Alimentação dos keypads'],['t_quant','Quantitativo de material'],['t_cabos','Cabeamento por família'],['t_checklists','Checklists de obra']]
+                      const OBRA=[['t_obra_eletrica','1. Elétrica (caixas + alimentação)'],['lista_geral','↳ Lista geral de pontos elétricos'],['pontos_tabela','↳ Pontos elétricos — caixas e alturas'],['alim_keypads','↳ Alimentação dos keypads'],['t_quant','2. Quantitativo de material'],['t_cabos','3. Cabeamento por família'],['t_checklists','4. Checklists de obra']]
                       const allKeys=[...EXEC,...OBRA].map(t=>t[0])
                       const off=k=>hideSecs.has(k)
                       const tgl=k=>()=>setHideSecs(p=>{const x=new Set(p); x.has(k)?x.delete(k):x.add(k); return x})
