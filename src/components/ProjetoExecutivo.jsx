@@ -305,7 +305,7 @@ function classifyEle(m){
 // É a resposta do Plano de Obra: o peão está com a parede crua na frente e só
 // precisa saber ONDE deixar a ponta e QUE cabo é. Antes isto vivia em TRÊS lugares
 // que se contradiziam no MESMO documento (o ponto KP-04, keypad de 2 teclas, saía
-// como "4×4 + NEUTRO · 3×2,5mm² (F+N+T)" na Automação e "4x2 · 2×1,5mm² (retorno)"
+// como "4×4 + NEUTRO · 3×1,5mm² (F+N+T)" na Automação e "4x2 · 2×1,5mm² (retorno)"
 // na Planta Elétrica):
 //   · caboDe()/caixaDe()  — hardcoded dentro do gerador sem IA
 //   · caixaPadrao()       — no módulo, usado pela planta elétrica e pelo quantitativo
@@ -320,7 +320,7 @@ function classifyEle(m){
 // FAMÍLIA DO CABO DO PONTO — fonte única, e com regra dura por cima do cadastro.
 //
 // "Keypad nunca é rede, é elétrica... keystone é" (Raphael). É regra do negócio, não default:
-// o keypad Zigbee é alimentado (3×2,5mm² F+N+T), então marcá-lo como Rede/Dados fazia o MESMO
+// o keypad Zigbee é alimentado (3×1,5mm² F+N+T), então marcá-lo como Rede/Dados fazia o MESMO
 // ponto declarar duas famílias no documento — selo R na planta e cabo elétrico na tabela.
 // Por isso aqui a regra VENCE o m.cableType gravado: dado torto no cadastro (ou semente antiga)
 // não tem direito de contradizer o cabo. guessCableType já classificava certo — o problema era
@@ -429,14 +429,17 @@ function _specAuto(m){
   const n = (((m && m.name) || '') + ' ' + ((m && m.note) || '')).toLowerCase()
   if(/interruptor/.test(sym)){
     const t = (c && c.teclas) || 1
-    // Alimentação do keypad é 2,5mm² (convenção RARO: fase+neutro direto do quadro); o que sai
-    // dele pra luz é RETORNO, que na NBR 5410 é circuito de iluminação = 1,5mm². São bitolas
-    // diferentes no mesmo ponto e o eletricista precisa ver as duas (Raphael).
-    return { caixa: t<=3 ? '4x2' : '4x4', cabo:`3×2,5mm² (F+N+T) + ${t} retorno${t>1?'s':''} 1,5mm²` }
+    const cx = t<=3 ? '4x2' : '4x4'
+    // O interruptor pode ter alimentação 2,5 ou 1,5 (Raphael escolhe no "Cabo que chega neste
+    // ponto"); o RETORNO é sempre 1,5mm². Sem contar quantos: "respectivos retornos".
+    const alim = m.cableType==='eletrica_int25' ? '3×2,5mm² (F+N+T)'
+               : m.cableType==='eletrica_int15' ? '3×1,5mm² (F+N+T)'
+               : '3×1,5mm² (F+N+T)'  // padrão do projeto
+    return { caixa: cx, cabo:`${alim} + respectivos retornos 1,5mm²` }
   }
-  if(sym==='modulo_cabeceira')            return { caixa:'4x2', cabo:'3×2,5mm² (F+N+T)' }
+  if(sym==='modulo_cabeceira')            return { caixa:'4x2', cabo:'3×1,5mm² (F+N+T)' }
   if(/^tomada/.test(sym))                 return { caixa: sym==='tomada_piso' ? 'caixa de piso' : sym==='tomada_teto' ? 'forro' : '4x2', cabo:'3×2,5mm²' }
-  if(/^ponto_energia/.test(sym))          return { caixa: sym==='ponto_energia_piso' ? 'caixa de piso' : sym==='ponto_energia_teto' ? 'forro' : '4x2', cabo:'3×2,5mm² (F+N+T)' }
+  if(/^ponto_energia/.test(sym))          return { caixa: sym==='ponto_energia_piso' ? 'caixa de piso' : sym==='ponto_energia_teto' ? 'forro' : '4x2', cabo:'3×1,5mm² (F+N+T)' }
   if(/^keystone/.test(sym))               return { caixa: sym==='keystone_teto' ? 'forro' : sym==='keystone_piso' ? 'caixa de piso' : '4x2', cabo:'CAT6' }
   if(/^ponto_som/.test(sym))              return { caixa: sym==='ponto_som_teto' ? 'forro' : sym==='ponto_som_piso' ? 'caixa de piso' : '4x2', cabo:'2×1,5mm²' }
   if(sym==='ponto_luz'||/^arandela/.test(sym)) return { caixa:'forro', cabo:'2×1,5mm²' }
@@ -500,7 +503,12 @@ function pinLetraDe(m){
   // '~' é tratado como DESENHO de onda no pinNovoSVG, não como texto.
   if(/sensor|presen[çc]a|mm-?wave|mv-?wave|\bmmw\b/.test(n)) return '~'
   if(/cortina|persiana/.test(n)) return 'c'
-  if(pinTipoDe(m)!=='rede') return ''
+  // Tomada → T · Interruptor → i (Raphael). Dão nome ao símbolo dentro do próprio pino, como as
+  // letras da rede fazem — a seta azul e o círculo vermelho ganham identidade sem depender da cor.
+  const _t=pinTipoDe(m)
+  if(_t==='tomada') return 'T'
+  if(_t==='interruptor') return 'i'
+  if(_t!=='rede') return ''
   if(/c[âa]mera|camera|dome|bullet/.test(n)) return 'C'
   if(/access point|\bap\b|wi-?fi|u6|u7|uap/.test(n)) return 'A'
   return 'K'
@@ -606,6 +614,15 @@ const ALT_LABEL = { piso:'Piso', baixa:'Baixa (0,30)', media:'Média (1,10)', al
 // Um grupo do dropdown "Tipo do ponto" com as 5 alturas. `especiais` mapeia a altura pra uma
 // chave própria quando ela já existe (ex.: piso e teto do som têm símbolo próprio); as demais
 // viram "base@altura". Assim o menu ganha as 5 posições sem inventar símbolo novo.
+// Nº de teclas ↔ símbolo. O menu de tipo não precisa de um grupo por tecla: escolhe a ALTURA
+// e mantém as teclas que o ponto já tem (vêm do nome do item, "Keypad 4 teclas"), ajustáveis
+// no seletor "Teclas". Se o ponto não é interruptor, o padrão é 1 tecla.
+const SYM_POR_TECLAS = { 1:'interruptor_simples', 2:'interruptor_paralelo', 3:'interruptor_intermediario', 4:'interruptor_4', 6:'interruptor_6' }
+function symInterruptorDe(m){
+  const s=(classifyEle(m)||{}).sym||''
+  return /^interruptor/.test(s) ? s : 'interruptor_simples'
+}
+function teclasDe(m){ return ((classifyEle(m)||{}).teclas) || 1 }
 function alturasDoTipo(grupo, nome, base, especiais={}){
   return <optgroup key={grupo} label={grupo}>
     {ALTURAS_PONTO.map(a=>{ const v=especiais[a]||`${base}@${a}`
@@ -683,7 +700,7 @@ function alturaOf(m){
 
 // Reduz os vários tipos de cabo do sistema a 3 famílias de legenda: Elétrico · Som · Rede
 function cableFamily(type){
-  if(type==='eletrica') return { k:'ele',  L:'E', nome:'Elétrico', cor:'#16A34A' }
+  if(String(type||'').startsWith('eletrica')) return { k:'ele',  L:'E', nome:'Elétrico', cor:'#16A34A' }
   if(type==='som')      return { k:'som',  L:'S', nome:'Som',      cor:'#BE185D' }
   return { k:'rede', L:'R', nome:'Rede/Dados', cor:'#2563EB' } // dados, ap, câmera, uplink, fibra, hdmi...
 }
@@ -694,7 +711,13 @@ function isSubwoofer(m){ const n=((m?.name||'')+' '+(m?.code||'')).toLowerCase()
 // Raphael: "tem AP que não vai ser PoE e você precisa representar isso nas plantas".
 function semPoe(m){ return !!(m && m.semPoe) }
 function cableFamiliesOf(m, type){
-  if(isSubwoofer(m)) return [ { k:'som', L:'S', nome:'Som (RCA de sinal)', cor:'#BE185D' }, { k:'ele', L:'E', nome:'Elétrico', cor:'#16A34A' } ]
+  // Subwoofer ATIVO tem amplificador embutido → precisa de tomada (S+E). PASSIVO é só falante,
+  // vai no cabo de som do rack/receiver e NÃO puxa elétrica (Raphael). Marcado à mão (subPassivo)
+  // porque não dá pra saber pelo nome — modelos ativos e passivos se chamam igual "Subwoofer".
+  if(isSubwoofer(m)){
+    if(m && m.subPassivo) return [ { k:'som', L:'S', nome:'Som (passivo — cabo de alto-falante)', cor:'#BE185D' } ]
+    return [ { k:'som', L:'S', nome:'Som (RCA de sinal)', cor:'#BE185D' }, { k:'ele', L:'E', nome:'Elétrico', cor:'#16A34A' } ]
+  }
   // dois cabos chegam no ponto: dados + energia → dois selos no pino, igual ao subwoofer
   if(semPoe(m)) return [ cableFamily(type), { k:'ele', L:'E', nome:'Elétrico (fonte externa — sem PoE)', cor:'#16A34A' } ]
   return [ cableFamily(type) ]
@@ -705,7 +728,7 @@ function famChaveDe(type){ return cableFamily(type).k }
 // Fábrica: recebe o Set hideFams (que guarda types) e devolve uma função que diz se uma família (por chave) está oculta.
 // Considera oculta a família se TODOS os types daquela família estiverem marcados.
 function fazFamOculta(hideFamsSet){
-  const porChave = { ele:['eletrica'], som:['som'], rede:['dados','hdmi','uplink','fibra'] }
+  const porChave = { ele:['eletrica','eletrica_int25','eletrica_int15'], som:['som'], rede:['dados','hdmi','uplink','fibra'] }
   return (chaveOuType) => {
     // aceita tanto a chave da família ('ele') quanto o type ('eletrica')
     const chave = porChave[chaveOuType] ? chaveOuType : famChaveDe(chaveOuType)
@@ -782,7 +805,7 @@ function pontosLegenda(){
     ${frm('piso','Chão')} ${frm('baixa','Parede 0,30')} ${frm('media','Parede 1,10')} ${frm('alta','Parede 1,80')} ${frm('teto','Teto')}
     <span style="width:100%;height:1px;background:#E2E8F0"></span>
     <span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:#94A3B8;text-transform:uppercase;width:100%">Marca dentro do pino</span>
-    ${mrc('C','Câmera')} ${mrc('A','Access Point')} ${mrc('K','Keystone / rede')} ${mrc('~','Sensor de presença (mmWave)')} ${mrc('c','Cortina / persiana')}
+    ${mrc('T','Tomada')} ${mrc('i','Interruptor')} ${mrc('C','Câmera')} ${mrc('A','Access Point')} ${mrc('K','Keystone / rede')} ${mrc('~','Sensor de presença (mmWave)')} ${mrc('c','Cortina / persiana')}
     <span style="width:100%;height:1px;background:#E2E8F0"></span>
     <span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:#94A3B8;text-transform:uppercase;width:100%">Selo · cabo</span>
     ${cab('#16A34A','E','Elétrica')} ${cab('#BE185D','S','Som')} ${cab('#2563EB','R','Rede/Dados')}
@@ -825,16 +848,16 @@ function abntLegendaCompleta(usados){
     return `<div style="margin-bottom:9px">
       <div style="font-size:8.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94A3B8;margin-bottom:5px">Condutores</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">
-        ${fio('F','#111827','Fase','preto ou vermelho · <b>2,5mm²</b>')}
-        ${fio('N','#38BDF8','Neutro','azul-claro · <b>2,5mm²</b>')}
-        ${fio('T','#16A34A','Terra','verde ou verde-amarelo · proteção · <b>2,5mm²</b>')}
+        ${fio('F','#111827','Fase','preto ou vermelho · <b>1,5mm²</b>')}
+        ${fio('N','#38BDF8','Neutro','azul-claro · <b>1,5mm²</b>')}
+        ${fio('T','#16A34A','Terra','verde ou verde-amarelo · proteção · <b>1,5mm²</b>')}
         ${fio('R','#F59E0B','Retorno','do interruptor até a luz · <b>1,5mm²</b>')}
       </div>
       <div style="font-size:9px;color:#94A3B8;margin-top:5px;line-height:1.5">
-        Bitolas mínimas da <b>NBR 5410</b>: circuito de <b>iluminação 1,5mm²</b> · <b>tomadas e força 2,5mm²</b>.
-        Convenção RARO: o keypad é alimentado com <b>2,5mm² (F+N) direto do quadro</b> e o que sai dele
+        Padrão deste projeto: elétrica de automação em <b>3×1,5mm² (F+N+T)</b>.
+        O keypad é alimentado <b>direto do quadro</b> e o que sai dele
         pra luz é <b>retorno 1,5mm²</b> — duas bitolas no mesmo ponto. Som: <b>2×1,5mm²</b>.
-        Cortina, módulo e sensor: <b>2×2,5mm² (F+N)</b>. A bitola de cada ponto está na tabela por cômodo.
+        Cortina, módulo e sensor: <b>2×2,5mm² (F+N)</b>. A bitola de cada ponto está na tabela por cômodo. O dimensionamento final dos circuitos (bitola × corrente × proteção no quadro) é do projeto elétrico.
       </div>
       ${temInterruptor&&linhaRet?`<div style="font-size:8.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94A3B8;margin:8px 0 5px">Retorno por interruptor</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${linhaRet}</div>
@@ -1223,6 +1246,9 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [filterItem, setFilterItem] = useState('')            // filtra mapa por nome de item (resumo)
   const [showRackModal, setShowRackModal] = useState(false)
   const [showFloorsModal, setShowFloorsModal] = useState(false)
+  const [showSplit, setShowSplit] = useState(false)   // painel "dividir planta em pavimentos"
+  const [splitDir, setSplitDir]   = useState('h')      // 'h' = um andar em cima do outro · 'v' = lado a lado
+  const [splitAt, setSplitAt]     = useState(50)       // onde cortar, em % da imagem
   const [rackEquip, setRackEquip] = useState([])   // [{code,name,qty,u}]
   // gerador de ID único e monotônico (evita colisão de Date.now() em cliques rápidos)
   const _uidSeq = React.useRef(0)
@@ -1249,6 +1275,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [hideFams, setHideFams] = useState(new Set())      // famílias de cabo fora do PDF (dados, som, camera...)
   const [hideCats, setHideCats] = useState(new Set())      // categorias de equipamento fora das plantas do PDF
   const [hidePdfConduites, setHidePdfConduites] = useState(false) // tirar todos os conduítes do PDF
+  const [hideCondIds, setHideCondIds] = useState(false) // esconder os RÓTULOS (id/nome) dos conduítes, mantendo o traçado
   // t_pecas ("Equipamentos por Cômodo e Lista de Peças") vem OCULTO por padrão (Raphael);
   // religa no seletor de tópicos do painel de PDF.
   const [hideSecs, setHideSecs] = useState(()=>new Set(['t_pecas']))  // seções fora do PDF
@@ -1522,6 +1549,60 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
     setPlantaFloors(fs=>{ const rest=fs.filter(f=>f.id!==id)
       if(activeFloorId===id && rest[0]){ setActiveFloorId(rest[0].id); setBgImage(rest[0].image||null); if(rest[0].imgRatio) setImgRatio(rest[0].imgRatio) }
       return rest }) }
+  // ── DIVIDIR UMA PLANTA EM DOIS PAVIMENTOS ───────────────────────────────────────
+  // Caso do Raphael: a planta veio com os dois andares na MESMA imagem (um embaixo do outro),
+  // o que imprime mal. Recortar é fácil; o que não pode é perder os pinos — e eles guardam x/y
+  // em % DA IMAGEM INTEIRA. Depois do corte cada metade volta a valer 0–100%, então a
+  // coordenada precisa ser RECALCULADA; sem isso todo pino escorrega de lugar.
+  function _cropImg(url, x0,y0,x1,y1){
+    return new Promise(res=>{ try{
+      const im=new Image()
+      im.onload=()=>{ const W=im.naturalWidth, H=im.naturalHeight
+        const w=Math.max(1,Math.round(W*(x1-x0))), h=Math.max(1,Math.round(H*(y1-y0)))
+        const cv=document.createElement('canvas'); cv.width=w; cv.height=h
+        cv.getContext('2d').drawImage(im, Math.round(W*x0), Math.round(H*y0), w, h, 0, 0, w, h)
+        res({ url:cv.toDataURL('image/jpeg',0.9), ratio:h/w }) }
+      im.onerror=()=>res(null); im.src=url
+    }catch(_){ res(null) } })
+  }
+  async function dividirPlantaEmPavimentos(){
+    const fAtivo=plantaFloors.find(x=>x.id===activeFloorId)
+    const img=(fAtivo&&fAtivo.image)||bgImage
+    if(!img){ alert('Carregue a planta antes de dividir.'); return }
+    const corte=Math.min(95,Math.max(5,Number(splitAt)||50))
+    const horiz=splitDir==='h', p=corte/100
+    const doAndar=m=>(m.floorId||activeFloorId)===activeFloorId
+    const naParte2=m=>horiz ? ((m.y||0)>=corte) : ((m.x||0)>=corte)
+    const dosPontos=markers.filter(doAndar)
+    const n2=dosPontos.filter(naParte2).length, n1=dosPontos.length-n2
+    if(!confirm(`Dividir a planta ${horiz?'na horizontal':'na vertical'} em ${corte}%?\n\n`
+      +`• Pavimento atual fica com ${n1} ponto${n1!==1?'s':''}\n`
+      +`• Novo pavimento recebe ${n2} ponto${n2!==1?'s':''}\n\n`
+      +`As posições são recalculadas para a nova imagem. Confira e depois salve o projeto.`)) return
+    const a=await _cropImg(img, 0, 0, horiz?1:p, horiz?p:1)
+    const b=await _cropImg(img, horiz?0:p, horiz?p:0, 1, 1)
+    if(!a||!b){ alert('Não consegui recortar a imagem.'); return }
+    const novoId=newFloorId()
+    // Regra de três: a metade recortada volta a valer 0–100%.
+    const conv=(v,p2)=> p2 ? (v-corte)/(100-corte)*100 : v/corte*100
+    const trava=v=>Math.max(0,Math.min(100,v))
+    const remapPonto=m=>{ const p2=naParte2(m)
+      return horiz ? {...m, y:trava(conv(m.y||0,p2)), floorId:p2?novoId:activeFloorId}
+                   : {...m, x:trava(conv(m.x||0,p2)), floorId:p2?novoId:activeFloorId} }
+    // Cabos: os pontos intermediários também estão em % da imagem inteira. Uso o lado da ORIGEM
+    // pra converter o traçado inteiro — cabo que cruza o corte é prumada, e prumada já é tratada.
+    const ladoDoCabo=c=>{ const o=markers.find(m=>m.uid===c.fromUid)||((c.points||[])[0])
+      return o ? naParte2(o) : false }
+    setCables(cs=>cs.map(c=>{ if(!(c.points||[]).length) return c
+      const p2=ladoDoCabo(c)
+      return {...c, points:c.points.map(pt=> horiz ? {...pt, y:trava(conv(pt.y||0,p2))} : {...pt, x:trava(conv(pt.x||0,p2))} )} }))
+    setMarkers(ms=>ms.map(m=> doAndar(m) ? remapPonto(m) : m))
+    setPlantaFloors(fs=>{
+      const atual=fs.map(x=>x.id===activeFloorId?{...x, nome:x.nome||'Pavimento 1', image:a.url, imgRatio:a.ratio}:x)
+      return [...atual, { id:novoId, nome:'Pavimento '+(fs.length+1), image:b.url, imgRatio:b.ratio }] })
+    setBgImage(a.url); setImgRatio(a.ratio)
+    setShowSplit(false)
+  }
   async function handleFloorImage(id,e){ const f=e.target.files[0]; if(!f) return
     const reader=new FileReader()
     reader.onload=async ev=>{ let url=ev.target.result
@@ -1949,7 +2030,7 @@ Responda APENAS JSON válido:
   // ── Roteamento de cabos ──
   // Legenda de cores dos cabos (segue o padrão da planta)
   const CABLE_PALETTE = { dados:'#2563EB', ap:'#F59E0B', camera:'#92400E', uplink:'#DC2626', hdmi:'#7C3AED', som:'#BE185D', eletrica:'#16A34A', fibra:'#0D9488', conduite_dados:'#1E3A8A', conduite_eletrica:'#EAB308' }
-  const CABLE_LABELS  = { dados:'Dados', ap:'AP / Access Point', camera:'Câmera', uplink:'Uplink', hdmi:'HDMI', som:'Som', eletrica:'Elétrica', fibra:'Fibra Óptica', conduite_dados:'Conduíte DADOS', conduite_eletrica:'Conduíte ELÉTRICA' }
+  const CABLE_LABELS  = { dados:'Dados', ap:'AP / Access Point', camera:'Câmera', uplink:'Uplink', hdmi:'HDMI', som:'Som', eletrica:'Elétrica', eletrica_int25:'Elétrica (interruptor)', eletrica_int15:'Elétrica (interruptor)', fibra:'Fibra Óptica', conduite_dados:'Conduíte DADOS', conduite_eletrica:'Conduíte ELÉTRICA' }
   // tipos de "conduíte" são eletrodutos compartilhados — desenhados grossos para o pedreiro
   const CABLE_CONDUITE = { conduite_dados:true, conduite_eletrica:true }
   const CABLE_SPEC = {
@@ -1960,6 +2041,10 @@ Responda APENAS JSON válido:
     hdmi:     { spec:'HDMI 2.0 / HDBaseT', uso:'Vídeo / TV', conector:'HDMI' },
     som:      { spec:'2×1,5mm² (paralelo)', uso:'Áudio / caixas', conector:'Borne / banana' },
     eletrica: { spec:'3×2,5mm² (F+N+T)', uso:'Energia / 110-220V', conector:'Direto / caixa 4×4' },
+    // Duas opções pro INTERRUPTOR: a alimentação muda de bitola conforme o circuito, o retorno
+    // é sempre 1,5mm². São da MESMA família elétrica (ver cableFamily/prefixo 'eletrica').
+    eletrica_int25: { spec:'3×2,5mm² (F+N+T) + retorno 1,5mm²', uso:'Interruptor / keypad', conector:'Caixa 4×2 / 4×4' },
+    eletrica_int15: { spec:'3×1,5mm² (F+N+T) + retorno 1,5mm²', uso:'Interruptor / keypad', conector:'Caixa 4×2 / 4×4' },
     fibra:    { spec:'Fibra óptica (drop/ONT)', uso:'Internet operadora → ONT/Modem', conector:'SC/APC' },
     conduite_dados:    { spec:'Eletroduto 3/4" (dados)', uso:'Conduíte compartilhado de DADOS', conector:'Caixa 4×4 / 4×2' },
     conduite_eletrica: { spec:'Eletroduto 3/4"–1" (elétrica)', uso:'Conduíte compartilhado de ELÉTRICA', conector:'Caixa 4×4' },
@@ -2321,7 +2406,7 @@ Responda APENAS JSON válido:
     // alimentação keypads
     const alim_keypads = markers.filter(isKeypad).map((m,i)=>({ id:`KEY-${String(i+1).padStart(2,'0')}`,
       origem:'Quadro QDL — disj. dedicado', destino:`${m.name} ${m.room||''}`, cota:alturaDe(m),
-      comodo:m.room||'—', metros:'—', fios:'3×2,5mm² (F+N+T)' }))
+      comodo:m.room||'—', metros:'—', fios:'3×1,5mm² (F+N+T)' }))
 
     // rack: só se houver marcador de rack
     const rackMarker = markers.find(m=>isRackItem(m.name||'', m.code||''))
@@ -2349,7 +2434,7 @@ Responda APENAS JSON válido:
         const L = []
         L.push(`<b>Escopo:</b> ${vis.length} pontos em ${comodos} cômodo${comodos>1?'s':''}${keypads?` · ${keypads} ponto${keypads>1?'s':''} de comando (keypad)`:''}${redes?` · ${redes} de rede`:''}${soms?` · ${soms} de som`:''}${(plantScale&&mts)?` · ~${Math.round(mts)}m de cabo`:''}.`)
         L.push('<b>Este documento é a pré-instalação.</b> Ele define onde deixar cada ponta de cabo e em que caixa, antes de fechar parede e forro. Equipamento nenhum é instalado nesta fase.')
-        L.push('<b>Comando é Zigbee, não fiação.</b> Dois keypads acendendo a mesma luz é cena, configurada em software — não se puxa paralelo (three-way) nem intermediário. Por isso não há retorno: todo keypad recebe fase + neutro + terra 2,5mm² direto do quadro, e o neutro é obrigatório (o keypad é alimentado, não é interruptor burro).')
+        L.push('<b>Comando é Zigbee, não fiação.</b> Dois keypads acendendo a mesma luz é cena, configurada em software — não se puxa paralelo (three-way) nem intermediário. O keypad é <b>alimentado direto do quadro</b> (fase + neutro + terra) e o neutro é obrigatório — a bitola da alimentação e dos retornos está na tabela por cômodo de cada ponto.')
         L.push('<b>Cabeamento estruturado:</b> CAT6 do rack/CPD até cada ponto, em lance único — sem emenda dentro da parede. Cada cabo é etiquetado nas duas pontas.')
         L.push('<b>Dados e elétrica não dividem eletroduto.</b> Conduítes separados, sempre — indução da rede elétrica degrada o par trançado.')
         L.push('<b>Caixa por ponto:</b> keypad até 3 teclas em 4x2; acima de 3 teclas, 4x4. Tomada, keystone e ponto de som em 4x2. Pontos de teto e forro não levam caixa de embutir.')
@@ -2723,7 +2808,7 @@ Responda APENAS JSON válido:
           <span><b>${esc(c.label)}</b> — ${esc(c.tipo)}</span></div>`).join('')}
       </div>`
       // ── LISTA GERAL de todos os pontos elétricos (item 1) ──
-      const ELETR_T = new Set(['eletrica','conduite_eletrica'])
+      const ELETR_T = new Set(['eletrica','eletrica_int25','eletrica_int15','conduite_eletrica'])
       const listaGeral = T(eleMarks.map(({m,cls})=>{
         const cab=(cables||[]).find(c=>(c.toUid===m.uid||c.fromUid===m.uid) && ELETR_T.has(c.type||''))
         const cond = cab ? (CABLE_CONDUITE[cab.type] ? 'compartilhado' : 'exclusivo') : '—'
@@ -4130,7 +4215,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       // agrupa por "família" de conduíte: usa o tipo do cabo; conduite_* e os tipos normais entram
       const fam = c => {
         const t=c.type||'dados'
-        if(t==='conduite_eletrica'||t==='eletrica') return 'Elétrica'
+        if(t==='conduite_eletrica'||String(t||'').startsWith('eletrica')) return 'Elétrica'
         if(t==='som') return 'Som'
         if(t==='conduite_dados'||t==='dados'||t==='ap'||t==='camera'||t==='uplink'||t==='hdmi'||t==='fibra') return 'Dados'
         return 'Dados'
@@ -4181,7 +4266,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const col = c.color||CABLE_PALETTE[c.type]||corLinha
           const dashP=({teto:'',piso:'4,2',parede:'2,2'})[c.passagem||'parede']
           return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" ${dashP?`stroke-dasharray="${dashP}"`:''} style="stroke-width:5px" vector-effect="non-scaling-stroke"/>`}).join('')
-        const condLabels = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
+        const condLabels = hideCondIds ? '' : conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
           const idLabel=c.conduiteId||(c.label?c.label.slice(0,8):''); if(!idLabel)return''
           // rótulo no ponto do conduíte mais longe de qualquer pino (não cobre item)
           const cand=[]
@@ -4306,7 +4391,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       // tabela de fios elétricos (cabos elétricos desenhados) origem→destino
       const tblFios = cabosEle.length ? (()=>{
         const rows=cabosEle.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid); const mt=cableMeters(c)
-          const sp=CABLE_SPEC[c.type]||{spec:'3×2,5mm²'}
+          const sp=CABLE_SPEC[c.type]||{spec:'3×1,5mm²'}
           return `<tr>${pinCell(to?.id,to?.code,to?.n)}<td>${f?`<b>#${f.n}</b> ${esc(f.name)}`:'Quadro'}</td><td>${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}${c._via?` <span style="font-size:9px;color:#7C3AED;font-weight:600">· ${esc(c._via)}</span>`:''}</td><td style="font-size:11px">${esc(to?.room||'—')}</td><td style="font-size:11px">${esc(sp.spec)}</td><td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td></tr>` }).join('')
         const totM=cabosEle.reduce((s,c)=>s+(cableMeters(c)||0),0)
         return `<h3 class="ex-amb" style="color:#16A34A">Fios elétricos traçados${totM>0?` · total ~${Math.round(totM)}m`:''}</h3>${T(rows,['Nº','Origem','Destino','Cômodo','Bitola','Metros'])}`
@@ -4418,7 +4503,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const lines = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
           const dashP=({teto:'',piso:'4,2',parede:'2,2'})[c.passagem||'parede']
           return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" ${dashP?`stroke-dasharray="${dashP}"`:''} style="stroke-width:5px" vector-effect="non-scaling-stroke"/>`}).join('')
-        const condLabels = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
+        const condLabels = hideCondIds ? '' : conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
           const idLabel=c.conduiteId||(c.label||'').slice(0,6)||''; if(!idLabel)return''
           const cand=[]
           for(let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1]
@@ -4454,7 +4539,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:2px;opacity:0.8" vector-effect="non-scaling-stroke"/>`}).join('')
         const linesCond = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
           return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${c.color||col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:5px;opacity:0.5" vector-effect="non-scaling-stroke"/>`}).join('')
-        const condLabelsC = conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
+        const condLabelsC = hideCondIds ? '' : conduites.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
           const idLabel=c.conduiteId||(c.label||'').slice(0,6)||''; if(!idLabel)return''
           // Posição do rótulo: ponto ao longo do conduíte MAIS LONGE de qualquer pino,
           // pra não carimbar em cima de um item (some na impressão). Rótulo 100% opaco.
@@ -5283,7 +5368,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // NÃO inclui plantTransforms/plantPct/plantAlign: mexer na planta NÃO pode regerar o documento
     // inteiro (era isso que fazia o iframe recarregar e dar aquele "blink"/reset de rolagem).
     // Essas mudanças são aplicadas ao vivo no DOM da prévia pelo efeito _patchPlantasNaPrevia.
-    [showPdfOpts, showDocEditor, showLegenda, showIdsPdf, showIdsTbl, showNumPin, pageOrient, showBreaks, hideAllPlants, hideAllTables, blockHidden, blockOrder, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, execMode, execData, execVersao, rotBg, bgImage, markers, cables, creds]) // eslint-disable-line
+    [showPdfOpts, showDocEditor, showLegenda, showIdsPdf, showIdsTbl, showNumPin, pageOrient, showBreaks, hideAllPlants, hideAllTables, blockHidden, blockOrder, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, hideCondIds, execMode, execData, execVersao, rotBg, bgImage, markers, cables, creds]) // eslint-disable-line
   // Liga/desliga o contentEditable no corpo da prévia conforme o modo de edição.
   useEffect(()=>{
     const ifr=previewIframeRef.current; if(!ifr) return
@@ -6467,11 +6552,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                         de altura (piso/teto), usa a chave própria; nas demais o tipo leva o
                         sufixo "@altura" — mesmo símbolo, altura explícita. */}
                     {alturasDoTipo('⚡ ELÉTRICA · Ponto de energia','Ponto Elétrica','ponto_energia_parede',{piso:'ponto_energia_piso',teto:'ponto_energia_teto'})}
-                    {alturasDoTipo('⚡ Interruptor 1 tecla','Interruptor 1','interruptor_simples')}
-                    {alturasDoTipo('⚡ Interruptor 2 teclas','Interruptor 2','interruptor_paralelo')}
-                    {alturasDoTipo('⚡ Interruptor 3 teclas','Interruptor 3','interruptor_intermediario')}
-                    {alturasDoTipo('⚡ Interruptor 4 teclas','Interruptor 4','interruptor_4')}
-                    {alturasDoTipo('⚡ Interruptor / Keypad 6','Keypad 6','interruptor_6')}
+                    {/* Interruptor/keypad UNIFICADO (Raphael): um grupo com as 5 alturas, em vez de
+                        um grupo por nº de teclas. O nº de teclas é propriedade à parte — vem do
+                        item e é ajustável no seletor "Teclas" logo abaixo — então não precisa
+                        multiplicar o menu por ele. */}
+                    {alturasDoTipo('⚡ Interruptor / Keypad','Interruptor / Keypad',symInterruptorDe(m))}
                     {alturasDoTipo('⚡ Módulo Cabeceira','Módulo Cabeceira','modulo_cabeceira')}
                     <optgroup label="🔵 DADOS · selo R">
                       <option value="keystone_piso">Keystone Piso</option>
@@ -6488,6 +6573,22 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     </optgroup>
                     <option value="nenhum">— Não é elétrico (rede/dados/som)</option>
                   </select> })()}
+                  {/* TECLAS — saiu do menu de tipo (que agora só trata de altura) e virou o que
+                      sempre foi: uma propriedade própria do interruptor. Trocar aqui preserva a
+                      altura já escolhida no tipo. */}
+                  {(()=>{ const sym=(classifyEle(m)||{}).sym||''
+                    if(!/^interruptor/.test(sym)) return null
+                    const alt=altEleType(m.eleType)
+                    const atual=teclasDe(m)
+                    return <><label style={lbl}>Teclas</label>
+                    <div style={{display:'flex',gap:6,marginBottom:8}}>
+                      {[1,2,3,4,6].map(t=>{ const on=atual===t
+                        return <button key={t} onClick={()=>{ const novo=SYM_POR_TECLAS[t]+(alt?'@'+alt:'')
+                            setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,eleType:novo}:x)) }}
+                          style={{flex:1,height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:on?800:500,
+                            border:`1px solid ${on?'#38BDF8':'rgba(255,255,255,0.2)'}`,background:on?'rgba(56,189,248,0.18)':'rgba(255,255,255,0.06)',color:on?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{t}</button> })}
+                    </div></>
+                  })()}
                   {/* Caixa de embutir — só para pontos que usam caixa (interruptor/tomada) */}
                   {(()=>{ const sym=classifyEle(m)?.sym; if(!/interruptor|tomada|modulo/.test(sym||'')) return null
                     const padrao=caixaPadrao(sym); const atual=m.caixaTipo||padrao
@@ -6514,6 +6615,22 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       {m.semPoe
                         ? <>Chegam <b>dois cabos</b>: CAT6 (dados) + 2×2,5mm² (F+N). Na planta o pino ganha <b>dois selos</b> — R e E.</>
                         : <>Um cabo só: CAT6 com PoE leva dados e energia juntos.</>}
+                    </div></>
+                  })()}
+                  {/* Subwoofer: ativo (amplificador embutido → precisa de tomada) x passivo (só
+                      falante, cabo de som, sem elétrica). Não dá pra saber pelo nome. */}
+                  {(()=>{ if(!isSubwoofer(m)) return null
+                    const bSub=(txt,on,onClick)=><button onClick={onClick} style={{flex:1,height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11,fontWeight:on?700:500,
+                      border:`1px solid ${on?'#38BDF8':'rgba(255,255,255,0.2)'}`,background:on?'rgba(56,189,248,0.18)':'rgba(255,255,255,0.06)',color:on?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{txt}</button>
+                    return <><label style={lbl}>Subwoofer</label>
+                    <div style={{display:'flex',gap:8,marginBottom:8}}>
+                      {bSub('Ativo · som + tomada',!m.subPassivo,()=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,subPassivo:false}:x)))}
+                      {bSub('Passivo · só cabo de som',!!m.subPassivo,()=>setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,subPassivo:true}:x)))}
+                    </div>
+                    <div style={{fontSize:9.5,color:m.subPassivo?'#6EE7B7':'rgba(255,255,255,0.4)',marginBottom:8,lineHeight:1.5}}>
+                      {m.subPassivo
+                        ? <>Passivo: só o <b>cabo de som</b> (do receiver/amplificador). <b>Não precisa de tomada</b> — o pino fica só com o selo <b>S</b>.</>
+                        : <>Ativo (amplificador embutido): <b>dois cabos</b> — RCA de sinal + tomada. O pino ganha <b>S e E</b>.</>}
                     </div></>
                   })()}
                   <label style={lbl}>Cabo que chega neste ponto</label>
@@ -6765,6 +6882,52 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   </div> })}
               </div>
               <button onClick={addFloor} style={{...( _btn('rgba(16,185,129,0.15)','#059669','#6EE7B7')),marginTop:12,height:34}}><i className="ti ti-plus" aria-hidden/> Adicionar pavimento</button>
+              {/* DIVIDIR: planta que veio com dois andares na mesma imagem (imprime mal). Corta a
+                  imagem e RECALCULA a posição dos pinos, que estão em % da imagem inteira. */}
+              {(()=>{ const fA=plantaFloors.find(x=>x.id===activeFloorId); const img=(fA&&fA.image)||bgImage
+                if(!img) return null
+                const horiz=splitDir==='h'
+                const doAndar=m=>(m.floorId||activeFloorId)===activeFloorId
+                const pts=markers.filter(doAndar)
+                const n2=pts.filter(m=>horiz?((m.y||0)>=splitAt):((m.x||0)>=splitAt)).length
+                return <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid rgba(255,255,255,0.1)'}}>
+                  {!showSplit
+                    ? <button onClick={()=>setShowSplit(true)} style={{..._btn('rgba(124,58,237,0.15)','#7C3AED','#C4B5FD'),height:34}}>
+                        <i className="ti ti-scissors" aria-hidden/> Dividir esta planta em dois pavimentos</button>
+                    : <>
+                      <div style={{fontSize:12.5,fontWeight:700,marginBottom:2}}>Dividir a planta do pavimento ativo</div>
+                      <div style={{fontSize:10.5,color:'#94A3B8',marginBottom:10,lineHeight:1.5}}>
+                        Para plantas que vieram com <b>dois andares na mesma imagem</b>. A imagem é recortada em duas e
+                        a posição de cada ponto é <b>recalculada</b> — os pinos não se perdem.
+                      </div>
+                      <div style={{display:'flex',gap:8,marginBottom:10}}>
+                        {[['h','Um em cima do outro'],['v','Lado a lado']].map(([k,txt])=>{ const on=splitDir===k
+                          return <button key={k} onClick={()=>setSplitDir(k)} style={{flex:1,height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:11.5,fontWeight:on?700:500,
+                            border:`1px solid ${on?'#0EA5E9':'rgba(255,255,255,0.2)'}`,background:on?'rgba(14,165,233,0.18)':'rgba(255,255,255,0.06)',color:on?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{txt}</button> })}
+                      </div>
+                      <div style={{position:'relative',maxWidth:360,margin:'0 auto 8px',border:'1px solid rgba(255,255,255,0.2)',borderRadius:6,overflow:'hidden',background:'#fff'}}>
+                        <img src={img} style={{width:'100%',display:'block'}}/>
+                        {markers.filter(doAndar).map(m=><div key={m.uid} style={{position:'absolute',left:`${m.x}%`,top:`${m.y}%`,width:5,height:5,borderRadius:3,transform:'translate(-50%,-50%)',background:(horiz?(m.y||0)>=splitAt:(m.x||0)>=splitAt)?'#F59E0B':'#0EA5E9',border:'1px solid #fff'}}/>)}
+                        <div style={horiz
+                          ? {position:'absolute',left:0,right:0,top:`${splitAt}%`,height:2,background:'#DC2626',boxShadow:'0 0 0 1px rgba(255,255,255,.6)'}
+                          : {position:'absolute',top:0,bottom:0,left:`${splitAt}%`,width:2,background:'#DC2626',boxShadow:'0 0 0 1px rgba(255,255,255,.6)'}}/>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+                        <span style={{fontSize:11,color:'#94A3B8',minWidth:44}}>Corte</span>
+                        <input type="range" min="5" max="95" value={splitAt} onChange={e=>setSplitAt(Number(e.target.value))} style={{flex:1}}/>
+                        <b style={{fontSize:12,minWidth:38,textAlign:'right'}}>{splitAt}%</b>
+                      </div>
+                      <div style={{fontSize:10.5,color:'#94A3B8',marginBottom:10}}>
+                        <span style={{color:'#38BDF8',fontWeight:700}}>● {pts.length-n2}</span> ficam no pavimento atual ·{' '}
+                        <span style={{color:'#FBBF24',fontWeight:700}}>● {n2}</span> vão para o novo
+                      </div>
+                      <div style={{display:'flex',gap:8}}>
+                        <button onClick={dividirPlantaEmPavimentos} style={{..._btn('rgba(124,58,237,0.2)','#7C3AED','#C4B5FD'),height:34,flex:1,justifyContent:'center'}}>
+                          <i className="ti ti-scissors" aria-hidden/> Dividir agora</button>
+                        <button onClick={()=>setShowSplit(false)} style={{..._btn('rgba(255,255,255,0.06)','rgba(255,255,255,0.2)','rgba(255,255,255,0.7)'),height:34}}>Cancelar</button>
+                      </div>
+                    </>}
+                </div> })()}
               <div style={{fontSize:10.5,color:'#64748B',marginTop:12,lineHeight:1.5}}>Dica: com vários pavimentos, o editor mostra a planta do pavimento <b>ativo</b>. A troca de andar dentro do editor e a geração dos documentos por pavimento vêm nas próximas etapas — por ora dá pra cadastrar as imagens de cada andar e elas já ficam salvas no projeto.</div>
             </div>
             <div style={{padding:'12px 18px',borderTop:'1px solid rgba(255,255,255,0.1)',display:'flex',justifyContent:'flex-end',flexShrink:0}}>
@@ -6962,6 +7125,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 <div style={rowSt}>
                   <div><div style={{fontSize:12.5,fontWeight:600}}>IDs nas tabelas</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Coluna de código nas tabelas</div></div>
                   {tgl(showIdsTbl,()=>setShowIdsTbl(v=>!v),'Com IDs','Sem')}
+                </div>
+                <div style={rowSt}>
+                  <div><div style={{fontSize:12.5,fontWeight:600}}>IDs dos conduítes</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Rótulo de cada conduíte na planta. Limpo, fica só o traçado.</div></div>
+                  {tgl(!hideCondIds,()=>setHideCondIds(v=>!v),'Com IDs','Limpo')}
                 </div>
 
                 {secTit('Filtros — tirar do documento')}
