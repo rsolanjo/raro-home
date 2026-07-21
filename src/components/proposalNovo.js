@@ -4,7 +4,7 @@
 // auto-contidos com break-inside:avoid (fim da quebra de página doida),
 // escalável para N pavimentos. SEM depoimentos fabricados.
 import { LOGO_COVER } from '../logos.js'
-import { brandLogoCover, brandName, brandTagline, brandRepName, brandPhone, brandEmail, brandSite, brandSocial } from '../brand.js'
+import { brandLogoCover, brandName, brandTagline, brandPhone, brandEmail, brandSite, brandSocial, isDemo } from '../brand.js'
 
 function parse(s){ return typeof s==='number'?s:parseFloat(String(s||'').replace(/[^\d.,-]/g,'').replace(',','.').replace(/\.(?=.*\.)/g,''))||0 }
 
@@ -12,9 +12,12 @@ const CAT_COLORS={'Segurança':'#DC2626','Sonorização':'#BE185D','Som':'#BE185
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-@page{size:A4;margin:13mm 12mm}
+@page{size:A4;margin:16mm}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* A barra "Salvar como PDF" (no-print) é sticky na tela; SEM esta regra ela imprimia no meio
+   das páginas do PDF (Raphael). Mesma regra dos outros documentos (executivo). */
+@media print{.no-print{display:none!important}}
 body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1.5}
 .serif{font-family:'DM Serif Display',serif}
 .mono{font-family:'DM Mono','SFMono-Regular',Menlo,monospace}
@@ -242,7 +245,7 @@ export function buildProposalNovo(data, adminMode=false){
     <div class="tot-row"><span class="tl">Mão de obra — instalação e programação</span><span class="tv">${fmt(laborVal)}</span></div>
     <div class="tot-main"><span class="tl">Investimento total do projeto</span><span class="tv">${fmt(grandTotal)}</span></div>
     <div class="contact">
-      <div><div class="nm">${brandRepName()}</div><div class="ph">${brandPhone()}</div></div>
+      <div><div class="nm">${brandName()}</div><div class="ph">${brandPhone()}${isDemo()?'':' · (21) 99627-8553'}</div></div>
       <div class="rt">${brandEmail()}<br/>${brandSocial()} · ${brandSite()}</div>
     </div>
     <div class="valid">© ${brandName()} · ${client_name} · ${proposal_code} · válido por 30 dias</div>
