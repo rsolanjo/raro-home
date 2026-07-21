@@ -5319,6 +5319,28 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       <div style="padding:4px 8px;background:#fff">${linhas}</div>
     </div>`
   }
+  // Legenda compacta da ELÉTRICA — usa os símbolos ABNT (ELE_SYMBOLS), os MESMOS desenhados na
+  // planta elétrica (symsDe), NÃO os pinos genéricos (losango) do legendaLateralHtml. Sem isto, a
+  // legenda ao lado da planta elétrica na Compacta mostrava um conjunto DIFERENTE do da planta —
+  // faltava, p.ex., o "quadrado com a bolinha" (ponto de energia no teto), que só existe aqui
+  // (Raphael). Filtra pelo MESMO critério do overlay elétrico: classifyEle ∈ ELE_SYMS_SET.
+  function legendaLateralEletricaHtml(mksArg){
+    const base = Array.isArray(mksArg) ? mksArg : markers
+    const els = base.map(m=>({m, cls:classifyEle(m)})).filter(x=>x.cls && ELE_SYMS_SET.has(x.cls.sym))
+    if(!els.length) return ''
+    const _e=s=>String(s==null?'':s).replace(/</g,'&lt;')
+    const grupos=new Map()
+    els.forEach(({cls})=>{ const k=cls.sym; if(!grupos.has(k)) grupos.set(k,{cls,qtd:0}); grupos.get(k).qtd++ })
+    const linhas=[...grupos.values()].sort((a,b)=>String(a.cls.tipo||'').localeCompare(String(b.cls.tipo||''))).map(g=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:.5px solid #E8ECF1">
+        <span style="flex-shrink:0;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="-12 -14 24 30" width="22" height="24" style="overflow:visible">${ELE_SYMBOLS[g.cls.sym]||ELE_SYMBOLS.generico}</svg></span>
+        <span style="font-size:8.5px;line-height:1.25;color:#1E293B"><b>${_e(g.cls.tipo||g.cls.label||'')}</b> <b style="color:#334155">×${g.qtd}</b></span>
+      </div>`).join('')
+    return `<div style="border:1px solid #CBD5E1;border-radius:6px;overflow:hidden">
+      <div style="background:#0D1420;color:#fff;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:6px 8px">Legenda ABNT</div>
+      <div style="padding:4px 8px;background:#fff">${linhas}</div>
+    </div>`
+  }
 
   // Página "parede da obra" (#4): planta completa GRANDE (A4 paisagem), só planta + legenda,
   // ancorada por aspect-ratio + object-fit:fill (pinos em % ficam exatos). Aparece 1× e por último.
@@ -5509,7 +5531,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   function montaCompacta(doc){
     const KEEP=[
       {re:/planta de pontos|planta completa|planta de itens|planta com todos/i, tabela:false, leg:true},
-      {re:/el[ée]trica|nbr ?5444/i, tabela:false, leg:true}, // (Raphael) planta elétrica na Compacta, por pavimento + legenda ao lado
+      {re:/el[ée]trica|nbr ?5444/i, tabela:false, leg:true, ele:true}, // (Raphael) planta elétrica na Compacta, por pavimento + legenda ABNT ao lado (símbolos ELE_SYMBOLS, não os pinos genéricos)
       {re:/redes|cabeamento estruturado/i, tabela:false, leg:true}, // (Raphael #3) legenda compacta ao lado
       {re:/(cabos|planta).*som|som.*(cabos|planta)|— som\b/i, tabela:false, leg:true}, // (Raphael #3) idem
       {re:/teto|forro/i, tabela:true, leg:false},
@@ -5542,7 +5564,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         // do Elton: Som sumia inteiro, Completa só mostrava o teto). Comparar SEMPRE como string.
         const _uids=new Set((((_plantEl&&_plantEl.getAttribute('data-mkuids'))||'').split(',')).filter(Boolean))
         const _sub = _uids.size ? markers.filter(m=>_uids.has(String(m.uid))) : null
-        const legendaLateral = keep.leg ? legendaLateralHtml(_uids.size?_sub:undefined) : ''
+        // Elétrica → legenda ABNT (mesmos símbolos da planta); demais → legenda de pinos genéricos.
+        const legendaLateral = keep.leg
+          ? (keep.ele ? legendaLateralEletricaHtml(_uids.size?_sub:markers) : legendaLateralHtml(_uids.size?_sub:undefined))
+          : ''
         stage.style.height='100%'; stage.style.width='auto'; stage.style.maxWidth='100%'
         stage.style.margin='0'; stage.style.breakInside='avoid'
         // PLANTA COMO UNIDADE LIMPA (imagem + pinos colados). O palco (aspect-ratio) + planta
