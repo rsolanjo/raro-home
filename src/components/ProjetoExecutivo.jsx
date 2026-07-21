@@ -4608,7 +4608,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           return drawPin(m,{label:_pinLabel(m),size:18,color,idLabel,badgeFam})
         }).join('')
         // UMA planta por PAVIMENTO (com 1 andar sai igual a antes) — cada andar com seus itens.
-        const plantas = plantasPorPav(v=>`<div class="ex-plant" style="margin-bottom:10px">
+        const plantas = plantasPorPav(v=>`<div class="ex-plant" style="margin-bottom:10px" data-mkuids="${v.mks.map(m=>m.uid).join(',')}">
           <img src="${v.bg}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></svg>${_dotsDe(v.mks)}
         </div>`)
@@ -4637,7 +4637,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           }).join('')
           const lines = arrF.map(c=>{ const pts=cablePolyPointsIn(c, v.mks); if(pts.length<2)return''
             return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:${condW}px" vector-effect="non-scaling-stroke"/>` }).join('')
-          return `<div class="ex-plant" style="margin-bottom:10px">
+          const uidList=v.mks.filter(m=>uids.has(m.uid)).map(m=>m.uid).join(',')
+          return `<div class="ex-plant" style="margin-bottom:10px" data-mkuids="${uidList}">
             <img src="${v.bg}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}
           </div>`
@@ -4948,7 +4949,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
               const isR=isRackItem(m.name||'',m.code||'')
               if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3"><div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div></div>`
               return drawPin(m,{label:_pinLabel(m),size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):''}) }).join('')
-            return `<div class="ex-plant" style="margin-bottom:10px"><img src="${v.bg}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
+            const uidList=v.mks.filter(m=>uids.has(m.uid)).map(m=>m.uid).join(',')
+            return `<div class="ex-plant" style="margin-bottom:10px" data-mkuids="${uidList}"><img src="${v.bg}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
               <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}</div>` }) })() : ''
         // legenda de cores dos tipos presentes
         const tiposPresentes=[...new Set(cabosRede.map(c=>c.type||'dados'))]
@@ -5286,8 +5288,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   // arquitetura). Uma linha por função, empilhada, estreita — cabe numa coluna de ~230px. Sem
   // <table>, pra não ser apagada pelo "ocultar tabelas" (é injetada DEPOIS do hide, mas mesmo
   // assim div é mais robusto no fluxo estreito).
-  function legendaLateralHtml(){
-    const vis = markers.filter(m=>!isRackItem(m.name,m.code) && !hideCats.has(equipType(m.name)) && m.name)
+  // Legenda lateral da prancha. Com `mksArg` (subconjunto), mostra SÓ os itens daquela planta
+  // (Raphael); sem argumento, usa todos os markers (comportamento antigo).
+  function legendaLateralHtml(mksArg){
+    const base = Array.isArray(mksArg) ? mksArg : markers
+    const vis = base.filter(m=>!isRackItem(m.name,m.code) && !hideCats.has(equipType(m.name)) && m.name)
     if(!vis.length) return ''
     const NIVL={piso:'chão',baixa:'0,30',media:'1,10',alta:'1,80',teto:'teto'}
     const _e=s=>String(s==null?'':s).replace(/</g,'&lt;')
@@ -5299,9 +5304,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const pino=pinShapeSVG({m:g.m, mount:mountOf(g.m),alt:alturaOf(g.m),color:corDoPino(g.m),label:'',size:20})
       const _fo=fazFamOculta(hideFams)
       const selos=g.fams.filter(f=>!_fo(f.k)).map((f,i)=>`<span style="position:absolute;top:-2px;right:${-2-i*10}px;min-width:8px;height:8px;border-radius:5px;background:${f.cor};color:#fff;font-size:5.5px;font-weight:800;line-height:8px;text-align:center;border:1px solid #fff">${f.L}</span>`).join('')
-      return `<div style="display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:.5px solid #E8ECF1">
+      // Bitola/composição do fio (F+N+T + retornos) — Raphael: a legenda precisa dizer o cabo/retorno.
+      const cabo=(()=>{ try{ const c=(specDoPonto(g.m)||{}).cabo; return (c&&c!=='—')?String(c):''; }catch(_){ return '' } })()
+      return `<div style="display:flex;align-items:flex-start;gap:7px;padding:3px 0;border-bottom:.5px solid #E8ECF1">
         <span style="position:relative;display:inline-block;width:20px;height:20px;flex-shrink:0">${pino}${selos}</span>
-        <span style="font-size:8.5px;line-height:1.25;color:#1E293B"><b>${_e(funcaoDoPonto(g.m))}</b> <span style="color:#94A3B8">${NIVL[alturaOf(g.m)]||''}</span> <b style="color:#334155">×${g.qtd}</b></span>
+        <span style="font-size:8.5px;line-height:1.25;color:#1E293B"><b>${_e(funcaoDoPonto(g.m))}</b> <span style="color:#94A3B8">${NIVL[alturaOf(g.m)]||''}</span> <b style="color:#334155">×${g.qtd}</b>${cabo?`<br><span style="font-size:7px;color:#64748B;line-height:1.2">${_e(cabo)}</span>`:''}</span>
       </div>` }).join('')
     return `<div style="border:1px solid #CBD5E1;border-radius:6px;overflow:hidden">
       <div style="background:#0D1420;color:#fff;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:6px 8px">Legenda</div>
@@ -5328,7 +5335,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const tit = v.nome ? `PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA · ${_e(v.nome)}` : 'PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA'
       return `<div class="ex-wall-page" style="page:wallpage;page-break-before:always;text-align:center">
         <div style="font-family:'DM Sans',sans-serif;font-weight:800;font-size:14px;color:#0D1420;letter-spacing:.5px;margin-bottom:6px">${tit}</div>
-        <div style="position:relative;margin:0 auto;max-width:100%;max-height:186mm;aspect-ratio:${(1/_wr).toFixed(4)};border:1px solid #bbb">
+        <div style="position:relative;margin:0 auto;max-width:100%;max-height:186mm;aspect-ratio:${(1/_wr).toFixed(4)};border:1px solid #bbb;overflow:hidden">
           <img src="${v.bg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill"/>${dotsDe(v.mks)}
         </div>
       </div>`
@@ -5477,7 +5484,6 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   // legenda, sem tabelas), Redes (cabos+conduítes, sem tabelas), Som (cabos+conduítes, sem
   // tabelas) e Itens no Teto (COM a tabela). O resto some. É a versão pra imprimir e pregar.
   function montaCompacta(doc){
-    const legendaLateral=legendaLateralHtml()
     const KEEP=[
       {re:/planta de pontos|planta completa|planta de itens|planta com todos/i, tabela:false, leg:true},
       {re:/redes|cabeamento estruturado/i, tabela:false, leg:true}, // (Raphael #3) legenda compacta ao lado
@@ -5504,6 +5510,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         // Planta ocupa a folha inteira. A tabela do Teto NÃO fica mais embaixo da planta — vai
         // numa PÁGINA SÓ depois das plantas dos pavimentos (Raphael #2).
         const maxH = '176mm'
+        // Legenda lateral SÓ com os itens DESTA planta (uids gravados na geração via data-mkuids).
+        // Assim Redes mostra só rede, Som só som, e cada pavimento só os seus (Raphael).
+        const _plantEl=stage.querySelector('.ex-plant,.ex-plant-fig')
+        const _uids=new Set((((_plantEl&&_plantEl.getAttribute('data-mkuids'))||'').split(',')).filter(Boolean))
+        const legendaLateral = keep.leg ? legendaLateralHtml(_uids.size?markers.filter(m=>_uids.has(m.uid)):undefined) : ''
         stage.style.height='100%'; stage.style.width='auto'; stage.style.maxWidth='100%'
         stage.style.margin='0'; stage.style.breakInside='avoid'
         const page=doc.createElement('div')
