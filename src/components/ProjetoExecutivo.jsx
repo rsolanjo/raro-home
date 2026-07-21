@@ -5108,6 +5108,32 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       </table>
     </div>`
   }
+  // Legenda VERTICAL pra prancha (planta grande + legenda na coluna lateral, como um projeto de
+  // arquitetura). Uma linha por função, empilhada, estreita — cabe numa coluna de ~230px. Sem
+  // <table>, pra não ser apagada pelo "ocultar tabelas" (é injetada DEPOIS do hide, mas mesmo
+  // assim div é mais robusto no fluxo estreito).
+  function legendaLateralHtml(){
+    const vis = markers.filter(m=>!isRackItem(m.name,m.code) && !hideCats.has(equipType(m.name)) && m.name)
+    if(!vis.length) return ''
+    const NIVL={piso:'chão',baixa:'0,30',media:'1,10',alta:'1,80',teto:'teto'}
+    const _e=s=>String(s==null?'':s).replace(/</g,'&lt;')
+    const grupos=new Map()
+    vis.forEach(m=>{ const fams=cableFamiliesOf(m,familiaDoPontoTipo(m))
+      const chave=[funcaoDoPonto(m),pinTipoDe(m),pinFillDe(m),((classifyEle(m)||{}).teclas)||0,pinLetraDe(m),fams.map(f=>f.k).join('+')].join('|')
+      if(!grupos.has(chave)) grupos.set(chave,{m,fams,qtd:0}); grupos.get(chave).qtd++ })
+    const linhas=[...grupos.values()].sort((a,b)=>funcaoDoPonto(a.m).localeCompare(funcaoDoPonto(b.m))).map(g=>{
+      const pino=pinShapeSVG({m:g.m, mount:mountOf(g.m),alt:alturaOf(g.m),color:corDoPino(g.m),label:'',size:20})
+      const _fo=fazFamOculta(hideFams)
+      const selos=g.fams.filter(f=>!_fo(f.k)).map((f,i)=>`<span style="position:absolute;top:-2px;right:${-2-i*10}px;min-width:8px;height:8px;border-radius:5px;background:${f.cor};color:#fff;font-size:5.5px;font-weight:800;line-height:8px;text-align:center;border:1px solid #fff">${f.L}</span>`).join('')
+      return `<div style="display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:.5px solid #E8ECF1">
+        <span style="position:relative;display:inline-block;width:20px;height:20px;flex-shrink:0">${pino}${selos}</span>
+        <span style="font-size:8.5px;line-height:1.25;color:#1E293B"><b>${_e(funcaoDoPonto(g.m))}</b> <span style="color:#94A3B8">${NIVL[alturaOf(g.m)]||''}</span> <b style="color:#334155">×${g.qtd}</b></span>
+      </div>` }).join('')
+    return `<div style="border:1px solid #CBD5E1;border-radius:6px;overflow:hidden">
+      <div style="background:#0D1420;color:#fff;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:6px 8px">Legenda</div>
+      <div style="padding:4px 8px;background:#fff">${linhas}</div>
+    </div>`
+  }
 
   // Página "parede da obra" (#4): planta completa GRANDE (A4 paisagem), só planta + legenda,
   // ancorada por aspect-ratio + object-fit:fill (pinos em % ficam exatos). Aparece 1× e por último.
@@ -5193,6 +5219,55 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       pl.style.transform=`translate(calc(-50% + ${t.x||0}%), calc(-50% + ${t.y||0}%)) scale(${z}) rotate(${t.rot||0}deg)`
     }
   }
+  // Converte as seções COM planta em pranchas paisagem (planta grande à esquerda, legenda na
+  // coluna direita, título no topo) e ESCONDE as seções sem planta. Roda só no modo "ocultar
+  // tabelas". Um <div.ex-plant-stage> = uma planta = uma folha (então cada pavimento sai numa
+  // página, porque cada andar já é um .ex-plant separado).
+  function montaPranchas(doc){
+    const legendaLateral = legendaLateralHtml()
+    const secoes=[...doc.querySelectorAll('.ex-sec, .ex-obra-page')].filter(s=>s.style.display!=='none')
+    let primeira=true
+    secoes.forEach(sec=>{
+      const stages=[...sec.querySelectorAll('.ex-plant-stage')].filter(s=>s.style.display!=='none')
+      // título: h2 numerado; se não houver (páginas de cabo têm só h3/cabeçalho), cai no h3
+      // ou no cabeçalho grande da família ("Planta e Cabos — Keystone").
+      let tituloTxt=(sec.querySelector('h2')?.textContent||'').replace(/^\s*\d+\s*/,'').trim()
+      if(!tituloTxt){ const h3=[...sec.querySelectorAll('h3')].find(h=>h.style.display!=='none'&&h.textContent.trim())
+        tituloTxt=(h3?.textContent||'').trim() }
+      // páginas de cabo por família: o nome está no cabeçalho GRANDE (div font-size:20px do
+      // _famHeader), não num h2/h3. Sem isto elas saem como "Planta" genérico.
+      if(!tituloTxt){ const big=[...sec.querySelectorAll('div')].find(x=>/font-size:20px/.test(x.getAttribute('style')||'')&&x.textContent.trim().length>2&&x.textContent.trim().length<40)
+        if(big) tituloTxt='Planta e Cabos — '+big.textContent.trim() }
+      if(!stages.length){ sec.style.display='none'; return }  // seção sem planta: some (só planta)
+      const frag=doc.createDocumentFragment()
+      stages.forEach(stage=>{
+        // rótulo do pavimento: h3 logo antes do palco (Planta de Pontos põe "Pavimento X · N pontos")
+        let pav=''
+        let p=stage.previousElementSibling
+        while(p && p.style && p.style.display==='none') p=p.previousElementSibling
+        if(p && /^H3$/.test(p.tagName)){ pav=p.textContent.trim(); p.style.display='none' }
+        // barra escura das figuras (Elétrica/Wi-Fi): usa como subtítulo e remove do fluxo
+        const cap=stage.previousElementSibling
+        if(cap && cap.classList && cap.classList.contains('ex-plant-head')) cap.style.display='none'
+        // a planta ocupa a folha inteira: tira a trava de largura/margem e cresce
+        stage.style.width='100%'; stage.style.margin='0'; stage.style.maxWidth='100%'
+        const page=doc.createElement('div')
+        page.className='ex-prancha ex-obra-page'
+        page.setAttribute('style',`page:wallpage;${primeira?'':'page-break-before:always;'}break-inside:avoid`)
+        primeira=false
+        const tTop=[tituloTxt, pav.replace(/·.*$/,'').trim()].filter(Boolean).join(' — ')
+        page.innerHTML=`<h2 style="margin:0 0 8px;border-bottom:2px solid #0D1420;padding-bottom:6px;font-size:18px">${tTop.replace(/</g,'&lt;')||'Planta'}</h2>
+          <div class="ex-prancha-row" style="display:flex;gap:12px;align-items:flex-start">
+            <div class="ex-prancha-plant" style="flex:1;min-width:0"></div>
+            <div style="width:236px;flex-shrink:0">${legendaLateral}</div>
+          </div>`
+        page.querySelector('.ex-prancha-plant').appendChild(stage)
+        frag.appendChild(page)
+      })
+      sec.replaceWith(frag)
+      primeira=false
+    })
+  }
   function applyLayout(html, opts={}){
     if(typeof DOMParser==='undefined') return html
     try{
@@ -5245,6 +5320,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         ;[...doc.querySelectorAll('h3,h4')].forEach(h=>{ if(h.style.display==='none') return
           let n=h.nextElementSibling; while(n && n.style.display==='none') n=n.nextElementSibling
           if(!n || /^H[1-4]$/.test(n.tagName)) h.style.display='none' })
+        // ── PRANCHA: com as tabelas fora, cada planta vira uma folha paisagem — título + planta
+        // GRANDE + legenda na lateral, um pavimento por página (Raphael). Some tudo que não é
+        // planta; a planta ganha a página.
+        try{ montaPranchas(doc) }catch(e){ console.warn('pranchas:',e.message) }
       }
       // ── BLOCOS COMO OBJETOS (Fase 4): ocultar e reordenar blocos de topo ──
       const body=doc.body
