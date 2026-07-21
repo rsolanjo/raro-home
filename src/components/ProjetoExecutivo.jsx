@@ -5879,6 +5879,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const girou=(()=>{ try{ return _precisaGirar() && !!rotBg }catch(_){ return false } })()
     const ratio = girou ? (1/(imgRatio||0.75)) : (imgRatio||0.66)
     d.querySelectorAll('.ex-plant-stage').forEach(stage=>{
+      // Planta dentro de PRANCHA/Compacta já é dimensionada pra caber na folha (height:100%,
+      // width:auto) pelo montaCompacta/montaPranchas. Reaplicar o aplicaPalco aqui (width:%,
+      // aspect-ratio) quebra o flex da prancha e COLAPSA a planta pra 0×0 — a planta some (e as
+      // outras junto). Então nesses casos NÃO mexe (o zoom/posição não vale em prancha). (Raphael)
+      if(stage.closest('.ex-prancha')) return
       const key=stage.dataset.pkey; if(!key) return
       const t=plantTransforms[key]||{x:0,y:0,zoom:1,rot:0}
       const pl=stage.querySelector(PLANT_SEL)
@@ -5924,6 +5929,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const d=ifr.contentDocument; if(!d) return
       limpar.forEach(fn=>{try{fn()}catch(_){}}); limpar=[]
       d.querySelectorAll('.ex-plant-stage').forEach(stage=>{
+        if(stage.closest('.ex-prancha')) return // planta em prancha/compacta não é arrastável/zoomável (fit-to-page)
         const key=stage.dataset.pkey; const pl=stage.querySelector(PLANT_SEL); if(!key||!pl) return
         stage.style.cursor='move'; stage.style.outline='1px dashed rgba(14,165,233,0.55)'; stage.style.outlineOffset='-1px'
         const cur=()=> (plantTransformsRef.current[key]||{x:0,y:0,zoom:1,rot:0})
