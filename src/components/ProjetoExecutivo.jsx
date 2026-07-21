@@ -404,7 +404,9 @@ function alertaDoPonto(m){
   const exige = familiaExigidaPeloTipo(m)
   if(exige){
     const tem = familiaDoPontoTipo(m)
-    if(tem !== exige) return `${oQue} não recebe cabo de ${_FAM_NOME[tem]||tem} — é ponto de ${_FAM_NOME[exige]||exige}.`
+    // Compara a FAMÍLIA (ele/som/rede), não o tipo cru — senão eletrica_int15/int25 (o cabo
+    // padrão do interruptor) dispara falso alerta contra 'eletrica'. (bug que o Raphael viu)
+    if(cableFamily(tem).k !== cableFamily(exige).k) return `${oQue} não recebe cabo de ${_FAM_NOME[tem]||tem} — é ponto de ${_FAM_NOME[exige]||exige}.`
   }
   // 2) Altura × tipo — o tipo foi deduzido do NOME e afirma uma altura; a altura real vem do
   // dado. Divergiu, o documento imprime as duas ("Keystone parede média (1,10m) · 0,30 m").
@@ -448,7 +450,7 @@ function _specAuto(m){
                : '3×1,5mm² (F+N+T)'  // padrão do projeto
     return { caixa: cx, cabo:`${alim} + respectivos retornos 1,5mm²` }
   }
-  if(sym==='modulo_cabeceira')            return { caixa:'4x2', cabo:'3×1,5mm² (F+N+T)' }
+  if(sym==='modulo_cabeceira')            return { caixa:'4x2', cabo:'3×1,5mm² + 3×2,5mm² (F+N+T)' }
   if(/^tomada/.test(sym))                 return { caixa: sym==='tomada_piso' ? 'caixa de piso' : sym==='tomada_teto' ? 'forro' : '4x2', cabo:'3×2,5mm²' }
   if(/^ponto_energia/.test(sym))          return { caixa: sym==='ponto_energia_piso' ? 'caixa de piso' : sym==='ponto_energia_teto' ? 'forro' : '4x2', cabo:'3×1,5mm² (F+N+T)' }
   if(/^keystone/.test(sym))               return { caixa: sym==='keystone_teto' ? 'forro' : sym==='keystone_piso' ? 'caixa de piso' : '4x2', cabo:'CAT6' }
@@ -532,6 +534,9 @@ function pinLetraDe(m){
   if(/cortina|persiana/.test(n)) return 'c'
   // Tomada → T · Interruptor → i (Raphael). Dão nome ao símbolo dentro do próprio pino, como as
   // letras da rede fazem — a seta azul e o círculo vermelho ganham identidade sem depender da cor.
+  // Módulo de cabeceira: marca própria "MC" no pino (Raphael) — é um ponto especial (USB+tomada+
+  // som na cabeceira), não um ponto de elétrica qualquer.
+  if((classifyEle(m)||{}).sym==='modulo_cabeceira' || /cabeceira/.test(n)) return 'MC'
   const _t=pinTipoDe(m)
   if(_t==='tomada') return 'T'
   if(_t==='interruptor') return 'i'
@@ -837,7 +842,7 @@ function pontosLegenda(){
     ${frm('piso','Chão')} ${frm('baixa','Parede 0,30')} ${frm('media','Parede 1,10')} ${frm('alta','Parede 1,80')} ${frm('teto','Teto')}
     <span style="width:100%;height:1px;background:#E2E8F0"></span>
     <span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:#94A3B8;text-transform:uppercase;width:100%">Marca dentro do pino</span>
-    ${mrc('T','Tomada')} ${mrc('i','Interruptor')} ${mrc('C','Câmera')} ${mrc('A','Access Point')} ${mrc('K','Keystone / rede')} ${mrc('~','Sensor de presença (mmWave)')} ${mrc('IR','Sensor / receptor IR')} ${mrc('c','Cortina / persiana')}
+    ${mrc('T','Tomada')} ${mrc('i','Interruptor')} ${mrc('MC','Módulo de cabeceira')} ${mrc('C','Câmera')} ${mrc('A','Access Point')} ${mrc('K','Keystone / rede')} ${mrc('~','Sensor de presença (mmWave)')} ${mrc('IR','Sensor / receptor IR')} ${mrc('c','Cortina / persiana')}
     <span style="width:100%;height:1px;background:#E2E8F0"></span>
     <span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:#94A3B8;text-transform:uppercase;width:100%">Selo · cabo</span>
     ${cab('#16A34A','E','Elétrica')} ${cab('#BE185D','S','Som')} ${cab('#2563EB','R','Rede/Dados')}
@@ -1285,6 +1290,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [selClient, setSelClient] = useState('')
   const [clientSearch, setClientSearch] = useState('')
   const [catSearch, setCatSearch] = useState('')
+  const [catFocus, setCatFocus] = useState(false) // busca focada/ativa → some os atalhos e a lista cresce
   const [catFilter, setCatFilter] = useState('')
   const [subcatFilter, setSubcatFilter] = useState('')
   const [editorSearch, setEditorSearch] = useState('')         // busca nos markers na planta
@@ -1324,6 +1330,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [hidePdfConduites, setHidePdfConduites] = useState(false) // tirar todos os conduítes do PDF
   const [hideCondIds, setHideCondIds] = useState(false) // esconder os RÓTULOS (id/nome) dos conduítes, mantendo o traçado
   const [legendaCompacta, setLegendaCompacta] = useState(false) // legenda em faixa fina (dá ênfase à planta)
+  const [compactaObra, setCompactaObra] = useState(false) // Plano de Obra "Compacta": só as plantas-chave, 1 por página
   // t_pecas ("Equipamentos por Cômodo e Lista de Peças") vem OCULTO por padrão (Raphael);
   // religa no seletor de tópicos do painel de PDF.
   const [hideSecs, setHideSecs] = useState(()=>new Set(['t_pecas']))  // seções fora do PDF
@@ -5312,6 +5319,62 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       primeira=false
     })
   }
+  // Título de uma seção com planta (h2 numerado > h3 > cabeçalho grande da família).
+  function _tituloSecao(sec){
+    let t=(sec.querySelector('h2')?.textContent||'').replace(/^\s*\d+\s*/,'').trim()
+    if(!t){ const h3=[...sec.querySelectorAll('h3')].find(h=>h.style.display!=='none'&&h.textContent.trim()); t=(h3?.textContent||'').trim() }
+    if(!t){ const big=[...sec.querySelectorAll('div')].find(x=>/font-size:20px/.test(x.getAttribute('style')||'')&&x.textContent.trim().length>2&&x.textContent.trim().length<40); if(big) t='Planta e Cabos — '+big.textContent.trim() }
+    return t
+  }
+  // ── PLANO DE OBRA "COMPACTA" (Raphael) ───────────────────────────────────────────
+  // Só as plantas-chave, uma por página (e um pavimento por página): Planta Completa (com
+  // legenda, sem tabelas), Redes (cabos+conduítes, sem tabelas), Som (cabos+conduítes, sem
+  // tabelas) e Itens no Teto (COM a tabela). O resto some. É a versão pra imprimir e pregar.
+  function montaCompacta(doc){
+    const legendaLateral=legendaLateralHtml()
+    const KEEP=[
+      {re:/planta de pontos|planta completa|planta de itens|planta com todos/i, tabela:false, leg:true},
+      {re:/redes|cabeamento estruturado/i, tabela:false, leg:false},
+      {re:/(cabos|planta).*som|som.*(cabos|planta)|— som\b/i, tabela:false, leg:false},
+      {re:/teto|forro/i, tabela:true, leg:false},
+    ]
+    const secoes=[...doc.querySelectorAll('.ex-sec, .ex-obra-page')]
+    let primeira=true
+    secoes.forEach(sec=>{
+      if(sec.style.display==='none') return
+      const stages=[...sec.querySelectorAll('.ex-plant-stage')].filter(s=>s.style.display!=='none')
+      const titulo=_tituloSecao(sec)
+      const keep=KEEP.find(k=>k.re.test(titulo))
+      if(!stages.length || !keep){ sec.style.display='none'; return } // fora da lista → some
+      // tabelas: só o Teto mantém; nas outras, esconde
+      const tabelasHtml = keep.tabela ? [...sec.querySelectorAll('table')].map(t=>t.outerHTML).join('') : ''
+      const frag=doc.createDocumentFragment()
+      stages.forEach(stage=>{
+        let pav=''; let p=stage.previousElementSibling
+        while(p && p.style && p.style.display==='none') p=p.previousElementSibling
+        if(p && /^H3$/.test(p.tagName)){ pav=p.textContent.trim() }
+        const cap=stage.previousElementSibling
+        if(cap && cap.classList && cap.classList.contains('ex-plant-head')) cap.style.display='none'
+        stage.style.width='100%'; stage.style.margin='0'; stage.style.maxWidth='100%'
+        const page=doc.createElement('div')
+        page.className='ex-prancha ex-obra-page'
+        page.setAttribute('style',`page:wallpage;${primeira?'':'page-break-before:always;'}break-inside:avoid`)
+        primeira=false
+        const tTop=[titulo, pav.replace(/·.*$/,'').trim()].filter(Boolean).join(' — ')
+        // Com legenda (só na Planta Completa) → planta à esquerda + legenda à direita.
+        // Sem legenda → planta ocupa a folha toda. Teto: a tabela entra abaixo da planta.
+        page.innerHTML=`<h2 style="margin:0 0 8px;border-bottom:2px solid #0D1420;padding-bottom:6px;font-size:18px">${tTop.replace(/</g,'&lt;')||'Planta'}</h2>
+          <div class="ex-prancha-row" style="display:flex;gap:12px;align-items:flex-start">
+            <div class="ex-prancha-plant" style="flex:1;min-width:0"></div>
+            ${keep.leg?`<div style="width:236px;flex-shrink:0">${legendaLateral}</div>`:''}
+          </div>
+          ${tabelasHtml?`<div style="margin-top:10px">${tabelasHtml}</div>`:''}`
+        page.querySelector('.ex-prancha-plant').appendChild(stage)
+        frag.appendChild(page)
+      })
+      sec.replaceWith(frag)
+    })
+  }
   function applyLayout(html, opts={}){
     if(typeof DOMParser==='undefined') return html
     try{
@@ -5339,6 +5402,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const cap=stage.previousElementSibling
           if(cap && cap.classList.contains('ex-plant-head')) cap.style.display='none' }
       })
+      // COMPACTA (Plano de Obra): cura as seções e devolve já pronto — pula o resto do pipeline.
+      if(compactaObra){ try{ montaCompacta(doc) }catch(e){ console.warn('compacta:',e.message) }
+        return '<!doctype html>'+doc.documentElement.outerHTML }
       if(hideAllTables){
         // Esconde TODA tabela (não só as .ex-tbl) E os rótulos/cabeçalhos coladinhos nela (o título
         // h3 e os cabeçalhos coloridos do makeBlock que vivem FORA da <table>), pra não sobrar
@@ -5580,7 +5646,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // NÃO inclui plantTransforms/plantPct/plantAlign: mexer na planta NÃO pode regerar o documento
     // inteiro (era isso que fazia o iframe recarregar e dar aquele "blink"/reset de rolagem).
     // Essas mudanças são aplicadas ao vivo no DOM da prévia pelo efeito _patchPlantasNaPrevia.
-    [showPdfOpts, showDocEditor, showLegenda, legendaCompacta, showIdsPdf, showIdsTbl, showNumPin, pageOrient, showBreaks, hideAllPlants, hideAllTables, blockHidden, blockOrder, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, hideCondIds, execMode, execData, execVersao, rotBg, bgImage, markers, cables, creds]) // eslint-disable-line
+    [showPdfOpts, showDocEditor, showLegenda, legendaCompacta, compactaObra, showIdsPdf, showIdsTbl, showNumPin, pageOrient, showBreaks, hideAllPlants, hideAllTables, blockHidden, blockOrder, hideFams, hideCats, hideSecs, hideConduites, hidePdfConduites, hideCondIds, execMode, execData, execVersao, rotBg, bgImage, markers, cables, creds]) // eslint-disable-line
   // Liga/desliga o contentEditable no corpo da prévia conforme o modo de edição.
   useEffect(()=>{
     const ifr=previewIframeRef.current; if(!ifr) return
@@ -6106,8 +6172,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
               {/* ── CATÁLOGO (sempre visível, rolável) ── */}
               <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-                {/* Atalhos elétricos — adicionar tomada/interruptor/luz com altura já definida */}
-                <div style={{padding:'8px 10px',background:'#0a1020',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
+                {/* Atalhos elétricos — some quando a busca está ativa (Raphael: a lista de resultados
+                    cresce e fica fácil de pesquisar). Voltam ao limpar/desfocar a busca. */}
+                {!(catSearch.trim()||catFocus) && <div style={{padding:'8px 10px',background:'#0a1020',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
                   <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:.5,fontWeight:700,marginBottom:6}}>⚡ Atalhos: um clique posiciona com a altura padrão (ajustável depois)</div>
                   {[
                     {cat:'Tomadas', cor:'#F59E0B', itens:[
@@ -6158,10 +6225,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                       </div>
                     </div>
                   ))}
-                </div>
+                </div>}
                 {/* Busca + filtros de categoria — sticky */}
                 <div style={{padding:'8px 10px',background:'#0a1020',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
-                  <input value={catSearch} onChange={e=>setCatSearch(e.target.value)} placeholder="Buscar no catálogo..."
+                  <input value={catSearch} onChange={e=>setCatSearch(e.target.value)} onFocus={()=>setCatFocus(true)} onBlur={()=>setCatFocus(false)} placeholder="Buscar no catálogo..."
                     style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:6,padding:'7px 10px',color:'#fff',fontSize:12,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
                   <div style={{display:'flex',gap:4,marginBottom: catFilter ? 5 : 0}}>
                     <select value={catFilter} onChange={e=>{setCatFilter(e.target.value);setSubcatFilter('')}}
@@ -7319,6 +7386,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   <div><div style={{fontSize:12.5,fontWeight:600}}>Tamanho da legenda</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Compacta = uma faixa fina, dá ênfase à planta</div></div>
                   {tgl(legendaCompacta,()=>setLegendaCompacta(v=>!v),'Compacta','Completa')}
                 </div>}
+                <div style={rowSt}>
+                  <div><div style={{fontSize:12.5,fontWeight:600}}>Versão Compacta (obra)</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Só as plantas-chave, 1 por página/pavimento: Completa (c/ legenda), Redes, Som e Teto (c/ tabela). O resto some.</div></div>
+                  {tgl(compactaObra,()=>setCompactaObra(v=>!v),'Ligada','Desligada')}
+                </div>
                 <div style={rowSt}>
                   <div><div style={{fontSize:12.5,fontWeight:600}}>IDs nas plantas</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Códigos dos pontos sobre a planta</div></div>
                   {tgl(showIdsPdf,()=>setShowIdsPdf(v=>!v),'Com IDs','Limpo')}
