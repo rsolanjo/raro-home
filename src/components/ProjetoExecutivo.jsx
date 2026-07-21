@@ -339,7 +339,17 @@ function guessCableType(from, to){
 // escolha, sugere pelo nome (guessCableType, que já sabe que keypad é elétrica).
 // A coerência entre tipo e cabo é CONFERIDA, não imposta — ver alertaDoPonto().
 function familiaDoPontoTipo(m){
-  return (m && m.cableType) || guessCableType(m, m)
+  const n=(((m&&m.name)||'')+' '+((m&&m.code)||'')).toLowerCase()
+  // Sensor IR e mmWave de presença são SEMPRE elétricos (Raphael): alimentação, não rede —
+  // vale mesmo se alguém tiver marcado outro cabo antes.
+  if(/receptor ir|emissor ir|hub ir|infraverm|\bir\b|sensor|presen[çc]a|mm-?wave|mv-?wave|\bmmw\b/.test(n)) return 'eletrica'
+  // Interruptor/keypad ANTES do cableType genérico: o padrão é 3×1,5 + retornos (Raphael: "se for
+  // interruptor é sempre 1,5"). Só respeita uma escolha EXPLÍCITA int15/int25; o 'eletrica'
+  // genérico (default antigo = 2,5, da tomada) não vale pra interruptor e vira 1,5.
+  const sym=(classifyEle(m)||{}).sym||''
+  if(/^interruptor/.test(sym)) return (m.cableType==='eletrica_int25'||m.cableType==='eletrica_int15') ? m.cableType : 'eletrica_int15'
+  if(m && m.cableType) return m.cableType
+  return guessCableType(m, m)
 }
 
 // FAMÍLIA QUE O TIPO EXIGE fisicamente — ou null quando o tipo aceita mais de uma.
@@ -3867,12 +3877,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // Layout da tabela IGUAL à de Equipamentos do Rack (Raphael): usa o helper T(), que gera
     // <table class="ex-tbl"> com o cabeçalho navy + dourado do OPUS, em vez do header cinza inline.
     _detalhesPontosBody = `<p style="font-size:10.5px;color:#64748B;margin:-4px 0 10px">Conferência para a obra, cômodo a cômodo: <b>onde</b> deixar a ponta e <b>qual cabo</b> é. O símbolo repete o da planta — <b>forma</b> = local, <b>selo</b> = família do cabo.</p>
-      ${rooms.map(([amb,ms])=>{
-        const cols = ['Ponto', ...(withId?['ID']:[]), 'Item','Equip.','Local','Altura','Caixa','Cabo']
+      ${(()=>{ const temNota=true // coluna Nota sempre presente (Raphael); célula "—" quando vazia
+        return rooms.map(([amb,ms])=>{
+        const cols = ['Ponto', ...(withId?['ID']:[]), 'Item','Equip.','Local','Altura','Caixa','Cabo', ...(temNota?['Nota']:[])]
         const rowsHtml = ms.map(m=>{ const sp=specDoPonto(m); const fn=funcaoDoPonto(m); const eq=(m.name||'').trim()
-          return `<tr><td style="text-align:center">${simb(m)}</td>${withId?`<td style="font-family:monospace;font-size:10px">${m.id||m.code||('#'+m.n)}</td>`:''}<td style="font-weight:600">${fn}</td><td style="font-size:10px;color:#64748B">${(eq&&eq!==fn)?esc(eq):'—'}</td><td>${LOC[mountOf(m)]||'—'}</td><td style="font-weight:600">${NIV[alturaOf(m)]||'—'}</td><td style="text-align:center;font-weight:700">${sp.caixa||'—'}</td><td style="font-size:10.5px">${sp.cabo||'—'}</td></tr>` }).join('')
+          return `<tr><td style="text-align:center">${simb(m)}</td>${withId?`<td style="font-family:monospace;font-size:10px">${m.id||m.code||('#'+m.n)}</td>`:''}<td style="font-weight:600">${fn}</td><td style="font-size:10px;color:#64748B">${(eq&&eq!==fn)?esc(eq):'—'}</td><td>${LOC[mountOf(m)]||'—'}</td><td style="font-weight:600">${NIV[alturaOf(m)]||'—'}</td><td style="text-align:center;font-weight:700">${sp.caixa||'—'}</td><td style="font-size:10.5px">${sp.cabo||'—'}</td>${temNota?`<td style="font-size:10px;color:#475569">${esc((m.note||'').trim()||'—')}</td>`:''}</tr>` }).join('')
         return `<h3 class="ex-amb" style="margin-top:14px">${esc(amb)} <span style="font-weight:400;color:#94A3B8">· ${ms.length} ${ms.length===1?'ponto':'pontos'}</span></h3>${T(rowsHtml, cols)}`
-      }).join('')}`
+      }).join('') })()}`
     return ''
   })()}
 
@@ -5027,10 +5038,15 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     if(pinTipoDe(m)==='rede'){
       const L = pinLetraDe(m)
       if(L==='C') return 'Câmera'
-      if(L==='A') return 'Antena'
+      if(L==='A') return 'Antena de Internet'
       const A = {piso:'Piso',baixa:'Baixo',media:'Médio',alta:'Alto',teto:'Teto'}
       return 'Ponto de Rede'+(A[alturaOf(m)]?' '+A[alturaOf(m)]:'')
     }
+    // Sensores: a legenda deve DIZER que é sensor de presença (mmWave/IR), não só o nome comercial
+    // (Raphael). A marca no pino (~ ou IR) casa com este texto.
+    const _n=(((m&&m.name)||'')+' '+((m&&m.code)||'')).toLowerCase()
+    if(/receptor ir|emissor ir|hub ir|infraverm|\bir\b/.test(_n)) return 'Sensor de presença IR'
+    if(/sensor|presen[çc]a|mm-?wave|mv-?wave|\bmmw\b/.test(_n)) return 'Sensor de presença (mmWave)'
     const cls = classifyEle(m)
     return (cls && cls.tipo) ? cls.tipo : ((m && m.name) || '—')
   }
@@ -5549,6 +5565,16 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
   // Aplica posição/zoom/rotação/largura das plantas AO VIVO no DOM da prévia — sem regerar o
   // documento e sem recarregar o iframe (é o que elimina o "blink"/reset ao mexer na planta).
   useEffect(()=>{ plantTransformsRef.current = plantTransforms },[plantTransforms])
+  // MIGRAÇÃO "já troca todos" (Raphael): interruptor com cabo 'eletrica' genérico (2,5, o antigo
+  // padrão que era da tomada) passa a 'eletrica_int15' (3×1,5 + retornos). Roda uma vez.
+  const _migIntRef = useRef(false)
+  useEffect(()=>{ if(_migIntRef.current) return; _migIntRef.current=true
+    setMarkers(ms=>{ let mudou=false
+      const out=ms.map(m=>{ const s=(classifyEle(m)||{}).sym||''
+        if(/^interruptor/.test(s) && m.cableType==='eletrica'){ mudou=true; return {...m, cableType:'eletrica_int15'} }
+        return m })
+      return mudou?out:ms })
+  },[]) // eslint-disable-line
   // Só muda quando alguma planta entra/sai do modo "em frente ao texto" — serve pra re-anexar as
   // alças (que trocam de canto) sem trazer plantTransforms inteiro pras deps do arraste.
   const frontSig = Object.entries(plantTransforms||{}).filter(([,v])=>v&&v.front).map(([k])=>k).sort().join(',')
@@ -6714,57 +6740,13 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                             color:on?'#7DD3FC':'rgba(255,255,255,0.55)'}}>{lb}</button> })}
                     </div> })()}
                   <div style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',marginBottom:8}}>Cor = categoria · forma = plano · tracinho = altura · selo = cabo.</div>
-                  <label style={lbl}>Tipo do ponto</label>
-                  {(()=>{ const det=classifyEle({...m,eleType:undefined}); const detLabel=det?det.tipo:'não-elétrico (rede/dados/som)'
-                    return <select value={m.eleType||'auto'} onChange={e=>{const v=e.target.value; setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,eleType:v==='auto'?undefined:v}:x))}} style={inputDark}>
-                    <option value="auto">✨ Automático → {detLabel}</option>
-                    <optgroup label="⚡ ELÉTRICA · Tomadas">
-                      <option value="tomada_piso">Tomada Piso</option>
-                      <option value="tomada_baixa">Tomada Baixa (0,30m)</option>
-                      <option value="tomada_media">Tomada Média (1,10m)</option>
-                      <option value="tomada_alta">Tomada Alta (1,80m)</option>
-                      <option value="tomada_teto">Tomada Teto</option>
-                    </optgroup>
-                    {/* As 5 alturas em TODOS os tipos (Raphael). Onde o símbolo já é específico
-                        de altura (piso/teto), usa a chave própria; nas demais o tipo leva o
-                        sufixo "@altura" — mesmo símbolo, altura explícita. */}
-                    {alturasDoTipo('⚡ ELÉTRICA · Ponto de energia','Ponto Elétrica','ponto_energia_parede',{piso:'ponto_energia_piso',teto:'ponto_energia_teto'})}
-                    {/* Interruptor/keypad UNIFICADO (Raphael): um grupo com as 5 alturas, em vez de
-                        um grupo por nº de teclas. O nº de teclas é propriedade à parte — vem do
-                        item e é ajustável no seletor "Teclas" logo abaixo — então não precisa
-                        multiplicar o menu por ele. */}
-                    {alturasDoTipo('⚡ Interruptor / Keypad','Interruptor / Keypad',symInterruptorDe(m))}
-                    {alturasDoTipo('⚡ Módulo Cabeceira','Módulo Cabeceira','modulo_cabeceira')}
-                    <optgroup label="🔵 DADOS · selo R">
-                      <option value="keystone_piso">Keystone Piso</option>
-                      <option value="keystone_baixo">Keystone Baixa (0,30m)</option>
-                      <option value="keystone_media">Keystone Média (1,10m)</option>
-                      <option value="keystone_alto">Keystone Alta (1,80m)</option>
-                      <option value="keystone_teto">Keystone Teto</option>
-                    </optgroup>
-                    {alturasDoTipo('🔊 SOM · selo S','Ponto de Som','ponto_som_parede',{piso:'ponto_som_piso',teto:'ponto_som_teto'})}
-                    <optgroup label="Infraestrutura">
-                      <option value="quadro">Quadro de luz (QDL)</option>
-                      <option value="prumada">Prumada (entre andares)</option>
-                      <option value="caixa_conduite">Caixa de conduíte</option>
-                    </optgroup>
-                    <option value="nenhum">— Não é elétrico (rede/dados/som)</option>
-                  </select> })()}
-                  {/* TECLAS — saiu do menu de tipo (que agora só trata de altura) e virou o que
-                      sempre foi: uma propriedade própria do interruptor. Trocar aqui preserva a
-                      altura já escolhida no tipo. */}
-                  {(()=>{ const sym=(classifyEle(m)||{}).sym||''
-                    if(!/^interruptor/.test(sym)) return null
-                    const alt=altEleType(m.eleType)
-                    const atual=teclasDe(m)
-                    return <><label style={lbl}>Teclas</label>
-                    <div style={{display:'flex',gap:6,marginBottom:8}}>
-                      {[1,2,3,4,6].map(t=>{ const on=atual===t
-                        return <button key={t} onClick={()=>{ const novo=SYM_POR_TECLAS[t]+(alt?'@'+alt:'')
-                            setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,eleType:novo}:x)) }}
-                          style={{flex:1,height:30,borderRadius:7,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:on?800:500,
-                            border:`1px solid ${on?'#38BDF8':'rgba(255,255,255,0.2)'}`,background:on?'rgba(56,189,248,0.18)':'rgba(255,255,255,0.06)',color:on?'#7DD3FC':'rgba(255,255,255,0.6)'}}>{t}</button> })}
-                    </div></>
+                  {/* "Tipo do ponto" e "Teclas" saíram (Raphael): quem decide o tipo e o nº de
+                      teclas é o ITEM (o nome do produto). Categoriar isso no painel era redundante
+                      com os quadrinhos de altura acima. Pra mudar tipo/teclas, troca-se o item. */}
+                  {(()=>{ const det=classifyEle(m)
+                    if(!det) return null
+                    return <div style={{fontSize:10,color:'rgba(255,255,255,0.45)',marginBottom:8,padding:'5px 8px',background:'rgba(255,255,255,0.04)',borderRadius:6}}>
+                      Tipo (pelo item): <b style={{color:'rgba(255,255,255,0.7)'}}>{det.tipo}</b></div>
                   })()}
                   {/* Caixa de embutir — só para pontos que usam caixa (interruptor/tomada) */}
                   {(()=>{ const sym=classifyEle(m)?.sym; if(!/interruptor|tomada|modulo/.test(sym||'')) return null
