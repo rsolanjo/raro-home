@@ -5520,11 +5520,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         // Legenda lateral SÓ com os itens DESTA planta (uids gravados na geração via data-mkuids).
         // Assim Redes mostra só rede, Som só som, e cada pavimento só os seus (Raphael).
         const _plantEl=stage.querySelector('.ex-plant,.ex-plant-fig')
+        // data-mkuids é STRING (uids separados por vírgula → split dá strings). O uid do marker pode
+        // ser NÚMERO — e Set<string>.has(number) dá false, derrubando esses pontos da legenda (o bug
+        // do Elton: Som sumia inteiro, Completa só mostrava o teto). Comparar SEMPRE como string.
         const _uids=new Set((((_plantEl&&_plantEl.getAttribute('data-mkuids'))||'').split(',')).filter(Boolean))
-        const _sub = _uids.size ? markers.filter(m=>_uids.has(m.uid)) : null
-        // DIAGNÓSTICO (Raphael/Elton): se a legenda vier errada, o console mostra quantos pontos a
-        // planta declarou (data-mkuids), quantos casaram com os markers, e os tipos que entraram.
-        try{ if(keep.leg) console.log('[legenda-prancha]', { titulo, pav, uidsNaPlanta:_uids.size, markersCasados:(_sub?_sub.length:markers.length), tipos:[...new Set((_sub||markers).map(m=>funcaoDoPonto(m)))] }) }catch(_){}
+        const _sub = _uids.size ? markers.filter(m=>_uids.has(String(m.uid))) : null
         const legendaLateral = keep.leg ? legendaLateralHtml(_uids.size?_sub:undefined) : ''
         stage.style.height='100%'; stage.style.width='auto'; stage.style.maxWidth='100%'
         stage.style.margin='0'; stage.style.breakInside='avoid'
