@@ -474,7 +474,7 @@ const PIN_TIPOS = {
   interruptor: { forma:'circulo',  cor:'#DC2626', nome:'Interruptor' },
   tomada:      { forma:'seta',     cor:'#2563EB', nome:'Tomada' },
   rede:        { forma:'meialua',  cor:'#F59E0B', nome:'Ponto de rede' },
-  som:         { forma:'quadrado', cor:'#EA580C', nome:'Ponto de som' },
+  som:         { forma:'quadrado', cor:'#BE185D', nome:'Ponto de som' },  // rosa = mesma cor do cabo/conduíte de som (Raphael)
   eletrica:    { forma:'losango',  cor:'#111827', nome:'Ponto de elétrica' },
   quadro:      { forma:'quadro',   cor:'#111827', nome:'Quadro QDL' },
 }
@@ -630,7 +630,7 @@ function alturasDoTipo(grupo, nome, base, especiais={}){
   </optgroup>
 }
 // Cor = categoria (6 cores). Selo do cabo (R/S/E) vem de cableFamily.
-const CAT_COLOR = { keypad:'#16A34A', ap:'#F59E0B', camera:'#DC2626', som:'#7C3AED', energia:'#111827', sensor:'#EA580C' }
+const CAT_COLOR = { keypad:'#16A34A', ap:'#F59E0B', camera:'#DC2626', som:'#BE185D', energia:'#111827', sensor:'#EA580C' }
 function catColorOf(m){
   const n=(((m&&m.name)||'')+' '+((m&&m.code)||'')).toLowerCase()
   const sym=classifyEle(m)?.sym||''
@@ -2030,7 +2030,7 @@ Responda APENAS JSON válido:
   // ── Roteamento de cabos ──
   // Legenda de cores dos cabos (segue o padrão da planta)
   const CABLE_PALETTE = { dados:'#2563EB', ap:'#F59E0B', camera:'#92400E', uplink:'#DC2626', hdmi:'#7C3AED', som:'#BE185D', eletrica:'#16A34A', fibra:'#0D9488', conduite_dados:'#1E3A8A', conduite_eletrica:'#EAB308' }
-  const CABLE_LABELS  = { dados:'Dados', ap:'AP / Access Point', camera:'Câmera', uplink:'Uplink', hdmi:'HDMI', som:'Som', eletrica:'Elétrica', eletrica_int25:'Elétrica (interruptor)', eletrica_int15:'Elétrica (interruptor)', fibra:'Fibra Óptica', conduite_dados:'Conduíte DADOS', conduite_eletrica:'Conduíte ELÉTRICA' }
+  const CABLE_LABELS  = { dados:'Keystone', ap:'AP / Access Point', camera:'Câmera', uplink:'Uplink', hdmi:'HDMI', som:'Som', eletrica:'Elétrica', eletrica_int25:'Elétrica (interruptor)', eletrica_int15:'Elétrica (interruptor)', fibra:'Fibra Óptica', conduite_dados:'Conduíte KEYSTONE', conduite_eletrica:'Conduíte ELÉTRICA' }
   // tipos de "conduíte" são eletrodutos compartilhados — desenhados grossos para o pedreiro
   const CABLE_CONDUITE = { conduite_dados:true, conduite_eletrica:true }
   const CABLE_SPEC = {
@@ -4217,10 +4217,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const t=c.type||'dados'
         if(t==='conduite_eletrica'||String(t||'').startsWith('eletrica')) return 'Elétrica'
         if(t==='som') return 'Som'
-        if(t==='conduite_dados'||t==='dados'||t==='ap'||t==='camera'||t==='uplink'||t==='hdmi'||t==='fibra') return 'Dados'
-        return 'Dados'
+        if(t==='conduite_dados'||t==='dados'||t==='ap'||t==='camera'||t==='uplink'||t==='hdmi'||t==='fibra') return 'Redes'
+        return 'Redes'
       }
-      const famColor = { 'Elétrica':'#EAB308','Som':'#BE185D','Dados':'#1E3A8A' }
+      const famColor = { 'Elétrica':'#EAB308','Som':'#BE185D','Redes':'#1E3A8A' }
       // caixas de conduíte na planta
       const caixasConduite = markers.filter(m=>classifyEle(m)?.sym==='caixa_conduite')
       // mapa: chave do conduíte → cabos que estão dentro
@@ -4748,6 +4748,62 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         <p class="ex-p" style="color:#6B7280">Marque cada item à caneta conforme for cumprindo. Imprima para levar ao canteiro.</p>
         <h3 class="ex-amb" style="margin-top:14px">Checklist de Obra — Arquiteto / Eletricista</h3>${checkList(d.checklist_obra)}
         <h3 class="ex-amb" style="margin-top:20px">Checklist de Instalação — Equipe RARO Home</h3>${checkList(d.checklist_raro)}</div>`
+      // ── TÓPICO REDES (consolidado) ─────────────────────────────────────────────────
+      // Uma visão única de TODO o cabeamento de rede — Keystone, AP e Câmera (Raphael) — numa
+      // planta só, com a tabela geral de cabos e a de conduítes que levam cabo de rede. As
+      // páginas por família (abaixo) continuam detalhando cada uma; aqui é o retrato do todo.
+      const redeSection = (()=>{
+        const REDE_TIPOS = new Set(['dados','ap','camera'])
+        const cabosRede = (cables||[]).filter(c=>!c.free && REDE_TIPOS.has(c.type||'dados'))
+        if(!cabosRede.length) return ''
+        // planta: todos os cabos de rede juntos, cada tipo na sua cor; pinos das pontas + rack
+        const plantaRede = bgImage ? (()=>{
+          const lines=cabosRede.map(c=>{ const pts=cablePolyPoints(c); if(pts.length<2)return''
+            const col=CABLE_PALETTE[c.type||'dados']||'#2563EB'
+            return `<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:2.4px" vector-effect="non-scaling-stroke"/>` }).join('')
+          const uids=new Set(); cabosRede.forEach(c=>{uids.add(c.fromUid);uids.add(c.toUid)})
+          const dots=markers.filter(m=>uids.has(m.uid)||isRackItem(m.name,m.code)).map(m=>{
+            const isR=isRackItem(m.name||'',m.code||'')
+            if(isR) return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-50%);z-index:3"><div style="width:20px;height:20px;border-radius:5px;background:#4C1D95;color:#C4B5FD;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #7C3AED">R</div></div>`
+            return drawPin(m,{label:_pinLabel(m),size:20,color:(EQUIP_STYLE[equipType(m.name)]||EQUIP_STYLE.Outro).c,idLabel:showIdsPdf?esc(m.id||m.code||m.name||''):''}) }).join('')
+          return `<div class="ex-plant"><img src="${bgImage}" style="width:100%;display:block;border:1px solid #ccc;border-radius:6px"/>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">${lines}</svg>${dots}</div>` })() : ''
+        // legenda de cores dos tipos presentes
+        const tiposPresentes=[...new Set(cabosRede.map(c=>c.type||'dados'))]
+        const legRede=`<div style="display:flex;flex-wrap:wrap;gap:12px;margin:8px 0 10px">${tiposPresentes.map(t=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:#334155"><span style="width:16px;height:4px;border-radius:2px;background:${CABLE_PALETTE[t]||'#2563EB'}"></span>${esc(CABLE_LABELS[t]||t)}</span>`).join('')}</div>`
+        // tabela geral de cabos de rede (com coluna Tipo)
+        const rowsRede=cabosRede.map(c=>{ const f=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid); const mt=cableMeters(c); const sp=CABLE_SPEC[c.type]||{spec:'CAT6'}
+          return `<tr>${pinCell(to?.id,to?.code,to?.n)}
+            <td style="font-size:11px">${esc(CABLE_LABELS[c.type||'dados']||'Keystone')}</td>
+            <td style="font-size:11px">${f?`<b>#${f.n}</b> ${esc(f.name)}`:'Rack'} <span style="color:#94A3B8">→</span> ${to?`<b>#${to.n}</b> ${esc(to.name)}`:'—'}</td>
+            <td style="font-size:11px">${esc(to?.room||'—')}</td>
+            <td style="font-size:10px;color:#475569">${esc(sp.spec)}</td>
+            <td style="text-align:right;font-weight:700">${mt!=null?mt+'m':'—'}</td>
+            <td style="font-size:9.5px;color:#0369A1;font-family:monospace">${esc(c.conduite||'—')}</td>
+          </tr>` }).join('')
+        const totRede=cabosRede.reduce((s,c)=>s+(cableMeters(c)||0),0)
+        // conduítes que levam ao menos um cabo de rede
+        const chaveDe=cond=>cond.conduiteId||(cond.label||'').trim()||cond._chave||cond.id
+        const condRede=hidePdfConduites?[]:(cables||[]).filter(cond=>{ if(!cond.free) return false
+          const chv=chaveDe(cond); return cabosRede.some(cabo=>cabo.conduite && (cabo.conduite===chv||cabo.conduite===cond.id||cabo.conduite===(cond.label||'').trim()||(cond._chave&&cabo.conduite===cond._chave))) })
+        const rowsCondRede=condRede.map(cond=>{ const chv=chaveDe(cond)
+          const dentro=cabosRede.filter(c=>c.conduite===chv||c.conduite===cond.id||c.conduite===(cond.label||'').trim()||(cond._chave&&c.conduite===cond._chave))
+          const n=dentro.length, bitola=n<=6?'3/4"':n<=10?'1"':n<=16?'1.1/4"':'1.1/2"'; const mt=cableMeters(cond)
+          return `<tr><td style="font-family:monospace;font-weight:800;color:#0369A1;font-size:12px">${esc(cond.conduiteId||cond.label||'—')}</td>
+            <td style="text-align:center;font-weight:700">${n}×</td><td style="text-align:center;font-weight:700">${bitola}</td>
+            <td style="text-align:right">${mt?Math.round(mt)+'m':'—'}</td>
+            <td style="font-size:9.5px;color:#475569">${dentro.map(c=>`#${markers.find(m=>m.uid===c.fromUid)?.n||'?'}→#${markers.find(m=>m.uid===c.toUid)?.n||'?'}`).join(', ')}</td></tr>` }).join('')
+        return `<div class="ex-obra-page"><div style="break-inside:avoid;page-break-inside:avoid">
+            <h2 style="border-bottom:3px solid #1E3A8A;padding-bottom:8px">Redes — Cabeamento Estruturado</h2>
+            <p class="ex-p" style="color:#6B7280">Todo o cabo de rede da casa num lugar só: pontos Keystone, câmeras e access points. É o CAT6 que passa pelo forro e paredes até o rack. As páginas por família, adiante, detalham cada uma.</p>
+            <div style="font-size:12px;color:#334155;margin:6px 0 2px"><b>${cabosRede.length}</b> cabo(s) de rede${totRede>0?` · total ~${Math.round(totRede)}m`:''}${condRede.length?` · ${condRede.length} conduíte(s)`:''}</div>
+            ${legRede}</div>
+          ${plantaRede?`<div class="ex-opus-fig">${plantaRede}</div>`:''}
+          ${T(rowsRede,['Nº','Tipo','Origem → Destino','Cômodo','Cabo','Metros','Conduíte'])}
+          ${rowsCondRede?`<h3 class="ex-amb" style="color:#1E3A8A;margin-top:16px;margin-bottom:4px;break-after:avoid;page-break-after:avoid">Conduítes de rede</h3>${T(rowsCondRede,['ID','Nº cabos','Eletroduto','Metros','Trechos'])}`:''}
+          </div>`
+      })()
+
       const obraSections = [
         // A abertura do Plano de Obra saiu (Raphael): era o título + o aviso de A3 + a legenda
         // repetida. A capa já diz o que é o documento, e a legenda aparece colada em cada
@@ -4756,6 +4812,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         (embedded||secOff('pos_altura'))?'':obraPosAlt,            // no Completo, _full já tem a Posição e Altura
         secOff('t_obra_eletrica')?'':obraEletricaCompleta,
         secOff('t_quant')?'':obraQuant,
+        // Tópico Redes (consolidado). Sentinelas pro Executivo extrair e pôr como tópico próprio.
+        secOff('t_cabos')?'':'<!--REDES-INI-->',
+        secOff('t_cabos')?'':redeSection,
+        secOff('t_cabos')?'':'<!--REDES-FIM-->',
         // Sentinelas: o Projeto Executivo extrai estas plantas de cabo (por família) daqui, sem
         // duplicar código — antes o PE só tinha as plantas de conduíte e faltava a de cabos.
         secOff('t_cabos')?'':'<!--CABOS-INI-->',
@@ -4783,7 +4843,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     const cap = (t,brk=false) => `<div class="ex-sec ex-breakable" style="${brk?'page-break-before:always;':''}"><h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:12px">${_capNum(++_cap)}${t}</h2>`
 
     // ── gera os conteúdos de Obra e Conduítes inline (sem duplicação) ──
-    let obraInline = '', conduitesInline = '', cabosInline = ''
+    let obraInline = '', conduitesInline = '', cabosInline = '', redesInline = ''
     try {
       const obraFull = buildExecHtml(d,'obra')
       const condFull = buildExecHtml(d,'conduites')
@@ -4794,6 +4854,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       // que o Plano de Obra, agora também no Executivo (Raphael: "faltou a planta com os cabos").
       const ci=obraFull.indexOf('<!--CABOS-INI-->'), cf=obraFull.indexOf('<!--CABOS-FIM-->')
       if(ci>=0 && cf>ci) cabosInline = obraFull.slice(ci+16, cf)
+      // Tópico Redes (consolidado) — mesma extração por sentinela.
+      const ri=obraFull.indexOf('<!--REDES-INI-->'), rf=obraFull.indexOf('<!--REDES-FIM-->')
+      if(ri>=0 && rf>ri) redesInline = obraFull.slice(ri+16, rf)
     } catch(e){ console.warn('inline obra/cond:',e) }
 
     return [
@@ -4822,10 +4885,17 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // 6. TETO
     (!secOff('tbl_teto') && plantaTeto) ? cap('Planta de Teto — Itens sobre Forro e Laje',true) + plantaTeto.replace('<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>','') + '</div>' : '',
 
+    // 7a. REDES (consolidado) — todo o cabeamento de rede (Keystone/AP/Câmera) num tópico só,
+    // ANTES do detalhamento por família. redesInline vem do doc de obra pela sentinela; tem o
+    // próprio h2, que troco pelo cabeçalho numerado do capítulo.
+    (secOff('t_conduites')||!redesInline) ? '' : cap('Redes — Cabeamento Estruturado',true) +
+      redesInline.replace(/<h2[^>]*>Redes — Cabeamento Estruturado<\/h2>/,'') +
+      '</div>',
+
     // 7. CABEAMENTO E CONDUÍTES — plantas de cabo por família (cabosInline) + conduítes.
     // Som Ambiente foi REMOVIDO (Raphael). Segurança/Câmeras foi movido pro tópico 3 (Rede).
     secOff('t_conduites') ? '' : cap('Cabeamento e Conduítes',true) +
-      `<p class="ex-p" style="margin-bottom:10px">Por família de cabo (Dados, Som, Elétrica): a planta com o caminho dos cabos e a dos conduítes, com as tabelas de execução.</p>` +
+      `<p class="ex-p" style="margin-bottom:10px">Por família de cabo (Keystone, Som, Elétrica): a planta com o caminho dos cabos e a dos conduítes, com as tabelas de execução.</p>` +
       (cabosInline || (conduitesInline||'')) +
       '</div>',
 
@@ -6465,7 +6535,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     </div> })()}
                 </div>
                 <div style={{display:'flex',gap:3,flexWrap:'wrap',marginBottom:8}}>
-                  {[['dados','Dados','#2563EB'],['ap','AP','#F59E0B'],['camera','Câm','#92400E'],['uplink','Uplk','#DC2626'],['hdmi','HDMI','#7C3AED'],['som','Som','#BE185D'],['eletrica','Elét','#16A34A'],['fibra','Fibra','#0D9488'],['conduite_dados','C.DADOS','#1E3A8A'],['conduite_eletrica','C.ELÉT','#EAB308']].map(([t,lb,col])=>(
+                  {[['dados','Keystone','#2563EB'],['ap','AP','#F59E0B'],['camera','Câm','#92400E'],['uplink','Uplk','#DC2626'],['hdmi','HDMI','#7C3AED'],['som','Som','#BE185D'],['eletrica','Elét','#16A34A'],['fibra','Fibra','#0D9488'],['conduite_dados','C.KEY','#1E3A8A'],['conduite_eletrica','C.ELÉT','#EAB308']].map(([t,lb,col])=>(
                     <button key={t} onClick={()=>setCableColor(c.id,t)} style={{fontSize:9,padding:'2px 6px',borderRadius:8,border:`1px solid ${c.type===t?col:'rgba(255,255,255,0.15)'}`,background:c.type===t?col+'33':'transparent',color:c.type===t?'#fff':'rgba(255,255,255,0.45)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:3}}><span style={{width:6,height:6,borderRadius:'50%',background:col}}/>{lb}</button>
                   ))}
                 </div>
@@ -6637,7 +6707,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                   {(()=>{ const det=familiaDoPontoTipo(m); const detL=CABLE_LABELS[det]||det
                     return <select value={m.cableType||'auto'} onChange={e=>{const v=e.target.value; setMarkers(ms=>ms.map(x=>x.uid===m.uid?{...x,cableType:v==='auto'?undefined:v}:x))}} style={{...inputDark,marginBottom:8}}>
                     <option value="auto">✨ Automático → {detL}</option>
-                    {Object.entries(CABLE_LABELS).filter(([k])=>k!=='ap'&&k!=='camera').map(([k,v])=><option key={k} value={k}>{k==='dados'?'Dados (rede CAT6)':v} · {CABLE_SPEC[k]?.spec||''}</option>)}
+                    {Object.entries(CABLE_LABELS).filter(([k])=>k!=='ap'&&k!=='camera').map(([k,v])=><option key={k} value={k}>{k==='dados'?'Keystone (rede CAT6)':v} · {CABLE_SPEC[k]?.spec||''}</option>)}
                   </select> })()}
                   {/* Conferência, não trava: quem manda é o tipo + o cabo escolhidos acima.
                       Só avisa quando a combinação não existe ("tomada com cabo de rede"). */}
