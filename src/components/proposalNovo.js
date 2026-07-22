@@ -8,6 +8,58 @@ import { brandLogoCover, brandName, brandTagline, brandPhone, brandEmail, brandS
 
 function parse(s){ return typeof s==='number'?s:parseFloat(String(s||'').replace(/[^\d.,-]/g,'').replace(',','.').replace(/\.(?=.*\.)/g,''))||0 }
 
+// ── PITCH do cômodo (mesma lógica do editor) — aqui pra o builder se auto-corrigir, não importa
+// quem chama (editor "Gerar Proposta" OU lista "Docs → Proposta para Clientes"). Raphael.
+const PITCHES = {
+  cpd:['O cérebro que conecta e protege cada detalhe da sua casa.','Central única que gerencia automação, câmeras e rede.'],
+  sala:['Cinema, som e conforto no ritmo da sua rotina.','6 cenas automáticas — tudo a um toque ou pelo WhatsApp.'],
+  gourmet:['Churrasqueira, coifa e som no automático — o espaço já sabe.','Receba com elegância: clima e trilha sonora programados.'],
+  cozinha:['Automação e eficiência no coração da casa.'],
+  jantar:['A luz certa para cada refeição, sem ajuste manual.'],
+  suite:['Clima, automação e entretenimento no ritmo de quem mora.'],
+  'suíte':['Clima, automação e entretenimento no ritmo de quem mora.'],
+  wc:['Automação que transforma o banho num ritual personalizado.'],
+  banheiro:['Atmosfera perfeita em cada visita, sem apertar nada.'],
+  quarto:['Boa noite e bom dia com um único toque.'],
+  escada:['Segurança e automação a cada transição entre os andares.'],
+  corredor:['Automação invisível que funciona sem você precisar pensar.'],
+  varanda:['A varanda que se transforma com a hora do dia.'],
+  churrasqueira:['Coifa, grelha e som integrados — só falta a carne.'],
+  home:['Cinema em casa com automação de última geração.'],
+  closet:['Organização e automação integradas no closet.'],
+}
+const _normCat = c => (c==='Rede'?'Redes': c==='Som'?'Sonorização': c)
+function pitchForRoom(r){
+  const items=(r.items||[]).filter(it=>it.name)
+  const cats=new Set(items.map(it=>_normCat(it.category||'Outros')))
+  const nome=(r.name||'').toLowerCase()
+  const key=Object.keys(PITCHES).find(k=>nome.includes(k))
+  if(items.length===0){ return key?PITCHES[key][0]:'Ambiente preparado para a automação RARO.' }
+  const has=c=>cats.has(c)
+  const f=[]
+  if(has('Automação')) f.push('iluminação e cenas a um toque')
+  if(has('Sonorização')) f.push('som ambiente integrado')
+  if(has('Segurança')) f.push('segurança com câmeras 4K')
+  if(has('Redes')) f.push('Wi-Fi forte e estável')
+  if(has('Gourmet')) f.push('espaço gourmet pronto para receber')
+  if(has('Elétrica')) f.push('infraestrutura elétrica dedicada')
+  if(f.length===0){ return key?PITCHES[key][0]:'Ambiente integrado pela automação RARO.' }
+  const corpo = f.length===1?f[0] : f.length===2?f[0]+' e '+f[1] : f.slice(0,-1).join(', ')+' e '+f[f.length-1]
+  return corpo.charAt(0).toUpperCase()+corpo.slice(1)+'.'
+}
+// Regenera pitch: cômodos sem pitch OU com pitch herdado da tagline de um item do catálogo (bug
+// antigo — o cômodo pegava a frase de marketing do 1º item, que não fala do cômodo).
+function ensurePitchesData(floors, catalog){
+  const itemPitch = c => { const x=(catalog||[]).find(i=>i.code===c); return ((x&&x.pitch)||'').trim() }
+  return (floors||[]).map(f=>({...f, rooms:(f.rooms||[]).map(r=>{
+    const items=(r.items||[]).filter(it=>it.name)
+    if(!items.length) return r
+    const cur=(r.pitch||'').trim()
+    const herdado = !!cur && items.some(it=>itemPitch(it.code)===cur)
+    return (!cur || herdado) ? {...r, pitch:pitchForRoom(r)} : r
+  })}))
+}
+
 const CAT_COLORS={'Segurança':'#DC2626','Sonorização':'#BE185D','Som':'#BE185D','Redes':'#0EA5E9','Rede':'#0EA5E9','Automação':'#059669','Gourmet':'#D97706','Elétrica':'#F59E0B','CPD':'#7C3AED','Iluminação':'#CA8A04','Outros':'#6B7280'}
 
 const CSS = `
@@ -15,7 +67,7 @@ const CSS = `
 /* Topo/base pela @page; as LATERAIS ficam na .doc (padding). Motivo: o "Margens" do diálogo de
    impressão zera a margem lateral da @page e o conteúdo COLAVA no edge (Raphael). O padding da
    .doc vale em TODAS as páginas e NÃO depende desse ajuste — margem lateral garantida. */
-@page{size:A4;margin:16mm 0}
+@page{size:A4;margin:18mm 0}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 /* A barra "Salvar como PDF" (no-print) é sticky na tela; SEM esta regra ela imprimia no meio
@@ -32,7 +84,7 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 .mono{font-family:'DM Mono','SFMono-Regular',Menlo,monospace}
 
 /* ── CAPA (sem depoimento) ── */
-.cover{page-break-after:always;min-height:calc(297mm - 32mm);display:flex;flex-direction:column}
+.cover{page-break-after:always;min-height:calc(297mm - 36mm);display:flex;flex-direction:column}
 .cover-mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding:6px 2px}
 .cover-top{background:#0B1830;color:#fff;border-radius:10px;padding:26px 30px;display:flex;justify-content:space-between;align-items:flex-start}
 .cover-ey{font-size:8px;letter-spacing:3px;color:#38BDF8;text-transform:uppercase;font-weight:600}
@@ -141,7 +193,10 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 `
 
 export function buildProposalNovo(data, adminMode=false){
-  const { client_name, proposal_code, neighborhood, floors=[], labor, date_str, planta_image } = data
+  const { client_name, proposal_code, neighborhood, floors:_rawFloors=[], labor, date_str, planta_image, catalog } = data
+  // Auto-corrige o pitch de cada cômodo (vazio ou herdado do item). Assim a proposta sai certa
+  // não importa o caminho: editor "Gerar Proposta" OU lista "Docs → Proposta para Clientes".
+  const floors = ensurePitchesData(_rawFloors, catalog)
   const fmt = v => 'R$\u202f'+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
   const equipTotal = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
   const laborVal = parse(labor)

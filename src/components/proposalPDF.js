@@ -1,5 +1,6 @@
 import { getCatalog } from '../db/supabase.js'
 import { openHtmlDoc, downloadHtmlDoc } from './openDoc.js'
+import { buildProposalNovo } from './proposalNovo.js'
 // ── RARO Home — PDF Builder (shared) ─────────────────────
 // Single source of truth for the proposal PDF
 
@@ -414,7 +415,12 @@ export async function openProposalPDF(proposal, adminMode=false) {
       if (typeof f === 'string') { try { return JSON.parse(f) } catch { return [] } }
       return Array.isArray(f) ? f : []
     })()
-    const html = buildPDF({
+    // UNIFICADO no builder "Novo" (Opus): a lista gera a MESMA proposta do editor "Gerar Proposta"
+    // — mesmas margens, empacotamento (multicol), rodapé RARO Home e pitches auto-corrigidos.
+    // Antes a lista usava o buildPDF clássico (capa com depoimentos fabricados, "Rogério Silva",
+    // sem as correções) — era a "outra versão" que confundia (Raphael). buildPDF fica só de legado.
+    const planta_image = (()=>{ const pd=proposal.planta_data; const o=typeof pd==='string'?(()=>{try{return JSON.parse(pd)}catch{return null}})():pd; return o?.image||null })()
+    const html = buildProposalNovo({
       catalog,
       client_name:   proposal.client_name || proposal.clientName || '—',
       proposal_code: proposal.code || `#${proposal.id}`,
@@ -422,9 +428,7 @@ export async function openProposalPDF(proposal, adminMode=false) {
       date_str:      new Date().toLocaleDateString('pt-BR', {month:'long',year:'numeric'}),
       floors,
       labor:         Number(proposal.labor) || 0,
-      itemFontSize:  Number(proposal.itemFontSize) || 9,
-      client_phone1: proposal.client_phone1 || '',
-      client_phone2: proposal.client_phone2 || '',
+      planta_image,
     }, adminMode)
 
     const fname = `proposta-${(proposal.code||proposal.id||'raro').toString().replace(/[\\/:*?"<>|]/g,'')}${adminMode?'-ADMIN':''}.html`
