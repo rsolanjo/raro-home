@@ -910,7 +910,9 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
     const newItems = [...(room?.items||[]), {name:item.name,code:item.code,qty:'1',sale_price:item.sale_price,cost_price:item.cost_price}]
     const newPrice = newItems.reduce((s,it) => s + (it.sale_price||0) * (parseInt(it.qty)||1), 0)
     updRoom({items: newItems, price: String(newPrice)})
-    if(!room?.pitch && item.pitch) updRoom({pitch:item.pitch})
+    // NÃO herdar o pitch do item do catálogo (bug: o cômodo pegava a tagline de marketing do 1º
+    // item, que não fala do cômodo — ex.: "Cinema, som e conforto" numa Área de Serviço). O pitch
+    // do cômodo é gerado por pitchForRoom (nome + categorias) ao salvar/gerar PDF. Raphael.
   }
   function removeItem(k){
     const newItems = room.items.filter((_,i)=>i!==k)
@@ -949,9 +951,16 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   }
   // Gera pitch para todos os cômodos que ainda não têm um (usado ao salvar)
   function ensurePitches(floorsArr){
+    const itemPitch = c => { const x=catalog.find(i=>i.code===c); return ((x&&x.pitch)||'').trim() }
     return floorsArr.map(f=>({...f, rooms:(f.rooms||[]).map(r=>{
       const items=(r.items||[]).filter(it=>it.name)
-      if(items.length>0 && (!r.pitch || !r.pitch.trim())) return {...r, pitch:pitchForRoom(r)}
+      if(!items.length) return r
+      const cur=(r.pitch||'').trim()
+      // Regenera quando: (a) sem pitch, OU (b) o pitch é IGUAL à tagline de um item do catálogo —
+      // sinal do bug antigo, em que o cômodo herdava a frase de marketing do 1º item (não fala do
+      // cômodo). Nos dois casos, pitchForRoom monta pelo nome do cômodo + categorias. Raphael.
+      const herdado = !!cur && items.some(it=>itemPitch(it.code)===cur)
+      if(!cur || herdado) return {...r, pitch:pitchForRoom(r)}
       return r
     })}))
   }
@@ -1118,13 +1127,16 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           return {...r, items:visItems, price:String(visPrice)}
         }).filter(r=>parse(r.price)>0)      // remove cômodos zerados/vazios
       })).filter(f=>(f.rooms||[]).length>0) // remove pavimentos que ficaram sem cômodos
+      // Repara pitch no PDF: cômodos sem pitch OU com pitch herdado do item ganham um que fala do
+      // cômodo (pitchForRoom). Assim a proposta JÁ SALVA sai certa sem precisar re-salvar. Raphael.
+      const floorsForPdf = ensurePitches(floorsFiltered)
       const pdfData = {
         catalog,
         client_name: cl ? `${cl.name1} & ${cl.name2}` : clientName,
         proposal_code: previewCode,
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         date_str: new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),
-        floors: floorsFiltered, labor:baseLaborVisible, margin, itemFontSize:pdfFontSize,
+        floors: floorsForPdf, labor:baseLaborVisible, margin, itemFontSize:pdfFontSize,
         client_phone1: cl?.phone1, client_phone2: cl?.phone2,
         planta_image: (()=>{ const pd = plantaData || savedProposal?.planta_data; const o = typeof pd==='string'?(()=>{try{return JSON.parse(pd)}catch{return null}})():pd; return o?.image||null })()  // SÓ a do cliente; sem planta some o bloco
       }

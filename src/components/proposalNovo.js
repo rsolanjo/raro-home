@@ -76,12 +76,16 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 .floor-hd .num{width:30px;height:30px;border-radius:8px;background:#0B1830;color:#38BDF8;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
 .floor-hd .lbl{font-size:8px;letter-spacing:3px;color:#0EA5E9;text-transform:uppercase;font-weight:600}
 .floor-hd .nm{font-family:'DM Serif Display',serif;font-size:17px;color:#0B1830;line-height:1.1}
-.rooms{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+/* Cards em 2 COLUNAS que empilham verticalmente (multicol), não em linhas. Assim um card baixo
+   sobe pra preencher o vão embaixo de um card alto (o "Área de Serviço embaixo da Sala de Jantar"
+   que o Raphael pediu) — sem buracos e sem card órfão sozinho numa página. break-inside:avoid
+   mantém cada card inteiro; quebra entre colunas/páginas cai sempre entre cards. */
+.rooms{columns:2;column-gap:10px}
 
 /* ── CÔMODO (card auto-contido, nunca quebra no meio) ── */
-.room{flex:1 1 calc(50% - 5px);min-width:calc(50% - 5px);max-width:calc(50% - 5px);
+.room{width:100%;margin:0 0 10px;display:block;
   background:#fff;border:1px solid #D1E6F8;border-radius:9px;overflow:hidden;
-  break-inside:avoid;page-break-inside:avoid;display:flex;flex-direction:column}
+  break-inside:avoid;page-break-inside:avoid}
 .room.hl{border-color:#0EA5E9;box-shadow:inset 3px 0 0 #0EA5E9}
 .room-hd{background:#0D1420;color:#E4ECF7;padding:8px 12px;display:flex;align-items:center;gap:8px}
 .room-hd .ri{font-size:13px;color:#38BDF8}

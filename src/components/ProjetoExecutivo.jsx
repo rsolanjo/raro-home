@@ -4180,8 +4180,8 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const ok = base && base!=='—' ? base : (cab ? cableFamily(cab.type||'dados').nome : '')
           if(!ok) return '—'
           return mt!=null ? `${ok} · ${mt}m` : ok })()
-        return `<tr>${pinCell(m.id,m.code,m.n)}<td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td><td>${esc(m.name)}</td><td style="font-size:11px">${esc(m.room||'—')}</td><td style="font-size:11px">${esc(tipo)}</td><td style="font-size:10px">${cabo}</td><td style="font-size:10px;color:#D97706">${esc(m.note||'')}</td></tr>` }).join(''),
-        ['Nº','ID','Item','Cômodo','Tipo','Cabo','Obs'])}
+        return `<tr>${pinCell(m.id,m.code,m.n)}<td style="font-family:monospace;font-size:10px"><b>${esc(m.id||'')}</b></td><td style="font-family:monospace;font-size:10px">${esc(m.code||'')}</td><td>${esc(m.name)}</td><td style="font-size:11px">${esc(m.room||'—')}</td><td style="font-size:11px">${esc(tipo)}</td><td style="font-size:10px">${cabo}</td><td style="font-size:10px;color:#D97706">${esc(m.note||'')}</td></tr>` }).join(''),
+        ['Nº','ID','Código','Item','Cômodo','Tipo','Cabo','Obs'])}
     ` : ''
     const plantaTeto = (bgImage && tetoMarkers.length) ? (() => {
       // UMA planta de teto por PAVIMENTO (com 1 andar sai igual a antes). Cada andar mostra só os
@@ -5536,6 +5536,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       {re:/(cabos|planta).*som|som.*(cabos|planta)|— som\b/i, tabela:false, leg:true}, // (Raphael #3) idem
       {re:/teto|forro/i, tabela:true, leg:false},
     ]
+    // A CAPA não é seção (fica fora do loop) e não tinha page:wallpage — dependia do @page padrão.
+    // O Chrome, com orientações mistas (retrato + wallpage paisagem), NÃO aplica o default landscape
+    // na capa (o @page injetado não pegava nela), mas SEMPRE vira quem declara a named page. Então
+    // mando a capa pela MESMA wallpage das pranchas — assim a 1ª página também sai paisagem (Raphael).
+    doc.querySelectorAll('.ex-cover,.ex-doc-cover').forEach(c=>{ c.style.page='wallpage' })
     const secoes=[...doc.querySelectorAll('.ex-sec, .ex-obra-page')]
     let primeira=true
     secoes.forEach(sec=>{
@@ -5596,7 +5601,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       if(tabelasHtml){
         const tPage=doc.createElement('div')
         tPage.className='ex-obra-page'
-        tPage.setAttribute('style','page-break-before:always;break-inside:avoid')
+        tPage.setAttribute('style','page:wallpage;page-break-before:always;break-inside:avoid')
         tPage.innerHTML=`<h2 style="margin:0 0 10px;border-bottom:2px solid #0D1420;padding-bottom:6px;font-size:18px">${(titulo||'Itens no Teto').replace(/</g,'&lt;')} — Tabela</h2>${tabelasHtml}`
         frag.appendChild(tPage)
       }
