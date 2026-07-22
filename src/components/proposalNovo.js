@@ -40,7 +40,7 @@ const _PITCH_FEATS = [
   [/cabeceira|m[óo]dulo.*(usb|cama|cabeceira)|pulsador.*usb|usb.*tomada/, 'cabeceira inteligente com USB pra carregar'],
   [/c[âa]mera|dome|bullet|\bnvr\b|cftv/, 'segurança e monitoramento 24h'],
   [/subwoofer|receiver|caixa.*som|som.*caixa|alto-?falante|speaker|jbl|yamaha|soundbar|wave sound/, 'som ambiente que envolve o espaço'],
-  [/keypad|bot[aã]o|bot[oõ]es|pulsador|tecla|cena/, 'cenas a um toque — sair, dormir, receber'],
+  [/keypad|bot[aã]o|bot[oõ]es|pulsador|tecla|cena/, 'cenas a um toque'],
   [/sensor|mmwave|mm-?wave|presen[çc]a/, 'a luz acende sozinha quando você chega'],
   [/cortina|persiana/, 'cortinas na hora certa do dia'],
   [/access point|\bap\b|u6|u7|unifi|wi-?fi|roteador/, 'internet forte e estável em todo canto'],
@@ -52,7 +52,11 @@ function pitchForRoom(r){
   const key=Object.keys(PITCHES).find(k=>nome.includes(k))
   if(items.length===0){ return key?PITCHES[key][0]:'Ambiente preparado para a automação RARO.' }
   const txt = items.map(it=>((it.name||'')+' '+(it.code||'')).toLowerCase()).join(' | ')
-  const feats = _PITCH_FEATS.filter(([re])=>re.test(txt)).map(([,frase])=>frase).slice(0,3)
+  // Banheiro/lavabo: "cenas a um toque" (sair/dormir/receber) não faz sentido — vira luz/clima.
+  const ehBanho = /banho|banheiro|lavabo|\bwc\b|toalete|toilete|su[ií]te.*banh/.test(nome)
+  const feats = _PITCH_FEATS.filter(([re])=>re.test(txt))
+    .map(([,frase])=> (ehBanho && frase==='cenas a um toque') ? 'iluminação e clima a um toque' : frase)
+    .slice(0,3)
   if(!feats.length){
     // sem item reconhecível (só tomada etc.) → cai na frase por nome do cômodo ou genérica.
     return key?PITCHES[key][0]:'Ambiente integrado pela automação RARO.'
@@ -140,8 +144,9 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 .pgtbl-head{padding:0}
 .pgtbl thead .phead{margin-bottom:10px}
 .pgtbl-cell{padding:0;vertical-align:top}
-/* Resumo começa numa folha nova (quebra no nível da LINHA da tabela = confiável no PDF). */
-.pgtbl-sumrow{page-break-before:always;break-before:page}
+/* Resumo NÃO quebra sempre: se couber INTEIRO no espaço livre da penúltima página, fica lá; se
+   não couber, o break-inside:avoid empurra o bloco INTEIRO pra a última, sozinho (Raphael). */
+.pgtbl-sumrow{break-inside:avoid;page-break-inside:avoid}
 
 /* ── PAVIMENTO ── */
 .floor{break-before:auto}
@@ -185,9 +190,9 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 .floor-sub b{color:#0B1830}
 
 /* ── RESUMO ── */
-/* Resumo SEMPRE começa numa folha nova e NÃO é fatiado — fica sozinho na última página
-   (Raphael). page-break-before além do break-before pra o Chrome respeitar no PDF. */
-.summary{break-before:page;page-break-before:always;break-inside:avoid;page-break-inside:avoid;padding-top:2px}
+/* Resumo NÃO é fatiado (break-inside:avoid): cabe no espaço livre da penúltima → fica; senão o
+   bloco inteiro vai pra próxima folha, sozinho. Sem quebra forçada (Raphael). */
+.summary{break-inside:avoid;page-break-inside:avoid;padding-top:2px}
 .sum-ey{font-size:9px;letter-spacing:4px;color:#0369A1;text-transform:uppercase;font-weight:600;margin-bottom:12px}
 .sum-cat{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-bottom:14px}
 .sum-cat .cc{background:#fff;border:1px solid #D1E6F8;border-radius:7px;padding:8px 11px;display:flex;justify-content:space-between;align-items:center}
