@@ -259,7 +259,10 @@ export function buildProposalNovo(data, adminMode=false){
     return `<div class="cc" style="border-left:3px solid ${col}"><span class="k" style="color:${col}">${c}</span><span class="val">${fmt(v)}</span></div>`
   }).join('')}</div>` : ''
 
-  const pavBlock = `<div class="sum-pav">${floors.map((fl,fi)=>{
+  // Pavimentos preenchem a LARGURA TODA (repeat(n,1fr)), não um card estreito solto na esquerda:
+  // a 1ª linha alinha borda-a-borda com a linha de categorias e as linhas de total abaixo (Raphael).
+  const _pavN = floors.filter(fl=>(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0)>0).length || 1
+  const pavBlock = `<div class="sum-pav" style="grid-template-columns:repeat(${Math.min(_pavN,4)},1fr)">${floors.map((fl,fi)=>{
     const sub=(fl.rooms||[]).reduce((s,r)=>s+parse(r.price),0); if(sub<=0) return ''
     const w=(fl.name||'').split(' ')[0]||''; const ord=FORD[w]||`${fi+1}º`
     return `<div class="pv"><div class="pn">${(fl.name||'').includes('Pavimento')?fl.name:`${ord} Pavimento`}</div><div class="pvv">${fmt(sub)}</div></div>`
