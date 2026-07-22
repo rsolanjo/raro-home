@@ -29,22 +29,33 @@ const PITCHES = {
   closet:['Organização e automação integradas no closet.'],
 }
 const _normCat = c => (c==='Rede'?'Redes': c==='Som'?'Sonorização': c)
+// Pitch pelos ITENS REAIS do cômodo (não só a categoria) — cada cômodo cita o que ele tem de
+// fato (IR pra controlar tudo, módulo de cabeceira com USB, cenas, câmeras 4K, som, Wi-Fi,
+// sensor de presença...). Assim cômodos diferentes ganham pitch diferente, não a mesma frase
+// genérica repetida (Raphael). Ordem = do mais distintivo pro mais comum; junta os 3 primeiros.
+const _PITCH_FEATS = [
+  [/hub ir|\bir\b|infraverm|receptor ir|emissor ir/, 'controle de TV e ar por infravermelho'],
+  [/cabeceira|m[óo]dulo.*(usb|cama|cabeceira)|pulsador.*usb|usb.*tomada/, 'módulo de cabeceira com USB'],
+  [/keypad|bot[aã]o|bot[oõ]es|pulsador|tecla|cena/, 'cenas a um toque'],
+  [/c[âa]mera|dome|bullet|\bnvr\b|cftv/, 'câmeras 4K'],
+  [/subwoofer|receiver|caixa.*som|som.*caixa|alto-?falante|speaker|jbl|yamaha|soundbar|wave sound/, 'som ambiente'],
+  [/access point|\bap\b|u6|u7|unifi|wi-?fi|roteador/, 'Wi-Fi forte e estável'],
+  [/sensor|mmwave|mm-?wave|presen[çc]a/, 'luz por presença'],
+  [/cortina|persiana/, 'cortinas motorizadas'],
+  [/keystone|cat6|patch|switch|\brede\b/, 'rede cabeada'],
+]
 function pitchForRoom(r){
   const items=(r.items||[]).filter(it=>it.name)
-  const cats=new Set(items.map(it=>_normCat(it.category||'Outros')))
   const nome=(r.name||'').toLowerCase()
   const key=Object.keys(PITCHES).find(k=>nome.includes(k))
   if(items.length===0){ return key?PITCHES[key][0]:'Ambiente preparado para a automação RARO.' }
-  const has=c=>cats.has(c)
-  const f=[]
-  if(has('Automação')) f.push('iluminação e cenas a um toque')
-  if(has('Sonorização')) f.push('som ambiente integrado')
-  if(has('Segurança')) f.push('segurança com câmeras 4K')
-  if(has('Redes')) f.push('Wi-Fi forte e estável')
-  if(has('Gourmet')) f.push('espaço gourmet pronto para receber')
-  if(has('Elétrica')) f.push('infraestrutura elétrica dedicada')
-  if(f.length===0){ return key?PITCHES[key][0]:'Ambiente integrado pela automação RARO.' }
-  const corpo = f.length===1?f[0] : f.length===2?f[0]+' e '+f[1] : f.slice(0,-1).join(', ')+' e '+f[f.length-1]
+  const txt = items.map(it=>((it.name||'')+' '+(it.code||'')).toLowerCase()).join(' | ')
+  const feats = _PITCH_FEATS.filter(([re])=>re.test(txt)).map(([,frase])=>frase).slice(0,3)
+  if(!feats.length){
+    // sem item reconhecível (só tomada etc.) → cai na frase por nome do cômodo ou genérica.
+    return key?PITCHES[key][0]:'Ambiente integrado pela automação RARO.'
+  }
+  const corpo = feats.length===1?feats[0] : feats.length===2?feats[0]+' e '+feats[1] : feats.slice(0,-1).join(', ')+' e '+feats[feats.length-1]
   return corpo.charAt(0).toUpperCase()+corpo.slice(1)+'.'
 }
 // SEMPRE recalcula o pitch de cada cômodo (com itens) na hora de gerar o PDF — pelo nome do
@@ -127,21 +138,21 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 .floor-hd .num{width:30px;height:30px;border-radius:8px;background:#0B1830;color:#38BDF8;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
 .floor-hd .lbl{font-size:8px;letter-spacing:3px;color:#0EA5E9;text-transform:uppercase;font-weight:600}
 .floor-hd .nm{font-family:'DM Serif Display',serif;font-size:17px;color:#0B1830;line-height:1.1}
-/* Cards em 2 COLUNAS que empilham verticalmente (multicol), não em linhas. Assim um card baixo
-   sobe pra preencher o vão embaixo de um card alto (o "Área de Serviço embaixo da Sala de Jantar"
-   que o Raphael pediu) — sem buracos e sem card órfão sozinho numa página. break-inside:avoid
-   mantém cada card inteiro; quebra entre colunas/páginas cai sempre entre cards. */
-.rooms{columns:2;column-gap:10px}
+/* Grid de 2 colunas com LINHAS de altura igual (align-items:stretch): os dois cards de cada linha
+   ficam do MESMO tamanho e o "Investimento" (fixado no rodapé de cada card, margin-top:auto)
+   alinha entre eles. Some o desalinhado do multicol. Ordem natural = suíte e banheiro juntos.
+   auto-rows:1fr força cada linha à altura do card mais alto dela (Raphael). */
+.rooms{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:10px 10px}
 
 /* ── CÔMODO (card auto-contido, nunca quebra no meio) ── */
-.room{width:100%;margin:0 0 10px;display:block;
+.room{width:100%;margin:0;display:flex;flex-direction:column;
   background:#fff;border:1px solid #D1E6F8;border-radius:9px;overflow:hidden;
   break-inside:avoid;page-break-inside:avoid}
 .room.hl{border-color:#0EA5E9;box-shadow:inset 3px 0 0 #0EA5E9}
 .room-hd{background:#0D1420;color:#E4ECF7;padding:8px 12px;display:flex;align-items:center;gap:8px}
 .room-hd .ri{font-size:13px;color:#38BDF8}
 .room-hd .rn{font-family:'DM Serif Display',serif;font-size:13.5px;line-height:1.15}
-.room-bd{padding:9px 12px 10px}
+.room-bd{padding:9px 12px 10px;flex:1;display:flex;flex-direction:column}
 .itbl{width:100%;border-collapse:collapse}
 .itbl td{padding:3px 0;vertical-align:top;border-bottom:.5px solid #EEF4FB}
 .itbl tr:last-child td{border-bottom:0}
@@ -149,14 +160,14 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 .it-cd{font-size:8px;font-family:monospace;color:#7A96B4;text-align:center;width:24%}
 .it-qt{font-size:9px;font-weight:700;color:#0EA5E9;text-align:right;width:12%}
 .room-pitch{font-family:'DM Serif Display',serif;font-style:italic;font-size:11px;color:#22405F;line-height:1.5;margin-top:8px;padding-top:7px;border-top:.5px solid #E3EDF7}
-.room-val{display:flex;justify-content:space-between;align-items:baseline;margin-top:9px;padding-top:8px;border-top:.5px solid #E3EDF7}
+.room-val{display:flex;justify-content:space-between;align-items:baseline;margin-top:auto;padding-top:8px;border-top:.5px solid #E3EDF7}
 .room-val .l{font-size:7px;letter-spacing:2px;color:#7A96B4;text-transform:uppercase;font-weight:600}
 .room-val .v{font-family:'DM Serif Display',serif;font-size:15px;color:#0B1830}
 .room-cats{display:flex;flex-wrap:wrap;gap:3px;margin-top:8px;padding-top:7px;border-top:.5px solid #E3EDF7}
 .rcat{display:inline-flex;align-items:center;gap:3px;font-size:7px;color:#22405F;background:#F7FBFF;border:.5px solid #D8E8F6;border-left-width:2px;border-radius:3px;padding:2px 5px}
 .rcat span{font-weight:700;text-transform:uppercase;letter-spacing:.3px}
 /* admin */
-.room-adm{display:flex;justify-content:space-between;margin-top:9px;padding-top:8px;border-top:.5px solid #E3EDF7;font-size:9px}
+.room-adm{display:flex;justify-content:space-between;margin-top:auto;padding-top:8px;border-top:.5px solid #E3EDF7;font-size:9px}
 .room-adm .a{color:#D97706}.room-adm .b{color:#7C3AED;font-weight:700}.room-adm .c{font-family:'DM Serif Display',serif;font-size:14px;color:#0B1830}
 
 .floor-sub{margin:7px 0 4px;display:flex;justify-content:flex-end;gap:8px;font-size:10px;color:#5A7599}
@@ -234,12 +245,10 @@ export function buildProposalNovo(data, adminMode=false){
     return `<div class="room${r.highlight?' hl':''}"><div class="room-hd"><span class="ri">${r.icon||'◈'}</span><span class="rn">${r.name||''}</span></div><div class="room-bd">${items}${pitch}${catBadges}${foot}</div></div>`
   }
 
-  // Altura ~ nº de itens (+ pitch/badges). Pra o empacotamento em colunas alinhar melhor, a gente
-  // começa SEMPRE pelo cômodo mais ALTO (mais itens) e vai descendo — assim o topo das colunas
-  // alinha e não sobra um card curto solto no meio (Raphael: "começa pelo cômodo com maior tamanho").
-  const _altura = r => (r.items||[]).filter(i=>i.name).length*100 + (r.pitch?20:0) + parse(r.price>0?1:0)
   const floorBlock = (fl,fi) => {
-    const rooms=(fl.rooms||[]).filter(r=>parse(r.price)>0).sort((a,b)=>_altura(b)-_altura(a))
+    // Ordem NATURAL (como cadastrado) — mantém a suíte e o banheiro dela juntos (Raphael). O
+    // alinhamento vem do grid de altura igual (align-items:stretch) + "Investimento" no rodapé.
+    const rooms=(fl.rooms||[]).filter(r=>parse(r.price)>0)
     if(!rooms.length) return ''
     const w=(fl.name||'').split(' ')[0]||''
     const ord=FORD[w]||`${fi+1}º`
