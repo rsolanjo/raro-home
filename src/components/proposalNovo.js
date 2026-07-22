@@ -47,16 +47,15 @@ function pitchForRoom(r){
   const corpo = f.length===1?f[0] : f.length===2?f[0]+' e '+f[1] : f.slice(0,-1).join(', ')+' e '+f[f.length-1]
   return corpo.charAt(0).toUpperCase()+corpo.slice(1)+'.'
 }
-// Regenera pitch: cômodos sem pitch OU com pitch herdado da tagline de um item do catálogo (bug
-// antigo — o cômodo pegava a frase de marketing do 1º item, que não fala do cômodo).
-function ensurePitchesData(floors, catalog){
-  const itemPitch = c => { const x=(catalog||[]).find(i=>i.code===c); return ((x&&x.pitch)||'').trim() }
+// SEMPRE recalcula o pitch de cada cômodo (com itens) na hora de gerar o PDF — pelo nome do
+// cômodo + categorias presentes (pitchForRoom). Raphael pediu: "quando clicar em gerar PDF,
+// verifica e atualiza". A detecção antiga (comparar com a tagline do catálogo) era frágil e
+// falhava, deixando pitch errado ("Cinema..." numa Área de Serviço). Recalcular sempre garante
+// que o pitch bate com o cômodo e seus itens, não importa o que estava salvo.
+function ensurePitchesData(floors){
   return (floors||[]).map(f=>({...f, rooms:(f.rooms||[]).map(r=>{
     const items=(r.items||[]).filter(it=>it.name)
-    if(!items.length) return r
-    const cur=(r.pitch||'').trim()
-    const herdado = !!cur && items.some(it=>itemPitch(it.code)===cur)
-    return (!cur || herdado) ? {...r, pitch:pitchForRoom(r)} : r
+    return items.length ? {...r, pitch:pitchForRoom(r)} : r
   })}))
 }
 
@@ -164,7 +163,9 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 .floor-sub b{color:#0B1830}
 
 /* ── RESUMO ── */
-.summary{break-before:always;padding-top:2px}
+/* Resumo SEMPRE começa numa folha nova e NÃO é fatiado — fica sozinho na última página
+   (Raphael). page-break-before além do break-before pra o Chrome respeitar no PDF. */
+.summary{break-before:page;page-break-before:always;break-inside:avoid;page-break-inside:avoid;padding-top:2px}
 .sum-ey{font-size:9px;letter-spacing:4px;color:#0369A1;text-transform:uppercase;font-weight:600;margin-bottom:12px}
 .sum-cat{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-bottom:14px}
 .sum-cat .cc{background:#fff;border:1px solid #D1E6F8;border-radius:7px;padding:8px 11px;display:flex;justify-content:space-between;align-items:center}
@@ -193,10 +194,10 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 `
 
 export function buildProposalNovo(data, adminMode=false){
-  const { client_name, proposal_code, neighborhood, floors:_rawFloors=[], labor, date_str, planta_image, catalog } = data
-  // Auto-corrige o pitch de cada cômodo (vazio ou herdado do item). Assim a proposta sai certa
-  // não importa o caminho: editor "Gerar Proposta" OU lista "Docs → Proposta para Clientes".
-  const floors = ensurePitchesData(_rawFloors, catalog)
+  const { client_name, proposal_code, neighborhood, floors:_rawFloors=[], labor, date_str, planta_image } = data
+  // Recalcula o pitch de todo cômodo na geração — o pitch sempre bate com o cômodo + seus itens,
+  // não importa o caminho (editor "Gerar Proposta" OU lista "Docs → Proposta para Clientes").
+  const floors = ensurePitchesData(_rawFloors)
   const fmt = v => 'R$\u202f'+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
   const equipTotal = floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+parse(r.price),s),0)
   const laborVal = parse(labor)
@@ -233,8 +234,12 @@ export function buildProposalNovo(data, adminMode=false){
     return `<div class="room${r.highlight?' hl':''}"><div class="room-hd"><span class="ri">${r.icon||'◈'}</span><span class="rn">${r.name||''}</span></div><div class="room-bd">${items}${pitch}${catBadges}${foot}</div></div>`
   }
 
+  // Altura ~ nº de itens (+ pitch/badges). Pra o empacotamento em colunas alinhar melhor, a gente
+  // começa SEMPRE pelo cômodo mais ALTO (mais itens) e vai descendo — assim o topo das colunas
+  // alinha e não sobra um card curto solto no meio (Raphael: "começa pelo cômodo com maior tamanho").
+  const _altura = r => (r.items||[]).filter(i=>i.name).length*100 + (r.pitch?20:0) + parse(r.price>0?1:0)
   const floorBlock = (fl,fi) => {
-    const rooms=(fl.rooms||[]).filter(r=>parse(r.price)>0)
+    const rooms=(fl.rooms||[]).filter(r=>parse(r.price)>0).sort((a,b)=>_altura(b)-_altura(a))
     if(!rooms.length) return ''
     const w=(fl.name||'').split(' ')[0]||''
     const ord=FORD[w]||`${fi+1}º`
