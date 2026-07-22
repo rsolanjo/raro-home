@@ -33,16 +33,18 @@ const _normCat = c => (c==='Rede'?'Redes': c==='Som'?'Sonorização': c)
 // fato (IR pra controlar tudo, módulo de cabeceira com USB, cenas, câmeras 4K, som, Wi-Fi,
 // sensor de presença...). Assim cômodos diferentes ganham pitch diferente, não a mesma frase
 // genérica repetida (Raphael). Ordem = do mais distintivo pro mais comum; junta os 3 primeiros.
+// Frase = o BENEFÍCIO, não o nome do aparelho (Raphael: 1 câmera → "segurança, monitoramento",
+// não "câmera 4K"). Ordem = do mais distintivo/nobre pro mais comum; junta os 3 primeiros.
 const _PITCH_FEATS = [
-  [/hub ir|\bir\b|infraverm|receptor ir|emissor ir/, 'controle de TV e ar por infravermelho'],
-  [/cabeceira|m[óo]dulo.*(usb|cama|cabeceira)|pulsador.*usb|usb.*tomada/, 'módulo de cabeceira com USB'],
-  [/keypad|bot[aã]o|bot[oõ]es|pulsador|tecla|cena/, 'cenas a um toque'],
-  [/c[âa]mera|dome|bullet|\bnvr\b|cftv/, 'câmeras 4K'],
-  [/subwoofer|receiver|caixa.*som|som.*caixa|alto-?falante|speaker|jbl|yamaha|soundbar|wave sound/, 'som ambiente'],
-  [/access point|\bap\b|u6|u7|unifi|wi-?fi|roteador/, 'Wi-Fi forte e estável'],
-  [/sensor|mmwave|mm-?wave|presen[çc]a/, 'luz por presença'],
-  [/cortina|persiana/, 'cortinas motorizadas'],
-  [/keystone|cat6|patch|switch|\brede\b/, 'rede cabeada'],
+  [/hub ir|\bir\b|infraverm|receptor ir|emissor ir/, 'TV, ar e home theater num só comando'],
+  [/cabeceira|m[óo]dulo.*(usb|cama|cabeceira)|pulsador.*usb|usb.*tomada/, 'cabeceira inteligente com USB pra carregar'],
+  [/c[âa]mera|dome|bullet|\bnvr\b|cftv/, 'segurança e monitoramento 24h'],
+  [/subwoofer|receiver|caixa.*som|som.*caixa|alto-?falante|speaker|jbl|yamaha|soundbar|wave sound/, 'som ambiente que envolve o espaço'],
+  [/keypad|bot[aã]o|bot[oõ]es|pulsador|tecla|cena/, 'cenas a um toque — sair, dormir, receber'],
+  [/sensor|mmwave|mm-?wave|presen[çc]a/, 'a luz acende sozinha quando você chega'],
+  [/cortina|persiana/, 'cortinas na hora certa do dia'],
+  [/access point|\bap\b|u6|u7|unifi|wi-?fi|roteador/, 'internet forte e estável em todo canto'],
+  [/keystone|cat6|patch|switch|\brede\b/, 'rede cabeada de alta velocidade'],
 ]
 function pitchForRoom(r){
   const items=(r.items||[]).filter(it=>it.name)
@@ -131,6 +133,15 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 .phead .brand{font-family:'DM Serif Display',serif;font-size:14px;color:#0B1830}
 .phead .brand span{font-size:8px;letter-spacing:2px;color:#5A7599;text-transform:uppercase;display:block;font-family:'DM Sans',sans-serif;margin-top:1px}
 .phead .code{font-size:9px;font-family:monospace;color:#0369A1;background:#EEF6FF;border:1px solid #D1E6F8;border-radius:5px;padding:4px 9px}
+/* Cabeçalho REPETIDO em toda página, a partir da 2ª (Raphael #1). O <thead> de uma tabela é
+   reimpresso pelo Chrome no topo de CADA folha; a capa fica FORA da tabela, então não recebe o
+   cabeçalho. Marca o início de cada página. */
+.pgtbl{width:100%;border-collapse:collapse}
+.pgtbl-head{padding:0}
+.pgtbl thead .phead{margin-bottom:10px}
+.pgtbl-cell{padding:0;vertical-align:top}
+/* Resumo começa numa folha nova (quebra no nível da LINHA da tabela = confiável no PDF). */
+.pgtbl-sumrow{page-break-before:always;break-before:page}
 
 /* ── PAVIMENTO ── */
 .floor{break-before:auto}
@@ -138,11 +149,11 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 .floor-hd .num{width:30px;height:30px;border-radius:8px;background:#0B1830;color:#38BDF8;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
 .floor-hd .lbl{font-size:8px;letter-spacing:3px;color:#0EA5E9;text-transform:uppercase;font-weight:600}
 .floor-hd .nm{font-family:'DM Serif Display',serif;font-size:17px;color:#0B1830;line-height:1.1}
-/* Grid de 2 colunas com LINHAS de altura igual (align-items:stretch): os dois cards de cada linha
-   ficam do MESMO tamanho e o "Investimento" (fixado no rodapé de cada card, margin-top:auto)
-   alinha entre eles. Some o desalinhado do multicol. Ordem natural = suíte e banheiro juntos.
-   auto-rows:1fr força cada linha à altura do card mais alto dela (Raphael). */
-.rooms{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:10px 10px}
+/* Grid de 2 colunas. Cada LINHA tem a própria altura (grid-auto-rows sem 1fr → não uniformiza,
+   não estica o documento). align-items:stretch (default) faz os dois cards da MESMA linha ficarem
+   da mesma altura, e o "Investimento" (margin-top:auto) alinha entre eles. Como os cômodos vêm
+   ordenados do maior pro menor, a caixa maior fica à esquerda e a da direita acompanha (Raphael). */
+.rooms{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
 /* ── CÔMODO (card auto-contido, nunca quebra no meio) ── */
 .room{width:100%;margin:0;display:flex;flex-direction:column;
@@ -245,10 +256,12 @@ export function buildProposalNovo(data, adminMode=false){
     return `<div class="room${r.highlight?' hl':''}"><div class="room-hd"><span class="ri">${r.icon||'◈'}</span><span class="rn">${r.name||''}</span></div><div class="room-bd">${items}${pitch}${catBadges}${foot}</div></div>`
   }
 
+  // Altura ~ nº de itens. Ordena do MAIOR pro menor: assim a caixa MAIOR de cada par cai na
+   // ESQUERDA e a da direita (menor) estica só até a altura dela (Raphael). As linhas têm altura
+   // própria (não uniforme), então o documento não estica à toa.
+  const _altura = r => (r.items||[]).filter(i=>i.name).length
   const floorBlock = (fl,fi) => {
-    // Ordem NATURAL (como cadastrado) — mantém a suíte e o banheiro dela juntos (Raphael). O
-    // alinhamento vem do grid de altura igual (align-items:stretch) + "Investimento" no rodapé.
-    const rooms=(fl.rooms||[]).filter(r=>parse(r.price)>0)
+    const rooms=(fl.rooms||[]).filter(r=>parse(r.price)>0).sort((a,b)=>_altura(b)-_altura(a))
     if(!rooms.length) return ''
     const w=(fl.name||'').split(' ')[0]||''
     const ord=FORD[w]||`${fi+1}º`
@@ -322,7 +335,6 @@ export function buildProposalNovo(data, adminMode=false){
 
   const admBadge = adminMode ? ' · VERSÃO ADMIN' : ''
   const summary = `<div class="summary">
-    ${head()}
     <div class="sum-ey">Resumo do investimento${admBadge}</div>
     ${pavBlock}
     ${catBlock}
@@ -345,8 +357,11 @@ export function buildProposalNovo(data, adminMode=false){
 </div>
 <div class="doc">
 ${cover}
-<div>${head()}${floorPages}</div>
-${summary}
+<table class="pgtbl"><thead><tr><td class="pgtbl-head">${head()}</td></tr></thead>
+<tbody>
+<tr><td class="pgtbl-cell"><div>${floorPages}</div></td></tr>
+<tr class="pgtbl-sumrow"><td class="pgtbl-cell">${summary}</td></tr>
+</tbody></table>
 </div>
 </body></html>`
 }
