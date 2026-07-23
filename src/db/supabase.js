@@ -259,6 +259,19 @@ export async function saveProposal(p) {
   if (p.status==='approved') await _applyStockDeduction(saved)
   return saved
 }
+// Relê a proposta pelo id — SÓ campos leves (id, code, updated_at, floors), sem os blobs pesados
+// (exec_doc/planta_data), pra confirmar que gravou DE VERDADE antes do "Salvo ✓" (Raphael). Devolve
+// { id, code, updated_at, nItens } ou null se não achou/erro.
+export async function verifyProposalSaved(id) {
+  if (_demo() || id==null) return { id, code:null, updated_at:new Date().toISOString(), nItens:null } // demo: não verifica
+  try {
+    const { data, error } = await supabase.from('proposals').select('id,code,updated_at,floors').eq('id', id).single()
+    if (error || !data) return null
+    let fl = data.floors; if (typeof fl==='string'){ try{ fl=JSON.parse(fl) }catch{ fl=[] } }
+    const nItens = (Array.isArray(fl)?fl:[]).reduce((s,f)=>s+(f.rooms||[]).reduce((rs,r)=>rs+(r.items||[]).filter(i=>i&&i.name).length,0),0)
+    return { id:data.id, code:data.code, updated_at:data.updated_at, nItens }
+  } catch(e){ console.warn('verifyProposalSaved:', e?.message); return null }
+}
 export async function deleteProposal(id) {
   if (_demo()) return
   await releaseReservation(id)

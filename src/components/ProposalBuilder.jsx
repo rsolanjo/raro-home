@@ -5,7 +5,7 @@ import { LOGO_COVER } from '../logos.js'
 import { isDemo } from '../brand.js'
 import { buildApresentacaoComercial, buildApresentacaoV2, buildApresentacaoFable } from './apresentacaoComercial.js'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { saveProposal, getCatalog, getStockWithReservations, getCatalogCategories,
+import { saveProposal, verifyProposalSaved, getCatalog, getStockWithReservations, getCatalogCategories,
          generateProposalCode, auditedSave, checkProposalStock, checkPINSession, setPINSession, verifyPIN, addAuditLog } from '../db/supabase.js'
 import PINModal from './PINModal.jsx'
 import { ALL_CATEGORIES } from '../taxonomy.js'
@@ -1007,14 +1007,16 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
     const floorsOut = floorsComPitch.map(f=>({name:f.name,rooms:f.rooms.map(r=>({name:r.name,icon:r.icon,highlight:r.highlight,pitch:r.pitch,price:parse(r.price),items:(r.items||[]).filter(it=>it.name)}))}))
     // ── Histórico das últimas 3 versões (snapshot a cada salvamento) ──
     const prevVersions = (()=>{ let v=savedProposal?.versions; if(typeof v==='string'){try{v=JSON.parse(v)}catch{v=[]}} return Array.isArray(v)?v:[] })()
+    // Snapshot da versão = só itens/preços (o que o "Carregar versão" precisa). NÃO guarda
+    // planta_data nem exec_doc: eles têm as imagens da planta em base64 e, multiplicados por 3
+    // versões + a linha atual, incharam a linha a ponto de estourar o statement_timeout do banco
+    // ao salvar (Raphael perdeu edições). A planta/doc atuais continuam na própria coluna. Raphael.
     const snapshot = {
       savedAt: new Date().toISOString(),
       label: `v${prevVersions.length+1} · ${new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}`,
       floors: floorsOut,
       labor: parse(laborValue!=null?laborValue:laborTotal),
       labor_by_cat: {...laborByCat},
-      planta_data: plantaData,
-      exec_doc: execDocData,
       grand_total: floorsOut.reduce((s,f)=>s+f.rooms.reduce((rs,r)=>rs+(r.price||0),0),0) + parse(laborValue!=null?laborValue:laborTotal),
     }
     // compara conteúdo relevante com a última versão — não duplica versão idêntica
@@ -1033,7 +1035,10 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
       const last = prevVersions[0]; if(!last) return false
       return sigOf(last) === sigOf(snapshot)
     })()
-    const versions = sameAsLast ? prevVersions : [snapshot, ...prevVersions].slice(0,3)
+    // Limpa os blobs (exec_doc/planta_data) das versões ANTIGAS também — senão a linha só encolhe
+    // depois de 3 saves. Assim já fica leve no próximo salvamento.
+    const _enxuga = v => { if(!v||typeof v!=='object') return v; const {exec_doc, planta_data, ...rest}=v; return rest }
+    const versions = (sameAsLast ? prevVersions : [snapshot, ...prevVersions].slice(0,3)).map(_enxuga)
     return{
       ...(savedProposal||{}),
       client_id:clientId?Number(clientId):null,
@@ -1059,6 +1064,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   }
 
   const [isSaving, setIsSaving] = useState(false)
+  const [saveResult, setSaveResult] = useState(null) // null | {ok:true} | {ok:false, msg} — feedback no modal (Raphael)
   const [showPlantaIA, setShowPlantaIA] = useState(false)
   const [showPlantaEditor, setShowPlantaEditor] = useState(false)
   const [plantaData, setPlantaData] = useState(()=> savedProposal?.planta_data || execSeed?.planta_data || null)
@@ -1068,6 +1074,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   async function handleSaveConfirm(){
     if (isSaving) return
     setIsSaving(true)
+    setSaveResult(null)
     try {
       // mantém o status atual da proposta (não rebaixa enviada para rascunho)
       const statusAtual = savedProposal?.status || 'draft'
@@ -1081,20 +1088,33 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
       })})))
       const saved2 = await saveProposal(p)
       if (!saved2) throw new Error('Supabase retornou vazio — verifique a conexão')
+      // CONFIRMA no banco: relê a proposta e compara a contagem de itens (Raphael: "confere se
+      // está salvo mesmo antes do Salvo ✓"). Se a releitura não bater, NÃO diz que salvou.
+      const espItens = (p.floors||[]).reduce((s,f)=>s+(f.rooms||[]).reduce((rs,r)=>rs+(r.items||[]).filter(i=>i&&i.name).length,0),0)
+      const check = await verifyProposalSaved(saved2.id)
+      if (!check) throw new Error('Não consegui reler do banco para confirmar. NÃO tenho certeza que salvou — tente de novo.')
+      if (check.nItens!=null && check.nItens!==espItens) throw new Error(`O banco confirmou ${check.nItens} itens, mas eram ${espItens}. A gravação não bateu — tente de novo.`)
       setSavedProposal(saved2)
       setProposalCode(saved2.code||p.code)
       setLabor(String(laborTotal))
       setSaved(true)
       try { await auditedSave('orçamentos', before ? 'update' : 'create', saved2, currentUser?.name, before) } catch(e){}
-      setShowSaveModal(false)
       // sincroniza a proposta salva no pai (evita reset de cômodos/itens ao recarregar)
       if (onSaved) onSaved(saved2)
       onRefresh()
-      setSavedMsg('✓ Proposta salva!')
-      setTimeout(()=>setSavedMsg(''), 3000)
+      // Confirmação CLARA no próprio modal (Raphael clicava 3× sem saber se salvou). Mostra
+      // "✓ Salvo!" e fecha sozinho depois de 1,4s; o toast verde no topo reforça.
+      setSaveResult({ok:true, n:check.nItens})
+      setSavedMsg('✓ Proposta salva e confirmada!')
+      setTimeout(()=>{ setShowSaveModal(false); setSaveResult(null) }, 1900)
+      setTimeout(()=>setSavedMsg(''), 4000)
     } catch(err) {
       console.error('Erro ao salvar proposta:', err)
-      alert('Erro ao salvar: ' + (err.message||'Verifique o console F12'))
+      // Erro FICA visível no modal (não é mais alert que some) — o usuário sabe que NÃO salvou.
+      const msg=(err.message||'').includes('statement timeout')
+        ? 'O banco demorou demais (timeout) e cancelou. Tente de novo; se persistir, avise o suporte.'
+        : (err.message||'Verifique o console (F12).')
+      setSaveResult({ok:false, msg})
     } finally {
       setIsSaving(false)
     }
@@ -1518,7 +1538,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
             <span style={{fontSize:11,color:'var(--text3)',letterSpacing:0.5}}>A</span>
           </div>
           {/* SALVAR */}
-          <button className="btn" onClick={()=>setShowSaveModal(true)} disabled={emVisita}
+          <button className="btn" onClick={()=>{setSaveResult(null);setShowSaveModal(true)}} disabled={emVisita}
             title={emVisita?'Você está no modo Visita. Aplique ou saia da visita para salvar o oficial.':''}
             style={emVisita?{opacity:.45,cursor:'not-allowed'}:undefined}>
             <i className="ti ti-device-floppy" aria-hidden/>Salvar proposta
@@ -2374,13 +2394,24 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
           </div>
         )}
 
+        {saveResult && <div style={{margin:'4px 0 10px',padding:'10px 12px',borderRadius:8,fontSize:12.5,fontWeight:600,display:'flex',alignItems:'center',gap:8,
+          border:`1px solid ${saveResult.ok?'var(--green)':'var(--red)'}`,
+          background:saveResult.ok?'rgba(16,163,74,0.12)':'rgba(220,38,38,0.10)',
+          color:saveResult.ok?'var(--green)':'var(--red)'}}>
+          <i className={saveResult.ok?'ti ti-circle-check':'ti ti-alert-triangle'} aria-hidden style={{fontSize:16}}/>
+          <span>{saveResult.ok?`Salvo e confirmado no banco${saveResult.n!=null?` · ${saveResult.n} ${saveResult.n===1?'item':'itens'}`:''} ✓`:`Não salvou — ${saveResult.msg}`}</span>
+        </div>}
         <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-          <button className="btn" onClick={()=>setShowSaveModal(false)}>Cancelar</button>
+          <button className="btn" onClick={()=>setShowSaveModal(false)}>{saveResult&&saveResult.ok?'Fechar':'Cancelar'}</button>
           <button className="btn primary" onClick={handleSaveConfirm}
-            disabled={isSaving||laborTotal<=0}
+            disabled={isSaving||laborTotal<=0||(saveResult&&saveResult.ok)}
             style={{minWidth:130}}>
             {isSaving
               ? <><i className="ti ti-loader" style={{animation:'spin 1s linear infinite'}} aria-hidden/>Salvando...</>
+              : saveResult&&saveResult.ok
+              ? <><i className="ti ti-circle-check" aria-hidden/>Salvo ✓</>
+              : saveResult&&!saveResult.ok
+              ? <><i className="ti ti-refresh" aria-hidden/>Tentar de novo</>
               : <><i className="ti ti-device-floppy" aria-hidden/>Salvar proposta</>}
           </button>
         </div>

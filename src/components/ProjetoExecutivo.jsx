@@ -6151,7 +6151,10 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       try{
         const { saveProposal } = await import('../db/supabase.js')
         // Se o Conferir sincronizou itens na proposta (propOverride), grava os floors novos também.
-        const updated = { ...fromProposal, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, planta_data:plantaDataSave(execData), exec_api_cost:apiCost, ...(propOverride?{floors:propOverride}:{}) }
+        // Enxuga o histórico de versões (blobs exec_doc/planta_data em base64) — senão o UPDATE
+        // fica gigante e estoura o statement_timeout do banco ao salvar (Raphael perdeu edições).
+        const _versEnxutas = (()=>{ let v=fromProposal?.versions; if(typeof v==='string'){try{v=JSON.parse(v)}catch{v=[]}} if(!Array.isArray(v))return v; return v.map(x=>{ if(!x||typeof x!=='object')return x; const {exec_doc, planta_data, ...rest}=x; return rest }) })()
+        const updated = { ...fromProposal, versions:_versEnxutas, exec_doc:docToSave, exec_doc_obra:obraToSave, exec_doc_eletrica:eletrToSave, exec_doc_conduites:execDocConduites, planta_data:plantaDataSave(execData), exec_api_cost:apiCost, ...(propOverride?{floors:propOverride}:{}) }
         await saveProposal(updated)
         alert(`✅ Salvo no orçamento! A página vai atualizar.`)
         onClose && onClose()
