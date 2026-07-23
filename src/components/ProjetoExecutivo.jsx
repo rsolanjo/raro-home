@@ -2528,44 +2528,67 @@ Responda APENAS JSON válido:
     // equipamento pelo tipo de cabo. A porta segue sequencial — é PROPOSTA de patch, não medida.
     const _rackEq = (markers.find(m=>isRackItem(m.name||'', m.code||''))||{}).rackEquip || []
     const _achaEq = re => _rackEq.find(e=>re.test((((e.name||'')+' '+(e.code||''))).toLowerCase()))
-    const _devPara = tipo => {
-      // gw = roteador/gateway de REDE (Dream Machine/UDM). NÃO pode ser o gateway ZIGBEE/Matter da
-      // automação — câmeras e APs são PoE e saem do Dream Machine/Switch, nunca do gateway Zigbee
-      // (Raphael: "não pode conectar câmeras e APs no gateway zigbee"). O regex antigo casava
-      // "gateway" e pegava o "Gateway Automção" por engano.
-      const sw=_achaEq(/switch/),
-            gw=_rackEq.find(e=>{ const n=(((e.name||'')+' '+(e.code||''))).toLowerCase()
-              return /dream machine|\budm\b|roteador|\budr\b|cloud gateway|router|gateway/.test(n) && !/zigbee|matter|tuya|autom/.test(n) }),
-            pp=_achaEq(/patch panel/), ont=_achaEq(/\bont\b|modem|onu/)
-      if(tipo==='uplink') return (ont||gw||{}).name || 'ONT / Gateway'
-      if(tipo==='ap'||tipo==='camera') return (sw||gw||{}).name || 'Switch PoE+'
-      return (pp||sw||gw||{}).name || 'Patch Panel'
-    }
-    const rack_cable_table = cablesUnificados().filter(c=>!c.free && CABO_REDE.has(c.type)).map((c,i)=>{
-      const from=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid)
-      const mt=cableMeters(c)
-      const rackFrom = from && isRackItem(from.name||'', from.code||'')
-      const rackTo   = to   && isRackItem(to.name||'', to.code||'')
-      // ORIGEM = sempre o equipamento do rack (patch/switch/gateway) quando uma ponta é o rack;
-      // se o cabo sai de outro ponto (ex.: keystone → keystone), a origem é o próprio ponto.
-      const dev = (rackFrom||rackTo) ? _devPara(c.type) : (from?.name || _devPara(c.type))
+    // ── TABELA DE PORTAS = GUIA DE CONEXÃO (Raphael) ────────────────────────────────
+    // Deixou de ser "só os cabos desenhados" e virou o MAPA DE PORTAS do rack: TODO device de
+    // rede entra com ORIGEM (equipamento ativo + porta) e DESTINO (o aparelho), pra o instalador
+    // saber onde plugar cada um. Ordem: Wi-Fi → Câmeras → Keystones. No fim, as portas de
+    // PROVEDOR (a ativa + 1 SPARE pra uma 2ª operadora, sempre) e o uplink SW↔UDM.
+    // 10 câmeras + 2 APs = 12 portas + 2 de provedor = 14, mais os uplinks.
+    // PRUMADA não entra: é passagem de cabo, não conecta nada.
+    const _nlc = m => (String((m&&m.name)||'')+' '+String((m&&m.code)||'')).toLowerCase()
+    const _ehPrumada = m => /prumada/.test(_nlc(m))
+    const _ehAPm  = m => /access point|\bap\b|\bu6\b|\bu7\b|unifi ap|antena|wi-?fi/.test(_nlc(m))
+    const _ehCamm = m => /c[âa]mera|camera|dome|bullet/.test(_nlc(m))
+    const _ehKeym = m => /keystone|ponto de rede|rj45|dados|\brede\b/.test(_nlc(m))
+    // Siglas dos ativos do rack (Raphael): SW = switch, UDM = Dream Machine, PP = patch panel.
+    const _swEq  = _achaEq(/switch/)
+    const _udmEq = _rackEq.find(e=>{ const n=(((e.name||'')+' '+(e.code||''))).toLowerCase()
+      return /dream machine|\budm\b|\budr\b|cloud gateway|roteador|router/.test(n) && !/zigbee|matter|tuya|autom/.test(n) })
+    const _sigla = e => !e ? 'PP'
+      : /switch/i.test(e.name||'') ? 'SW'
+      : /dream machine|udm|udr|cloud gateway|roteador|router/i.test(e.name||'') ? 'UDM' : 'PP'
+    const _rotuloAtivo = e => e ? `${_sigla(e)} · ${e.name}` : 'SW · Switch PoE+'
+    // Metragem: se houver cabo desenhado até o ponto, aproveita; senão fica "—".
+    const _caboDoPonto = m => (cables||[]).find(c=>!c.free && CABO_REDE.has(c.type) && (c.fromUid===m.uid||c.toUid===m.uid))
+
+    const devsRede = markers.filter(m=> m.name && !isRackItem(m.name,m.code) && !_ehPrumada(m)
+      && (_ehAPm(m)||_ehCamm(m)||_ehKeym(m)))
+    const _grupo = m => _ehAPm(m)?0 : _ehCamm(m)?1 : 2       // 0 Wi-Fi · 1 câmeras · 2 keystones
+    const devsOrd = devsRede.slice().sort((a,b)=> (_grupo(a)-_grupo(b)) || ((a.n||0)-(b.n||0)))
+
+    let _ppSeq = 0
+    const _linhasDev = devsOrd.map(m=>{
+      const g = _grupo(m)
+      const tipo = g===0?'ap' : g===1?'camera' : 'dados'
+      const ativo = (_swEq || _udmEq)                        // PoE no switch; sem switch, na UDM
+      const dev = ativo ? _rotuloAtivo(ativo) : (g===2 ? 'PP · Patch Panel' : 'SW · Switch PoE+')
       _portaSeq[dev] = (_portaSeq[dev]||0)+1
-      // DESTINO: um cabo de rede se conecta a um PONTO ou a uma PORTA — nunca ao "Rack CPD" (Raphael:
-      // "existe a possibilidade de se conectar em rack cpd? o que isso significa?"). Então:
-      //  • cabo campo↔rack  → destino = o PONTO de campo (keystone/câmera/AP) + cômodo;
-      //  • uplink interno (as duas pontas no rack) → descreve o ALVO do uplink (gateway/patch panel).
-      const campo = rackFrom ? to : (rackTo ? from : to)   // a ponta que NÃO é o rack
-      const uplinkInterno = rackFrom && rackTo
-      const alvoUp = uplinkInterno ? (_achaEq(/dream machine|\budm\b|cloud gateway|roteador|gateway de rede/) || _achaEq(/patch panel/)) : null
-      const destinoTxt = uplinkInterno
-        ? `Uplink → ${((alvoUp&&alvoUp.name)||'Dream Machine / Gateway')}`
-        : ((campo&&campo.name||'—') + (campo&&campo.room?` · ${campo.room}`:''))
-      return { porta_patch:`P${String(i+1).padStart(2,'0')}`, device_origem:dev, porta_origem:String(_portaSeq[dev]),
-        destino:destinoTxt+(c._via?` · ${c._via}`:''), tipo:(CABLE_SPEC[c.type]?.spec)||'CAT6',
+      const porta = `P${String(++_ppSeq).padStart(2,'0')}`
+      const cab = _caboDoPonto(m); const mt = cab?cableMeters(cab):null
+      const sig = g===0?'AP' : g===1?'CAM' : 'KEY'
+      // Etiqueta física: sem acento e sem espaço (vai impressa no cabo).
+      const curto = String(m.code||m.room||m.name||'').normalize('NFD').replace(/[̀-ͯ]/g,'')
+        .toUpperCase().replace(/[^A-Z0-9]+/g,'').slice(0,10)
+      return { porta_patch:porta, device_origem:dev, porta_origem:String(_portaSeq[dev]),
+        destino:(m.name||'—')+(m.room?` · ${m.room}`:''), tipo:(CABLE_SPEC[tipo]?.spec)||'CAT6',
         metros: mt!=null?String(mt):'—',
-        destino_n: campo?.n ?? null, destino_uid: campo?.uid || null,
-        etiqueta:`${(campo?.code||campo?.name||'PT')}`.toUpperCase().slice(0,16), cor: CABO_COR[c.type]||'Roxo' }
+        destino_n: m.n ?? null, destino_uid: m.uid || null,
+        etiqueta:`${porta}-${sig}${curto?'-'+curto:''}`, cor: CABO_COR[tipo]||'Roxo' }
     })
+    // PROVEDORES — sempre 1 ativo + 1 cabo SPARE pra uma 2ª operadora (Raphael).
+    const _wan = _udmEq ? `UDM · ${_udmEq.name}` : 'UDM · Dream Machine'
+    const _linhasProv = [
+      { porta_patch:'WAN1', device_origem:_wan, porta_origem:'WAN1', destino:'Provedor 1 — ONT / fibra (ativo)',
+        tipo:'CAT6', metros:'—', destino_n:null, destino_uid:null, etiqueta:'WAN1-PROVEDOR-1', cor:'Cinza' },
+      { porta_patch:'WAN2', device_origem:_wan, porta_origem:'WAN2', destino:'Provedor 2 — cabo SPARE (2ª operadora)',
+        tipo:'CAT6', metros:'—', destino_n:null, destino_uid:null, etiqueta:'WAN2-PROVEDOR-2-SPARE', cor:'Cinza' },
+    ]
+    // UPLINK SW ↔ UDM — só quando os dois existem no rack.
+    const _linhasUp = (_swEq && _udmEq) ? [
+      { porta_patch:'UP1', device_origem:`UDM · ${_udmEq.name}`, porta_origem:'LAN (uplink)',
+        destino:`SW · ${_swEq.name} — uplink`, tipo:'CAT6', metros:'—',
+        destino_n:null, destino_uid:null, etiqueta:'UP1-UDM-SW', cor:'Cinza' }] : []
+    const rack_cable_table = [..._linhasDev, ..._linhasProv, ..._linhasUp]
 
     // cabos de som → tabela_som (mesma estrutura que a IA gera, pra alimentar tblSom)
     const somMarks = markers.filter(m=>isSom(m) && !/receiver|amplificador/.test(lc(m.name)))
@@ -3596,16 +3619,18 @@ Responda APENAS JSON válido:
       const renderRow = r => `<tr>
         <td style="text-align:center">${(()=>{ const m = r.destino_uid ? markers.find(x=>x.uid===r.destino_uid) : (r.destino_n!=null?markers.find(x=>x.n===r.destino_n):null); return m?pin(m.n,undefined,m):"—" })()}</td>
         <td><b style="font-family:monospace;background:#0D1420;color:#38BDF8;padding:2px 6px;border-radius:3px;font-size:10px">${esc(r.porta_patch)}</b></td>
-        <td style="font-size:10px">${esc(r.device_origem)}</td>
+        <td>${(()=>{ // sigla do ativo como SÍMBOLO: SW (switch) e UDM (Dream Machine) — Raphael
+          const p=String(r.device_origem||'').split(' · '); const sg=p[0]||''; const nm=p.slice(1).join(' · ')
+          const cor = sg==='SW'?'#0EA5E9' : sg==='UDM'?'#7C3AED' : '#64748B'
+          return `<span style="display:inline-block;background:${cor};color:#fff;font-weight:800;font-size:8.5px;padding:1px 5px;border-radius:4px;font-family:monospace">${esc(sg)}</span>${nm?`<div style="font-size:8px;color:#475569;margin-top:2px">${esc(nm)}</div>`:''}` })()}</td>
         <td style="font-family:monospace;font-size:10px;color:#0369A1">${esc(r.porta_origem)}</td>
         <td>${esc(r.destino)}</td>
-        <td style="font-family:monospace;font-size:10px;color:#059669">${esc(r.device_nome||'—')}</td>
         <td style="font-size:10px">${esc(r.tipo)}</td>
-        <td class="ex-m" style="font-size:10px">${esc(r.metros)}m</td>
+        <td class="ex-m" style="font-size:10px">${(r.metros&&r.metros!=='—')?esc(r.metros)+'m':'—'}</td>
         <td style="font-family:monospace;font-weight:700;color:#0D1420;font-size:10px;background:#FFF7ED;padding:2px 6px;border-radius:3px">${esc(r.etiqueta)}</td>
         <td>${corBadge(r.cor)}</td>
       </tr>`
-      const headers = ['Ponto','Porta PP','Device Origem','Porta Origem','Destino','Nome no Sistema','Tipo','m','Etiqueta','Cor']
+      const headers = ['Ponto','Porta PP','Origem','Porta','Destino','Tipo','m','Etiqueta','Cor']
       const cols = headers.map(h=>`<th${h==='m'?' class="ex-m"':''}>${h}</th>`).join('')
       // Group by color for visual separation
       const uplink = rows.filter(r=>r.cor==='Cinza'||r.etiqueta?.includes('UPLINK'))
@@ -3616,12 +3641,13 @@ Responda APENAS JSON válido:
       const makeBlock = (label, color, rowsArr) => rowsArr.length ? `
         <div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.5px;padding:6px 0 3px;border-bottom:2px solid ${color};margin:12px 0 6px">${label} — ${rowsArr.length} cabo${rowsArr.length!==1?'s':''}</div>
         <table class="ex-tbl ex-tbl-rack"><thead><tr>${cols}</tr></thead><tbody>${rowsArr.map(renderRow).join('')}</tbody></table>` : ''
+      // Ordem pedida pelo Raphael: Wi-Fi → Câmeras → Keystones; provedor/uplink fecham a tabela.
       return [
-        makeBlock('Uplink / Infraestrutura', '#6B7280', uplink),
-        makeBlock('Access Points (PoE)', '#0EA5E9', aps),
+        makeBlock('Access Points / Wi-Fi (PoE)', '#0EA5E9', aps),
         makeBlock('Câmeras de Segurança (PoE)', '#16A34A', cams),
         makeBlock('Keystones / Pontos de Dados', '#D97706', ks),
         makeBlock('Outros', '#7C3AED', outros),
+        makeBlock('Provedor e Uplinks', '#6B7280', uplink),
       ].join('')
     })() : ''
 
@@ -4054,10 +4080,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     ${_opus?(()=>{ const vis=markers.filter(m=>!isRackItem(m.name,m.code))
       const pts=vis.length
       const rooms=new Set(vis.map(m=>(m.room||'').trim()).filter(Boolean)).size
-      const sis=new Set(vis.map(m=>cableFamily(familiaDoPontoTipo(m)).nome)).size
-      const mts=(cables||[]).filter(c=>!c.free).reduce((s,c)=>s+(cableMeters(c)||0),0)
+      // "sistemas" saiu da capa (Raphael: era a contagem de famílias de cabo — não dizia nada).
+      // No lugar entra o nº de PAVIMENTOS do projeto.
+      const pavs=Math.max(1,((plantaFloors||[]).filter(f=>f.image).length)||1)
       const cell=(n,l)=>`<div><div class="ex-scope-n">${n}</div><div class="ex-scope-l">${l}</div></div>`
-      return `<div class="ex-cover-scope">${cell(pts,'pontos')}${cell(rooms,'cômodos')}${cell(sis,'sistemas')}</div>` })():''}
+      return `<div class="ex-cover-scope">${cell(pts,'pontos')}${cell(rooms,'cômodos')}${cell(pavs,pavs>1?'pavimentos':'pavimento')}</div>` })():''}
     <div class="ex-cover-foot">${brandName()}${brandName()==='RARO Home'?' · contato@rarohome.com.br · (21) 98170-9009':''}</div>
   </div>
 

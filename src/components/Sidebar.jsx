@@ -1,5 +1,13 @@
 import { LOGO_MONO } from '../logos.js'
 import { brandName, brandSub, brandLogoMono, isDemo, appEnvBadge } from '../brand.js'
+// v402 — TABELA DE PORTAS vira GUIA DE CONEXÃO + capa (Raphael). (capa) saiu "sistemas" (era a
+// contagem de famílias de cabo, não dizia nada) e entrou o nº de PAVIMENTOS. (tabela) deixou de ser
+// "só os cabos desenhados": agora TODO device de rede entra com ORIGEM (ativo + porta) e DESTINO (o
+// aparelho) — 10 câmeras + 2 APs = 12 portas, mais 2 de PROVEDOR (1 ativa + 1 cabo SPARE pra 2ª
+// operadora, sempre) e o uplink SW↔UDM = mapa completo, sem linha em branco. Ordem Wi-Fi → Câmeras →
+// Keystones. Coluna "Nome no Sistema" removida. Etiqueta = porta do patch panel + aparelho
+// (P01-AP-SALA), sem acento. Siglas como símbolo: SW (switch) e UDM (Dream Machine). PRUMADA não
+// entra (é passagem, não conecta nada). Verificado com harness em node sobre o bloco real. Base: v401.
 // v401 — FIX (Raphael): "Não consegui gerar o documento sem IA: lc is not defined" ao gerar o
 // Projeto Executivo. CAUSA: na v400 o resumo do tópico 12 (blocoRedeHtml) chamava lc(), helper que
 // vive em OUTRO escopo (linha ~2478) e não alcança essa função. FIX: minúsculo local (_lc) dentro do
@@ -210,7 +218,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-          <span>v401 · build 2026-07</span>
+          <span>v402 · build 2026-07</span>
           {(()=>{ const b=appEnvBadge(); return b ? <span style={{color:b.cor,border:`1px solid ${b.cor}`,borderRadius:4,padding:'0 5px',fontWeight:700,letterSpacing:0.3}}>{b.label}</span> : null })()}
         </div>
       </div>
