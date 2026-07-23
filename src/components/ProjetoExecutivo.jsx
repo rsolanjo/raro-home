@@ -1385,10 +1385,18 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
     const addPonto = (room,code,name) => { const ci=catInfo(code); const {cat,sub}=inferCategory(name, ci.category||'')
       mks.push({ uid:uniqId('mk'), n:mks.length+1, id:genItemId('',sub,mks), code:code||'', name, room:room==='Rack/CPD'?'':room, floorId:activeFloorId, x:5, y:5, note:'(a posicionar)', cost:ci.cost_price||0, sale:ci.sale_price||0, category:cat, subcategory:sub||'', _aPosicionar:true }) }
     let nProp=0, nMk=0
+    // 2 ações: SYNC = deixa igual nos dois (cria o que falta / iguala a qtd pela planta);
+    //          REMOVER = tira o item dos dois (da proposta e da planta).
     const aplicaUm = (d) => { const a=sel[d.key]; if(!a||a==='ignorar') return
-      if(d.tipo==='soProp'){ if(a==='remover'){ removeItemProp(d.room,d.code,d.name); nProp++ } else if(a==='ponto'){ const q=d.qty||1; for(let i=0;i<q;i++) addPonto(d.room,d.code,d.name); nMk+=q } }
-      else if(d.tipo==='soExec'){ if(a==='add'){ addItemProp(d.room,d.code,d.name); if((markers||[]).filter(m=>_n(m.room)===_n(d.room)&&(_n(m.code)||_n(m.name))===(_n(d.code)||_n(d.name))).length>1) setQtyProp(d.room,d.code,d.name,d.qty); nProp++ } else if(a==='removerPonto'){ removePontos(d.room,d.code,d.name); nMk+=d.qty } }
-      else if(d.tipo==='qtdDif'){ if(a==='usarExec'){ setQtyProp(d.room,d.code,d.name,d.executivo); nProp++ } else if(a==='usarProp'){ const dif=d.proposta-d.executivo; if(dif>0){ for(let i=0;i<dif;i++) addPonto(d.room,d.code,d.name); nMk+=dif } else { let rem=-dif; mks=mks.filter(m=>{ if(rem>0 && !isRackItem(m.name,m.code) && _n(m.room)===_n(d.room) && (_n(m.code)||_n(m.name))===(_n(d.code)||_n(d.name))){ rem--; nMk++; return false } return true }) } } } }
+      if(a==='sync'){
+        if(d.tipo==='soProp'){ const q=d.qty||1; for(let i=0;i<q;i++) addPonto(d.room,d.code,d.name); nMk+=q }      // item já na proposta → cria ponto(s)
+        else if(d.tipo==='soExec'){ addItemProp(d.room,d.code,d.name); setQtyProp(d.room,d.code,d.name,d.qty); nProp++ } // ponto já na planta → cria item c/ a qtd
+        else if(d.tipo==='qtdDif'){ setQtyProp(d.room,d.code,d.name,d.executivo); nProp++ }                            // iguala a proposta pela planta (nº de pontos)
+      } else if(a==='remover'){
+        if(d.tipo==='soProp'){ removeItemProp(d.room,d.code,d.name); nProp++ }
+        else if(d.tipo==='soExec'){ removePontos(d.room,d.code,d.name); nMk+=d.qty }
+        else if(d.tipo==='qtdDif'){ removeItemProp(d.room,d.code,d.name); removePontos(d.room,d.code,d.name); nProp++; nMk+=d.executivo }
+      } }
     ;[...cmp.soProp, ...cmp.soExec, ...cmp.qtdDif].forEach(aplicaUm)
     if(nMk){ try{ pushHistory() }catch(_){}; setMarkers(mks) }
     if(nProp) setPropOverride(flrs)
@@ -7633,26 +7641,32 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       {showConferir && (()=>{
         const cmp = comparaPropostaExec()
         const sel = syncSel
-        const optFor = d => d.tipo==='soProp' ? [['ignorar','—'],['remover','Tirar da proposta'],['ponto','Criar ponto na planta']]
-          : d.tipo==='soExec' ? [['ignorar','—'],['add','Adicionar na proposta'],['removerPonto','Remover ponto']]
-          : [['ignorar','—'],['usarExec',`Qtd = planta (${d.executivo})`],['usarProp',`Qtd = proposta (${d.proposta})`]]
-        const setMaster = which => { const s={}; const mp = which==='exec'
-            ? {soProp:'remover',soExec:'add',qtdDif:'usarExec'} : {soProp:'ponto',soExec:'removerPonto',qtdDif:'usarProp'}
-          ;[...cmp.soProp,...cmp.soExec,...cmp.qtdDif].forEach(d=>{s[d.key]=mp[d.tipo]}); setSyncSel(s) }
-        const nSel = Object.values(sel).filter(v=>v&&v!=='ignorar').length
-        const selCtl = d => <select value={sel[d.key]||'ignorar'} onChange={e=>setSyncSel(s=>({...s,[d.key]:e.target.value}))}
-          style={{fontFamily:'inherit',fontSize:10.5,background:'#0B1220',color:'#E2E8F0',border:'1px solid rgba(255,255,255,0.25)',borderRadius:6,padding:'2px 4px',flexShrink:0}}>
-          {optFor(d).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
-        const cardSt = cor => ({border:`1px solid ${cor}44`,borderLeft:`3px solid ${cor}`,borderRadius:8,background:`${cor}12`,padding:'8px 12px',marginBottom:8})
-        const rowSt = {display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,fontSize:12,padding:'4px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}
-        const secTit = (cor,txt,n) => <div style={{display:'flex',alignItems:'center',gap:8,margin:'12px 0 6px'}}><span style={{width:9,height:9,borderRadius:2,background:cor,display:'inline-block'}}/><span style={{fontSize:12.5,fontWeight:700,color:'#E2E8F0'}}>{txt}</span><span style={{fontSize:11,color:'#94A3B8'}}>({n})</span></div>
-        const nomeCod = x => <span><b style={{color:'#E2E8F0'}}>{x.name}</b>{x.code?<span style={{color:'#64748B',fontFamily:'monospace',fontSize:10.5,marginLeft:6}}>{x.code}</span>:''}</span>
-        const linha = (x, extra) => <div key={x.key} style={rowSt}>
-          <div style={{minWidth:0,flex:1}}><span style={{color:'#94A3B8',fontSize:10.5,marginRight:6}}>{x.room}</span>{nomeCod(x)}{extra}</div>{selCtl(x)}</div>
+        const diffs = [...cmp.soProp, ...cmp.soExec, ...cmp.qtdDif]
+        const byRoom = {}; diffs.forEach(d=>{ (byRoom[d.room]=byRoom[d.room]||[]).push(d) })
+        const rooms = Object.keys(byRoom).sort((a,b)=>String(a).localeCompare(String(b)))
+        const nSel = Object.values(sel).filter(v=>v==='sync'||v==='remover').length
+        const syncTudo = () => { const s={}; diffs.forEach(d=>{s[d.key]='sync'}); setSyncSel(s) }
+        const tagDe = d => d.tipo==='soProp' ? {t:'só na proposta (falta o ponto na planta)',c:'#FCA5A5'}
+          : d.tipo==='soExec' ? {t:'só na planta (falta na proposta)',c:'#FCD34D'}
+          : {t:`qtd: proposta ${d.proposta} · planta ${d.executivo}`,c:'#7DD3FC'}
+        const actBtn = (d,act,label,icon,cor,tip) => { const on=sel[d.key]===act
+          return <button onClick={()=>setSyncSel(s=>({...s,[d.key]: on?undefined:act}))} title={tip}
+            style={{fontFamily:'inherit',fontSize:10.5,fontWeight:600,padding:'3px 9px',borderRadius:6,cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0,
+              border:`1px solid ${on?cor:'rgba(255,255,255,0.2)'}`,background:on?`${cor}2b`:'transparent',color:on?cor:'rgba(255,255,255,0.6)'}}>
+            <i className={icon} aria-hidden/>{label}</button> }
+        const rowD = d => { const tg=tagDe(d)
+          return <div key={d.key} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontSize:12.5,color:'#E2E8F0'}}><b>{d.name}</b>{d.code?<span style={{color:'#64748B',fontFamily:'monospace',fontSize:10,marginLeft:6}}>{d.code}</span>:''}</div>
+              <div style={{fontSize:10,color:tg.c}}>{tg.t}</div>
+            </div>
+            {actBtn(d,'sync','Sincronizar','ti ti-arrows-exchange','#22C55E','Deixa igual nos dois: cria o que falta / iguala a quantidade pela planta.')}
+            {actBtn(d,'remover','Remover','ti ti-trash','#F87171','Tira o item dos DOIS — da proposta e da planta.')}
+          </div> }
         return <div onClick={()=>setShowConferir(false)} style={{position:'fixed',inset:0,background:'rgba(3,10,20,0.82)',zIndex:3200,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:'#0F172A',border:'1px solid rgba(255,255,255,0.12)',borderRadius:14,width:'min(820px,96vw)',maxHeight:'90vh',display:'flex',flexDirection:'column',color:'#E2E8F0',fontFamily:'inherit',overflow:'hidden'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#0F172A',border:'1px solid rgba(255,255,255,0.12)',borderRadius:14,width:'min(720px,96vw)',maxHeight:'90vh',display:'flex',flexDirection:'column',color:'#E2E8F0',fontFamily:'inherit',overflow:'hidden'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 18px',borderBottom:'1px solid rgba(255,255,255,0.1)',flexShrink:0}}>
-              <div><div style={{fontSize:15,fontWeight:700}}>Conferir & Sincronizar · Proposta × Executivo</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Escolha um master pra preencher tudo, ou decida item por item. Nada grava até salvar.</div></div>
+              <div><div style={{fontSize:15,fontWeight:700}}>Conferir & Sincronizar · Proposta × Executivo</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Por cômodo. <b style={{color:'#86EFAC'}}>Sincronizar</b> = fica igual nos dois · <b style={{color:'#FCA5A5'}}>Remover</b> = tira dos dois. Nada grava até salvar.</div></div>
               <button onClick={()=>setShowConferir(false)} style={{background:'none',border:'none',color:'#94A3B8',fontSize:24,cursor:'pointer',lineHeight:1}}>×</button>
             </div>
             <div style={{flex:1,overflowY:'auto',padding:'6px 18px 18px'}}>
@@ -7662,25 +7676,21 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 : cmp.total===0
                 ? <div style={{margin:'18px 0',padding:'16px',borderRadius:10,border:'1px solid #16A34A55',background:'#16A34A18',color:'#86EFAC',fontSize:13,fontWeight:600,textAlign:'center'}}><i className="ti ti-circle-check" aria-hidden style={{marginRight:6}}/>Tudo batendo — a planta reflete exatamente a proposta.</div>
                 : <>
-                  <div style={{display:'flex',alignItems:'center',gap:8,margin:'8px 0 4px',flexWrap:'wrap'}}>
-                    <span style={{fontSize:11.5,color:'#94A3B8'}}>Definir master:</span>
-                    <button onClick={()=>setMaster('exec')} style={{...btnGhost,padding:'4px 10px',fontSize:11}}>Executivo manda</button>
-                    <button onClick={()=>setMaster('prop')} style={{...btnGhost,padding:'4px 10px',fontSize:11}}>Proposta manda</button>
+                  <div style={{display:'flex',alignItems:'center',gap:8,margin:'8px 0 6px',flexWrap:'wrap'}}>
+                    <button onClick={syncTudo} style={{...btnGhost,padding:'4px 10px',fontSize:11}}><i className="ti ti-arrows-exchange" aria-hidden/> Sincronizar tudo</button>
                     <button onClick={()=>setSyncSel({})} style={{background:'none',border:'none',color:'#64748B',fontSize:11,cursor:'pointer'}}>limpar</button>
-                    <span style={{flex:1}}/><span style={{fontSize:11,color:'#FCD34D',fontWeight:600}}>{cmp.total} diferença{cmp.total>1?'s':''}</span>
+                    <span style={{flex:1}}/><span style={{fontSize:11,color:'#FCD34D',fontWeight:600}}>{cmp.total} diferença{cmp.total>1?'s':''} em {rooms.length} cômodo{rooms.length>1?'s':''}</span>
                   </div>
-                  {cmp.soProp.length>0 && <div style={cardSt('#DC2626')}>{secTit('#DC2626','Só na proposta — item que NÃO virou ponto na planta',cmp.soProp.length)}
-                    {cmp.soProp.map(x=>linha(x,<b style={{color:'#FCA5A5',marginLeft:6}}>×{x.qty}</b>))}</div>}
-                  {cmp.soExec.length>0 && <div style={cardSt('#F59E0B')}>{secTit('#F59E0B','Só no executivo — ponto na planta SEM item na proposta',cmp.soExec.length)}
-                    {cmp.soExec.map(x=>linha(x,<b style={{color:'#FCD34D',marginLeft:6}}>×{x.qty}</b>))}</div>}
-                  {cmp.qtdDif.length>0 && <div style={cardSt('#0EA5E9')}>{secTit('#0EA5E9','Quantidade diferente',cmp.qtdDif.length)}
-                    {cmp.qtdDif.map(x=>linha(x,<span style={{whiteSpace:'nowrap',marginLeft:6,fontSize:11}}>prop <b style={{color:'#FCA5A5'}}>{x.proposta}</b>·planta <b style={{color:'#7DD3FC'}}>{x.executivo}</b></span>))}</div>}
+                  {rooms.map(room=><div key={room} style={{marginBottom:12}}>
+                    <div style={{fontSize:12.5,fontWeight:700,color:'#7DD3FC',padding:'6px 0 3px',marginBottom:2,borderBottom:'1px solid rgba(255,255,255,0.14)'}}>{room} <span style={{color:'#64748B',fontWeight:400,fontSize:11}}>· {byRoom[room].length} item{byRoom[room].length>1?'s':''}</span></div>
+                    {byRoom[room].map(rowD)}
+                  </div>)}
                 </>}
             </div>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'10px 18px',borderTop:'1px solid rgba(255,255,255,0.1)',flexShrink:0}}>
               <span style={{fontSize:10.5,color:'#64748B',flex:1}}>Marcadores mudam na planta na hora; a proposta só grava no <b>Salvar no orçamento</b>.</span>
               <button onClick={()=>setShowConferir(false)} style={btnGhost}>Fechar</button>
-              <button onClick={()=>aplicarSync(cmp,sel)} disabled={nSel===0} style={{...btnPrimary,opacity:nSel===0?0.5:1}}><i className="ti ti-check" aria-hidden/> Aplicar {nSel||''} escolha{nSel===1?'':'s'}</button>
+              <button onClick={()=>aplicarSync(cmp,sel)} disabled={nSel===0} style={{...btnPrimary,opacity:nSel===0?0.5:1}}><i className="ti ti-check" aria-hidden/> Aplicar {nSel||''}</button>
             </div>
           </div>
         </div>
