@@ -1,5 +1,7 @@
 import { LOGO_MONO } from '../logos.js'
 import { brandName, brandSub, brandLogoMono, isDemo, appEnvBadge } from '../brand.js'
+// v389 — MARGENS AO VIVO: contagem de itens (Raphael). O "Resumo do cômodo" agora mostra a QUANTIDADE de itens do cômodo no título (soma das qtds dos itens visíveis), e a "Margem do Projeto — Equipamentos" mostra o TOTAL de itens do projeto. Respeita categorias ocultas. Base: v388.
+// v388 — CONFERIR: cômodos com NOME diferente (Raphael: o cômodo da proposta e o da planta têm nome diferente — falso positivo). Agora detecta automaticamente: quando um cômodo da planta tem os MESMOS itens (mesmos códigos) de um cômodo da proposta mas com nome diferente (planta "WC Externo" = proposta "Banheiro Hospede"), mostra um banner no topo do Conferir com botão "Igualar" que renomeia o cômodo na planta pro nome da proposta. Aí os itens casam e a falsa diferença some. Casa pelo conjunto de códigos; renomeia via setMarkers (undo via histórico, grava no Salvar). Base: v387.
 // v387 — CONFERIR: modal mais LIMPO, por CÔMODO + 2 ações (Raphael: "está muita informação"). Saiu o seletor gigante e o "master" confuso. Agora as diferenças vêm AGRUPADAS POR CÔMODO e cada item tem só 2 botões: SINCRONIZAR (deixa igual nos dois — cria o que falta / iguala a qtd pela planta) ou REMOVER (tira o item dos dois). Botão "Sincronizar tudo" no topo. aplicarSync reescrito pras 2 ações (sync/remover). Nome do item em 1 linha com reticências (não quebra feio). Trava de segurança igual: marcadores na hora (undo), proposta só grava no "Salvar no orçamento". Base: v386.
 // v386 — PROPOSTA: toggle "Pitches" pra ocultar as frases de venda do PDF (Raphael), igual ao de ocultar categorias. Chip novo na mesma faixa dos chips de categoria; ligado, some o pitch (r.pitch) de cada cômodo no buildProposalNovo (flag hidePitch no pdfData). Base: v385.
 // v385 — CONFERIR Proposta × Executivo, Fase 2: SINCRONIZAR item por item (Raphael). O modal agora é interativo: um botão "master" (Executivo manda / Proposta manda) preenche as escolhas de todas as diferenças, e cada item tem um seletor pra ajuste fino. Ações: só-na-proposta → tirar da proposta OU criar ponto na planta; só-no-executivo → adicionar na proposta OU remover ponto; qtd diferente → usar qtd da planta OU da proposta. TRAVA DE SEGURANÇA: "Aplicar" mexe só no estado local — marcadores mudam na planta na hora (com undo via histórico; pontos novos entram "(a posicionar)" no canto pra reposicionar), e a proposta vai pra um override local que SÓ grava no banco quando clicar "Salvar no orçamento" (que agora persiste os floors sincronizados). Nada muda preço/proposta sozinho. Base: v384.
@@ -169,7 +171,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-          <span>v387 · build 2026-07</span>
+          <span>v389 · build 2026-07</span>
           {(()=>{ const b=appEnvBadge(); return b ? <span style={{color:b.cor,border:`1px solid ${b.cor}`,borderRadius:4,padding:'0 5px',fontWeight:700,letterSpacing:0.3}}>{b.label}</span> : null })()}
         </div>
       </div>

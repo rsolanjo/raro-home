@@ -7646,6 +7646,18 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         const rooms = Object.keys(byRoom).sort((a,b)=>String(a).localeCompare(String(b)))
         const nSel = Object.values(sel).filter(v=>v==='sync'||v==='remover').length
         const syncTudo = () => { const s={}; diffs.forEach(d=>{s[d.key]='sync'}); setSyncSel(s) }
+        // Detecta cômodos com NOME diferente mas MESMOS itens (planta "WC Externo" = proposta
+        // "Banheiro Hospede"). Casa pelo conjunto de códigos; sugere igualar o nome (Raphael).
+        const _nr = s => String(s==null?'':s).trim().toLowerCase()
+        const _execR={}, _propR={}
+        ;(markers||[]).forEach(m=>{ if(isRackItem(m.name,m.code))return; const r=m.room||'—'; (_execR[r]=_execR[r]||new Set()).add(_nr(m.code)||_nr(m.name)) })
+        _propFloors().forEach(fl=>(fl.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{ if(!it.name||isRackItem(it.name,it.code))return; const rm=r.name||'—'; (_propR[rm]=_propR[rm]||new Set()).add(_nr(it.code)||_nr(it.name)) })))
+        const _propNames=Object.keys(_propR)
+        const aliases=[]
+        Object.entries(_execR).forEach(([er,eset])=>{ if(_propNames.some(p=>_nr(p)===_nr(er))) return
+          let best=null,bestN=0; _propNames.forEach(pr=>{ let n=0; _propR[pr].forEach(c=>{ if(eset.has(c)) n++ }); if(n>bestN){bestN=n;best=pr} })
+          if(best && bestN>0) aliases.push({execRoom:er, propRoom:best, comuns:bestN}) })
+        const renomearRoom=(from,to)=>{ try{pushHistory()}catch(_){}; setMarkers(ms=>ms.map(m=>_nr(m.room)===_nr(from)?{...m,room:to}:m)) }
         const tagDe = d => d.tipo==='soProp' ? {t:'só na proposta (falta o ponto na planta)',c:'#FCA5A5'}
           : d.tipo==='soExec' ? {t:'só na planta (falta na proposta)',c:'#FCD34D'}
           : {t:`qtd: proposta ${d.proposta} · planta ${d.executivo}`,c:'#7DD3FC'}
@@ -7671,6 +7683,14 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             </div>
             <div style={{flex:1,overflowY:'auto',padding:'6px 18px 18px'}}>
               {syncMsg && <div style={{margin:'8px 0',padding:'8px 12px',borderRadius:8,border:'1px solid #16A34A55',background:'#16A34A18',color:'#86EFAC',fontSize:11.5}}>{syncMsg}</div>}
+              {aliases.length>0 && <div style={{margin:'8px 0 12px',padding:'8px 12px',borderRadius:8,border:'1px solid #F59E0B55',background:'#F59E0B14'}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#FCD34D',marginBottom:2}}><i className="ti ti-alert-triangle" aria-hidden style={{marginRight:5}}/>Cômodos com nome diferente</div>
+                <div style={{fontSize:10.5,color:'#94A3B8',marginBottom:6}}>A planta e a proposta chamam o mesmo cômodo (mesmos itens) por nomes diferentes — por isso acusa falsa diferença. Iguale o nome primeiro:</div>
+                {aliases.map((a,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 0',fontSize:11.5,borderTop:i?'1px solid rgba(255,255,255,0.06)':'none'}}>
+                  <span style={{flex:1,minWidth:0}}>planta <b style={{color:'#7DD3FC'}}>{a.execRoom}</b> = proposta <b style={{color:'#86EFAC'}}>{a.propRoom}</b> <span style={{color:'#64748B'}}>· {a.comuns} em comum</span></span>
+                  <button onClick={()=>renomearRoom(a.execRoom,a.propRoom)} title={`Renomeia o cômodo na planta de "${a.execRoom}" para "${a.propRoom}"`} style={{...btnGhost,padding:'3px 10px',fontSize:10.5,flexShrink:0}}>Igualar → "{a.propRoom}"</button>
+                </div>)}
+              </div>}
               {!cmp.temProposta
                 ? <div style={{padding:'24px 0',textAlign:'center',color:'#94A3B8',fontSize:13}}>Este executivo não está ligado a uma proposta com itens.</div>
                 : cmp.total===0

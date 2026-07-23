@@ -2040,9 +2040,10 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
                   const roomLucro=roomSale-roomCost
                   const roomPct=roomCost>0?Math.round(roomLucro/roomCost*100):0
                   const hiddenCount=(room.items||[]).length-visItems.length
+                  const roomQtd=visItems.filter(it=>it.name).reduce((s,it)=>s+(parseInt(it.qty)||1),0)
                   return <div style={{marginTop:8,padding:'8px 10px',background:'rgba(14,165,233,0.07)',borderRadius:5,border:'1px solid rgba(14,165,233,0.25)'}}>
                     <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                      <span>Resumo do cômodo{hiddenCount>0?' (visível)':''}</span>
+                      <span>Resumo do cômodo{hiddenCount>0?' (visível)':''} · {roomQtd} {roomQtd===1?'item':'itens'}</span>
                       {hiddenCount>0&&<span style={{fontSize:8,color:'#DC2626',background:'rgba(220,38,38,0.08)',padding:'1px 5px',borderRadius:4}}><i className="ti ti-eye-off" style={{fontSize:8,marginRight:2}} aria-hidden/>{hiddenCount} item{hiddenCount>1?'s':''} oculto{hiddenCount>1?'s':''}</span>}
                     </div>
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 80px',gap:6,alignItems:'end'}}>
@@ -2145,9 +2146,12 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
               const projSale=equipTotal
               const projLucro=projSale-projCost
               const projPct=projCost>0?Math.round(projLucro/projCost*100):0
+              const projQtd=floors.reduce((s,f)=>(f.rooms||[]).reduce((rs,r)=>rs+(r.items||[])
+                .filter(it=>it.name&&(hiddenCateg.size===0||!hiddenCateg.has(it.category||'Sem categoria')))
+                .reduce((is,it)=>is+(parseInt(it.qty)||1),0),s),0)
               if(projCost===0) return null
               return <div style={{marginTop:10,padding:'10px 12px',background:'rgba(14,165,233,0.07)',border:'1px solid rgba(14,165,233,0.25)',borderRadius:6}}>
-                <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>Margem do Projeto — Equipamentos (sem M.O.)</div>
+                <div style={{fontSize:9,color:'var(--accent)',fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>Margem do Projeto — Equipamentos (sem M.O.) · {projQtd} {projQtd===1?'item':'itens'}</div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 90px',gap:8,alignItems:'end'}}>
                   <div>
                     <div style={{fontSize:9,color:'var(--text3)',marginBottom:2}}>Custo total</div>
