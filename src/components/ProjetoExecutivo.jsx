@@ -1439,7 +1439,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   // religa no seletor de tópicos do painel de PDF.
   // Nascem OCULTAS por padrão (Raphael): peças, Lista Geral de pontos elétricos, Caixas de embutir
   // (resumo) e a TABELA de itens no teto. Todas com botão pra desocultar no "Ocultar por tópico".
-  const [hideSecs, setHideSecs] = useState(()=>new Set(['t_pecas','lista_geral','caixas_embutir','tbl_teto_tab','checklist_ele','tbl_seguranca','metros','t_cenas']))  // seções fora do PDF (nascem ocultas, com botão de desocultar)
+  const [hideSecs, setHideSecs] = useState(()=>new Set(['t_pecas','lista_geral','caixas_embutir','tbl_teto_tab','checklist_ele','tbl_seguranca','metros','t_cenas','quadro_cargas','legenda_cabos']))  // seções fora do PDF (nascem ocultas, com botão de desocultar)
   const secOff = k => hideSecs.has(k)
   const [pageOrient, setPageOrient] = useState('original') // orientação da PLANTA no documento: 'original' | 'paisagem' | 'retrato' — o app gira a imagem e converte pins/cabos
   const [rotBg, setRotBg] = useState(null) // planta girada 90° (gerada em canvas quando necessário)
@@ -3103,7 +3103,6 @@ Responda APENAS JSON válido:
         ${(isObra||secOff('caixas_embutir')||secOff('t_eletrica_tab'))?'':cxResumo}
         ${(isObra||secOff('quadro_cargas')||secOff('t_eletrica_tab'))?'':`<h3 class="ex-amb" style="margin-top:16px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}`}
         ${secOff('checklist_ele')?'':`<h3 class="ex-amb" style="margin-top:16px">Checklist Elétrico</h3>${checklistEle}`}
-        ${(isObra||secOff('t_cenas'))?'':blocoCenasHtml()}
       </div>`
     }
 
@@ -3260,7 +3259,9 @@ Responda APENAS JSON válido:
           ${blocoEquipConfigHtml('rede')}
           <!-- 3 · CÂMERAS -->
           ${temCam ? `${(!secOff('tbl_seguranca')) ? `<h3 class="ex-amb" style="margin-top:16px">Segurança — Câmeras e Sensores</h3>${blocoSegurancaTbl()}` : ''}${blocoCamerasHtml(true)}` : ''}
-          <!-- 4 · CONFIGURAÇÕES A FAZER -->
+          <!-- 4 · CENAS E CONFIGURAÇÕES (veio do tópico 5 — Planta Elétrica — pro guia) -->
+          ${secOff('t_cenas')?'':blocoCenasHtml()}
+          <!-- 5 · CONFIGURAÇÕES A FAZER -->
           ${blocoConfigFazerHtml()}`
     }
 
@@ -3445,7 +3446,7 @@ Responda APENAS JSON válido:
     // ── LISTA DE EQUIPAMENTOS (Raphael) — vai no FIM de todos os documentos, com quantidades.
     // Conta os pontos por PRODUTO (nome do catálogo) + os equipamentos do rack. É a lista de
     // compra/conferência: o que foi especificado e quanto.
-    function blocoListaEquipamentos(brk=true){
+    function blocoListaEquipamentos(numFn){  // numFn: dá o número do capítulo (tópico 9 no completo)
       const cont=new Map()
       markers.filter(m=>!isRackItem(m.name,m.code) && m.name).forEach(m=>{
         const k=(m.name||'').trim(); if(!k) return
@@ -3457,8 +3458,8 @@ Responda APENAS JSON válido:
       const linhas=[...cont.entries()].sort((a,b)=>a[0].localeCompare(b[0]))
         .map(([nome,q])=>`<tr><td>${esc(nome)}</td><td style="text-align:center;font-weight:800">${q}</td></tr>`).join('')
       const total=[...cont.values()].reduce((s,q)=>s+q,0)
-      return `<div class="ex-sec ex-breakable" ${brk?'style="page-break-before:always"':''}>
-        <h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:10px">Lista de Equipamentos</h2>
+      return `<div class="ex-sec ex-breakable" style="page-break-before:always">
+        <h2 style="border-bottom:3px solid ${TH.rule};padding-bottom:8px;margin-bottom:10px">${numFn?numFn():''}Lista de Equipamentos</h2>
         <p class="ex-p" style="color:#6B7280;margin-bottom:8px">Todos os equipamentos do projeto e suas quantidades — pontos na planta + equipamentos do rack. Total: <b>${total}</b> ${total===1?'item':'itens'}.</p>
         ${T(linhas,['Equipamento','Qtd'])}
       </div>`
@@ -4070,7 +4071,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const sis=new Set(vis.map(m=>cableFamily(familiaDoPontoTipo(m)).nome)).size
       const mts=(cables||[]).filter(c=>!c.free).reduce((s,c)=>s+(cableMeters(c)||0),0)
       const cell=(n,l)=>`<div><div class="ex-scope-n">${n}</div><div class="ex-scope-l">${l}</div></div>`
-      return `<div class="ex-cover-scope">${cell(pts,'pontos')}${cell(rooms,'cômodos')}${cell(sis,'sistemas')}${(plantScale&&mts)?cell('~'+Math.round(mts)+'m','cabeamento'):''}</div>` })():''}
+      return `<div class="ex-cover-scope">${cell(pts,'pontos')}${cell(rooms,'cômodos')}${cell(sis,'sistemas')}</div>` })():''}
     <div class="ex-cover-foot">${brandName()}${brandName()==='RARO Home'?' · contato@rarohome.com.br · (21) 98170-9009':''}</div>
   </div>
 
@@ -5103,7 +5104,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <h2 style="border-bottom:3px solid #1E3A8A;padding-bottom:8px">Redes — Cabeamento Estruturado</h2>
             <p class="ex-p" style="color:#6B7280">Todo o cabo de rede da casa num lugar só: pontos Keystone, câmeras e access points. É o CAT6 que passa pelo forro e paredes até o rack. As páginas por família, adiante, detalham cada uma.</p>
             <div style="font-size:12px;color:#334155;margin:6px 0 2px"><b>${cabosRede.length}</b> cabo(s) de rede${totRede>0?` · total ~${Math.round(totRede)}m`:''}${condRede.length?` · ${condRede.length} conduíte(s)`:''}</div>
-            ${legRede}</div>
+            ${secOff('legenda_cabos')?'':legRede}</div>
           ${plantaRede?`<div class="ex-opus-fig">${plantaRede}</div>`:''}
           ${T(rowsRede,['Nº','Tipo','Origem → Destino','Cômodo','Cabo','Metros','Conduíte'])}
           ${condRede.length?`<h3 class="ex-amb" style="color:#1E3A8A;margin-top:16px;margin-bottom:4px;break-after:avoid;page-break-after:avoid">Conduítes de rede — planta</h3>
@@ -5136,10 +5137,11 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           <div style="break-inside:avoid;page-break-inside:avoid">
           <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Notas de Infraestrutura</h2>
           ${list(eletrodutoNotas.length?eletrodutoNotas:[
-            'Usar eletroduto 3/4" para conduítes de dados; 3/4"–1" para conduítes elétricos.',
-            'Conduítes compartilhados: passar cabos de DADOS e ELÉTRICA em eletrodutos SEPARADOS.',
-            'Deixar fio-guia em todos os conduítes.',
-            'Caixa 4×4 em todos os pontos com mais de um cabo chegando.',
+            'Passar eletroduto 3/4" em todas as paredes antes do revestimento.',
+            'Deixar caixa 4×4 em CADA keypad com NEUTRO chegando (obrigatório).',
+            'Eletroduto seco 3/4" do rack até o forro para câmeras e APs.',
+            'Deixar fio-guia em todos os eletrodutos.',
+            'Sangria no teto para cada caixa de som embutida.',
           ])}</div></div>`,
       ].filter(Boolean)
       return obraSections.join('\n') + '</div>'
@@ -5211,7 +5213,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     (itensComodoHtml ? itensComodoHtml + '<h3 class="ex-amb">Total geral consolidado</h3>' + totalGeralHtml : '') +
     ((d.pecas||[]).length?'<h3 class="ex-amb" style="margin-top:16px">Lista Completa de Peças</h3>' + T(d.pecas.map(r=>`<tr><td>${esc(r.item)}</td><td style="text-align:center"><b>${esc(r.qtd)}</b></td></tr>`).join(''),['Item','Qtd']):'') + '</div>',
 
-    // 9. GRÁFICOS E GESTÃO
+    // 9. LISTA DE EQUIPAMENTOS (consolidada, com quantidades) — subiu do fim do documento para o
+    // corpo, como tópico numerado, logo antes de Gráficos (Raphael: "Lista = tópico 9, Gráficos 10").
+    // Só no Completo; nos docs standalone ela continua saindo no fim (buildFullHtml).
+    (mode==='completo') ? blocoListaEquipamentos(()=>_capNum(++_cap)) : '',
+
+    // 10. GRÁFICOS E GESTÃO
     secOff('t_graficos') ? '' : cap('Gráficos e Gestão do Projeto') + (grafico1 + grafico2 + grafico3 + grafico4) +
     (gestaoTxt ? '<h3 class="ex-amb" style="margin-top:18px">Gestão e Controle</h3>' + gestaoTxt : '') + '</div>',
 
@@ -5976,25 +5983,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       // Mesmo @page dos outros documentos (Raphael: o PE tinha margem diferente). O bleed da capa
       // (.ex-doc-cover margin:-12mm) foi removido pra a margem bater com o resto.
       pageCss='@page{size:A4;margin:12mm} .ex-plant img{max-height:250mm!important} @page wallpage{size:A4 landscape;margin:6mm}'+_plantSizeCss
-      // O Projeto Executivo é o documento COMPLETO: traz o que Obra, Instalação, Elétrica e
-      // Conduítes têm de próprio. Cada anexo entra sem capa e sem as seções que o corpo já
-      // apresentou — o mesclaAnexo mantém o registro do que já foi dito (Raphael: "precisa ter
-      // todas as informações de todos os documentos, mas sem repetir").
-      const vistos=titulosDe(_full||'')
-      // "Planta — Itens no Teto" (obra) e "Plano de Instalação" (título do próprio anexo) são o
-      // mesmo conteúdo com outro nome — o dedupe por título não pega, então vão na mão.
-      const anexos = mesclaAnexo(_obra,'Plano de Obra — cabos e infraestrutura',vistos,['Planta — Itens no Teto','Rack / CPD'])
-        + mesclaAnexo(_ele,'Planta Elétrica — NBR 5444 e quadro de cargas',vistos)
-        // Conduítes NÃO entra: o tópico 7 (Cabeamento e Conduítes) já cobre os caminhos por
-        // família — o relatório era o mesmo conteúdo em outro nível de detalhe (decisão do
-        // Raphael). Continua saindo inteiro no documento "Conduítes", à parte.
-        // Plano de Instalação (anexo) NÃO entra mais no Completo: o corpo já tem o guia
-        // "Plano de Instalação — configuração e entrega" (Wi-Fi/Redes/Câmeras/Config a fazer).
-        // Duplicava câmeras e config de equipamentos (Raphael: "não quero nada duplicado"). Continua
-        // saindo inteiro no documento "Instalação", à parte.
-      // Sem a folha-parede "PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA" no Completo (Raphael:
-      // "não quero nada duplicado"): ela só faz sentido no Plano de Obra standalone, pra pregar.
-      body = (_full||'') + anexos + listaEquipamentosHtml()
+      // A "CONTINUAÇÃO DO PROJETO EXECUTIVO" (anexo do Plano de Obra: elétrica/caixas, keypads,
+      // quantitativo, checklists, notas de infra) foi ELIMINADA do executivo (Raphael): o Plano de
+      // Obra sai só no documento à parte ("Plano de Obra"), que continua tendo tudo isso. Também não
+      // entram os anexos de Elétrica/Instalação nem a folha-parede. A Lista de Equipamentos agora é
+      // o tópico 9 do corpo — não é mais anexada no fim.
+      body = (_full||'')
     } else {
       // TUDO A4 (Raphael). Obra, elétrica e conduítes saíam em A3 PAISAGEM — só o Completo era
       // A4. Era a origem do "Para impressão em A3" que abria o Plano de Obra, e da diferença de
@@ -6143,11 +6137,12 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
           const hp=pl.getBoundingClientRect().height; return hp>1?hp:1 }
         const handle=d.createElement('div')
         handle.textContent='⤢'
+        handle.className='no-print'  // alça de edição — NUNCA sai na impressão/PDF (Raphael)
         handle.setAttribute('style',`position:absolute;${posAlca(3)};width:20px;height:20px;background:#0EA5E9;color:#fff;font-size:12px;line-height:20px;text-align:center;border-radius:5px;cursor:nwse-resize;z-index:9;box-shadow:0 1px 4px rgba(0,0,0,.3)`)
         stage.appendChild(handle)
         // Botão GIRAR (90° por clique) na própria planta
         const rot=d.createElement('div')
-        rot.textContent='↻'; rot.title='Girar 90°'
+        rot.textContent='↻'; rot.title='Girar 90°'; rot.className='no-print'  // idem — só edição
         rot.setAttribute('style',`position:absolute;${posAlca(27)};width:20px;height:20px;background:#7C3AED;color:#fff;font-size:13px;line-height:20px;text-align:center;border-radius:5px;cursor:pointer;z-index:9;box-shadow:0 1px 4px rgba(0,0,0,.3)`)
         stage.appendChild(rot)
         const onRot=e=>{ e.preventDefault(); e.stopPropagation(); setT(key,{rot:(((cur().rot||0)+90)%360)}) }
@@ -7943,9 +7938,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 {secTit('Ocultar por tópico — '+modo)}
                 <div style={{fontSize:10,color:'rgba(255,255,255,0.42)',marginBottom:7}}><b>Tópico</b> tira o título + planta + tabela. <b>Só tabela</b> mantém a planta. Riscado = fora. Só aparecem os tópicos <b>deste documento</b>.</div>
                 {(()=>{
-                  const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança — câmeras e sensores (oculto por padrão)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['metros','↳ Metros de cabeamento nas tabelas (oculto por padrão)'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','↳ Lista geral de pontos elétricos (oculta por padrão)'],['caixas_embutir','↳ Caixas de embutir — resumo (oculta por padrão)'],['checklist_ele','↳ Checklist elétrico (oculto por padrão)'],['t_cenas','↳ Cenas e configurações — na planta elétrica (oculto por padrão)'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto','tbl_teto_tab'],['t_conduites','Cabeamento e conduítes'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos'],['t_config','Plano de Instalação — configuração e entrega'],['t_senhas','Credenciais e senhas (mascaradas)']]
+                  const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança — câmeras e sensores (oculto por padrão)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['metros','↳ Metros de cabeamento nas tabelas (oculto por padrão)'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','↳ Lista geral de pontos elétricos (oculta por padrão)'],['caixas_embutir','↳ Caixas de embutir — resumo (oculta por padrão)'],['checklist_ele','↳ Checklist elétrico (oculto por padrão)'],['quadro_cargas','↳ Quadro de cargas (oculto por padrão)'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto','tbl_teto_tab'],['t_conduites','Cabeamento e conduítes'],['legenda_cabos','↳ Legenda de cabos — Redes (oculta por padrão)'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos'],['t_config','Plano de Instalação — configuração e entrega'],['t_cenas','↳ Cenas e configurações (no guia, oculto por padrão)'],['t_senhas','Credenciais e senhas (mascaradas)']]
                   const OBRA=[['t_obra_eletrica','1. Elétrica (caixas + alimentação)'],['lista_geral','↳ Lista geral de pontos elétricos'],['pontos_tabela','↳ Pontos elétricos — caixas e alturas'],['alim_keypads','↳ Alimentação dos keypads'],['t_quant','2. Quantitativo de material'],['t_cabos','3. Cabeamento por família'],['t_checklists','4. Checklists de obra']]
-                  const ELE=[['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','Lista geral de pontos elétricos'],['caixas_embutir','Caixas de embutir — resumo'],['quadro_cargas','Quadro de cargas'],['checklist_ele','Checklist elétrico'],['t_cenas','Cenas e configurações']]
+                  const ELE=[['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','Lista geral de pontos elétricos'],['caixas_embutir','Caixas de embutir — resumo'],['quadro_cargas','Quadro de cargas'],['checklist_ele','Checklist elétrico']]
                   const COND=[['t_conduites','Cabeamento e conduítes'],['t_cabos','Cabeamento por família']]
                   // Só os grupos de tópico FIÉIS ao documento na tela (Raphael).
                   const grupos = execMode==='completo' ? [['Projeto Executivo',EXEC],['Plano de Obra (anexo)',OBRA]]
@@ -8077,7 +8072,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <span style={{fontSize:12,color:'#fff',fontWeight:600,display:'block'}}>Ocultar do documento — por tópico</span>
                     <span style={{fontSize:10,color:'rgba(255,255,255,0.42)',display:'block',margin:'2px 0 7px'}}><b>Tópico</b> tira o título + planta + tabela. <b>Só tabela</b> mantém a planta. Riscado = fora.</span>
                     {(()=>{
-                      const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança — câmeras e sensores (oculto por padrão)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['metros','↳ Metros de cabeamento nas tabelas (oculto por padrão)'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','↳ Lista geral de pontos elétricos (oculta por padrão)'],['caixas_embutir','↳ Caixas de embutir — resumo (oculta por padrão)'],['checklist_ele','↳ Checklist elétrico (oculto por padrão)'],['t_cenas','↳ Cenas e configurações — na planta elétrica (oculto por padrão)'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto','tbl_teto_tab'],['t_conduites','Cabeamento e conduítes'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos'],['t_config','Plano de Instalação — configuração e entrega'],['t_senhas','Credenciais e senhas (mascaradas)']]
+                      const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança — câmeras e sensores (oculto por padrão)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['metros','↳ Metros de cabeamento nas tabelas (oculto por padrão)'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','↳ Lista geral de pontos elétricos (oculta por padrão)'],['caixas_embutir','↳ Caixas de embutir — resumo (oculta por padrão)'],['checklist_ele','↳ Checklist elétrico (oculto por padrão)'],['quadro_cargas','↳ Quadro de cargas (oculto por padrão)'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto','tbl_teto_tab'],['t_conduites','Cabeamento e conduítes'],['legenda_cabos','↳ Legenda de cabos — Redes (oculta por padrão)'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos'],['t_config','Plano de Instalação — configuração e entrega'],['t_cenas','↳ Cenas e configurações (no guia, oculto por padrão)'],['t_senhas','Credenciais e senhas (mascaradas)']]
                       const OBRA=[['t_obra_eletrica','1. Elétrica (caixas + alimentação)'],['lista_geral','↳ Lista geral de pontos elétricos'],['pontos_tabela','↳ Pontos elétricos — caixas e alturas'],['alim_keypads','↳ Alimentação dos keypads'],['t_quant','2. Quantitativo de material'],['t_cabos','3. Cabeamento por família'],['t_checklists','4. Checklists de obra']]
                       const allKeys=[...EXEC,...OBRA].map(t=>t[0])
                       const off=k=>hideSecs.has(k)

@@ -1,5 +1,13 @@
 import { LOGO_MONO } from '../logos.js'
 import { brandName, brandSub, brandLogoMono, isDemo, appEnvBadge } from '../brand.js'
+// v399 — EXECUTIVO (Raphael, refino do fim + limpezas): (1) removida a linha "~471m cabeamento"
+// da CAPA. (3) alças de edição da planta (⤢ redimensionar, ↻ girar) agora têm classe no-print —
+// nunca saem na impressão/PDF. (4) Cenas e Configurações saiu da Planta Elétrica e foi pro guia de
+// instalação (oculta por padrão, t_cenas); Quadro de Cargas nasce oculto (título junto, quadro_cargas);
+// legenda de cabos do tópico 7 (Redes) nasce oculta (legenda_cabos). A "CONTINUAÇÃO DO PROJETO
+// EXECUTIVO" (anexo do Plano de Obra) foi ELIMINADA do executivo — o Plano de Obra sai só no
+// documento à parte; Notas de Infraestrutura ganhou as 5 notas do Raphael. Lista de Equipamentos
+// (consolidada) subiu do fim pro corpo como TÓPICO 9, antes de Gráficos e Gestão (10). Base: v398.
 // v398 — EXECUTIVO (Raphael, reestrutura do fim + hides + fixes): (1) tabela de portas do rack
 // travada na página (table-layout:fixed + wrap) — não estoura mais a margem direita. (2) nascem
 // OCULTOS com botão de desocultar: Checklist Elétrico (checklist_ele), Segurança — Câmeras e
@@ -189,7 +197,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-          <span>v398 · build 2026-07</span>
+          <span>v399 · build 2026-07</span>
           {(()=>{ const b=appEnvBadge(); return b ? <span style={{color:b.cor,border:`1px solid ${b.cor}`,borderRadius:4,padding:'0 5px',fontWeight:700,letterSpacing:0.3}}>{b.label}</span> : null })()}
         </div>
       </div>
