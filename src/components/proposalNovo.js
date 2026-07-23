@@ -221,7 +221,7 @@ body{font-family:'DM Sans',sans-serif;color:#0B1830;font-size:11px;line-height:1
 `
 
 export function buildProposalNovo(data, adminMode=false){
-  const { client_name, proposal_code, neighborhood, floors:_rawFloors=[], labor, date_str, planta_image } = data
+  const { client_name, proposal_code, neighborhood, floors:_rawFloors=[], labor, date_str, planta_image, hidePitch } = data
   // Recalcula o pitch de todo cômodo na geração — o pitch sempre bate com o cômodo + seus itens,
   // não importa o caminho (editor "Gerar Proposta" OU lista "Docs → Proposta para Clientes").
   const floors = ensurePitchesData(_rawFloors)
@@ -240,7 +240,7 @@ export function buildProposalNovo(data, adminMode=false){
       return `<tr><td class="it-nm">${i.name}</td><td class="it-cd">${i.code||''}</td><td class="it-qt">${qty}</td></tr>`
     }).join('')
     const items = rows ? `<table class="itbl">${rows}</table>` : ''
-    const pitch = (r.pitch && !adminMode) ? `<div class="room-pitch">${r.pitch}</div>` : ''
+    const pitch = (r.pitch && !adminMode && !hidePitch) ? `<div class="room-pitch">${r.pitch}</div>` : ''
     const catBadges = (()=>{
       const bc={}; (r.items||[]).filter(i=>i.name).forEach(i=>{ const c=i.category||'Outros'; bc[c]=(bc[c]||0)+(i.sale_price||0)*(parseInt(i.qty)||1) })
       const ent=Object.entries(bc).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])

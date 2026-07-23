@@ -715,6 +715,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
   const [cr, setCr] = useState(()=> (!editProposal && execSeed?.floors?.[0]?.rooms?.length) ? 0 : -1)
   const [catFilter, setCatFilter] = useState('all')
   const [hiddenCateg, setHiddenCateg] = useState(new Set()) // categories hidden from proposal output
+  const [hidePitch, setHidePitch] = useState(false) // (Raphael) ocultar os pitches (frases de venda) do PDF
   const [catSearch, setCatSearch] = useState('')
   const [editingItemPrice, setEditingItemPrice] = useState(null)
   const [showPIN, setShowPIN]   = useState(false)
@@ -1136,7 +1137,7 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
         proposal_code: previewCode,
         neighborhood: cl ? `${cl.neighborhood}${cl.city?', '+cl.city:''}` : '',
         date_str: new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),
-        floors: floorsForPdf, labor:baseLaborVisible, margin, itemFontSize:pdfFontSize,
+        floors: floorsForPdf, labor:baseLaborVisible, margin, itemFontSize:pdfFontSize, hidePitch,
         client_phone1: cl?.phone1, client_phone2: cl?.phone2,
         planta_image: (()=>{ const pd = plantaData || savedProposal?.planta_data; const o = typeof pd==='string'?(()=>{try{return JSON.parse(pd)}catch{return null}})():pd; return o?.image||null })()  // SÓ a do cliente; sem planta some o bloco
       }
@@ -1766,6 +1767,14 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
                   {cat}
                 </button>
               })}
+              <span style={{width:1,height:12,background:'var(--border)',margin:'0 2px',flexShrink:0}}/>
+              <button onClick={()=>{setHidePitch(v=>!v);setSaved(false)}}
+                title={hidePitch?'Mostrar os pitches (frases de venda) no PDF':'Ocultar os pitches (frases de venda) do PDF'}
+                style={{fontSize:8,padding:'0px 5px',borderRadius:6,border:'1px solid',cursor:'pointer',fontFamily:'inherit',lineHeight:'16px',
+                  borderColor:hidePitch?'#DC2626':'rgba(0,0,0,0.1)',background:hidePitch?'rgba(220,38,38,0.07)':'transparent',
+                  color:hidePitch?'#DC2626':'var(--text3)',textDecoration:hidePitch?'line-through':'none'}}>
+                Pitches
+              </button>
             </div>
           })()}
           <div className="room-list">
