@@ -1,5 +1,13 @@
 import { LOGO_MONO } from '../logos.js'
 import { brandName, brandSub, brandLogoMono, isDemo, appEnvBadge } from '../brand.js'
+// v400 — EXECUTIVO (Raphael): (Tabela de Portas) o DESTINO de um cabo de rede não é mais "Rack CPD"
+// (não significa nada) — passa a ser o PONTO de campo (keystone/câmera/AP + cômodo); uplink interno
+// do rack vira "Uplink → <gateway>". Origem sempre o equipamento do rack quando uma ponta é o rack,
+// mesmo com o cabo desenhado no sentido contrário. (Tópico 12) virou RESUMO ("Rede e Automação —
+// Resumo"): só panorama (SSIDs/VLANs + o que será configurado + ponteiro). Todo o detalhado (passo a
+// passo, menus, SSIDs, senhas, câmeras, cenas, "Configurações a fazer", testes) fica no documento
+// "Plano de Instalação" à parte — "Configurações a fazer" foi movida pra lá. Toggles mortos removidos
+// (t_cenas, tbl_seguranca). Base: v399.
 // v399 — EXECUTIVO (Raphael, refino do fim + limpezas): (1) removida a linha "~471m cabeamento"
 // da CAPA. (3) alças de edição da planta (⤢ redimensionar, ↻ girar) agora têm classe no-print —
 // nunca saem na impressão/PDF. (4) Cenas e Configurações saiu da Planta Elétrica e foi pro guia de
@@ -197,7 +205,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-          <span>v399 · build 2026-07</span>
+          <span>v400 · build 2026-07</span>
           {(()=>{ const b=appEnvBadge(); return b ? <span style={{color:b.cor,border:`1px solid ${b.cor}`,borderRadius:4,padding:'0 5px',fontWeight:700,letterSpacing:0.3}}>{b.label}</span> : null })()}
         </div>
       </div>

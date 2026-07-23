@@ -1439,7 +1439,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   // religa no seletor de tópicos do painel de PDF.
   // Nascem OCULTAS por padrão (Raphael): peças, Lista Geral de pontos elétricos, Caixas de embutir
   // (resumo) e a TABELA de itens no teto. Todas com botão pra desocultar no "Ocultar por tópico".
-  const [hideSecs, setHideSecs] = useState(()=>new Set(['t_pecas','lista_geral','caixas_embutir','tbl_teto_tab','checklist_ele','tbl_seguranca','metros','t_cenas','quadro_cargas','legenda_cabos']))  // seções fora do PDF (nascem ocultas, com botão de desocultar)
+  const [hideSecs, setHideSecs] = useState(()=>new Set(['t_pecas','lista_geral','caixas_embutir','tbl_teto_tab','checklist_ele','metros','quadro_cargas','legenda_cabos']))  // seções fora do PDF (nascem ocultas, com botão de desocultar)
   const secOff = k => hideSecs.has(k)
   const [pageOrient, setPageOrient] = useState('original') // orientação da PLANTA no documento: 'original' | 'paisagem' | 'retrato' — o app gira a imagem e converte pins/cabos
   const [rotBg, setRotBg] = useState(null) // planta girada 90° (gerada em canvas quando necessário)
@@ -2544,15 +2544,27 @@ Responda APENAS JSON válido:
     const rack_cable_table = cablesUnificados().filter(c=>!c.free && CABO_REDE.has(c.type)).map((c,i)=>{
       const from=markers.find(m=>m.uid===c.fromUid), to=markers.find(m=>m.uid===c.toUid)
       const mt=cableMeters(c)
-      // Se a ponta de origem é o rack, quem manda é o equipamento lá dentro; se o cabo sai de
-      // outro ponto (ex.: keystone → keystone), a origem é o próprio ponto.
-      const dev = (from && isRackItem(from.name||'', from.code||'')) ? _devPara(c.type) : (from?.name || _devPara(c.type))
+      const rackFrom = from && isRackItem(from.name||'', from.code||'')
+      const rackTo   = to   && isRackItem(to.name||'', to.code||'')
+      // ORIGEM = sempre o equipamento do rack (patch/switch/gateway) quando uma ponta é o rack;
+      // se o cabo sai de outro ponto (ex.: keystone → keystone), a origem é o próprio ponto.
+      const dev = (rackFrom||rackTo) ? _devPara(c.type) : (from?.name || _devPara(c.type))
       _portaSeq[dev] = (_portaSeq[dev]||0)+1
+      // DESTINO: um cabo de rede se conecta a um PONTO ou a uma PORTA — nunca ao "Rack CPD" (Raphael:
+      // "existe a possibilidade de se conectar em rack cpd? o que isso significa?"). Então:
+      //  • cabo campo↔rack  → destino = o PONTO de campo (keystone/câmera/AP) + cômodo;
+      //  • uplink interno (as duas pontas no rack) → descreve o ALVO do uplink (gateway/patch panel).
+      const campo = rackFrom ? to : (rackTo ? from : to)   // a ponta que NÃO é o rack
+      const uplinkInterno = rackFrom && rackTo
+      const alvoUp = uplinkInterno ? (_achaEq(/dream machine|\budm\b|cloud gateway|roteador|gateway de rede/) || _achaEq(/patch panel/)) : null
+      const destinoTxt = uplinkInterno
+        ? `Uplink → ${((alvoUp&&alvoUp.name)||'Dream Machine / Gateway')}`
+        : ((campo&&campo.name||'—') + (campo&&campo.room?` · ${campo.room}`:''))
       return { porta_patch:`P${String(i+1).padStart(2,'0')}`, device_origem:dev, porta_origem:String(_portaSeq[dev]),
-        destino:(to?.name||'—')+(c._via?` · ${c._via}`:''), tipo:(CABLE_SPEC[c.type]?.spec)||'CAT6',
+        destino:destinoTxt+(c._via?` · ${c._via}`:''), tipo:(CABLE_SPEC[c.type]?.spec)||'CAT6',
         metros: mt!=null?String(mt):'—',
-        destino_n: to?.n ?? null, destino_uid: to?.uid || null,
-        etiqueta:`${(to?.code||to?.name||'PT')}`.toUpperCase().slice(0,16), cor: CABO_COR[c.type]||'Roxo' }
+        destino_n: campo?.n ?? null, destino_uid: campo?.uid || null,
+        etiqueta:`${(campo?.code||campo?.name||'PT')}`.toUpperCase().slice(0,16), cor: CABO_COR[c.type]||'Roxo' }
     })
 
     // cabos de som → tabela_som (mesma estrutura que a IA gera, pra alimentar tblSom)
@@ -3208,34 +3220,16 @@ Responda APENAS JSON válido:
             <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
             <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
           </div>`).join('')}</div>`
-        // Reorganizado por CATEGORIA (Raphael): com tudo fisicamente instalado, o técnico configura
-        // etapa por etapa — Wi-Fi → Redes → Câmeras → Configurações a fazer. As credenciais entram
-        // MASCARADAS (folha à parte).
-        const bandasTbl = `<table style="width:100%;border-collapse:collapse">
-            <thead><tr><th ${thW}>Banda</th><th ${thW}>Alcance</th><th ${thW}>Velocidade</th><th ${thW}>Pra quê</th></tr></thead>
-            <tbody>
-              <tr><td ${tdW}><b>2,4 GHz</b></td><td ${tdW}>Maior (atravessa melhor paredes)</td><td ${tdW}>Menor</td><td ${tdW}>Automação, sensores, dispositivos distantes</td></tr>
-              <tr><td ${tdW}><b>5 GHz</b></td><td ${tdW}>Menor (sensível a paredes)</td><td ${tdW}>Maior</td><td ${tdW}>Streaming, videochamada, trabalho, jogos</td></tr>
-            </tbody>
-          </table>`
+        // RESUMO (Raphael): no executivo esse tópico é só um panorama de como a rede e a automação
+        // vão ficar. O passo a passo completo — menus, VLANs, SSIDs, senhas, câmeras, cenas e testes —
+        // fica no documento "Plano de Instalação", à parte. Não repetir aqui.
+        const nCam = markers.filter(m=>/c[âa]mera|camera|dome|bullet|nvr/.test(lc(m.name)) && !isRackItem(m.name,m.code)).length
+        const nKp = markers.filter(m=>/^interruptor/.test((classifyEle(m)||{}).sym||'')).length
+        const nAp = markers.filter(m=>/access point|\bap\b|u6|u7|unifi ap|antena/.test(lc(m.name))).length
         return `
-          <!-- 1 · WI-FI -->
-          <div style="break-inside:avoid;page-break-inside:avoid"><h3 class="ex-amb" style="margin-top:16px">Wi-Fi — melhores práticas e configurações</h3>
-          <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">Cobertura e roaming pela casa toda. Cada banda tem seu uso — separar bem é o que evita "cai a internet no quarto".</p>
-          ${bandasTbl}</div>
-          ${blocoEquipConfigHtml('wifi')}
-          <h3 class="ex-amb" style="margin-top:14px">Checklist de configuração — Wi-Fi</h3>
-          ${_ck([
-            'Nomear cada AP pelo cômodo, para manutenção futura.',
-            'Canais 2,4 GHz em 1, 6 ou 11 (largura 20 MHz), sem repetir entre APs vizinhos.',
-            'Potência ajustada ao ambiente — potência máxima gera interferência, não cobertura.',
-            'Band steering e fast roaming ligados: o cliente anda pela casa sem cair.',
-            'Wi-Fi 2,4 GHz habilitado onde houver automação — sensor não fala 5 GHz.',
-            'Testar cada SSID no cômodo mais distante; conferir que não há zona morta.',
-          ])}
-          <!-- 2 · REDES -->
-          <div style="break-inside:avoid;page-break-inside:avoid"><h3 class="ex-amb" style="margin-top:16px">Redes — melhores práticas e configurações</h3>
-          <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">Separar em VLANs impede que um dispositivo comprometido enxergue os outros. É o mesmo padrão em todas as casas.</p>
+          <p class="ex-p" style="margin-bottom:10px">Panorama de como a rede e a automação da casa vão ficar depois de tudo instalado. O <b>passo a passo completo</b> — menus de configuração, VLANs, SSIDs, senhas, câmeras, cenas, testes e entrega — está no documento <b>Plano de Instalação</b>, à parte.</p>
+          <h3 class="ex-amb">Como a rede vai ficar — SSIDs e VLANs</h3>
+          <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">Quatro redes separadas por VLAN: um dispositivo comprometido não enxerga os outros. É o mesmo padrão RARO em todas as casas.</p>
           <table style="width:100%;border-collapse:collapse">
             <thead><tr><th ${thW}>SSID</th><th ${thW}>VLAN</th><th ${thW}>Quem entra</th><th ${thW}>Por quê</th></tr></thead>
             <tbody>
@@ -3244,25 +3238,16 @@ Responda APENAS JSON válido:
               <tr><td ${tdW}><b>Câmeras</b></td><td ${tdW}>CFTV</td><td ${tdW}>Câmeras e NVR</td><td ${tdW}>Isolada da casa; o cliente acessa pelo app normalmente</td></tr>
               <tr><td ${tdW}><b>Guest</b></td><td ${tdW}>Visitante</td><td ${tdW}>Visitas</td><td ${tdW}>Só internet — não enxerga nada da casa</td></tr>
             </tbody>
-          </table></div>
-          <h3 class="ex-amb" style="margin-top:14px">Checklist de configuração — rede</h3>
+          </table>
+          <h3 class="ex-amb" style="margin-top:14px">O que será configurado</h3>
           ${_ck([
-            'Criar as 4 VLANs no gateway e amarrar cada SSID à sua VLAN.',
-            'Guest com <b>isolamento de cliente</b> ligado (visitante não vê visitante) e sem acesso às demais VLANs.',
-            'VLAN de câmeras <b>sem rota para as outras VLANs</b> da casa. A internet fica liberada: é por ela que o app do cliente funciona de fora.',
-            'Bloquear tráfego entre IoT e a VLAN principal, liberando só o necessário (cast, impressora).',
-            'Trocar a senha padrão do gateway e desligar administração pela WAN.',
-            'Firmware do gateway, switch e APs atualizado antes da entrega.',
-            'IP fixo (ou reserva DHCP) para gateway, switch, APs, NVR e câmeras.',
-            'Senha do Wi-Fi principal e do guest anotadas na Folha de Credenciais e entregues ao cliente.',
+            'Wi-Fi com cobertura na casa toda e <b>roaming</b> — o cliente anda pela casa sem cair a conexão.',
+            'Quatro redes por VLAN: Principal, IoT/Automação, Câmeras (CFTV) e Visitantes.',
+            `Câmeras isoladas da casa — o cliente vê pelo app de onde estiver; ninguém de fora entra.${nCam?` (${nCam} câmera${nCam>1?'s':''})`:''}`,
+            `Cenas nos keypads programadas por ambiente, 2 por tecla.${nKp?` (${nKp} keypad${nKp>1?'s':''})`:''}`,
+            'Senhas de fábrica trocadas e credenciais entregues ao cliente na Folha de Credenciais.',
           ])}
-          ${blocoEquipConfigHtml('rede')}
-          <!-- 3 · CÂMERAS -->
-          ${temCam ? `${(!secOff('tbl_seguranca')) ? `<h3 class="ex-amb" style="margin-top:16px">Segurança — Câmeras e Sensores</h3>${blocoSegurancaTbl()}` : ''}${blocoCamerasHtml(true)}` : ''}
-          <!-- 4 · CENAS E CONFIGURAÇÕES (veio do tópico 5 — Planta Elétrica — pro guia) -->
-          ${secOff('t_cenas')?'':blocoCenasHtml()}
-          <!-- 5 · CONFIGURAÇÕES A FAZER -->
-          ${blocoConfigFazerHtml()}`
+          <p class="ex-p" style="font-size:10px;color:#64748B;margin-top:10px">Passo a passo, menus a acessar, SSIDs, senhas e procedimento de teste: ver o documento <b>Plano de Instalação</b>.</p>`
     }
 
     // Tabela de câmeras/sensores montada AQUI (dos marcadores) — o tblSeguranca do template vive
@@ -3882,7 +3867,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
         // quem instala precisa das 3 coisas, não só das cenas (Raphael).
         `<div class="ex-obra-page" style="page-break-before:always">
           <h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">Configuração</h2>
-          ${blocoCenasHtml()}</div>`,
+          ${blocoCenasHtml()}${blocoConfigFazerHtml()}</div>`,
         // GUIA TÉCNICO PASSO A PASSO (Raphael) — só no Plano de Instalação, pra um terceiro
         // configurar do zero: VLANs, SSIDs, UniFi/owner, permissões, IoT externo, guest, sensores,
         // zigbee, som. Tailored pelo que existe no rack/projeto.
@@ -5230,7 +5215,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // GUIA DE CONFIGURAÇÃO E ENTREGA (Raphael): com tudo fisicamente instalado, o técnico configura
     // etapa por etapa sem se perder — Wi-Fi → Redes → Câmeras → Configurações a fazer. As Cenas
     // voltaram para a Planta Elétrica (ocultas por padrão). As senhas fecham o guia, MASCARADAS.
-    secOff('t_config') ? '' : cap('Plano de Instalação — configuração e entrega',true) + blocoRedeHtml() + '</div>',
+    secOff('t_config') ? '' : cap('Rede e Automação — Resumo',true) + blocoRedeHtml() + '</div>',
     secOff('t_senhas') ? '' : cap('Credenciais e Senhas',true) +
       `<p class="ex-p" style="margin-bottom:10px">Senhas <b>mascaradas</b> — referência de quais contas existem e quem é o dono. A versão em claro sai só na <b>Folha de Credenciais</b>, documento à parte, entregue em mão.</p>` +
       blocoCredenciaisHtml(false) + '</div>',
@@ -7938,7 +7923,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 {secTit('Ocultar por tópico — '+modo)}
                 <div style={{fontSize:10,color:'rgba(255,255,255,0.42)',marginBottom:7}}><b>Tópico</b> tira o título + planta + tabela. <b>Só tabela</b> mantém a planta. Riscado = fora. Só aparecem os tópicos <b>deste documento</b>.</div>
                 {(()=>{
-                  const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança — câmeras e sensores (oculto por padrão)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['metros','↳ Metros de cabeamento nas tabelas (oculto por padrão)'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','↳ Lista geral de pontos elétricos (oculta por padrão)'],['caixas_embutir','↳ Caixas de embutir — resumo (oculta por padrão)'],['checklist_ele','↳ Checklist elétrico (oculto por padrão)'],['quadro_cargas','↳ Quadro de cargas (oculto por padrão)'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto','tbl_teto_tab'],['t_conduites','Cabeamento e conduítes'],['legenda_cabos','↳ Legenda de cabos — Redes (oculta por padrão)'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos'],['t_config','Plano de Instalação — configuração e entrega'],['t_cenas','↳ Cenas e configurações (no guia, oculto por padrão)'],['t_senhas','Credenciais e senhas (mascaradas)']]
+                  const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['metros','↳ Metros de cabeamento nas tabelas (oculto por padrão)'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','↳ Lista geral de pontos elétricos (oculta por padrão)'],['caixas_embutir','↳ Caixas de embutir — resumo (oculta por padrão)'],['checklist_ele','↳ Checklist elétrico (oculto por padrão)'],['quadro_cargas','↳ Quadro de cargas (oculto por padrão)'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto','tbl_teto_tab'],['t_conduites','Cabeamento e conduítes'],['legenda_cabos','↳ Legenda de cabos — Redes (oculta por padrão)'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos'],['t_config','Rede e Automação — resumo'],['t_senhas','Credenciais e senhas (mascaradas)']]
                   const OBRA=[['t_obra_eletrica','1. Elétrica (caixas + alimentação)'],['lista_geral','↳ Lista geral de pontos elétricos'],['pontos_tabela','↳ Pontos elétricos — caixas e alturas'],['alim_keypads','↳ Alimentação dos keypads'],['t_quant','2. Quantitativo de material'],['t_cabos','3. Cabeamento por família'],['t_checklists','4. Checklists de obra']]
                   const ELE=[['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','Lista geral de pontos elétricos'],['caixas_embutir','Caixas de embutir — resumo'],['quadro_cargas','Quadro de cargas'],['checklist_ele','Checklist elétrico']]
                   const COND=[['t_conduites','Cabeamento e conduítes'],['t_cabos','Cabeamento por família']]
@@ -8072,7 +8057,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <span style={{fontSize:12,color:'#fff',fontWeight:600,display:'block'}}>Ocultar do documento — por tópico</span>
                     <span style={{fontSize:10,color:'rgba(255,255,255,0.42)',display:'block',margin:'2px 0 7px'}}><b>Tópico</b> tira o título + planta + tabela. <b>Só tabela</b> mantém a planta. Riscado = fora.</span>
                     {(()=>{
-                      const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança — câmeras e sensores (oculto por padrão)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['metros','↳ Metros de cabeamento nas tabelas (oculto por padrão)'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','↳ Lista geral de pontos elétricos (oculta por padrão)'],['caixas_embutir','↳ Caixas de embutir — resumo (oculta por padrão)'],['checklist_ele','↳ Checklist elétrico (oculto por padrão)'],['quadro_cargas','↳ Quadro de cargas (oculto por padrão)'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto','tbl_teto_tab'],['t_conduites','Cabeamento e conduítes'],['legenda_cabos','↳ Legenda de cabos — Redes (oculta por padrão)'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos'],['t_config','Plano de Instalação — configuração e entrega'],['t_cenas','↳ Cenas e configurações (no guia, oculto por padrão)'],['t_senhas','Credenciais e senhas (mascaradas)']]
+                      const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['metros','↳ Metros de cabeamento nas tabelas (oculto por padrão)'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','↳ Lista geral de pontos elétricos (oculta por padrão)'],['caixas_embutir','↳ Caixas de embutir — resumo (oculta por padrão)'],['checklist_ele','↳ Checklist elétrico (oculto por padrão)'],['quadro_cargas','↳ Quadro de cargas (oculto por padrão)'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto','tbl_teto_tab'],['t_conduites','Cabeamento e conduítes'],['legenda_cabos','↳ Legenda de cabos — Redes (oculta por padrão)'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos'],['t_config','Rede e Automação — resumo'],['t_senhas','Credenciais e senhas (mascaradas)']]
                       const OBRA=[['t_obra_eletrica','1. Elétrica (caixas + alimentação)'],['lista_geral','↳ Lista geral de pontos elétricos'],['pontos_tabela','↳ Pontos elétricos — caixas e alturas'],['alim_keypads','↳ Alimentação dos keypads'],['t_quant','2. Quantitativo de material'],['t_cabos','3. Cabeamento por família'],['t_checklists','4. Checklists de obra']]
                       const allKeys=[...EXEC,...OBRA].map(t=>t[0])
                       const off=k=>hideSecs.has(k)
