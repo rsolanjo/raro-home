@@ -2335,6 +2335,8 @@ Responda APENAS JSON válido:
       })
       const novo={ id:novoId, free:true, type:conduitType, color:CABLE_PALETTE[conduitType],
         conduiteId,
+        floorId:activeFloorId,   // prende o conduíte NO pavimento onde foi desenhado (Raphael):
+                                 // sem isso ele "flutuava" pro pavimento ativo (bug de sumir).
         points:ptsComIntermedios,
         fromCaixaUid: primeiro.caixaUid||undefined,
         toCaixaUid: ultimo.caixaUid||undefined,

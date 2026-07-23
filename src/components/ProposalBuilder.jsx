@@ -1559,6 +1559,10 @@ export default function ProposalBuilder({ clients, onRefresh, onSaved, editPropo
               title="Comparar o rascunho da visita com o oficial">
               <i className="ti ti-arrows-diff" aria-hidden/>Comparar e aplicar
             </button>
+            <button className="btn" style={{gap:6,color:'#B91C1C',borderColor:'#DC2626'}} onClick={descartarVisita}
+              title="Descartar o rascunho da visita — volta pro oficial e libera o Salvar">
+              <i className="ti ti-trash" aria-hidden/>Descartar visita
+            </button>
           </>)}
           {emVisita && (<>
             <button className="btn primary" style={{gap:6}} onClick={abrirMerge}>

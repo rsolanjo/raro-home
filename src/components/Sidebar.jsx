@@ -1,5 +1,7 @@
 import { LOGO_MONO } from '../logos.js'
 import { brandName, brandSub, brandLogoMono, isDemo, appEnvBadge } from '../brand.js'
+// v394 — CONDUÍTE preso ao pavimento (Raphael: conduíte tem que ficar no pavimento onde foi desenhado). BUG: finishConduit não gravava floorId no conduíte; no multi-pavimento o filtro caía em (c.floorId||activeFloorId), então conduíte sem floorId "flutuava" pro pavimento ATIVO — parecia sumir/trocar de andar. FIX: ao desenhar, o conduíte já nasce com floorId:activeFloorId (igual aos marcadores). Base: v393.
+// v393 — VISITA: botão "Descartar visita" no estado PENDENTE (Raphael: "quero cancelar a visita e não consigo"). Antes o Descartar só aparecia DENTRO da visita; com a visita pendente (não aplicada), só tinha Retomar/Comparar — sem como cancelar, e o Salvar ficava travado. Agora, com visita pendente, aparece "Descartar visita" (confirma, apaga o rascunho, volta pro oficial e libera o Salvar). Chama descartarVisita. Base: v392.
 // v392 — SALVAR PROPOSTA: confere no banco ANTES do "Salvo ✓" (Raphael: "confere se está salvo mesmo"). Depois do saveProposal, relê a proposta do banco (verifyProposalSaved — só campos leves, sem os blobs) e compara a CONTAGEM DE ITENS com o que ia salvar. Só mostra "Salvo e confirmado no banco · N itens ✓" se bater. Se não conseguir reler ou a contagem não bater, mostra erro (não afirma que salvou). Base: v391.
 // v391 — SALVAR PROPOSTA: confirmação clara (Raphael clicou 3x sem saber se salvou). No modal de salvar, agora aparece um banner: VERDE "Proposta salva com sucesso!" (fecha sozinho em 1,4s) ou VERMELHO "Não salvou — <motivo>" (fica na tela, com o botão virando "Tentar de novo"). O botão mostra "Salvando…" enquanto grava e "Salvo ✓" no sucesso. Erro não é mais alert que some; timeout do banco tem mensagem amigável. Base: v390.
 // v390 — SAVE LEVE: corta o timeout do banco ao salvar (Raphael perdeu edições com "canceling statement due to statement timeout"). CAUSA: o histórico de VERSÕES guardava, em cada snapshot, cópia do exec_doc + planta_data — que têm as imagens da planta em base64. Com 3 versões + a linha atual, a linha do orçamento inchava (vários MB repetidos) e o UPDATE estourava o statement_timeout. FIX: o snapshot de versão agora guarda só itens/preços (floors, labor, grand_total) — sem exec_doc nem planta_data; e as versões ANTIGAS são enxugadas na hora de salvar (nos dois caminhos: ProposalBuilder e o "Salvar no orçamento" do Executivo). A planta e os documentos ATUAIS continuam nas suas colunas; só o histórico deixou de duplicar os blobs. Carregar versão antiga mantém a planta atual (versões são de itens/preços). Base: v389.
@@ -174,7 +176,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-          <span>v392 · build 2026-07</span>
+          <span>v394 · build 2026-07</span>
           {(()=>{ const b=appEnvBadge(); return b ? <span style={{color:b.cor,border:`1px solid ${b.cor}`,borderRadius:4,padding:'0 5px',fontWeight:700,letterSpacing:0.3}}>{b.label}</span> : null })()}
         </div>
       </div>
