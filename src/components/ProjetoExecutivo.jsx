@@ -1333,6 +1333,37 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   const [filterItem, setFilterItem] = useState('')            // filtra mapa por nome de item (resumo)
   const [showRackModal, setShowRackModal] = useState(false)
   const [showFloorsModal, setShowFloorsModal] = useState(false)
+  const [showConferir, setShowConferir] = useState(false) // Conferir Proposta × Executivo (Raphael)
+  // Compara os ITENS DA PROPOSTA (fromProposal.floors) com os PONTOS DO EXECUTIVO (markers).
+  // Chave = cômodo + código (sem código → nome). Qtd na proposta = item.qty; no executivo = nº de
+  // pontos daquele código no cômodo. Itens de RACK/CPD não são pontos: comparam pela lista do rack
+  // (rackEquip), sob o cômodo "Rack/CPD". Só LEITURA — não altera nada (Fase 1). Raphael.
+  function comparaPropostaExec(){
+    const _n = s => String(s==null?'':s).trim().toLowerCase()
+    const _key = (room, code, name) => room+'|'+(_n(code)||_n(name))
+    const flrs = (()=>{ let f=fromProposal?.floors; if(typeof f==='string'){try{f=JSON.parse(f)}catch{f=[]}} return Array.isArray(f)?f:[] })()
+    const prop=new Map(), exec=new Map()
+    const add=(map,room,code,name,qtd)=>{ const k=_key(_n(room),code,name); const c=map.get(k)||{room:room||'—',code:code||'',name:name,qty:0}; c.qty+=qtd; if(!c.name&&name)c.name=name; map.set(k,c) }
+    // Proposta: item de rack cai no balde "rack"; os demais no cômodo deles.
+    flrs.forEach(fl=>(fl.rooms||[]).forEach(r=>(r.items||[]).forEach(it=>{
+      if(!it||!it.name) return
+      const rack=isRackItem(it.name,it.code)
+      add(prop, rack?'Rack/CPD':(r.name||'—'), it.code, it.name, parseInt(it.qty)||1)
+    })))
+    // Executivo: pontos (não-rack) por cômodo; itens do rack pela lista rackEquip.
+    ;(markers||[]).forEach(m=>{ if(isRackItem(m.name,m.code)) return; add(exec, m.room||'—', m.code, m.name, 1) })
+    const rackMk=(markers||[]).find(m=>isRackItem(m.name,m.code))
+    ;(rackMk?.rackEquip||[]).forEach(e=>{ const nm=(e.name||e.equip||'').trim(); if(nm) add(exec,'Rack/CPD',e.code,nm,Number(e.qty)||1) })
+    // Diff
+    const soProp=[], soExec=[], qtdDif=[]
+    prop.forEach((p,k)=>{ const e=exec.get(k)
+      if(!e) soProp.push(p)
+      else if(e.qty!==p.qty) qtdDif.push({room:p.room,code:p.code,name:p.name,proposta:p.qty,executivo:e.qty}) })
+    exec.forEach((e,k)=>{ if(!prop.has(k)) soExec.push(e) })
+    const ordena=a=>a.sort((x,y)=>String(x.room).localeCompare(String(y.room))||String(x.name).localeCompare(String(y.name)))
+    return { soProp:ordena(soProp), soExec:ordena(soExec), qtdDif:ordena(qtdDif),
+      total: soProp.length+soExec.length+qtdDif.length, temProposta: flrs.length>0 }
+  }
   const [showSplit, setShowSplit] = useState(false)   // painel "dividir planta em pavimentos"
   const [splitDir, setSplitDir]   = useState('h')      // 'h' = um andar em cima do outro · 'v' = lado a lado
   const [splitAt, setSplitAt]     = useState(50)       // onde cortar, em % da imagem
@@ -7563,9 +7594,44 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             <i className="ti ti-refresh" aria-hidden/> Regerar sem IA
           </button>
           {(fromProposal?.id || onSaveToProposal) && <button onClick={saveToProposal} disabled={loading} style={{...btnGhost,borderColor:'rgba(56,189,248,0.4)',color:'#38BDF8',gap:6}} title="Grava o documento no orçamento. É uma ação separada do download, e só ela toca o banco."><i className="ti ti-device-floppy" aria-hidden/> Salvar no orçamento</button>}
+          {fromProposal && <button onClick={()=>setShowConferir(true)} style={{...btnGhost,borderColor:'rgba(245,158,11,0.5)',color:'#FCD34D',gap:6}} title="Compara os itens da proposta com os pontos da planta e mostra as inconsistências (só leitura)."><i className="ti ti-git-compare" aria-hidden/> Conferir Proposta × Executivo</button>}
           <button onClick={()=>setShowDocEditor(true)} style={btnPrimary} title="Abre o editor do documento: planta como objeto, ocultar plantas/tabelas, filtros — e baixar o PDF."><i className="ti ti-edit" aria-hidden/> Editor do documento ({execMode==='obra'?'Obra':execMode==='eletrica'?'Elétrica':execMode==='conduites'?'Conduítes':execMode==='instalacao'?'Instalação':'Completo'})</button>
         </div>
       )}
+      {showConferir && (()=>{
+        const cmp = comparaPropostaExec()
+        const cardSt = cor => ({border:`1px solid ${cor}44`,borderLeft:`3px solid ${cor}`,borderRadius:8,background:`${cor}12`,padding:'8px 12px',marginBottom:8})
+        const rowSt = {display:'flex',justifyContent:'space-between',gap:12,fontSize:12,padding:'3px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}
+        const secTit = (cor,txt,n) => <div style={{display:'flex',alignItems:'center',gap:8,margin:'14px 0 6px'}}><span style={{width:9,height:9,borderRadius:2,background:cor,display:'inline-block'}}/><span style={{fontSize:12.5,fontWeight:700,color:'#E2E8F0'}}>{txt}</span><span style={{fontSize:11,color:'#94A3B8'}}>({n})</span></div>
+        const nomeCod = x => <span><b style={{color:'#E2E8F0'}}>{x.name}</b>{x.code?<span style={{color:'#64748B',fontFamily:'monospace',fontSize:10.5,marginLeft:6}}>{x.code}</span>:''}</span>
+        return <div onClick={()=>setShowConferir(false)} style={{position:'fixed',inset:0,background:'rgba(3,10,20,0.82)',zIndex:3200,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#0F172A',border:'1px solid rgba(255,255,255,0.12)',borderRadius:14,width:'min(760px,96vw)',maxHeight:'90vh',display:'flex',flexDirection:'column',color:'#E2E8F0',fontFamily:'inherit',overflow:'hidden'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 18px',borderBottom:'1px solid rgba(255,255,255,0.1)',flexShrink:0}}>
+              <div><div style={{fontSize:15,fontWeight:700}}>Conferir Proposta × Executivo</div><div style={{fontSize:10.5,color:'#94A3B8'}}>Itens da proposta × pontos na planta. Só leitura — não altera nada.</div></div>
+              <button onClick={()=>setShowConferir(false)} style={{background:'none',border:'none',color:'#94A3B8',fontSize:24,cursor:'pointer',lineHeight:1}}>×</button>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'6px 18px 18px'}}>
+              {!cmp.temProposta
+                ? <div style={{padding:'24px 0',textAlign:'center',color:'#94A3B8',fontSize:13}}>Este executivo não está ligado a uma proposta com itens.</div>
+                : cmp.total===0
+                ? <div style={{margin:'18px 0',padding:'16px',borderRadius:10,border:'1px solid #16A34A55',background:'#16A34A18',color:'#86EFAC',fontSize:13,fontWeight:600,textAlign:'center'}}><i className="ti ti-circle-check" aria-hidden style={{marginRight:6}}/>Tudo batendo — a planta reflete exatamente a proposta.</div>
+                : <>
+                  <div style={{margin:'10px 0 4px',fontSize:12.5,color:'#FCD34D',fontWeight:600}}>{cmp.total} inconsistência{cmp.total>1?'s':''} encontrada{cmp.total>1?'s':''}</div>
+                  {cmp.soProp.length>0 && <div style={cardSt('#DC2626')}>{secTit('#DC2626','Só na proposta — item que NÃO virou ponto na planta',cmp.soProp.length)}
+                    {cmp.soProp.map((x,i)=><div key={i} style={rowSt}><span style={{color:'#94A3B8'}}>{x.room}</span>{nomeCod(x)}<b style={{color:'#FCA5A5'}}>×{x.qty}</b></div>)}</div>}
+                  {cmp.soExec.length>0 && <div style={cardSt('#F59E0B')}>{secTit('#F59E0B','Só no executivo — ponto na planta SEM item na proposta',cmp.soExec.length)}
+                    {cmp.soExec.map((x,i)=><div key={i} style={rowSt}><span style={{color:'#94A3B8'}}>{x.room}</span>{nomeCod(x)}<b style={{color:'#FCD34D'}}>×{x.qty}</b></div>)}</div>}
+                  {cmp.qtdDif.length>0 && <div style={cardSt('#0EA5E9')}>{secTit('#0EA5E9','Quantidade diferente',cmp.qtdDif.length)}
+                    {cmp.qtdDif.map((x,i)=><div key={i} style={rowSt}><span style={{color:'#94A3B8'}}>{x.room}</span>{nomeCod(x)}<span style={{whiteSpace:'nowrap'}}>proposta <b style={{color:'#FCA5A5'}}>{x.proposta}</b> · planta <b style={{color:'#7DD3FC'}}>{x.executivo}</b></span></div>)}</div>}
+                </>}
+            </div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 18px',borderTop:'1px solid rgba(255,255,255,0.1)',flexShrink:0}}>
+              <span style={{fontSize:10.5,color:'#64748B'}}>Sincronizar (escolher master + ajuste fino) vem na Fase 2.</span>
+              <button onClick={()=>setShowConferir(false)} style={btnGhost}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      })()}
       {showDocEditor && (()=>{
         const famList=['dados','som','eletrica','hdmi','uplink','fibra']
         const catList=[...new Set(markers.map(m=>equipType(m.name)))].sort()
