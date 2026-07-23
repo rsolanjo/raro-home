@@ -3223,9 +3223,10 @@ Responda APENAS JSON válido:
         // RESUMO (Raphael): no executivo esse tópico é só um panorama de como a rede e a automação
         // vão ficar. O passo a passo completo — menus, VLANs, SSIDs, senhas, câmeras, cenas e testes —
         // fica no documento "Plano de Instalação", à parte. Não repetir aqui.
-        const nCam = markers.filter(m=>/c[âa]mera|camera|dome|bullet|nvr/.test(lc(m.name)) && !isRackItem(m.name,m.code)).length
+        // minúsculo LOCAL: o helper lc() vive em outro escopo e não alcança aqui (era o "lc is not defined").
+        const _lc = s => String(s||'').toLowerCase()
+        const nCam = markers.filter(m=>/c[âa]mera|camera|dome|bullet|nvr/.test(_lc(m.name)) && !isRackItem(m.name,m.code)).length
         const nKp = markers.filter(m=>/^interruptor/.test((classifyEle(m)||{}).sym||'')).length
-        const nAp = markers.filter(m=>/access point|\bap\b|u6|u7|unifi ap|antena/.test(lc(m.name))).length
         return `
           <p class="ex-p" style="margin-bottom:10px">Panorama de como a rede e a automação da casa vão ficar depois de tudo instalado. O <b>passo a passo completo</b> — menus de configuração, VLANs, SSIDs, senhas, câmeras, cenas, testes e entrega — está no documento <b>Plano de Instalação</b>, à parte.</p>
           <h3 class="ex-amb">Como a rede vai ficar — SSIDs e VLANs</h3>

@@ -1,5 +1,10 @@
 import { LOGO_MONO } from '../logos.js'
 import { brandName, brandSub, brandLogoMono, isDemo, appEnvBadge } from '../brand.js'
+// v401 — FIX (Raphael): "Não consegui gerar o documento sem IA: lc is not defined" ao gerar o
+// Projeto Executivo. CAUSA: na v400 o resumo do tópico 12 (blocoRedeHtml) chamava lc(), helper que
+// vive em OUTRO escopo (linha ~2478) e não alcança essa função. FIX: minúsculo local (_lc) dentro do
+// próprio bloco; removida a contagem de APs que não era usada. Nota: o esbuild valida sintaxe, não
+// escopo — por isso passou na checagem. Base: v400.
 // v400 — EXECUTIVO (Raphael): (Tabela de Portas) o DESTINO de um cabo de rede não é mais "Rack CPD"
 // (não significa nada) — passa a ser o PONTO de campo (keystone/câmera/AP + cômodo); uplink interno
 // do rack vira "Uplink → <gateway>". Origem sempre o equipamento do rack quando uma ponta é o rack,
@@ -205,7 +210,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-          <span>v400 · build 2026-07</span>
+          <span>v401 · build 2026-07</span>
           {(()=>{ const b=appEnvBadge(); return b ? <span style={{color:b.cor,border:`1px solid ${b.cor}`,borderRadius:4,padding:'0 5px',fontWeight:700,letterSpacing:0.3}}>{b.label}</span> : null })()}
         </div>
       </div>
