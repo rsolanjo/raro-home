@@ -1,5 +1,15 @@
 import { LOGO_MONO } from '../logos.js'
 import { brandName, brandSub, brandLogoMono, isDemo, appEnvBadge } from '../brand.js'
+// v398 — EXECUTIVO (Raphael, reestrutura do fim + hides + fixes): (1) tabela de portas do rack
+// travada na página (table-layout:fixed + wrap) — não estoura mais a margem direita. (2) nascem
+// OCULTOS com botão de desocultar: Checklist Elétrico (checklist_ele), Segurança — Câmeras e
+// Sensores (tbl_seguranca) e os METROS de cabeamento em todas as tabelas (toggle 'metros', via
+// classe .ex-m no th+td). (3) FIM do documento reorganizado: Fotos do Diário → depois vem o guia
+// "Plano de Instalação — configuração e entrega" reorganizado POR CATEGORIA (Wi-Fi → Redes →
+// Câmeras → Configurações a fazer, que subiu de baixo das Cenas) → Credenciais e Senhas. (4) Cenas
+// e Configurações VOLTOU para dentro da Planta Elétrica, oculta por padrão (t_cenas). (5) removido
+// o que duplicava: Rack/CPD do anexo de obra, folha-parede "PLANTA COMPLETA — MAPA DE PONTOS" e o
+// anexo "Plano de Instalação" (o corpo já tem o guia). Base: v397.
 // v397 — EXECUTIVO (Raphael, 3 pedidos): (#4) tabela de itens no teto, "Lista Geral — Todos os Pontos Elétricos" e "Caixas de Embutir — Resumo" JÁ NASCEM OCULTAS, com botão de desocultar (hideSecs inicial + toggles nos dois drawers; teto continua visível no Plano de Obra/Compacta via guarda !isObra). (#3) legenda elétrica do executivo agora usa o MESMO card ABNT do Plano de Obra (legendaLateralEletricaHtml — "Legenda ABNT" com símbolo + tipo ×qtd), com fallback à legenda completa. (#2) "Configurações e Melhores Práticas" movida para o FIM do doc, antes do tópico 10, seguida de "Cenas e Configurações", "Configurações a fazer" e a página de "Credenciais e Senhas" (mascaradas) — cada uma com seu botão de ocultar (t_config/t_cenas/t_senhas); removida a duplicação de credenciais. Base: v396.
 // v396 — REDE: câmeras/APs saíam do GATEWAY ZIGBEE em vez do Dream Machine (Raphael, confirmado ao vivo no Elton — patch panel: "P11 Gateway → Câmera Dome G5"). CAUSA: em _devPara, o hub de rede era gw=_achaEq(/dream machine|udm|gateway|roteador/) — o regex casava "gateway" e pegava o "Gateway Automção" (Zigbee) antes do Dream Machine. FIX: gw agora é o roteador/gateway de REDE, EXCLUINDO gateways zigbee/matter/tuya/automação (!/zigbee|matter|tuya|autom/). Assim câmera e AP (PoE) saem do Dream Machine / Switch PoE, nunca do gateway Zigbee — no mapa de portas e na origem das tabelas. Base: v395.
 // v395 — PROJETO EXECUTIVO: quebras de página das tabelas de configuração (Raphael: "não estão legais"). (1) Antes só a tabela .ex-tbl tinha proteção; as tabelas CRUAS das seções de config (SSID/VLAN, bandas Wi-Fi) não repetiam cabeçalho ao quebrar. Agora TODA tabela: linha não fatia + cabeçalho (thead) repete na página nova. (2) Embrulhei os blocos curtos "Padrão de rede RARO — SSIDs e VLANs" e "Como ler a sua rede Wi-Fi" em containers break-inside:avoid, pra o título não ficar órfão no fim da página com a tabela cortada — o bloco inteiro desce junto pra próxima folha. Base: v394.
@@ -179,7 +189,7 @@ export default function Sidebar({ active, onNav, counts, user, onLogout, onAreaC
           <i className="ti ti-logout" style={{fontSize:13}} aria-hidden />Sair
         </button>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginTop:8,fontFamily:'monospace',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-          <span>v397 · build 2026-07</span>
+          <span>v398 · build 2026-07</span>
           {(()=>{ const b=appEnvBadge(); return b ? <span style={{color:b.cor,border:`1px solid ${b.cor}`,borderRadius:4,padding:'0 5px',fontWeight:700,letterSpacing:0.3}}>{b.label}</span> : null })()}
         </div>
       </div>

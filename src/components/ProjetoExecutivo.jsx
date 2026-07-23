@@ -1439,7 +1439,7 @@ function ProjetoExecutivoInner({ catalog=[], clients=[], preClient, fromProposal
   // religa no seletor de tópicos do painel de PDF.
   // Nascem OCULTAS por padrão (Raphael): peças, Lista Geral de pontos elétricos, Caixas de embutir
   // (resumo) e a TABELA de itens no teto. Todas com botão pra desocultar no "Ocultar por tópico".
-  const [hideSecs, setHideSecs] = useState(()=>new Set(['t_pecas','lista_geral','caixas_embutir','tbl_teto_tab']))  // seções fora do PDF
+  const [hideSecs, setHideSecs] = useState(()=>new Set(['t_pecas','lista_geral','caixas_embutir','tbl_teto_tab','checklist_ele','tbl_seguranca','metros','t_cenas']))  // seções fora do PDF (nascem ocultas, com botão de desocultar)
   const secOff = k => hideSecs.has(k)
   const [pageOrient, setPageOrient] = useState('original') // orientação da PLANTA no documento: 'original' | 'paisagem' | 'retrato' — o app gira a imagem e converte pins/cabos
   const [rotBg, setRotBg] = useState(null) // planta girada 90° (gerada em canvas quando necessário)
@@ -3102,8 +3102,8 @@ Responda APENAS JSON válido:
         ${(secOff('lista_geral')||secOff('t_eletrica_tab'))?'':`<h3 class="ex-amb" style="margin-top:18px">Lista Geral — Todos os Pontos Elétricos</h3>${listaGeral}`}
         ${(isObra||secOff('caixas_embutir')||secOff('t_eletrica_tab'))?'':cxResumo}
         ${(isObra||secOff('quadro_cargas')||secOff('t_eletrica_tab'))?'':`<h3 class="ex-amb" style="margin-top:16px">Quadro de Cargas — estimativa por cômodo</h3>${cargaTbl}`}
-        <h3 class="ex-amb" style="margin-top:16px">Checklist Elétrico</h3>${checklistEle}
-        ${(isObra||(opts&&opts.semCenas))?'':blocoCenasHtml()}
+        ${secOff('checklist_ele')?'':`<h3 class="ex-amb" style="margin-top:16px">Checklist Elétrico</h3>${checklistEle}`}
+        ${(isObra||secOff('t_cenas'))?'':blocoCenasHtml()}
       </div>`
     }
 
@@ -3167,8 +3167,18 @@ Responda APENAS JSON válido:
             <b>${totalTeclas*2} cenas a definir</b> — cada tecla comporta 2 (é sempre o dobro). Preencha com o cliente; cena em branco é tecla que não faz nada.
           </div>
         </div>
-        ${blocosComodo}
-        <h3 class="ex-amb" style="margin-top:14px">Configurações a fazer</h3>
+        ${blocosComodo}`
+    }
+    // "Configurações a fazer" — saiu de baixo das Cenas e subiu para o guia de configuração
+    // (Plano de Instalação — configuração e entrega). É a lista do que ajustar no app depois de
+    // tudo fisicamente instalado (Raphael).
+    function blocoConfigFazerHtml(){
+      const _ckc = (itens=[]) => `<div style="display:flex;flex-direction:column;gap:0">${itens.map(it=>`
+        <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
+          <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
+          <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
+        </div>`).join('')}</div>`
+      return `<h3 class="ex-amb" style="margin-top:16px">Configurações a fazer</h3>
         ${_ckc([
           'Nomear cada dispositivo pelo cômodo no app — nome genérico vira suporte eterno.',
           'Agrupar por ambiente (Estar, Suíte…) para comando por voz e por cômodo.',
@@ -3199,7 +3209,33 @@ Responda APENAS JSON válido:
             <span style="flex-shrink:0;width:15px;height:15px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
             <span style="font-size:11px;line-height:1.45;color:#1F2937">${it}</span>
           </div>`).join('')}</div>`
-        return `<div style="break-inside:avoid;page-break-inside:avoid"><h3 class="ex-amb" style="margin-top:16px">Padrão de rede RARO — SSIDs e VLANs</h3>
+        // Reorganizado por CATEGORIA (Raphael): com tudo fisicamente instalado, o técnico configura
+        // etapa por etapa — Wi-Fi → Redes → Câmeras → Configurações a fazer. As credenciais entram
+        // MASCARADAS (folha à parte).
+        const bandasTbl = `<table style="width:100%;border-collapse:collapse">
+            <thead><tr><th ${thW}>Banda</th><th ${thW}>Alcance</th><th ${thW}>Velocidade</th><th ${thW}>Pra quê</th></tr></thead>
+            <tbody>
+              <tr><td ${tdW}><b>2,4 GHz</b></td><td ${tdW}>Maior (atravessa melhor paredes)</td><td ${tdW}>Menor</td><td ${tdW}>Automação, sensores, dispositivos distantes</td></tr>
+              <tr><td ${tdW}><b>5 GHz</b></td><td ${tdW}>Menor (sensível a paredes)</td><td ${tdW}>Maior</td><td ${tdW}>Streaming, videochamada, trabalho, jogos</td></tr>
+            </tbody>
+          </table>`
+        return `
+          <!-- 1 · WI-FI -->
+          <div style="break-inside:avoid;page-break-inside:avoid"><h3 class="ex-amb" style="margin-top:16px">Wi-Fi — melhores práticas e configurações</h3>
+          <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">Cobertura e roaming pela casa toda. Cada banda tem seu uso — separar bem é o que evita "cai a internet no quarto".</p>
+          ${bandasTbl}</div>
+          ${blocoEquipConfigHtml('wifi')}
+          <h3 class="ex-amb" style="margin-top:14px">Checklist de configuração — Wi-Fi</h3>
+          ${_ck([
+            'Nomear cada AP pelo cômodo, para manutenção futura.',
+            'Canais 2,4 GHz em 1, 6 ou 11 (largura 20 MHz), sem repetir entre APs vizinhos.',
+            'Potência ajustada ao ambiente — potência máxima gera interferência, não cobertura.',
+            'Band steering e fast roaming ligados: o cliente anda pela casa sem cair.',
+            'Wi-Fi 2,4 GHz habilitado onde houver automação — sensor não fala 5 GHz.',
+            'Testar cada SSID no cômodo mais distante; conferir que não há zona morta.',
+          ])}
+          <!-- 2 · REDES -->
+          <div style="break-inside:avoid;page-break-inside:avoid"><h3 class="ex-amb" style="margin-top:16px">Redes — melhores práticas e configurações</h3>
           <p class="ex-p" style="font-size:10px;color:#64748B;margin:-2px 0 8px">Separar em VLANs impede que um dispositivo comprometido enxergue os outros. É o mesmo padrão em todas as casas.</p>
           <table style="width:100%;border-collapse:collapse">
             <thead><tr><th ${thW}>SSID</th><th ${thW}>VLAN</th><th ${thW}>Quem entra</th><th ${thW}>Por quê</th></tr></thead>
@@ -3219,13 +3255,13 @@ Responda APENAS JSON válido:
             'Trocar a senha padrão do gateway e desligar administração pela WAN.',
             'Firmware do gateway, switch e APs atualizado antes da entrega.',
             'IP fixo (ou reserva DHCP) para gateway, switch, APs, NVR e câmeras.',
-            'Nomear cada AP pelo cômodo, para manutenção futura.',
-            'Wi-Fi 2,4 GHz habilitado onde houver automação — sensor não fala 5 GHz.',
             'Senha do Wi-Fi principal e do guest anotadas na Folha de Credenciais e entregues ao cliente.',
           ])}
-          ${blocoEquipConfigHtml()}
-          ${(!secOff('tbl_seguranca') && temCam) ? `<h3 class="ex-amb" style="margin-top:16px">Segurança — Câmeras e Sensores</h3>${blocoSegurancaTbl()}` : ''}
-          ${blocoCamerasHtml(true)}`
+          ${blocoEquipConfigHtml('rede')}
+          <!-- 3 · CÂMERAS -->
+          ${temCam ? `${(!secOff('tbl_seguranca')) ? `<h3 class="ex-amb" style="margin-top:16px">Segurança — Câmeras e Sensores</h3>${blocoSegurancaTbl()}` : ''}${blocoCamerasHtml(true)}` : ''}
+          <!-- 4 · CONFIGURAÇÕES A FAZER -->
+          ${blocoConfigFazerHtml()}`
     }
 
     // Tabela de câmeras/sensores montada AQUI (dos marcadores) — o tblSeguranca do template vive
@@ -3239,7 +3275,7 @@ Responda APENAS JSON válido:
 
     // ── CONFIGURAÇÃO E BOAS PRÁTICAS DOS EQUIPAMENTOS (Raphael) — UDM, switch, antenas, câmeras ──
     // Só entra o que existe no projeto (rack + marcadores). É o padrão RARO, igual em toda casa.
-    function blocoEquipConfigHtml(){
+    function blocoEquipConfigHtml(cat){  // cat: 'wifi' (só APs) | 'rede' (UDM+Switch) | undefined (tudo)
       const _ck = (itens=[]) => `<div style="display:flex;flex-direction:column;gap:0">${itens.map(it=>`
         <div style="display:flex;align-items:flex-start;gap:9px;padding:6px 4px;border-bottom:1px solid #E5E7EB;break-inside:avoid">
           <span style="flex-shrink:0;width:14px;height:14px;border:2px solid #0D1420;border-radius:3px;margin-top:1px;display:inline-block"></span>
@@ -3253,20 +3289,20 @@ Responda APENAS JSON válido:
       const hasSwitch = has(/switch/)
       const hasAP = has(/access point|\bap\b|\bu6\b|\bu7\b|unifi ap|antena/)
       const blocos = []
-      if(hasUDM) blocos.push(['UDM / Gateway (Dream Machine)', [
+      if(hasUDM && cat!=='wifi') blocos.push(['UDM / Gateway (Dream Machine)', [
         'Trocar a senha padrão do admin e habilitar 2FA na conta do fabricante.',
         'Administração pela WAN <b>desligada</b>; acesso remoto só pelo app oficial.',
         'Firmware atualizado antes da entrega e updates automáticos ligados.',
         'Backup da configuração salvo (nuvem do fabricante + cópia local).',
         'DNS e horário (NTP) corretos — base para logs e para as câmeras.',
       ]])
-      if(hasSwitch) blocos.push(['Switch PoE', [
+      if(hasSwitch && cat!=='wifi') blocos.push(['Switch PoE', [
         'PoE ligado só nas portas usadas (AP e câmera); demais desabilitadas.',
         'Cada porta nomeada pelo destino (AP-Estar, CAM-Garagem…).',
         'VLANs propagadas do gateway; porta de câmera só na VLAN de CFTV.',
         'Firmware atualizado; senha padrão trocada.',
       ]])
-      if(hasAP) blocos.push(['Antenas (Access Points)', [
+      if(hasAP && cat!=='rede') blocos.push(['Antenas (Access Points)', [
         'Nome do AP = cômodo, para manutenção futura.',
         'Canais 2,4 e 5 GHz sem sobreposição entre APs vizinhos.',
         'Potência ajustada ao ambiente — potência máxima gera interferência, não cobertura.',
@@ -3274,8 +3310,9 @@ Responda APENAS JSON válido:
         '2,4 GHz mantido onde há automação (sensor/keypad não fala 5 GHz).',
       ]])
       if(!blocos.length) return ''
-      return `<h3 class="ex-amb" style="margin-top:16px">Equipamentos — configuração e boas práticas</h3>`
-        + blocos.map(([t,itens])=>`<div style="font-size:11.5px;font-weight:700;color:#0369A1;margin:10px 0 2px">${t}</div>${_ck(itens)}`).join('')
+      // Com cat, o chamador já dá o cabeçalho da categoria (Wi-Fi/Redes) — não repetir o genérico.
+      const head = cat ? '' : `<h3 class="ex-amb" style="margin-top:16px">Equipamentos — configuração e boas práticas</h3>`
+      return head + blocos.map(([t,itens])=>`<div style="font-size:11.5px;font-weight:700;color:#0369A1;margin:10px 0 2px">${t}</div>${_ck(itens)}`).join('')
     }
 
     function buildHeatmap(numFn){
@@ -3399,7 +3436,9 @@ Responda APENAS JSON válido:
           }
         }
       }
-      return `<table class="ex-tbl"><thead><tr>${c.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${r}</tbody></table>`
+      // Cabeçalho de "metros de cabeamento" (m / Metros) ganha a classe ex-m — o mesmo toggle
+      // "metros" que oculta a coluna no rack colapsa aqui também (Raphael: "em todas as tabelas").
+      return `<table class="ex-tbl"><thead><tr>${c.map(x=>`<th${/^(m|Metros)$/.test(String(x))?' class="ex-m"':''}>${x}</th>`).join('')}</tr></thead><tbody>${r}</tbody></table>`
     }
     const esc=s=>(s==null?'':String(s))
 
@@ -3575,12 +3614,12 @@ Responda APENAS JSON válido:
         <td>${esc(r.destino)}</td>
         <td style="font-family:monospace;font-size:10px;color:#059669">${esc(r.device_nome||'—')}</td>
         <td style="font-size:10px">${esc(r.tipo)}</td>
-        <td style="font-size:10px">${esc(r.metros)}m</td>
+        <td class="ex-m" style="font-size:10px">${esc(r.metros)}m</td>
         <td style="font-family:monospace;font-weight:700;color:#0D1420;font-size:10px;background:#FFF7ED;padding:2px 6px;border-radius:3px">${esc(r.etiqueta)}</td>
         <td>${corBadge(r.cor)}</td>
       </tr>`
       const headers = ['Ponto','Porta PP','Device Origem','Porta Origem','Destino','Nome no Sistema','Tipo','m','Etiqueta','Cor']
-      const cols = headers.map(h=>`<th>${h}</th>`).join('')
+      const cols = headers.map(h=>`<th${h==='m'?' class="ex-m"':''}>${h}</th>`).join('')
       // Group by color for visual separation
       const uplink = rows.filter(r=>r.cor==='Cinza'||r.etiqueta?.includes('UPLINK'))
       const aps = rows.filter(r=>r.cor==='Azul'&&!r.etiqueta?.includes('UPLINK'))
@@ -3589,7 +3628,7 @@ Responda APENAS JSON válido:
       const outros = rows.filter(r=>!['Cinza','Azul','Verde','Amarelo'].includes(r.cor)&&!r.etiqueta?.includes('UPLINK'))
       const makeBlock = (label, color, rowsArr) => rowsArr.length ? `
         <div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.5px;padding:6px 0 3px;border-bottom:2px solid ${color};margin:12px 0 6px">${label} — ${rowsArr.length} cabo${rowsArr.length!==1?'s':''}</div>
-        <table class="ex-tbl"><thead><tr>${cols}</tr></thead><tbody>${rowsArr.map(renderRow).join('')}</tbody></table>` : ''
+        <table class="ex-tbl ex-tbl-rack"><thead><tr>${cols}</tr></thead><tbody>${rowsArr.map(renderRow).join('')}</tbody></table>` : ''
       return [
         makeBlock('Uplink / Infraestrutura', '#6B7280', uplink),
         makeBlock('Access Points (PoE)', '#0EA5E9', aps),
@@ -3604,16 +3643,16 @@ Responda APENAS JSON válido:
 
     // Tópico 6 — Cabos de rede com patch panel e etiquetas
     const cabosRedeHtml = (d.cabos_rede||[]).length
-      ? T(d.cabos_rede.map(r=>`<tr>${pinCell(r.destino,r.etiqueta,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td><td><span style="background:${r.cor_etiqueta==='Azul'?'#0EA5E9':r.cor_etiqueta==='Amarelo'?'#D97706':r.cor_etiqueta==='Verde'?'#16A34A':r.cor_etiqueta==='Vermelho'?'#DC2626':'#374151'};color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">${esc(r.cor_etiqueta||'Azul')}</span></td><td style="font-family:monospace;font-size:10px;background:#F0F9FF;color:#0369A1"><b>${esc(r.porta_patch||'-')}</b></td><td style="font-family:monospace;font-size:10px;font-weight:700;color:#0D1420">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['Nº','ID','Origem','Destino','Tipo','Bitola','Metros','Cor Cabo','Porta PP','Etiqueta'])
+      ? T(d.cabos_rede.map(r=>`<tr>${pinCell(r.destino,r.etiqueta,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td class="ex-m">${esc(r.metros)}m</td><td><span style="background:${r.cor_etiqueta==='Azul'?'#0EA5E9':r.cor_etiqueta==='Amarelo'?'#D97706':r.cor_etiqueta==='Verde'?'#16A34A':r.cor_etiqueta==='Vermelho'?'#DC2626':'#374151'};color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">${esc(r.cor_etiqueta||'Azul')}</span></td><td style="font-family:monospace;font-size:10px;background:#F0F9FF;color:#0369A1"><b>${esc(r.porta_patch||'-')}</b></td><td style="font-family:monospace;font-size:10px;font-weight:700;color:#0D1420">${esc(r.etiqueta||'-')}</td></tr>`).join(''),['Nº','ID','Origem','Destino','Tipo','Bitola','Metros','Cor Cabo','Porta PP','Etiqueta'])
       : ''
 
     // Tópico 8 — Cabos elétricos detalhados por cômodo
     const cabosEletHtml = (d.cabos_eletricos_por_comodo||[]).length
       ? d.cabos_eletricos_por_comodo.map(comodo=>`
 <h3 class="ex-amb">${esc(comodo.comodo)}</h3>
-${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</b></td><td>${esc(r.equip)}</td><td>${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.fios)}</td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.metros)}m</td><td style="color:#6B7280;font-size:10px">${esc(r.obs)}</td></tr>`).join(''),['Nº','ID','Equipamento','Tipo','Fios/Bitola','Origem','Destino','m','Obs'])}`).join('')
+${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</b></td><td>${esc(r.equip)}</td><td>${esc(r.tipo)}</td><td style="font-family:monospace;font-size:10px">${esc(r.fios)}</td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td class="ex-m">${esc(r.metros)}m</td><td style="color:#6B7280;font-size:10px">${esc(r.obs)}</td></tr>`).join(''),['Nº','ID','Equipamento','Tipo','Fios/Bitola','Origem','Destino','m','Obs'])}`).join('')
       : (d.cabos_eletricos||[]).length
-        ? T(d.cabos_eletricos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td>${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros'])
+        ? T(d.cabos_eletricos.map(r=>`<tr><td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.tipo)}</td><td>${esc(r.bitola)}</td><td class="ex-m">${esc(r.metros)}m</td></tr>`).join(''),['ID','Origem','Destino','Tipo de cabo','Bitola','Metros'])
         : ''
 
     // Tópico 10 — Módulos e cargas
@@ -4235,7 +4274,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
 
     // ── Tabela Devices no Teto (APs, Câmeras, Caixas de Som, Sensores) ────────
     const tblTeto = (d.tabela_teto||[]).length
-      ? T((d.tabela_teto||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor(r.categoria||'Redes'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}${idCell(r.id)}<td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.instalacao)}</td><td style="font-family:monospace;font-size:10px">${esc(r.origem)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td style="font-size:10px">${esc(r.metros)}m</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
+      ? T((d.tabela_teto||[]).map(r=>`<tr>${(()=>{const n=pinNum(r.id,r.equip)??r.num_planta; return n!=null?`<td style="text-align:center">${pin(n,catColor(r.categoria||'Redes'),_findMk(r.id,r.equip))}</td>`:`<td style="text-align:center;color:#CBD5E1">—</td>`})()}${idCell(r.id)}<td>${esc(r.equip)}</td><td>${esc(r.ambiente)}</td><td style="font-size:10px">${esc(r.instalacao)}</td><td style="font-family:monospace;font-size:10px">${esc(r.origem)}</td><td style="font-size:10px">${esc(r.cabo)}</td><td class="ex-m" style="font-size:10px">${esc(r.metros)}m</td><td style="font-size:10px;color:#D97706">${esc(r.obs||'')}</td></tr>`).join(''),
         ['#',...idHdr,'Equipamento','Ambiente','Posição Teto','Vem de / Origem','Cabo','m','Obs'])
       : (d.modulos_teto||[]).length
         ? (d.modulos_teto||[]).map(mt=>`<h3 class="ex-amb">${esc(mt.ambiente)}</h3>${T((mt.itens||[]).map(it=>`<tr><td>${esc(it)}</td></tr>`).join(''),['Itens de teto / forro'])}`).join('')
@@ -4976,7 +5015,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
             return `<tr><td style="text-align:center">${pin(m.n,undefined,m)}</td><td style="font-family:monospace;font-size:10px"><b>${esc(m.id||m.code||'')}</b></td><td>${esc(cls.tipo)}</td><td>${esc(m.room||'—')}</td><td style="text-align:center;font-weight:700">${esc(sp.caixa||'—')}</td><td style="font-weight:700">${NIVL[alturaOf(m)]||'—'}</td><td style="font-size:10px">${esc(sp.cabo||'—')}</td></tr>`}).join(''),['Nº','ID','Tipo','Cômodo','Caixa','Altura','Cabo']) : ''
         const tabelaAlim = (!secOff('alim_keypads') && (d.alim_keypads||[]).length) ? `<h3 class="ex-amb" style="margin-top:18px">Alimentação dos Keypads (Fase + Neutro)</h3>
           <p class="ex-p" style="color:#6B7280">Keypads exigem neutro no fundo da caixa. Circuito dedicado do quadro.</p>`+
-          T(d.alim_keypads.map(r=>`<tr>${pinCell(r.destino,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td>${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x1,5mm²')}</td></tr>`).join(''),['Nº','ID','Origem','Destino (Keypad)','Altura','Cômodo','m','Fios']) : ''
+          T(d.alim_keypads.map(r=>`<tr>${pinCell(r.destino,r.id)}<td><b>${esc(r.id)}</b></td><td>${esc(r.origem)}</td><td>${esc(r.destino)}</td><td>${esc(r.cota)}</td><td>${esc(r.comodo)}</td><td class="ex-m">${esc(r.metros)}m</td><td style="font-size:10px;color:#6B7280">${esc(r.fios||'2x1,5mm²')}</td></tr>`).join(''),['Nº','ID','Origem','Destino (Keypad)','Altura','Cômodo','m','Fios']) : ''
         return `<div class="ex-obra-page" style="page-break-before:always"><h2 style="border-bottom:3px solid #0D1420;padding-bottom:8px">${embedded?'Elétrica — Caixas e Alimentação (detalhe de obra)':'Elétrica — Planta, Caixas e Alimentação'}</h2>
           <p class="ex-p" style="color:#6B7280">${embedded?'A caixa e altura de cada ponto e a alimentação dos keypads. A planta elétrica NBR está no capítulo de Elétrica acima.':'Tudo da parte elétrica num lugar só: a planta com símbolos NBR, a caixa e altura de cada ponto, e a alimentação dos keypads.'}</p>
           ${plantaEle}${tabelaCaixas}${tabelaAlim}</div>`
@@ -5128,9 +5167,6 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       if(ri>=0 && rf>ri) redesInline = obraFull.slice(ri+16, rf)
     } catch(e){ console.warn('inline obra/cond:',e) }
 
-    // Corpo de Cenas sem o próprio <h3> — o cap() abaixo já dá o título numerado do capítulo.
-    const _cenasBody = blocoCenasHtml().replace('<h3 class="ex-amb" style="margin-top:18px">Cenas e Configurações</h3>','')
-
     return [
     // 1. PREMISSAS — o que o projeto entrega
     (!secOff('t_premissas') && d.premissas?.length) ? cap('Premissas e Escopo do Projeto') + list(d.premissas) + '</div>' : '',
@@ -5151,7 +5187,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     // Wi-Fi ANTES da elétrica (Raphael): rede é o que o cliente vê; a elétrica fecha o bloco técnico.
     secOff('t_wifi') ? '' : (()=>{ const aps=markers.filter(m=>/access point|\bap\b|wi-?fi|u6|unifi ap/.test(((m.name||'')+' '+(m.code||'')).toLowerCase()))
       return (showHeatmap && aps.length) ? (()=>{_cap++; return buildHeatmap(()=>_capNum(_cap))})() : '' })(),
-    secOff('t_eletrica') ? '' : buildPlantaEletrica(()=>_capNum(++_cap), {semCenas:true}),
+    secOff('t_eletrica') ? '' : buildPlantaEletrica(()=>_capNum(++_cap)),
 
     // 6. TETO
     (!secOff('tbl_teto') && plantaTeto) ? cap('Planta de Teto — Itens sobre Forro e Laje',true) + plantaTeto.replace('<div class="ex-sec ex-breakable"><h2>Planta — Itens no Teto</h2>','') + '</div>' : '',
@@ -5179,19 +5215,18 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
     secOff('t_graficos') ? '' : cap('Gráficos e Gestão do Projeto') + (grafico1 + grafico2 + grafico3 + grafico4) +
     (gestaoTxt ? '<h3 class="ex-amb" style="margin-top:18px">Gestão e Controle</h3>' + gestaoTxt : '') + '</div>',
 
-    // BLOCO FINAL (Raphael): "config e melhores praticas no final antes do topico 10, logo depois
-    // Cenas e Configurações, Configurações a fazer e depois a página de senhas — com botões de ocultar".
-    // Cada um com seu próprio toggle. As senhas saem MASCARADAS; em claro só na Folha de Credenciais.
-    secOff('t_config') ? '' : cap('Configurações e Melhores Práticas',true) + blocoRedeHtml() + '</div>',
-    (secOff('t_cenas') || !_cenasBody.trim()) ? '' : cap('Cenas e Configurações',true) + _cenasBody + '</div>',
+    // FIM DO CORPO (Raphael): as fotos do diário vêm por último no corpo, ANTES do guia de
+    // configuração. A "Observações dos Pontos" saiu — a observação de cada ponto já viaja nas
+    // tabelas por cômodo.
+    (!secOff('t_observ') && fotosTxt) ? cap('Fotos do Diário de Obra') + fotosTxt + '</div>' : '',
+
+    // GUIA DE CONFIGURAÇÃO E ENTREGA (Raphael): com tudo fisicamente instalado, o técnico configura
+    // etapa por etapa sem se perder — Wi-Fi → Redes → Câmeras → Configurações a fazer. As Cenas
+    // voltaram para a Planta Elétrica (ocultas por padrão). As senhas fecham o guia, MASCARADAS.
+    secOff('t_config') ? '' : cap('Plano de Instalação — configuração e entrega',true) + blocoRedeHtml() + '</div>',
     secOff('t_senhas') ? '' : cap('Credenciais e Senhas',true) +
       `<p class="ex-p" style="margin-bottom:10px">Senhas <b>mascaradas</b> — referência de quais contas existem e quem é o dono. A versão em claro sai só na <b>Folha de Credenciais</b>, documento à parte, entregue em mão.</p>` +
       blocoCredenciaisHtml(false) + '</div>',
-
-    // 10. FOTOS — a tabela "Observações dos Pontos" saiu (Raphael): a observação de cada ponto
-    // já viaja junto do ponto nas tabelas por cômodo; repetir tudo numa lista solta no fim não
-    // ajudava ninguém. As fotos do diário ficam.
-    (!secOff('t_observ') && fotosTxt) ? cap('Fotos do Diário de Obra') + fotosTxt + '</div>' : '',
 
   ].filter(Boolean).join('\n') })()}
 </div>`
@@ -5948,13 +5983,18 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       const vistos=titulosDe(_full||'')
       // "Planta — Itens no Teto" (obra) e "Plano de Instalação" (título do próprio anexo) são o
       // mesmo conteúdo com outro nome — o dedupe por título não pega, então vão na mão.
-      const anexos = mesclaAnexo(_obra,'Plano de Obra — cabos e infraestrutura',vistos,['Planta — Itens no Teto'])
+      const anexos = mesclaAnexo(_obra,'Plano de Obra — cabos e infraestrutura',vistos,['Planta — Itens no Teto','Rack / CPD'])
         + mesclaAnexo(_ele,'Planta Elétrica — NBR 5444 e quadro de cargas',vistos)
         // Conduítes NÃO entra: o tópico 7 (Cabeamento e Conduítes) já cobre os caminhos por
         // família — o relatório era o mesmo conteúdo em outro nível de detalhe (decisão do
         // Raphael). Continua saindo inteiro no documento "Conduítes", à parte.
-        + mesclaAnexo(_inst,'Plano de Instalação — ponto a ponto, testes e entrega',vistos,['Plano de Instalação'])
-      body = (_full||'') + anexos + listaEquipamentosHtml() + buildWallPage()
+        // Plano de Instalação (anexo) NÃO entra mais no Completo: o corpo já tem o guia
+        // "Plano de Instalação — configuração e entrega" (Wi-Fi/Redes/Câmeras/Config a fazer).
+        // Duplicava câmeras e config de equipamentos (Raphael: "não quero nada duplicado"). Continua
+        // saindo inteiro no documento "Instalação", à parte.
+      // Sem a folha-parede "PLANTA COMPLETA — MAPA DE PONTOS · PARA A OBRA" no Completo (Raphael:
+      // "não quero nada duplicado"): ela só faz sentido no Plano de Obra standalone, pra pregar.
+      body = (_full||'') + anexos + listaEquipamentosHtml()
     } else {
       // TUDO A4 (Raphael). Obra, elétrica e conduítes saíam em A3 PAISAGEM — só o Completo era
       // A4. Era a origem do "Para impressão em A3" que abria o Plano de Obra, e da diferença de
@@ -5975,6 +6015,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
       +'div[style*="padding-bottom:"][style*="position:relative"]{break-inside:avoid!important;page-break-inside:avoid!important}'
       +'.ex-p{orphans:3;widows:3}'
       +'table{break-inside:auto}tr{break-inside:avoid!important;page-break-inside:avoid!important}thead{display:table-header-group}' // TODA tabela (não só .ex-tbl): linha não fatia + cabeçalho repete na página nova
+      +(secOff('metros')?'.ex-m{display:none!important}':'') // "metros de cabeamento" nascem ocultos (Raphael) — toggle "metros"
       +'</style>'
     const _pgIsA3 = (execMode==='obra'||execMode==='eletrica'||execMode==='conduites')
     const _previewCss = preview ? `<style>html{background:#525659}body{max-width:${_pgIsA3?1512:703}px;margin:10px auto!important;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.35);padding:0 8px}</style>` : ''
@@ -7902,9 +7943,9 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                 {secTit('Ocultar por tópico — '+modo)}
                 <div style={{fontSize:10,color:'rgba(255,255,255,0.42)',marginBottom:7}}><b>Tópico</b> tira o título + planta + tabela. <b>Só tabela</b> mantém a planta. Riscado = fora. Só aparecem os tópicos <b>deste documento</b>.</div>
                 {(()=>{
-                  const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança (em Cabeamento)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','↳ Lista geral de pontos elétricos (oculta por padrão)'],['caixas_embutir','↳ Caixas de embutir — resumo (oculta por padrão)'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto','tbl_teto_tab'],['t_conduites','Cabeamento e conduítes'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_config','Configurações e melhores práticas'],['t_cenas','Cenas e configurações'],['t_senhas','Credenciais e senhas (mascaradas)'],['t_observ','Observações e fotos']]
+                  const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança — câmeras e sensores (oculto por padrão)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['metros','↳ Metros de cabeamento nas tabelas (oculto por padrão)'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','↳ Lista geral de pontos elétricos (oculta por padrão)'],['caixas_embutir','↳ Caixas de embutir — resumo (oculta por padrão)'],['checklist_ele','↳ Checklist elétrico (oculto por padrão)'],['t_cenas','↳ Cenas e configurações — na planta elétrica (oculto por padrão)'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto','tbl_teto_tab'],['t_conduites','Cabeamento e conduítes'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos'],['t_config','Plano de Instalação — configuração e entrega'],['t_senhas','Credenciais e senhas (mascaradas)']]
                   const OBRA=[['t_obra_eletrica','1. Elétrica (caixas + alimentação)'],['lista_geral','↳ Lista geral de pontos elétricos'],['pontos_tabela','↳ Pontos elétricos — caixas e alturas'],['alim_keypads','↳ Alimentação dos keypads'],['t_quant','2. Quantitativo de material'],['t_cabos','3. Cabeamento por família'],['t_checklists','4. Checklists de obra']]
-                  const ELE=[['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','Lista geral de pontos elétricos'],['caixas_embutir','Caixas de embutir — resumo'],['quadro_cargas','Quadro de cargas']]
+                  const ELE=[['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','Lista geral de pontos elétricos'],['caixas_embutir','Caixas de embutir — resumo'],['quadro_cargas','Quadro de cargas'],['checklist_ele','Checklist elétrico'],['t_cenas','Cenas e configurações']]
                   const COND=[['t_conduites','Cabeamento e conduítes'],['t_cabos','Cabeamento por família']]
                   // Só os grupos de tópico FIÉIS ao documento na tela (Raphael).
                   const grupos = execMode==='completo' ? [['Projeto Executivo',EXEC],['Plano de Obra (anexo)',OBRA]]
@@ -8036,7 +8077,7 @@ ${T((comodo.itens||[]).map(r=>`<tr>${pinCell(r.id,r.equip)}<td><b>${esc(r.id)}</
                     <span style={{fontSize:12,color:'#fff',fontWeight:600,display:'block'}}>Ocultar do documento — por tópico</span>
                     <span style={{fontSize:10,color:'rgba(255,255,255,0.42)',display:'block',margin:'2px 0 7px'}}><b>Tópico</b> tira o título + planta + tabela. <b>Só tabela</b> mantém a planta. Riscado = fora.</span>
                     {(()=>{
-                      const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança (em Cabeamento)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','↳ Lista geral de pontos elétricos (oculta por padrão)'],['caixas_embutir','↳ Caixas de embutir — resumo (oculta por padrão)'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto','tbl_teto_tab'],['t_conduites','Cabeamento e conduítes'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_config','Configurações e melhores práticas'],['t_cenas','Cenas e configurações'],['t_senhas','Credenciais e senhas (mascaradas)'],['t_observ','Observações e fotos']]
+                      const EXEC=[['t_premissas','Premissas e escopo'],['t_planta','Planta de pontos'],['pos_altura','Detalhes de pontos por cômodo'],['itens_unicos','Resumo por item (únicos)'],['tbl_som','Som ambiente (em Cabeamento)'],['tbl_seguranca','Segurança — câmeras e sensores (oculto por padrão)'],['tbl_rack','Rack / CPD','tbl_rack_tab'],['metros','↳ Metros de cabeamento nas tabelas (oculto por padrão)'],['t_eletrica','Planta elétrica (ABNT)','t_eletrica_tab'],['lista_geral','↳ Lista geral de pontos elétricos (oculta por padrão)'],['caixas_embutir','↳ Caixas de embutir — resumo (oculta por padrão)'],['checklist_ele','↳ Checklist elétrico (oculto por padrão)'],['t_cenas','↳ Cenas e configurações — na planta elétrica (oculto por padrão)'],['t_wifi','Cobertura Wi-Fi'],['tbl_teto','Teto','tbl_teto_tab'],['t_conduites','Cabeamento e conduítes'],['t_pecas','Equipamentos e peças (oculto por padrão)'],['t_graficos','Gráficos e gestão'],['t_observ','Observações e fotos'],['t_config','Plano de Instalação — configuração e entrega'],['t_senhas','Credenciais e senhas (mascaradas)']]
                       const OBRA=[['t_obra_eletrica','1. Elétrica (caixas + alimentação)'],['lista_geral','↳ Lista geral de pontos elétricos'],['pontos_tabela','↳ Pontos elétricos — caixas e alturas'],['alim_keypads','↳ Alimentação dos keypads'],['t_quant','2. Quantitativo de material'],['t_cabos','3. Cabeamento por família'],['t_checklists','4. Checklists de obra']]
                       const allKeys=[...EXEC,...OBRA].map(t=>t[0])
                       const off=k=>hideSecs.has(k)
@@ -8108,6 +8149,11 @@ const EXEC_CSS=`
 .ex-tbl td{padding:5px 8px;border-bottom:1px solid #ECF2F8;vertical-align:top}
 .ex-tbl tr:nth-child(even) td{background:#F7FAFE}
 .ex-tbl tr:hover td{background:#EEF6FF}
+/* Tabela de portas do rack: 10 colunas — trava a largura na página (table-layout:fixed) e deixa
+   quebrar o texto, senão estoura a margem direita (Raphael). */
+.ex-tbl-rack{table-layout:fixed}
+.ex-tbl-rack th{white-space:normal;word-break:break-word;font-size:8.5px;padding:4px 5px;letter-spacing:0}
+.ex-tbl-rack td{font-size:9px;padding:4px 5px;word-break:break-word;overflow-wrap:anywhere}
 /* Linha de continuação quando tabela quebra de página */
 .ex-tbl tbody tr{page-break-inside:avoid;break-inside:avoid}
 
